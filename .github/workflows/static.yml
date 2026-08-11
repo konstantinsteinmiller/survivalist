@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: main
           path: main
@@ -35,15 +35,18 @@ jobs:
 #          ref: develop
 #          path: develop
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         with:
-          version: 10.6.2
+          # Matches the pnpm that generated pnpm-lock.yaml (lockfileVersion 9).
+          version: 10.30.3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '22.8.0'
+          # package.json engines requires ^25.5.0 || >=22.12.0 — the previous
+          # pin of 22.8.0 did not satisfy it.
+          node-version: '24'
 
       - name: Clean install dependencies (Main)
         run: |
@@ -80,14 +83,18 @@ jobs:
 #      - name: Copy Develop Build
 #        run: cp -r develop/dist/* dist/develop/
 
+      # Requires GitHub Pages to be enabled on the repo with the source set to
+      # "GitHub Actions" (Settings → Pages). This action can create the site
+      # itself via `enablement: true`, but that needs a PAT — the default
+      # GITHUB_TOKEN is not permitted to enable Pages.
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

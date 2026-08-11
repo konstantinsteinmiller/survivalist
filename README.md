@@ -6,6 +6,9 @@ sides. Every block has HP. When one breaks, anything it was holding up
 **collapses**. The run ends when the Gate falls — then you spend what you earned
 in the tech tree and build a taller, meaner tower.
 
+WIP: [playable demo](https://konstantinsteinmiller.github.io/tower-siege/)
+
+
 Built with Vue 3 + TypeScript + Canvas 2D, shipping to CrazyGames, Playgama,
 GamePix, GameMonetize, GameDistribution, Glitch.fun, itch.io, Wavedash and
 Yandex Games from one codebase.
