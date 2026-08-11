@@ -29,11 +29,11 @@ jobs:
           ref: main
           path: main
 
-      - name: Checkout develop
-        uses: actions/checkout@v4
-        with:
-          ref: develop
-          path: develop
+#      - name: Checkout develop
+#        uses: actions/checkout@v4
+#        with:
+#          ref: develop
+#          path: develop
 
       - uses: pnpm/action-setup@v4
         name: Install pnpm
@@ -51,11 +51,11 @@ jobs:
           pnpm install --no-frozen-lockfile
         working-directory: main
 
-      - name: Clean install dependencies (Develop)
-        run: |
-          rm -rf develop/node_modules
-          pnpm install --no-frozen-lockfile
-        working-directory: develop
+#      - name: Clean install dependencies (Develop)
+#        run: |
+#          rm -rf develop/node_modules
+#          pnpm install --no-frozen-lockfile
+#        working-directory: develop
 
       - name: Build Main Production
         run: npm run build-github-main
@@ -64,12 +64,12 @@ jobs:
           VITE_APP_TURN_USERNAME: ${{ secrets.VITE_APP_TURN_USERNAME }}
           VITE_APP_TURN_CREDENTIAL: ${{ secrets.VITE_APP_TURN_CREDENTIAL }}
 
-      - name: Build Develop Production
-        run: npm run build-github-develop
-        working-directory: develop
-        env:
-          VITE_APP_TURN_USERNAME: ${{ secrets.VITE_APP_TURN_USERNAME }}
-          VITE_APP_TURN_CREDENTIAL: ${{ secrets.VITE_APP_TURN_CREDENTIAL }}
+#      - name: Build Develop Production
+#        run: npm run build-github-develop
+#        working-directory: develop
+#        env:
+#          VITE_APP_TURN_USERNAME: ${{ secrets.VITE_APP_TURN_USERNAME }}
+#          VITE_APP_TURN_CREDENTIAL: ${{ secrets.VITE_APP_TURN_CREDENTIAL }}
 
       - name: Create Dist Folder
         run: mkdir dist
@@ -77,8 +77,8 @@ jobs:
       - name: Copy Main Build
         run: cp -r main/dist/* dist/
 
-      - name: Copy Develop Build
-        run: cp -r develop/dist/* dist/develop/
+#      - name: Copy Develop Build
+#        run: cp -r develop/dist/* dist/develop/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

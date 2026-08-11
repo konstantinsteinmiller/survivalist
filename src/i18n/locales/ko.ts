@@ -1,198 +1,264 @@
 export default {
-  'ads': {
-    'watch': '시청', 'revive': '부활', 'secondChance': '두 번째 기회', 'doubleCoins': '2× 코인', 'plusCoins': '+{n} 코인'
-  },
-  'achievements': {
-    'title': '업적', 'subtitle': '평생 이정표를 달성해 코인을 받으세요.', 'claim': '수령', 'claimed': '수령함', 'progress': '{c} / {t}',
-    'items': {
-      'tiles1k': { 'name': '세계 여행자', 'desc': '총 1,000타일을 이동하세요.' },
-      'tiles5k': { 'name': '마라토너', 'desc': '총 5,000타일을 이동하세요.' },
-      'tiles10k': { 'name': '장거리 주자', 'desc': '총 10,000타일을 이동하세요.' },
-      'tiles100k': { 'name': '여행자', 'desc': '총 100,000타일을 이동하세요.' },
-      'stage5': { 'name': '첫걸음', 'desc': '스테이지 5에 도달하세요.' },
-      'stage10': { 'name': '숙련자', 'desc': '스테이지 10에 도달하세요.' },
-      'stage20': { 'name': '베테랑', 'desc': '스테이지 20에 도달하세요.' },
-      'clears25': { 'name': '청소부', 'desc': '총 25스테이지를 클리어하세요.' },
-      'clears100': { 'name': '백부장', 'desc': '총 100스테이지를 클리어하세요.' },
-      'bestRun100': { 'name': '단거리 주자', 'desc': '한 판에 100타일을 이동하세요.' },
-      'bestRun250': { 'name': '거리의 악마', 'desc': '한 판에 250타일을 이동하세요.' },
-      'coins5k': { 'name': '코인 수집가', 'desc': '총 5,000코인을 모으세요.' },
-      'coins50k': { 'name': '회계 담당', 'desc': '총 50,000코인을 모으세요.' },
-      'items50': { 'name': '개봉자', 'desc': '총 50개의 아이템 상자를 획득하세요.' },
-      'items250': { 'name': '수집광', 'desc': '총 250개의 아이템 상자를 획득하세요.' }
-    }
-  },
-  'gameName': 'Epicrolla',
+  'gameName': 'Tower Siege',
   'cancel': '취소',
   'close': '닫기',
   'ok': '확인',
   'continue': '계속',
   'tapToContinue': '탭하여 계속',
   'clickToContinue': '클릭하여 계속',
-  'stage': '스테이지',
   'rewards': '보상',
   'tip': '팁',
-  'crazyGamesOnly': '이 게임은 다음에서만 플레이할 수 있습니다',
-  'startTouch': '탭하여 시작',
-  'startDesktop': '클릭하여 시작',
-  'startSubhint': '위로 굴러가세요 — 방향을 바꿔 구멍과 장애물을 피하세요!',
-  'hints': {
-    'tapToTurn': '탭하여 방향 전환',
-    'clickToTurn': '클릭 / 스페이스로 방향 전환'
+  'crazyGamesOnly': '이 게임은 다음에서만 이용할 수 있습니다:',
+
+  'hud': {
+    'wave': '웨이브', 'enemies': '적', 'callWave': '웨이브 호출', 'callBoss': '보스 호출',
+    'speed': '속도 {n}×',
+    'speedOffer': '광고 보고 2배속',
+    'speedFor': '{n}분', 'recenter': '화면 중앙 정렬'
   },
-  'powerups': {
-    'invuln': '무적',
-    'magnet': '코인 자석',
-    'dodge': '회피 마스터',
-    'slowmo': '슬로 모션',
-    'push': '밀어내기',
-   'racer': '레이서!' },
-  'secondChance': {
-    'title': '계속할까요?',
-    'body': '짧은 광고를 보고 부활하여 계속하세요.',
-    'watch': '보고 계속하기',
+
+  'hints': {
+    'selectBlock': { 'touch': '아래 블록을 탭해 선택하세요', 'desktop': '아래 블록을 클릭해 선택하세요' },
+    'placeBlock': { 'touch': '이제 빛나는 칸을 탭해 건설하세요', 'desktop': '이제 빛나는 칸을 클릭해 건설하세요' },
+    'camera': { 'touch': '드래그로 이동 · 핀치로 확대', 'desktop': '드래그로 이동 · 스크롤로 확대' },
+    'callWave': { 'touch': '타워가 준비되면 «웨이브 호출»을 탭하세요', 'desktop': '스페이스바로 웨이브를 일찍 호출' },
+    'inspect': { 'touch': '블록을 길게 눌러 확인하세요', 'desktop': '블록을 클릭해 확인하세요' }
+  },
+
+  'blocks': {
+    'sell': '판매',
+    'roofNote': '지붕 있음 — 위에는 아무것도 지을 수 없습니다.',
+    'enhancedNote': '강화됨 — 체력과 피해량이 더 높습니다.',
+    'enhancedHand': '강화 블록',
+    'reroll': '이 조각 교체',
+    'kinds': { 'core': '핵심', 'structure': '구조', 'weapon': '무기', 'economy': '경제', 'utility': '보조' },
+    'stats': {
+      'hp': '체력', 'armor': '방어', 'dmg': '피해', 'cooldown': '재사용', 'range': '사거리',
+      'splash': '범위', 'yieldWood': '목재 / 웨이브', 'yieldStone': '석재 / 웨이브', 'yieldCoins': '코인 / 웨이브',
+      'repair': '수리 / 웨이브', 'blast': '폭발',
+      'thorns': '가시'
+    },
+    'names': {
+      'gate': '성문', 'wood': '나무 상자', 'brace': '보강 상자', 'stone': '석재 블록',
+      'archer': '궁수탑', 'cannon': '대포', 'mortar': '박격포', 'tesla': '번개 코일',
+      'frost': '서리 첨탑', 'repair': '수리소',
+      'sawmill': '제재소', 'quarry': '채석장', 'mint': '금광',
+      'spikes': '가시벽',
+      'bombard': '박격포탑'
+    },
+    'descriptions': {
+      'gate': '타워의 심장. 무너지면 공성전은 끝납니다.',
+      'wood': '저렴한 채움재. 초반 타워의 척추.',
+      'brace': '목재는 두 배, 내구는 두 배 이상.',
+      'stone': '무겁고 방어력이 높습니다. 바닥에 가장 적합.',
+      'archer': '단일 대상 빠른 화살. 비행 적도 맞힙니다.',
+      'cannon': '느리지만 강력한 범위 피해. 밀집한 무리를 녹입니다.',
+      'mortar': '장거리 곡사 포격 — 다만 비행 적은 맞히지 못합니다.',
+      'tesla': '근처 적들 사이로 튀는 번개.',
+      'frost': '무리 전체를 얼려 크게 둔화시킵니다.',
+      'repair': '웨이브 사이에 인접 블록을 수리합니다.',
+      'sawmill': '웨이브를 막을 때마다 목재를 생산합니다.',
+      'quarry': '웨이브를 막을 때마다 석재를 생산합니다.',
+      'mint': '웨이브를 막을 때마다 코인을 생산합니다.',
+      'spikes': '때리는 적은 매번 그 피해를 그대로 되돌려 받습니다.',
+      'bombard': '포탄을 수직으로 쏘아 올립니다. 폭발은 작고 지상 목표만 타격.'
+    }
+  },
+
+  'enemies': {
+    'names': {
+      'grunt': '병졸', 'runner': '주자', 'slinger': '투석병', 'brute': '거한',
+      'bomber': '폭탄병', 'bat': '박쥐', 'bulwark': '방패병', 'golem': '공성 골렘',
+      'wyvern': '와이번',
+      'eel': '바다뱀',
+      'kraken': '크라켄',
+      'ram': '충차',
+      'ballista': '발리스타',
+      'catapult': '투석기',
+      'siegeTower': '공성탑',
+      'trebuchet': '트레뷰셋',
+      'ironRam': '철갑 충차',
+      'bombardier': '폭격병',
+      'firebug': '화염병 투척병'
+    }
+  },
+
+  // ─── First-stage tutorial ─────────────────────────────────────────────────
+  'tutorial': {
+    'gate': '성문을 지켜라. 무너지면 끝이다.',
+    'pick': '조각을 하나 골라라.',
+    'place': '성문 옆에 놓아라.',
+    'call': '준비되면 웨이브를 불러라.',
+    'next': '다음',
+    'offer': '튜토리얼이 필요한가요?',
+    'start': '시작',
     'skip': '건너뛰기'
   },
+
+  // ─── Allies ───────────────────────────────────────────────────────────────
+  'allies': {
+    'cavalry': '기병'
+  },
+
   'result': {
-    'win': '스테이지 클리어!',
-    'lose': '게임 오버',
-    'fell': '구멍에 빠졌습니다!',
-    'crashed': '장애물에 부딪혔습니다!',
-    'tiles': '타일',
-    'winReward': '+{n} 스테이지 보너스 포함',
+    'towerFell': '타워가 무너졌다!',
+    'reachedWave': '웨이브 {n}까지 버텼습니다',
+    'newRecord': '신기록!',
+    'defeated': '처치',
+    'reward': '보상',
+    'upgrade': '업그레이드!',
+    'defendAgain': '다시 방어',
     'double': '코인 2배',
-    'firstRunDouble': '2배 — 오늘 첫 플레이!',
-   'almost': '거의! {n}칸 남았어요.', 'retry': '다시 시도', },
-  'upgrades': {
-    'title': '업그레이드',
-    'subtitle': '코인을 사용해 영구적으로 강화하세요.',
-    'level': 'Lv.{n}',
-    'maxedOut': '최대',
-    'sellBack': '판매 +{n}',
-    'spotlight': '사용하기!',
-    'unlocksAtStage': '🔒 스테이지 {n}',
+    'firstRunDouble': '2× — 오늘의 첫 공성전!',
+    'tripleWave': '코인 3배 — {n}',
+    'waveCleared': '웨이브 {n} 방어 성공!'
+  },
+
+  'tech': {
+    'title': '테크 트리',
+    'rank': '등급 {current}/{total}',
+    'maxed': '최대',
+    'rankOpen': '{n}랭크',
+    'owned': '해금됨',
+    'requires': '필요: {n}',
+    'spotlight': '사용하세요!',
     'names': {
-      'powerupDuration': '파워 부스트',
-      'magnetRange': '자석 범위',
-      'coinValue': '코인 가치',
-      'itemLuck': '행운 상자',
-      'dodgeApprentice': '회피 견습생',
-      'deathMagnet': '죽음의 자석',
-      'autoCollect': '자동 수집',
-      'rollingBoulder': '구르는 바위'
+      'foundations': '기초', 'sharpBolts': '날카로운 화살', 'unlockBrace': '보강 상자',
+      'lumberStock': '목재 비축', 'longSight': '원시', 'rapidFire': '속사',
+      'reinforced': '보강 들보', 'unlockSawmill': '제재소', 'quarryStock': '석재 비축',
+      'unlockMortar': '박격포', 'heavyOrdnance': '중포', 'unlockTesla': '번개 코일',
+      'gateArmor': '성문 장갑', 'unlockQuarry': '채석장', 'richHauls': '풍성한 전리품',
+      'wideFoundation': '넓은 기초', 'siegeShells': '공성 포탄', 'unlockFrost': '서리 첨탑',
+      'forkedBolts': '갈라지는 번개', 'ironPlating': '철갑', 'unlockRepair': '수리소',
+      'unlockMint': '금광', 'looting': '약탈', 'overcharge': '과충전',
+      'masterwork': '명작', 'fieldRepairs': '야전 수리', 'greatFoundation': '대기초',
+      'warChest': '군자금',
+      'unlockSpikes': '가시벽',
+      'unlockBombard': '박격포탑',
+      'sharpSpikes': '날 선 가시',
+      'cavalryDrill': '기병 훈련',
+      'artilleryDoctrine': '포병 교리'
     },
     'descriptions': {
-      'powerupDuration': '모든 파워업 지속시간 증가 (레벨당 +0.75초).',
-      'magnetRange': '코인 자석의 범위가 넓어집니다.',
-      'coinValue': '각 코인의 가치가 높아집니다.',
-      'itemLuck': '아이템 상자가 더 자주 등장합니다.',
-      'dodgeApprentice': '치명적인 타일을 1회 자동 회피 후 재충전 (10초, 레벨당 −0.5초).',
-      'deathMagnet': '죽을 때 4타일 이내의 모든 코인을 끌어당김 — 잃었을 코인을 회수합니다.',
-      'autoCollect': '근처 타일의 코인을 항상 수집 — 영구적인 1타일 코인 자석.',
-      'rollingBoulder': '상자 장애물을 피해 없이 그대로 굴러서 통과합니다.'
-    },
-    'secondChance': {
-      'name': '두 번째 기회',
-      'description': '천사의 날개로 매 판을 시작 — 충돌이나 추락을 한 번 버팁니다. 사용 전까지 유지.',
-      'active': '활성',
-      'watch': '무료'
+      'foundations': '모든 블록이 체력 +10%로 시작합니다.',
+      'sharpBolts': '모든 무기의 피해가 등급당 +8%.',
+      'unlockBrace': '보강 상자 해금 — 목재의 두 배 체력.',
+      'lumberStock': '공성전 시작 목재가 등급당 +25.',
+      'longSight': '모든 무기의 사거리가 등급당 +10%.',
+      'rapidFire': '모든 무기의 공격 속도가 등급당 +8%.',
+      'reinforced': '모든 블록의 체력이 등급당 +8%.',
+      'unlockSawmill': '제재소 해금 — 매 웨이브 목재 생산.',
+      'quarryStock': '공성전 시작 석재가 등급당 +18.',
+      'unlockMortar': '박격포 해금 — 장거리 범위 피해.',
+      'heavyOrdnance': '범위 반경이 등급당 +15%.',
+      'unlockTesla': '번개 코일 해금 — 번개가 적 사이로 튑니다.',
+      'gateArmor': '성문 체력이 등급당 +20%.',
+      'unlockQuarry': '채석장 해금 — 매 웨이브 석재 생산.',
+      'richHauls': '웨이브 보상이 등급당 +12%.',
+      'wideFoundation': '건설 가능 폭이 등급당 2칸 확장.',
+      'siegeShells': '모든 무기의 피해가 등급당 +10%.',
+      'unlockFrost': '서리 첨탑 해금 — 무리 전체를 둔화.',
+      'forkedBolts': '번개가 등급당 적 1명에게 더 튑니다.',
+      'ironPlating': '모든 블록의 방어가 등급당 +2.',
+      'unlockRepair': '수리소 해금 — 매 웨이브 인접 블록 회복.',
+      'unlockMint': '금광 해금 — 매 웨이브 코인 생산.',
+      'looting': '적의 코인 드롭이 등급당 +15%.',
+      'overcharge': '모든 무기의 공격 속도가 등급당 +10%.',
+      'masterwork': '모든 무기의 피해가 등급당 +12%.',
+      'fieldRepairs': '방어한 웨이브마다 각 블록이 최대 체력의 6%를 등급당 회복.',
+      'greatFoundation': '건설 가능 폭이 등급당 2칸 더 확장.',
+      'warChest': '웨이브 보상이 등급당 +15%.',
+      'unlockSpikes': '가시벽 해금 — 공격한 적이 스스로 다칩니다.',
+      'unlockBombard': '박격포탑 해금 — 지상군을 향한 근거리 박격 사격.',
+      'sharpSpikes': '가시벽의 반사 피해가 랭크당 +20%.',
+      'cavalryDrill': '기병의 체력과 피해량이 랭크당 +14%.',
+      'artilleryDoctrine': '모든 무기의 사거리가 랭크당 +9%.'
     }
   },
-  'battlePass': {
-    'title': '배틀 패스',
-    'progress': '{current} / {total}',
-    'daysLeft': '{n}일 남음',
-    'maxed': '배틀 패스 완료',
-    'xpProgress': '{current} / {total} XP',
-    'howToEarn': 'XP 획득 방법',
-    'perAttempt': '플레이당',
-    'perStageFinish': '스테이지당',
-    'unlockHint': '{n} XP에 도달하면 다음 보상 해금 — 미수령 보상은 유지됩니다.'
+
+  'resources': {
+    'wood': '목재',
+    'stone': '석재',
+    'coins': '코인'
   },
-  'dailyRewards': {
-    'title': '일일 보상',
-    'subtitle': '매일 접속하여 연속 출석을 유지하세요.',
-    'day': '{n}일차',
-    'dayShort': 'D{n}'
+
+  'ads': {
+    'watch': '시청', 'revive': '부활', 'secondChance': '두 번째 기회',
+    'doubleCoins': '2× 코인', 'plusCoins': '+{n} 코인'
   },
-  'skins': {
-    'title': '공 스킨',
-    'subtitle': '코인을 사용해 새로운 모습을 잠금 해제하고 장착하세요.',
-    'equip': '장착',
-    'equipped': '장착됨',
-   'locked': '스테이지 {n}', 'new': '신규!', 'rarity': { 'common': '일반', 'rare': '희귀', 'epic': '에픽' }, },
+
+  'achievements': {
+    'title': '업적', 'subtitle': '누적 목표를 달성해 코인을 얻으세요.',
+    'claim': '수령', 'claimed': '수령함', 'progress': '{c} / {t}',
+    'items': {
+      'wave5': { 'name': '첫 저항', 'desc': '웨이브 5까지 버티세요.' },
+      'wave10': { 'name': '요새', 'desc': '웨이브 10까지 버티세요.' },
+      'wave20': { 'name': '방벽', 'desc': '웨이브 20까지 버티세요.' },
+      'wave30': { 'name': '불굴', 'desc': '웨이브 30까지 버티세요.' },
+      'waves50': { 'name': '방파제', 'desc': '누적 50 웨이브를 막으세요.' },
+      'waves250': { 'name': '공성 베테랑', 'desc': '누적 250 웨이브를 막으세요.' },
+      'kills500': { 'name': '수호자', 'desc': '누적 500명의 적을 처치하세요.' },
+      'kills5k': { 'name': '학살자', 'desc': '누적 5,000명의 적을 처치하세요.' },
+      'kills50k': { 'name': '전설', 'desc': '누적 50,000명의 적을 처치하세요.' },
+      'height10': { 'name': '하늘로', 'desc': '높이 10블록의 타워를 지으세요.' },
+      'height20': { 'name': '구름 뚫기', 'desc': '높이 20블록의 타워를 지으세요.' },
+      'blocks250': { 'name': '건축가', 'desc': '누적 250개의 블록을 설치하세요.' },
+      'blocks2k': { 'name': '설계자', 'desc': '누적 2,000개의 블록을 설치하세요.' },
+      'coins5k': { 'name': '코인 수집가', 'desc': '누적 5,000 코인을 벌으세요.' },
+      'coins50k': { 'name': '재무관', 'desc': '누적 50,000 코인을 벌으세요.' },
+      'runs25': { 'name': '끈기', 'desc': '25번의 공성전을 시작하세요.' }
+    }
+  },
+
   'missions': {
-    'title': '일일 미션',
-    'subtitle': '매일 목표를 달성하고 코인을 받으세요.',
-    'claim': '받기',
-    'done': '받음',
+    'title': '일일 미션', 'subtitle': '매일 목표를 완료하고 코인을 받으세요.',
+    'claim': '수령', 'done': '수령함',
     'types': {
-      'coins': '오늘 코인 {n}개 모으기',
-      'tiles': '한 판에 {n} 타일 이동하기',
-      'items': '오늘 아이템 상자 {n}개 획득하기',
-      'clears': '오늘 스테이지 {n}개 클리어하기'
+      'coins': '오늘 {n} 코인 획득',
+      'waves': '한 번의 공성전에서 웨이브 {n}까지 버티기',
+      'kills': '오늘 적 {n}명 처치',
+      'blocks': '오늘 블록 {n}개 설치'
     }
   },
-  'endless': {
-    'badge': '엔드리스',
-    'toEndless': '엔드리스 모드',
-    'toCampaign': '캠페인',
-    'best': '최고: {n}'
+
+  'battlePass': {
+    'title': '배틀패스', 'progress': '{current} / {total}', 'daysLeft': '{n}일 남음',
+    'maxed': '배틀패스 완료', 'xpProgress': '{current} / {total} XP',
+    'howToEarn': 'XP 획득 방법', 'perRun': '공성전당', 'perWave': '방어한 웨이브당',
+    'unlockHint': '{n} XP를 모으면 다음 보상이 해금됩니다 — 수령하지 않은 보상은 그대로 남습니다.'
   },
-  'boon': {
-    'title': '혜택 선택',
-    'names': {
-      'secondChance': '두 번째 기회',
-      'startPowerup': '선출발',
-      'coinBoost': '코인 러시'
-    },
-    'descriptions': {
-      'secondChance': '다음 스테이지를 두 번째 기회 보호막과 함께 시작합니다.',
-      'startPowerup': '다음 스테이지를 무작위 파워업과 함께 시작합니다.',
-      'coinBoost': '다음 스테이지 전체에서 코인 1.2배.'
-    }
+
+  'dailyRewards': {
+    'title': '일일 보상', 'subtitle': '매일 접속해 연속 기록을 이어가세요.',
+    'day': '{n}일차', 'dayShort': 'D{n}'
   },
+
   'options': {
-    'title': '옵션',
-    'general': '일반',
-    'audio': '오디오',
-    'language': '언어',
-    'difficulty': '난이도',
-    'soundEffects': '음향 효과',
-    'music': '음악',
-    'musicTrack': '음악 트랙',
-    'musicTracks': {
-      'cozy': '아늑한 하모니',
-      'trance': '트랜스 터널'
-    },
+    'title': '설정', 'general': '일반', 'audio': '오디오', 'language': '언어',
+    'difficulty': '난이도', 'soundEffects': '효과음', 'music': '음악', 'musicTrack': '음악 트랙',
+    'musicTracks': { 'cozy': '아늑한 하모니', 'trance': '트랜스 터널' },
     'close': '저장 후 닫기',
     'difficulties': { 'easy': '쉬움', 'medium': '보통', 'hard': '어려움' },
     'difficultyHints': {
-      'easy': '이동 속도가 느려져 반응할 시간이 늘어납니다.',
-      'medium': '표준 균형 속도.',
-      'hard': '이동 속도가 빨라져 더 정밀한 타이밍이 필요합니다.'
+      'easy': '웨이브가 작고 적이 약합니다.',
+      'medium': '표준적이고 균형 잡힌 공성전.',
+      'hard': '웨이브가 빽빽하고 적이 단단합니다.'
     }
   },
+
   'adsBlocked': {
     'title': '광고를 표시할 수 없습니다',
-    'body': '보상을 받을 수 있도록 동영상을 보여드리려 했지만, 브라우저의 무언가가 광고를 차단하고 있습니다.',
-    'allowPrefix': '다음에서 광고를 허용해 주세요:',
-    'allowSuffix': '(또는 이 게임에 대한 광고 차단기를 일시 중지하고) 다시 시도하세요.',
-    'gotIt': '확인'
+    'body': '보상을 드리려고 영상을 재생하려 했지만, 브라우저의 무언가가 광고를 차단하고 있습니다.',
+    'allowPrefix': '다음 사이트에서 광고를 허용해 주세요:',
+    'allowSuffix': '(또는 이 게임에 한해 광고 차단기를 일시 중지) 후 다시 시도하세요.',
+    'gotIt': '알겠습니다'
   },
   'saveStatus': {
-    'restoredTitle': '클라우드 저장 복원됨',
-    'restoredBody': '복구 보너스로 +{n} 코인',
-    'tap': '탭',
-    'pausedTitle': '클라우드 동기화 일시 중지됨',
+    'restoredTitle': '클라우드 저장이 복원되었습니다', 'restoredBody': '복구 보너스 +{n} 코인',
+    'tap': '탭', 'pausedTitle': '클라우드 동기화 일시 중지',
     'pausedBody': '오프라인으로 플레이 중입니다. 진행 상황은 여기에 저장됩니다.',
-    'retry': '다시 시도',
-    'dismiss': '닫기'
+    'retry': '다시 시도', 'dismiss': '닫기'
   },
-  'loading': {
-    'tooLong': '로딩이 너무 오래 걸리나요? 광고 차단기를 끄고 새로고침하세요.'
-  },
-  'license': {
-    'denied': '접근이 거부되었습니다. 라이선스를 구매하세요.'
-  }
+  'loading': { 'tooLong': '로딩이 너무 오래 걸리나요? 광고 차단기를 끄고 새로고침하세요.' },
+  'license': { 'denied': '접근이 거부되었습니다: 라이선스를 구매해 주세요.' }
 }

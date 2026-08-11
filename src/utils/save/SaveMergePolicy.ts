@@ -9,11 +9,14 @@
 // the player's actual keys. The blob lets the next hydrate score local vs.
 // remote and pick a winner deterministically without prompting.
 //
-// Score formula (locked with product):
-//   stage              × 500
-// + totalUpgradeLevels × 150
-// + ownedNormalSkins   × 250
-// + ownedSpecialSkins  × 1500
+// Score formula (Tower Siege):
+//   bestWave         × 500
+// + totalTechLevels  × 150
+// + runsPlayed       ×  10
+//
+// `bestWave` is the headline progress number (highest wave ever survived),
+// tech levels are the permanent spend, and the run counter breaks ties between
+// two saves that reached the same wave with the same build.
 //
 // Conflict policy:
 //   - higher score wins
@@ -22,8 +25,8 @@
 //   - if remote wins and local had ANY progress (score > 0), the player
 //     gets bonus coins = winner.maxStage × 50 to soften the loss
 
-import { STAGE_KEY, COINS_KEY, UPGRADES_KEY } from '@/keys'
-import { STATE_KEY } from '@/use/useEpicState'
+import { BEST_WAVE_KEY, COINS_KEY, TECH_KEY, RUNS_KEY } from '@/keys'
+import { STATE_KEY } from '@/use/useTowerState'
 
 /** Where the meta blob is stored in localStorage / on the remote backend.
  *  NOT prefixed with `__save_internal__` — this key needs to round-trip
@@ -48,7 +51,9 @@ export interface SaveMeta {
   /** Output of the score formula above. */
   progressScore: number
   schemaVersion: number
-  /** Highest stage the save represents — used to compute conflict bonus. */
+  /** Highest wave the save represents — used to compute the conflict bonus.
+   *  Field name kept as `maxStage` for wire-compat with saves already in the
+   *  cloud from earlier builds; semantically it is "best wave". */
   maxStage: number
   /**
    * Cloud `savedAt` for which this client already received the conflict
@@ -112,7 +117,7 @@ const safeJson = <T>(v: string | null, fallback: T): T => {
  * Compute a fresh meta blob from the current localStorage snapshot.
  * Pure — no side effects.
  */
-/** Pull a sub-field out of the consolidated `maw_state` blob if present.
+/** Pull a sub-field out of the consolidated `tower_state` blob if present.
  *  Falls through to a top-level read for back-compat with any pre-migration
  *  snapshot that still has individual keys (e.g. the score formula was just
  *  invoked between BlobStorage construction and the first migration write). */
@@ -135,24 +140,28 @@ export const computeMeta = (
   read: SnapshotReader,
   savedAt: string = new Date().toISOString()
 ): SaveMeta => {
-  const stage = Math.max(1, safeInt(readField(read, STAGE_KEY), 1))
+  // `bestWave` is 0 for a player who has never finished a wave, so a brand-new
+  // local snapshot scores 0 and can never beat a real cloud save on a tie.
+  const bestWave = Math.max(0, safeInt(readField(read, BEST_WAVE_KEY), 0))
+  const runs = Math.max(0, safeInt(readField(read, RUNS_KEY), 0))
 
-  const upgrades = safeJson<{ levels?: Record<string, number> }>(
-    readField(read, UPGRADES_KEY),
+  const tech = safeJson<{ levels?: Record<string, number> }>(
+    readField(read, TECH_KEY),
     {}
   )
-  let upgradeLevels = 0
-  if (upgrades.levels) {
-    for (const v of Object.values(upgrades.levels)) {
-      if (typeof v === 'number' && Number.isFinite(v) && v > 0) upgradeLevels += v
+  let techLevels = 0
+  if (tech.levels) {
+    for (const v of Object.values(tech.levels)) {
+      if (typeof v === 'number' && Number.isFinite(v) && v > 0) techLevels += v
     }
   }
 
   const progressScore =
-    stage * 500
-    + upgradeLevels * 150
+    bestWave * 500
+    + techLevels * 150
+    + runs * 10
 
-  return { savedAt, progressScore, schemaVersion: SCHEMA_VERSION, maxStage: stage }
+  return { savedAt, progressScore, schemaVersion: SCHEMA_VERSION, maxStage: bestWave }
 }
 
 /**
@@ -235,7 +244,7 @@ export const applyBonusCoins = (read: SnapshotReader, bonus: number): string => 
   return String(current + Math.max(0, bonus))
 }
 
-/** Bonus-coin path: read the sub-field from maw_state if it exists. */
+/** Bonus-coin path: read the sub-field from tower_state if it exists. */
 export const readCoinTotal = (read: SnapshotReader): number => {
   return safeInt(readField(read, COINS_KEY), 0)
 }
@@ -251,23 +260,15 @@ export const readCoinTotal = (read: SnapshotReader): number => {
  * of that in its upload, ballooning the POST body and giving QA a
  * misleading picture of what the game stores.
  *
- * Composables ALL store under one of two prefixes (`src/keys.ts` plus
- * the one-off `ca_battles_since_ad` in `SpinnerArena.vue`), and the
- * save-meta blob has its own well-known literal. That's the entire
- * surface the cloud should ever see — anything else is by definition
- * not our state.
- */
-/**
  * Single-blob model: every persisted gameplay value lives inside the
- * `epicrolla_state` localStorage entry (see `useEpicState.ts`). The cloud
- * mirrors exactly two keys — the state blob and the meta blob.
+ * `tower_state` localStorage entry (see `useTowerState.ts`). The cloud
+ * therefore mirrors exactly TWO keys — the state blob and the meta blob.
  *
- * Individual `epic_*` game keys plus the reused-platform `spinner_*` / `ca_*`
- * keys are also accepted as payload so any stray per-key write (defensive, or
- * a mid-migration snapshot from an older client) round-trips safely instead of
- * being silently dropped.
+ * Individual `ts_*` field keys are also accepted as payload so any stray
+ * per-key write (defensive, or a mid-migration snapshot from an older client)
+ * round-trips safely instead of being silently dropped.
  */
-const PAYLOAD_PREFIXES = ['epic_', 'spinner_', 'ca_'] as const
+const PAYLOAD_PREFIXES = ['ts_'] as const
 
 export const isPayloadKey = (key: string): boolean => {
   if (key === META_KEY) return true
@@ -280,7 +281,8 @@ export const isPayloadKey = (key: string): boolean => {
 
 // Re-exported so tests / other modules don't have to re-declare them.
 export const SAVE_KEYS = {
-  STAGE: STAGE_KEY,
+  BEST_WAVE: BEST_WAVE_KEY,
   COINS: COINS_KEY,
-  UPGRADES: UPGRADES_KEY
+  TECH: TECH_KEY,
+  RUNS: RUNS_KEY
 } as const

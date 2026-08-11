@@ -11,7 +11,7 @@
 //
 // `loadAudioBuffer` is idempotent — repeat calls hit the cache or join
 // the pending decode promise, so it's safe to call this preload more
-// than once (e.g. on every MawScene mount). The visibility-hidden /
+// than once (e.g. on every GameScene mount). The visibility-hidden /
 // ad-show suspend system in `useAssets.ts` doesn't affect decode — it
 // only gates playback — so this works correctly even if the tab is
 // backgrounded during preload.

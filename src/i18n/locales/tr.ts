@@ -1,198 +1,264 @@
 export default {
-  'ads': {
-    'watch': 'İzle', 'revive': 'Canlandır', 'secondChance': 'İkinci Şans', 'doubleCoins': '2× Para', 'plusCoins': '+{n} para'
-  },
-  'achievements': {
-    'title': 'Başarımlar', 'subtitle': 'Para kazanmak için kalıcı hedeflere ulaş.', 'claim': 'Al', 'claimed': 'Alındı', 'progress': '{c} / {t}',
-    'items': {
-      'tiles1k': { 'name': 'Dünya Gezgini', 'desc': 'Toplam 1.000 kare ilerle.' },
-      'tiles5k': { 'name': 'Maratoncu', 'desc': 'Toplam 5.000 kare ilerle.' },
-      'tiles10k': { 'name': 'Uzun Mesafeci', 'desc': 'Toplam 10.000 kare ilerle.' },
-      'tiles100k': { 'name': 'Gezgin', 'desc': 'Toplam 100.000 kare ilerle.' },
-      'stage5': { 'name': 'İlk Adımlar', 'desc': '5. aşamaya ulaş.' },
-      'stage10': { 'name': 'Tecrübeli', 'desc': '10. aşamaya ulaş.' },
-      'stage20': { 'name': 'Veteran', 'desc': '20. aşamaya ulaş.' },
-      'clears25': { 'name': 'Temizlikçi', 'desc': 'Toplam 25 aşama tamamla.' },
-      'clears100': { 'name': 'Centurion', 'desc': 'Toplam 100 aşama tamamla.' },
-      'bestRun100': { 'name': 'Sprinter', 'desc': 'Tek koşuda 100 kare ilerle.' },
-      'bestRun250': { 'name': 'Mesafe Canavarı', 'desc': 'Tek koşuda 250 kare ilerle.' },
-      'coins5k': { 'name': 'Para Koleksiyoncusu', 'desc': 'Toplam 5.000 para topla.' },
-      'coins50k': { 'name': 'Hazinedar', 'desc': 'Toplam 50.000 para topla.' },
-      'items50': { 'name': 'Kutu Açıcı', 'desc': 'Toplam 50 eşya kutusu yakala.' },
-      'items250': { 'name': 'İstifçi', 'desc': 'Toplam 250 eşya kutusu yakala.' }
-    }
-  },
-  'gameName': 'Epicrolla',
+  'gameName': 'Tower Siege',
   'cancel': 'İptal',
   'close': 'Kapat',
   'ok': 'Tamam',
   'continue': 'Devam',
   'tapToContinue': 'Devam etmek için dokun',
   'clickToContinue': 'Devam etmek için tıkla',
-  'stage': 'Aşama',
   'rewards': 'ÖDÜLLER',
   'tip': 'İpucu',
-  'crazyGamesOnly': 'Bu oyun yalnızca şurada mevcuttur:',
-  'startTouch': 'Başlamak için dokun',
-  'startDesktop': 'Başlamak için tıkla',
-  'startSubhint': 'Yukarı yuvarlan — boşlukları ve engelleri atlatmak için yön değiştir!',
-  'hints': {
-    'tapToTurn': 'Yön değiştirmek için dokun',
-    'clickToTurn': 'Yön değiştirmek için tıkla / Boşluk'
+  'crazyGamesOnly': 'Bu oyun yalnızca şurada mevcut:',
+
+  'hud': {
+    'wave': 'Dalga', 'enemies': 'Düşmanlar', 'callWave': 'Dalgayı çağır', 'callBoss': 'Boss’u çağır',
+    'speed': 'Hız {n}×',
+    'speedOffer': 'Bir reklamla çift hız',
+    'speedFor': '{n} dk', 'recenter': 'Görünümü ortala'
   },
-  'powerups': {
-    'invuln': 'Yenilmez',
-    'magnet': 'Para Mıknatısı',
-    'dodge': 'Kaçış Ustası',
-    'slowmo': 'Ağır Çekim',
-    'push': 'İtme Gücü',
-   'racer': 'Racer!' },
-  'secondChance': {
-    'title': 'Devam edilsin mi?',
-    'body': 'Canlanıp koşuna devam etmek için kısa bir reklam izle.',
-    'watch': 'İzle ve devam et',
+
+  'hints': {
+    'selectBlock': { 'touch': 'Seçmek için aşağıdaki bir bloğa dokun', 'desktop': 'Seçmek için aşağıdaki bir bloğa tıkla' },
+    'placeBlock': { 'touch': 'Şimdi inşa etmek için parlayan bir yuvaya dokun', 'desktop': 'Şimdi inşa etmek için parlayan bir yuvaya tıkla' },
+    'camera': { 'touch': 'Kaydırmak için sürükle · Yakınlaştırmak için sıkıştır', 'desktop': 'Kaydırmak için sürükle · Yakınlaştırmak için tekerlek' },
+    'callWave': { 'touch': 'Kulen hazırken «Dalgayı çağır»a dokun', 'desktop': 'Dalgayı erken başlatmak için Boşluk’a bas' },
+    'inspect': { 'touch': 'İncelemek için bir bloğu basılı tut', 'desktop': 'İncelemek için bir bloğa tıkla' }
+  },
+
+  'blocks': {
+    'sell': 'Sat',
+    'roofNote': 'Çatılı — üstüne hiçbir şey inşa edilemez.',
+    'enhancedNote': 'Takviyeli — daha fazla CP ve hasar.',
+    'enhancedHand': 'Takviyeli el',
+    'reroll': 'Bu parçayı değiştir',
+    'kinds': { 'core': 'Çekirdek', 'structure': 'Yapı', 'weapon': 'Silah', 'economy': 'Ekonomi', 'utility': 'Yardımcı' },
+    'stats': {
+      'hp': 'CP', 'armor': 'Zırh', 'dmg': 'Hasar', 'cooldown': 'Bekleme', 'range': 'Menzil',
+      'splash': 'Alan', 'yieldWood': 'Odun / dalga', 'yieldStone': 'Taş / dalga', 'yieldCoins': 'Altın / dalga',
+      'repair': 'Onarım / dalga', 'blast': 'Patlama',
+      'thorns': 'Dikenler'
+    },
+    'names': {
+      'gate': 'Kapı', 'wood': 'Ahşap Sandık', 'brace': 'Takviyeli Sandık', 'stone': 'Taş Blok',
+      'archer': 'Okçu Kulesi', 'cannon': 'Top', 'mortar': 'Havan', 'tesla': 'Yıldırım Bobini',
+      'frost': 'Buz Kulesi', 'repair': 'Tamirhane',
+      'sawmill': 'Kereste Fabrikası', 'quarry': 'Taş Ocağı', 'mint': 'Altın Madeni',
+      'spikes': 'Dikenli Duvar',
+      'bombard': 'Bombarda'
+    },
+    'descriptions': {
+      'gate': 'Kulenin kalbi. Düşerse kuşatma biter.',
+      'wood': 'Ucuz dolgu. Her erken kulenin bel kemiği.',
+      'brace': 'İki katı odun, iki katından fazla dayanıklılık.',
+      'stone': 'Ağır ve zırhlı. En iyisi temelde.',
+      'archer': 'Tek hedefe hızlı oklar. Uçanları da vurur.',
+      'cannon': 'Yavaş, ağır alan hasarı. Sıkışık kalabalıkları eritir.',
+      'mortar': 'Uzun menzilli yay çizen mermiler — ama uçanları vuramaz.',
+      'tesla': 'Yakındaki düşmanlar arasında sıçrayan yıldırımlar.',
+      'frost': 'Tüm grubu dondurur ve ağır yavaşlatır.',
+      'repair': 'Dalgalar arasında komşu blokları onarır.',
+      'sawmill': 'Atlatılan her dalganın sonunda odun üretir.',
+      'quarry': 'Atlatılan her dalganın sonunda taş üretir.',
+      'mint': 'Atlatılan her dalganın sonunda altın üretir.',
+      'spikes': 'Saldıranlar her vuruşta kendilerini yaralar.',
+      'bombard': 'Mermiyi dik yukarı fırlatır. Küçük patlama, sadece kara hedefleri.'
+    }
+  },
+
+  'enemies': {
+    'names': {
+      'grunt': 'Piyade', 'runner': 'Koşucu', 'slinger': 'Sapancı', 'brute': 'Kaba Kuvvet',
+      'bomber': 'Bombacı', 'bat': 'Yarasa', 'bulwark': 'Siperci', 'golem': 'Kuşatma Golemi',
+      'wyvern': 'Vivern',
+      'eel': 'Deniz yılanı',
+      'kraken': 'Kraken',
+      'ram': 'Koçbaşı',
+      'ballista': 'Balista',
+      'catapult': 'Mancınık',
+      'siegeTower': 'Kuşatma Kulesi',
+      'trebuchet': 'Trebuşe',
+      'ironRam': 'Zırhlı Koçbaşı',
+      'bombardier': 'Bombardıman',
+      'firebug': 'Ateşçi'
+    }
+  },
+
+  // ─── First-stage tutorial ─────────────────────────────────────────────────
+  'tutorial': {
+    'gate': 'Kapıyı koru. Düşerse tur biter.',
+    'pick': 'Bir parça seç.',
+    'place': 'Kapının yanına yerleştir.',
+    'call': 'Hazır olunca dalgayı çağır.',
+    'next': 'İleri',
+    'offer': 'Eğitim ister misin?',
+    'start': 'Başla',
     'skip': 'Atla'
   },
+
+  // ─── Allies ───────────────────────────────────────────────────────────────
+  'allies': {
+    'cavalry': 'Süvari'
+  },
+
   'result': {
-    'win': 'AŞAMA TAMAMLANDI!',
-    'lose': 'OYUN BİTTİ',
-    'fell': 'Bir boşluğa düştün!',
-    'crashed': 'Bir engele çarptın!',
-    'tiles': 'Kareler',
-    'winReward': '+{n} aşama bonusu dahil',
-    'double': 'Paraları ikiye katla',
-    'firstRunDouble': '2× — bugünün ilk koşusu!',
-   'almost': 'Az kaldı! {n} kare daha.', 'retry': 'Tekrar', },
-  'upgrades': {
-    'title': 'Geliştirmeler',
-    'subtitle': 'Kalıcı güçlenmek için para harca.',
-    'level': 'Sv.{n}',
-    'maxedOut': 'MAKS',
-    'sellBack': 'Sat +{n}',
+    'towerFell': 'Kule Yıkıldı!',
+    'reachedWave': '{n}. dalgaya kadar dayandın',
+    'newRecord': 'Yeni rekor!',
+    'defeated': 'Yenilenler',
+    'reward': 'Ödül',
+    'upgrade': 'Geliştir!',
+    'defendAgain': 'Tekrar savun',
+    'double': 'Altınları ikiye katla',
+    'firstRunDouble': '2× — bugünkü ilk kuşatma!',
+    'tripleWave': '3× altın — {n}',
+    'waveCleared': '{n}. dalga durduruldu!'
+  },
+
+  'tech': {
+    'title': 'Teknoloji Ağacı',
+    'rank': 'Kademe {current}/{total}',
+    'maxed': 'Maksimum',
+    'rankOpen': 'Rütbe {n}',
+    'owned': 'Açıldı',
+    'requires': 'Gerekli: {n}',
     'spotlight': 'Harca!',
-    'unlocksAtStage': '🔒 Aşama {n}',
     'names': {
-      'powerupDuration': 'Güç Takviyesi',
-      'magnetRange': 'Mıknatıs Menzili',
-      'coinValue': 'Para Değeri',
-      'itemLuck': 'Şanslı Kutular',
-      'dodgeApprentice': 'Kaçış Çırağı',
-      'deathMagnet': 'Ölüm Mıknatısı',
-      'autoCollect': 'Otomatik Toplama',
-      'rollingBoulder': 'Yuvarlanan Kaya'
+      'foundations': 'Temeller', 'sharpBolts': 'Keskin Oklar', 'unlockBrace': 'Takviyeli Sandıklar',
+      'lumberStock': 'Odun Stoku', 'longSight': 'Uzak Görüş', 'rapidFire': 'Hızlı Atış',
+      'reinforced': 'Güçlendirilmiş Kirişler', 'unlockSawmill': 'Kereste Fabrikası', 'quarryStock': 'Taş Stoku',
+      'unlockMortar': 'Havan', 'heavyOrdnance': 'Ağır Topçu', 'unlockTesla': 'Yıldırım Bobini',
+      'gateArmor': 'Kapı Zırhı', 'unlockQuarry': 'Taş Ocağı', 'richHauls': 'Zengin Ganimet',
+      'wideFoundation': 'Geniş Temel', 'siegeShells': 'Kuşatma Mermileri', 'unlockFrost': 'Buz Kulesi',
+      'forkedBolts': 'Çatallı Yıldırımlar', 'ironPlating': 'Demir Plakalar', 'unlockRepair': 'Tamirhane',
+      'unlockMint': 'Altın Madeni', 'looting': 'Yağma', 'overcharge': 'Aşırı Yükleme',
+      'masterwork': 'Şaheser', 'fieldRepairs': 'Saha Onarımı', 'greatFoundation': 'Büyük Temel',
+      'warChest': 'Savaş Sandığı',
+      'unlockSpikes': 'Dikenli Duvar',
+      'unlockBombard': 'Bombarda',
+      'sharpSpikes': 'Bilenmiş Dikenler',
+      'cavalryDrill': 'Süvari Talimi',
+      'artilleryDoctrine': 'Topçu Doktrini'
     },
     'descriptions': {
-      'powerupDuration': 'Tüm güçlendirmeler daha uzun sürer (+0,75sn / seviye).',
-      'magnetRange': 'Para Mıknatısı daha uzağa ulaşır.',
-      'coinValue': 'Topladığın her para daha değerli.',
-      'itemLuck': 'Eşya kutuları daha sık çıkar.',
-      'dodgeApprentice': 'Ölümcül bir kareden otomatik kaç, sonra dolar (10sn; −0,5sn / seviye).',
-      'deathMagnet': 'Öldüğünde 4 kare içindeki tüm madeni paraları topla — kaybedeceğin parayı kasaya at.',
-      'autoCollect': 'Yakındaki karelerdeki paraları her zaman topla — kalıcı 1 karelik mıknatıs.',
-      'rollingBoulder': 'Kutu engellerin içinden zarar görmeden yuvarlan.'
-    },
-    'secondChance': {
-      'name': 'İkinci Şans',
-      'description': 'Her koşuya melek kanatlarıyla başla — bir çarpma veya düşüşten kurtul. Kullanılana dek aktif.',
-      'active': 'AKTİF',
-      'watch': 'Ücretsiz'
+      'foundations': 'Her blok +%10 CP ile başlar.',
+      'sharpBolts': 'Tüm silahlar kademe başına +%8 hasar verir.',
+      'unlockBrace': 'Takviyeli sandığı açar — ahşabın iki katı CP.',
+      'lumberStock': 'Her kuşatmaya kademe başına +25 odunla başla.',
+      'longSight': 'Tüm silahlar kademe başına +%10 daha uzağa erişir.',
+      'rapidFire': 'Tüm silahlar kademe başına %8 daha hızlı ateş eder.',
+      'reinforced': 'Her blok kademe başına +%8 CP kazanır.',
+      'unlockSawmill': 'Kereste fabrikasını açar — her dalgada odun üretir.',
+      'quarryStock': 'Her kuşatmaya kademe başına +18 taşla başla.',
+      'unlockMortar': 'Havanı açar — uzun menzilli alan hasarı.',
+      'heavyOrdnance': 'Alan yarıçapı kademe başına +%15.',
+      'unlockTesla': 'Yıldırım bobinini açar — yıldırımlar sıçrar.',
+      'gateArmor': 'Kapı kademe başına +%20 CP kazanır.',
+      'unlockQuarry': 'Taş ocağını açar — her dalgada taş üretir.',
+      'richHauls': 'Dalga ödülleri kademe başına +%12.',
+      'wideFoundation': 'Kademe başına 2 sütun daha geniş inşa et.',
+      'siegeShells': 'Tüm silahlar kademe başına +%10 hasar verir.',
+      'unlockFrost': 'Buz kulesini açar — tüm grupları yavaşlatır.',
+      'forkedBolts': 'Yıldırım kademe başına 1 düşmana daha sıçrar.',
+      'ironPlating': 'Her blok kademe başına +2 zırh kazanır.',
+      'unlockRepair': 'Tamirhaneyi açar — her dalgada komşuları iyileştirir.',
+      'unlockMint': 'Altın madenini açar — her dalgada altın üretir.',
+      'looting': 'Düşmanlar kademe başına +%15 daha fazla altın düşürür.',
+      'overcharge': 'Tüm silahlar kademe başına %10 daha hızlı ateş eder.',
+      'masterwork': 'Tüm silahlar kademe başına +%12 hasar verir.',
+      'fieldRepairs': 'Her blok, durdurulan dalga ve kademe başına maks. CP’sinin %6’sını yeniler.',
+      'greatFoundation': 'Kademe başına 2 sütun daha geniş inşa et.',
+      'warChest': 'Dalga ödülleri kademe başına +%15.',
+      'unlockSpikes': 'Dikenli Duvarı açar — saldıranlar kendilerini yaralar.',
+      'unlockBombard': 'Bombardayı açar — kara birliklerine kısa menzilli havan ateşi.',
+      'sharpSpikes': 'Dikenli duvarlar rütbe başına %20 daha fazla hasar yansıtır.',
+      'cavalryDrill': 'Süvariler rütbe başına %14 daha fazla CP ve hasarla çıkar.',
+      'artilleryDoctrine': 'Tüm silahlar rütbe başına %9 daha uzağa ulaşır.'
     }
   },
-  'battlePass': {
-    'title': 'Savaş Bileti',
-    'progress': '{current} / {total}',
-    'daysLeft': '{n}g kaldı',
-    'maxed': 'SAVAŞ BİLETİ TAMAMLANDI',
-    'xpProgress': '{current} / {total} XP',
-    'howToEarn': 'XP nasıl kazanılır',
-    'perAttempt': 'koşu başına',
-    'perStageFinish': 'aşama tamamlama başına',
-    'unlockHint': "Sonraki ödülü açmak için {n} XP'ye ulaş — alınmayan ödüller dokunana dek kalır."
+
+  'resources': {
+    'wood': 'odun',
+    'stone': 'taş',
+    'coins': 'altın'
   },
-  'dailyRewards': {
-    'title': 'Günlük Ödüller',
-    'subtitle': 'Serini korumak için her gün giriş yap.',
-    'day': 'Gün {n}',
-    'dayShort': 'G{n}'
+
+  'ads': {
+    'watch': 'İzle', 'revive': 'Dirilt', 'secondChance': 'İkinci Şans',
+    'doubleCoins': '2× Altın', 'plusCoins': '+{n} altın'
   },
-  'skins': {
-    'title': 'Top Görünümleri',
-    'subtitle': 'Yeni görünümleri açmak ve kuşanmak için para harca.',
-    'equip': 'Kuşan',
-    'equipped': 'Kuşanıldı',
-   'locked': 'Bölüm {n}', 'new': 'Yeni!', 'rarity': { 'common': 'Sıradan', 'rare': 'Nadir', 'epic': 'Efsanevi' }, },
+
+  'achievements': {
+    'title': 'Başarımlar', 'subtitle': 'Kalıcı hedeflere ulaşarak altın kazan.',
+    'claim': 'Al', 'claimed': 'Alındı', 'progress': '{c} / {t}',
+    'items': {
+      'wave5': { 'name': 'İlk Direniş', 'desc': '5. dalgaya kadar dayan.' },
+      'wave10': { 'name': 'Kale', 'desc': '10. dalgaya kadar dayan.' },
+      'wave20': { 'name': 'Siper', 'desc': '20. dalgaya kadar dayan.' },
+      'wave30': { 'name': 'Kırılmaz', 'desc': '30. dalgaya kadar dayan.' },
+      'waves50': { 'name': 'Dalgakıran', 'desc': 'Toplam 50 dalga durdur.' },
+      'waves250': { 'name': 'Kuşatma Gazisi', 'desc': 'Toplam 250 dalga durdur.' },
+      'kills500': { 'name': 'Savunucu', 'desc': 'Toplam 500 düşman yen.' },
+      'kills5k': { 'name': 'Katil', 'desc': 'Toplam 5.000 düşman yen.' },
+      'kills50k': { 'name': 'Efsane', 'desc': 'Toplam 50.000 düşman yen.' },
+      'height10': { 'name': 'Göğe Doğru', 'desc': '10 blok yüksekliğinde bir kule inşa et.' },
+      'height20': { 'name': 'Bulut Delen', 'desc': '20 blok yüksekliğinde bir kule inşa et.' },
+      'blocks250': { 'name': 'İnşaatçı', 'desc': 'Toplam 250 blok yerleştir.' },
+      'blocks2k': { 'name': 'Mimar', 'desc': 'Toplam 2.000 blok yerleştir.' },
+      'coins5k': { 'name': 'Altın Toplayıcı', 'desc': 'Toplam 5.000 altın kazan.' },
+      'coins50k': { 'name': 'Hazinedar', 'desc': 'Toplam 50.000 altın kazan.' },
+      'runs25': { 'name': 'Azimli', 'desc': '25 kuşatma başlat.' }
+    }
+  },
+
   'missions': {
-    'title': 'Günlük Görevler',
-    'subtitle': 'Para için her gün hedefleri tamamla.',
-    'claim': 'Al',
-    'done': 'Alındı',
+    'title': 'Günlük Görevler', 'subtitle': 'Her gün hedefleri tamamla, altın kazan.',
+    'claim': 'Al', 'done': 'Alındı',
     'types': {
-      'coins': 'Bugün {n} para topla',
-      'tiles': 'Tek koşuda {n} kare ilerle',
-      'items': 'Bugün {n} eşya kutusu yakala',
-      'clears': 'Bugün {n} aşama tamamla'
+      'coins': 'Bugün {n} altın kazan',
+      'waves': 'Tek kuşatmada {n}. dalgaya kadar dayan',
+      'kills': 'Bugün {n} düşman yen',
+      'blocks': 'Bugün {n} blok yerleştir'
     }
   },
-  'endless': {
-    'badge': 'Sonsuz',
-    'toEndless': 'Sonsuz Mod',
-    'toCampaign': 'Kampanya',
-    'best': 'En İyi: {n}'
+
+  'battlePass': {
+    'title': 'Savaş Bileti', 'progress': '{current} / {total}', 'daysLeft': '{n}g kaldı',
+    'maxed': 'SAVAŞ BİLETİ TAMAMLANDI', 'xpProgress': '{current} / {total} XP',
+    'howToEarn': 'XP nasıl kazanılır', 'perRun': 'kuşatma başına', 'perWave': 'durdurulan dalga başına',
+    'unlockHint': 'Sonraki ödül için {n} XP’ye ulaş — alınmayan ödüller bekler.'
   },
-  'boon': {
-    'title': 'Bir lütuf seç',
-    'names': {
-      'secondChance': 'İkinci Şans',
-      'startPowerup': 'Erken Başlangıç',
-      'coinBoost': 'Para Akını'
-    },
-    'descriptions': {
-      'secondChance': 'Sonraki aşamaya bir İkinci Şans kalkanıyla başla.',
-      'startPowerup': 'Sonraki aşamaya rastgele bir güçlendirmeyle başla.',
-      'coinBoost': 'Sonraki aşamanın tamamında 1,2× para.'
-    }
+
+  'dailyRewards': {
+    'title': 'Günlük Ödüller', 'subtitle': 'Serini korumak için her gün giriş yap.',
+    'day': '{n}. Gün', 'dayShort': 'G{n}'
   },
+
   'options': {
-    'title': 'Seçenekler',
-    'general': 'Genel',
-    'audio': 'Ses',
-    'language': 'Dil',
-    'difficulty': 'Zorluk',
-    'soundEffects': 'Ses Efektleri',
-    'music': 'Müzik',
-    'musicTrack': 'Müzik Parçası',
-    'musicTracks': {
-      'cozy': 'Huzurlu Uyum',
-      'trance': 'Trans Tüneli'
-    },
+    'title': 'Seçenekler', 'general': 'Genel', 'audio': 'Ses', 'language': 'Dil',
+    'difficulty': 'Zorluk', 'soundEffects': 'Ses Efektleri', 'music': 'Müzik', 'musicTrack': 'Müzik Parçası',
+    'musicTracks': { 'cozy': 'Huzurlu Uyum', 'trance': 'Trance Tüneli' },
     'close': 'Kaydet ve Kapat',
     'difficulties': { 'easy': 'Kolay', 'medium': 'Orta', 'hard': 'Zor' },
     'difficultyHints': {
-      'easy': 'Daha yavaş hız — tepki için daha çok zaman.',
-      'medium': 'Standart, dengeli tempo.',
-      'hard': 'Daha hızlı — daha hassas zamanlama gerekir.'
+      'easy': 'Daha küçük dalgalar ve daha zayıf düşmanlar.',
+      'medium': 'Standart, dengeli kuşatma.',
+      'hard': 'Daha yoğun dalgalar ve daha dayanıklı düşmanlar.'
     }
   },
+
   'adsBlocked': {
     'title': 'Reklam gösterilemedi',
-    'body': 'Ödülünü kazanman için sana bir video göstermeye çalıştık, ama tarayıcındaki bir şey reklamları engelliyor.',
+    'body': 'Ödülünü kazanabilmen için bir video göstermek istedik ama tarayıcındaki bir şey reklamları engelliyor.',
     'allowPrefix': 'Lütfen şu adreste reklamlara izin ver:',
     'allowSuffix': '(veya bu oyun için reklam engelleyiciyi duraklat) ve tekrar dene.',
     'gotIt': 'Anladım'
   },
   'saveStatus': {
-    'restoredTitle': 'Bulut kaydı geri yüklendi',
-    'restoredBody': 'Kurtarma için +{n} bonus para',
-    'tap': 'dokun',
-    'pausedTitle': 'Bulut eşitlemesi duraklatıldı',
+    'restoredTitle': 'Bulut kaydı geri yüklendi', 'restoredBody': 'Kurtarma için +{n} bonus altın',
+    'tap': 'dokun', 'pausedTitle': 'Bulut eşitlemesi duraklatıldı',
     'pausedBody': 'Çevrimdışı oynuyorsun. İlerlemen burada kaydediliyor.',
-    'retry': 'Tekrar',
-    'dismiss': 'kapat'
+    'retry': 'Yeniden dene', 'dismiss': 'kapat'
   },
-  'loading': {
-    'tooLong': 'Yükleme çok mu uzun sürüyor? Reklam engelleyiciyi kapat ve sayfayı yenile.'
-  },
-  'license': {
-    'denied': 'Erişim reddedildi: lütfen bir lisans satın al.'
-  }
+  'loading': { 'tooLong': 'Yükleme çok mu uzun sürüyor? Reklam engelleyiciyi kapatıp sayfayı yenile.' },
+  'license': { 'denied': 'Erişim reddedildi: lütfen bir lisans satın al.' }
 }

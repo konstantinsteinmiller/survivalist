@@ -6,6 +6,7 @@ import type {
 } from './types'
 import { isInternalKey } from './types'
 import { SAVE_KEYS } from './SaveMergePolicy'
+import { STATE_KEY } from '@/use/useTowerState'
 import { BlobStorage, type BlobStorageOptions } from './BlobStorage'
 
 // ─── SaveManager ───────────────────────────────────────────────────────────
@@ -18,13 +19,15 @@ import { BlobStorage, type BlobStorageOptions } from './BlobStorage'
 //
 // Boot-time sanity guard:
 //   When the initial hydrate does NOT report `success-with-data` AND the
-//   local snapshot looks "fresh-defaults" (stage<=1, no coins, no
-//   upgrades, no skins), we run up to 3 retries spaced 1s apart before
-//   resolving init(). This catches the "transient SDK / network blip
-//   during boot" failure mode that was costing returning players their
-//   entire progress. The 3-second worst-case delay only applies when
-//   both conditions hit, which is precisely the at-risk case. Returning
-//   players whose hydrate worked see no added latency.
+//   local snapshot looks "fresh-defaults" (no wave ever survived, no
+//   coins, no tech, no runs), we run up to 3 retries spaced 1s apart
+//   before resolving init(). This catches the "transient SDK / network
+//   blip during boot" failure mode that costs returning players their
+//   entire progress — the game would otherwise boot them as a fresh user
+//   and the first write would commit those defaults over the cloud save.
+//   The 3-second worst-case delay only applies when both conditions hit,
+//   which is precisely the at-risk case. Returning players whose hydrate
+//   worked see no added latency.
 
 const BOOT_SANITY_RETRIES = 3
 const BOOT_SANITY_DELAY_MS = 1_000
@@ -256,7 +259,7 @@ export class SaveManager {
     //   'getItem', {value: fn})`
     //   Better, but CG QA reported on 2026-05-05 that even with this
     //   technique Opera + Firefox still hit the data-loss bug
-    //   (`spinner_player_max_stage` overwritten with `1` on every load).
+    //   (the persisted progress key was overwritten with defaults on every load).
     //   The own data property either doesn't shadow the prototype method,
     //   or some browser-internal lookup path bypasses it.
     //
@@ -396,12 +399,45 @@ const shouldRunSanityGuard = (state: HydrateState, local: LocalStorageAccessor):
   return localLooksFresh(local)
 }
 
+/**
+ * Read one field out of the consolidated `tower_state` blob, falling back to a
+ * top-level key read.
+ *
+ * This indirection is load-bearing: Tower Siege persists everything INSIDE one
+ * localStorage entry, so a naive `local.get('ts_best_wave')` always returns
+ * null and `localLooksFresh` would report "fresh" for every player — making the
+ * boot-sanity guard fire (and cost 3 s of boot latency) on every single launch
+ * of a returning player, while telling us nothing.
+ */
+const readStateField = (local: LocalStorageAccessor, field: string): string | null => {
+  const blob = local.get(STATE_KEY)
+  if (blob != null) {
+    try {
+      const parsed = JSON.parse(blob)
+      if (parsed && typeof parsed === 'object' && field in parsed) {
+        const v = (parsed as Record<string, unknown>)[field]
+        if (v == null) return null
+        return typeof v === 'string' ? v : JSON.stringify(v)
+      }
+    } catch { /* corrupt blob → fall through to the direct read */ }
+  }
+  return local.get(field)
+}
+
+/**
+ * "Does this device look like a brand-new install?" — the precondition for the
+ * boot-sanity retry loop. Any signal of real progress (a wave survived, coins
+ * banked, a tech node bought, a run in flight) means the local snapshot is
+ * worth booting with and we don't stall the player waiting on the cloud.
+ */
 const localLooksFresh = (local: LocalStorageAccessor): boolean => {
-  const stage = parseInt(local.get(SAVE_KEYS.STAGE) ?? '1', 10) || 1
-  if (stage > 1) return false
-  const coins = parseInt(local.get(SAVE_KEYS.COINS) ?? '0', 10) || 0
+  const bestWave = parseInt(readStateField(local, SAVE_KEYS.BEST_WAVE) ?? '0', 10) || 0
+  if (bestWave > 0) return false
+  const coins = parseInt(readStateField(local, SAVE_KEYS.COINS) ?? '0', 10) || 0
   if (coins > 0) return false
-  if (local.get(SAVE_KEYS.UPGRADES)) return false
+  const runs = parseInt(readStateField(local, SAVE_KEYS.RUNS) ?? '0', 10) || 0
+  if (runs > 0) return false
+  if (readStateField(local, SAVE_KEYS.TECH)) return false
   return true
 }
 

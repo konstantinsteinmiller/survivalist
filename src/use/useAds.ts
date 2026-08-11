@@ -138,7 +138,9 @@ export const showRewardedAd = async (): Promise<boolean> => {
     const granted = await provider.showRewardedAd()
     if (granted) {
       recordRewardedGranted()
-    } else if (provider.isAdsBlocked.value) {
+    } else if (provider.isAdsBlocked.value && !provider.ownsAdBlockUi) {
+      // Skip the shared modal when the SDK shows its own ad-blocker notice
+      // (CrazyGames) — stacking two popups was flagged by CG QA.
       showAdsBlockedModal()
     }
     dlog(`${TAG} ⏹ rewarded END (provider=${provider.name}, granted=${granted})`)
@@ -189,7 +191,7 @@ export const showMidgameAd = async (): Promise<void> => {
       // flashes the container open + closed, or it never opens) therefore
       // leaves the win/lose result stinger + music untouched, instead of
       // cutting them for an ad the player never saw. The reward-screen
-      // interstitial is already delayed by REWARD_AD_DELAY_MS in MawScene so
+      // interstitial is already delayed by REWARD_AD_DELAY_MS in GameScene so
       // the sound gets its window before we even request the ad.
       killAudioForAd()
       await new Promise<void>((resolve) => setTimeout(resolve, AUDIO_DRAIN_MS))
@@ -224,7 +226,7 @@ export const showMidgameAd = async (): Promise<void> => {
 //     await window.__testInterstitial() // holds the gate for 5s
 //     window.__audioDebug()             // snapshot during  → suspended + paused
 // During the hold: `isGamePaused` is true (render loop early-returns in
-// MawScene) and the AudioContext is suspended + every tracked HTMLAudio is
+// GameScene) and the AudioContext is suspended + every tracked HTMLAudio is
 // paused (no music, no SFX). This mirrors EXACTLY what `showMidgameAd` does
 // around a real interstitial — only the provider/SDK call is replaced by a
 // timer, so it isolates the gate from SDK promise-timing quirks.

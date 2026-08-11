@@ -4,7 +4,10 @@ import { mobileCheck } from '@/utils/function'
 import { DIFFICULTY, type Difficulties } from '@/utils/enums'
 import { isDbInitialized, isSplashScreenVisible } from '@/use/useMatch'
 import { saveDataVersion } from '@/use/useSaveStatus'
-import { getState, setState, hasState } from '@/use/useEpicState'
+import { getState, setState, hasState } from '@/use/useTowerState'
+import {
+  SOUND_KEY, MUSIC_KEY, LANGUAGE_KEY, DIFFICULTY_KEY, MUSIC_TRACK_KEY
+} from '@/keys'
 
 export const windowWidth = ref(window.innerWidth)
 export const windowHeight = ref(window.innerHeight)
@@ -17,6 +20,13 @@ export const isMobileLandscape = computed(() =>
 export const isMobilePortrait = computed(() =>
   mobileCheck() && windowWidth.value < windowHeight.value
 )
+
+// A short viewport (≤ 500px tall) where the full-size desktop result/reward
+// overlay overflows — e.g. the game embedded in a portal iframe on a
+// Chromebook (~764×385). Deliberately NOT gated on `mobileCheck()`, so it
+// catches the non-touch short-embed case that `isMobileLandscape` misses; the
+// overlay uses it to shrink the title, drop the tiles line, and tighten gaps.
+export const isShortViewport = computed(() => windowHeight.value <= 500)
 
 declare const APP_VERSION: string
 export const isCrazyWeb = import.meta.env.VITE_APP_CRAZY_WEB === 'true'
@@ -34,29 +44,19 @@ export const isWeb = import.meta.env.VITE_APP_NATIVE !== 'true'
 export const isDemo = import.meta.env.VITE_APP_DEMO === 'true'
 export const version: string = APP_VERSION
 
-// ─── Persisted settings (localStorage-backed) ──────────────────────────────
+// ─── Persisted settings ────────────────────────────────────────────────────
 //
-// Replaces the old `useUserDb` IndexedDB layer. CG QA flagged the
-// `user_db` / `user_os` store as "data saved locally" — and it was
-// holding a pile of CardQuest relics (userHand, userCollection,
-// userCampaign, userQuestCards, etc.) that epicrolla never reads.
+// Tower Siege persists FIVE user settings — difficulty, sound volume, music
+// volume, locale, music track — as fields inside the single `tower_state`
+// blob (keys catalogued in `src/keys.ts`), never as their own localStorage
+// entries. On a platform build the blob goes through the patched
+// `SaveManager.setItem` and is mirrored to the SDK cloud store automatically.
+// Hydrate at boot is a synchronous read; the strategy populates localStorage
+// from the cloud BEFORE the App module graph imports (see `main.ts`).
 //
-// epicrolla only persists FOUR user settings:
-//   • difficulty / sound volume / music volume / locale
-//
-// They live in localStorage under the keys below. On a CrazyGames build
-// these go through the patched `SaveManager.setItem` and are mirrored
-// to `sdk.data` automatically — no separate persistence layer needed.
-// Hydrate at boot is a synchronous read; the strategy populates
-// localStorage from sdk.data BEFORE the App graph imports.
-
-export const SOUND_KEY = 'spinner_user_sound_volume'
-export const MUSIC_KEY = 'spinner_user_music_volume'
-export const LANGUAGE_KEY = 'spinner_user_language'
-export const DIFFICULTY_KEY = 'spinner_user_difficulty'
-// Which background-music track plays during a run. 'trance' (Trance Tunnel)
-// is the default; 'cozy' maps to the original bg-cozy.ogg (Cozy Harmony).
-export const MUSIC_TRACK_KEY = 'spinner_user_music_track'
+// Key constants are re-exported here so long-standing importers
+// (`useCrazyMuteSync`, tests) keep working without an extra import hop.
+export { SOUND_KEY, MUSIC_KEY, LANGUAGE_KEY, DIFFICULTY_KEY, MUSIC_TRACK_KEY }
 
 // Background-music track id → audio filename (under public/audio/music/).
 export type MusicTrack = 'trance' | 'cozy'
@@ -86,8 +86,8 @@ export const DEFAULT_MUSIC_VOLUME = 0.6
 const userSoundVolume: Ref<number> = ref(readNumber(SOUND_KEY, DEFAULT_SOUND_VOLUME))
 const userMusicVolume: Ref<number> = ref(readNumber(MUSIC_KEY, DEFAULT_MUSIC_VOLUME))
 const userLanguage: Ref<string> = ref(readString(LANGUAGE_KEY, 'en'))
-// Difficulty defaults to MEDIUM; Easy slows travel speed −20%, Hard +10%
-// (applied in useEpicGame's per-frame speed calc via `difficultySpeedFactor`).
+// Difficulty defaults to MEDIUM. It scales enemy HP + wave budget (Easy −20%,
+// Hard +25%) via `difficultyFactor()` below, read by the wave director.
 const userDifficulty: Ref<Difficulties> = ref(readString<Difficulties>(DIFFICULTY_KEY, DIFFICULTY.MEDIUM))
 // Background-music track — defaults to 'trance' (Trance Tunnel).
 const userMusicTrack: Ref<MusicTrack> = ref(readString<MusicTrack>(MUSIC_TRACK_KEY, 'trance'))
@@ -125,11 +125,12 @@ watch(saveDataVersion, () => {
   if (!hasState(MUSIC_TRACK_KEY)) setState(MUSIC_TRACK_KEY, userMusicTrack.value)
 })
 
-/** Travel-speed multiplier for the active difficulty: Easy −20% (more reaction
- *  time), Medium ×1, Hard +10% (tighter timing). Read each frame by the game. */
-export const difficultySpeedFactor = (): number => {
+/** Wave-pressure multiplier for the active difficulty: Easy −20% (smaller wave
+ *  budgets and softer enemies), Medium ×1, Hard +25% (denser waves, tankier
+ *  enemies). Read by the wave director when composing a wave. */
+export const difficultyFactor = (): number => {
   if (userDifficulty.value === DIFFICULTY.EASY) return 0.8
-  if (userDifficulty.value === DIFFICULTY.HARD) return 1.1
+  if (userDifficulty.value === DIFFICULTY.HARD) return 1.25
   return 1
 }
 
@@ -151,7 +152,7 @@ isSplashScreenVisible.value = false
 //     produced `cardQuestUserLanguage`, `cardQuestSoundVolume`, etc.
 //   • `chaosArena*` keys — the interim prefix from the
 //     2026-05-04 build. We no longer mirror the locale hint to
-//     sessionStorage at all (the value lives in `spinner_user_language`,
+//     sessionStorage at all (the value lives in `ts_user_language`,
 //     which flows through `sdk.data` on CG), so any existing
 //     `chaosArena*` entry is also dead data.
 // Fire-and-forget — errors are swallowed because there is nothing to

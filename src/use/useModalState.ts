@@ -1,16 +1,23 @@
 import { ref, computed } from 'vue'
+import { acquireAppPause } from '@/use/useGamePause'
 
 // ─── UI modal-open signal ────────────────────────────────────────────────────
 //
 // Tracks how many blocking FModal dialogs (Upgrades, Options, Daily, Battle
-// Pass, Achievements, …) are currently open. Its only consumer today is the
-// CrazyGames gameplay-lifecycle driver in `MawScene` — gameplay counts as
-// "interrupted" while a menu is up, so we fire `gameplayStop()` on open and
-// `gameplayStart()` on close (see CG SDK requirements).
+// Pass, Achievements, …) are currently open, and HALTS THE SIMULATION while
+// any of them is up.
 //
-// Intentionally SIDE-EFFECT-FREE: this does NOT pause the render loop or
-// suspend audio (that's the separate `useGamePause` gate, which would also
-// mute the modal-open cue). It's a pure signal for SDK event timing.
+// The pause is not cosmetic. Every one of these menus is opened mid-siege — the
+// tech tree in particular is where the player goes to answer a wave that is
+// beating them — and letting enemies keep chewing the tower while the player
+// reads a menu punishes them for using the game's own systems. It also makes
+// the CrazyGames contract honest: `gameplayStop()` is meant to mean gameplay
+// actually stopped, not that a panel happens to be covering it.
+//
+// Two separate signals come out of this, deliberately:
+//   * `isAnyModalOpen` — the SDK-event signal, consumed by the gameplay
+//     lifecycle driver in `GameScene`.
+//   * an app pause from `useGamePause` — the simulation + audio gate.
 //
 // Refcounted so overlapping / stacked modals compose: gameplay only resumes
 // once the LAST modal closes. `acquireModalOpen()` returns a release function
@@ -25,10 +32,12 @@ export const isAnyModalOpen = computed(() => openCount.value > 0)
  *  Idempotent release so wrapping in cleanup hooks is safe. */
 export const acquireModalOpen = (): (() => void) => {
   openCount.value += 1
+  const releasePause = acquireAppPause()
   let released = false
   return (): void => {
     if (released) return
     released = true
     openCount.value = Math.max(0, openCount.value - 1)
+    releasePause()
   }
 }

@@ -1,26 +1,30 @@
 import { ref, computed, watch, type Ref } from 'vue'
-import useEpicConfig from '@/use/useEpicConfig'
+import useTowerEconomy from '@/use/useTowerEconomy'
 import { saveDataVersion, flushSaveNow } from '@/use/useSaveStatus'
-import { getState, setState } from '@/use/useEpicState'
+import { getState, setState } from '@/use/useTowerState'
+import { BATTLE_PASS_KEY } from '@/keys'
 
 /**
- * Lightweight battle pass for Epicrolla. 30 stages, 100 xp per stage.
- *   - start an attempt → +12 xp (participation)
- *   - finish a stage   → +50 xp (additional, on win)
+ * Lightweight battle pass for Tower Siege. 30 tiers, 100 xp per tier.
+ *   - clear a wave  → +12 xp
+ *   - finish a run  → +25 xp
  * Each level grants a coin payout on a linear ramp 30 → 600 across the
  * 30 stages. Unclaimed levels stay unclaimed until the player taps them
  * in the modal — they don't expire just because the next level unlocks.
- * State persists inside the consolidated `maw_state` blob.
+ * State persists inside the consolidated `tower_state` blob.
  */
 
 export const BP_TOTAL_STAGES = 30
 export const BP_XP_PER_STAGE = 100
 export const BP_SEASON_DAYS = 30
 
-export const BP_XP_CAMPAIGN_WIN = 50
-export const BP_XP_ATTEMPT = 12
+/** XP for clearing one wave — the steady drip that makes a long siege pay. */
+export const BP_XP_WAVE_CLEARED = 12
+/** XP for finishing a run, win or lose — the participation floor so a bad
+ *  siege still moves the bar. */
+export const BP_XP_RUN_FINISHED = 25
 
-const STORAGE_KEY = 'spinner_battle_pass'
+const STORAGE_KEY = BATTLE_PASS_KEY
 
 interface BattlePassState {
   xp: number
@@ -90,7 +94,7 @@ export const bpCoinReward = (stage: number): number => {
   return Math.round(raw / 5) * 5
 }
 
-const { addCoins } = useEpicConfig()
+const { addCoins } = useTowerEconomy()
 
 const addXp = (amount: number) => {
   if (amount <= 0) return
@@ -114,8 +118,8 @@ const addXp = (amount: number) => {
   saveState()
 }
 
-const awardCampaignWin = () => addXp(BP_XP_CAMPAIGN_WIN)
-const awardAttempt = () => addXp(BP_XP_ATTEMPT)
+const awardWaveCleared = () => addXp(BP_XP_WAVE_CLEARED)
+const awardRunFinished = () => addXp(BP_XP_RUN_FINISHED)
 /** Grant an arbitrary XP amount (e.g. a daily-mission claim). Guards NaN. */
 const awardXp = (amount: number) => addXp(Number(amount) || 0)
 
@@ -171,8 +175,8 @@ export default function useBattlePass() {
     isStageClaimed,
     isStageUnlocked,
     bpCoinReward,
-    awardCampaignWin,
-    awardAttempt,
+    awardWaveCleared,
+    awardRunFinished,
     awardXp,
     claimStage
   }

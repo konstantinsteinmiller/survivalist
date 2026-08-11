@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, nextTick } from 'vue'
+import FHudButton from '@/components/atoms/FHudButton.vue'
+import FHudBadge from '@/components/atoms/FHudBadge.vue'
 import { useI18n } from 'vue-i18n'
 import FModal from '@/components/molecules/FModal.vue'
 import IconCoin from '@/components/icons/IconCoin.vue'
 import useBattlePass, {
   BP_TOTAL_STAGES,
   BP_XP_PER_STAGE,
-  BP_XP_ATTEMPT,
-  BP_XP_CAMPAIGN_WIN
+  BP_XP_RUN_FINISHED,
+  BP_XP_WAVE_CLEARED
 } from '@/use/useBattlePass'
 import { spawnCoinExplosion } from '@/use/useCoinExplosion'
 import useSounds from '@/use/useSound.ts'
-import { stopGameplay } from '@/use/useCrazyGames'
 
 const {
   currentXp,
@@ -35,10 +36,6 @@ const { playSound } = useSounds()
 
 const isModalOpen = ref(false)
 const bpBtnRef = ref<HTMLElement | null>(null)
-
-watch(isModalOpen, (open) => {
-  if (open) stopGameplay()
-})
 
 const inProgressStage = computed(() =>
   isMaxed.value ? 0 : unlockedStages.value + 1
@@ -70,30 +67,24 @@ const onClaim = (stage: number, sourceEl: HTMLElement) => {
 </script>
 
 <template lang="pug">
-  button.battle-pass-btn(
+  FHudButton(
     ref="bpBtnRef"
-    class="cursor-pointer pointer-events-auto active:scale-95 transition-transform scale-80 sm:scale-100"
-    :class="{ 'pulse-claim': hasUnclaimedReward }"
+    tone="slate"
+    :attention="hasUnclaimedReward"
+    :aria-label="t('battlePass.title')"
+    class="bp-chip"
     @click="isModalOpen = true"
   )
-    div.relative
-      div.absolute.inset-0.translate-y-1.rounded-lg(class="bg-[#5a1212]")
-      div.relative.rounded-lg.border-2.flex.items-center.justify-center.p-2(
-        class="bg-gradient-to-b from-[#a855f7] to-[#6b21a8] border-[#0f1a30]"
-      )
-        //- Rank-tier chevrons — three stacked "V"s reading bottom-to-top
-        //- as ascending ranks. Distinct from the AchievementsModal trophy
-        //- so the two HUD slots are visually unambiguous.
-        svg(viewBox="0 0 24 24" class="w-7 h-7" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round" stroke-linecap="round")
-          path(d="M5 9 L12 4 L19 9")
-          path(d="M5 14 L12 9 L19 14")
-          path(d="M5 19 L12 14 L19 19" fill="rgba(255,255,255,0.35)")
-          //- Small star above the chevrons to evoke the season-pass crest.
-          path(d="M12 1 L12.7 2.4 L14.2 2.6 L13.1 3.7 L13.4 5.2 L12 4.5 L10.6 5.2 L10.9 3.7 L9.8 2.6 L11.3 2.4 Z" fill="white" stroke="none")
-      div.absolute.top-0.right-0.rounded-full.border-2.bg-red-500.border-white.text-white.font-black.game-text.flex.items-center.justify-center(
-        v-if="pendingClaimCount > 0"
-        class="-translate-y-1 translate-x-1 min-w-4 h-4 px-1 text-[10px]"
-      ) {{ pendingClaimCount }}
+    //- Rank-tier chevrons — three stacked "V"s reading bottom-to-top as
+    //- ascending ranks. Distinct from the Achievements trophy so the two HUD
+    //- slots are visually unambiguous.
+    svg(viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round" stroke-linecap="round")
+      path(d="M5 9 L12 4 L19 9")
+      path(d="M5 14 L12 9 L19 14")
+      path(d="M5 19 L12 14 L19 19" fill="rgba(255,255,255,0.35)")
+      path(d="M12 1 L12.7 2.4 L14.2 2.6 L13.1 3.7 L13.4 5.2 L12 4.5 L10.6 5.2 L10.9 3.7 L9.8 2.4 Z" fill="white" stroke="none")
+    template(#badge)
+      FHudBadge(v-if="pendingClaimCount > 0" tone="red") {{ pendingClaimCount }}
 
   FModal(
     v-model="isModalOpen"
@@ -121,11 +112,11 @@ const onClaim = (stage: number, sourceEl: HTMLElement) => {
           | {{ t('battlePass.howToEarn') }}
         div.flex.justify-around.gap-2.text-white.game-text(class="text-[10px] sm:text-xs")
           div.flex.flex-col.items-center
-            span.font-black.text-cyan-200 +{{ BP_XP_ATTEMPT }} XP
-            span.opacity-80 {{ t('battlePass.perAttempt') }}
+            span.font-black.text-cyan-200 +{{ BP_XP_RUN_FINISHED }} XP
+            span.opacity-80 {{ t('battlePass.perRun') }}
           div.flex.flex-col.items-center
-            span.font-black.text-emerald-300 +{{ BP_XP_CAMPAIGN_WIN }} XP
-            span.opacity-80 {{ t('battlePass.perStageFinish') }}
+            span.font-black.text-emerald-300 +{{ BP_XP_WAVE_CLEARED }} XP
+            span.opacity-80 {{ t('battlePass.perWave') }}
         div.text-center.text-white.game-text.opacity-70(class="text-[9px] sm:text-[10px]")
           | {{ t('battlePass.unlockHint', { n: BP_XP_PER_STAGE }) }}
 
@@ -144,14 +135,12 @@ const onClaim = (stage: number, sourceEl: HTMLElement) => {
 </template>
 
 <style scoped lang="sass">
-.pulse-claim
-  animation: bp-pulse 1.6s ease-in-out infinite
-
-@keyframes bp-pulse
-  0%, 100%
-    filter: drop-shadow(0 0 0 rgba(255, 200, 0, 0))
-  50%
-    filter: drop-shadow(0 0 8px rgba(255, 200, 0, 0.7))
+// The battle pass keeps its purple identity; FHudButton supplies the geometry.
+.bp-chip
+  :deep(.f-hud-button__shadow)
+    background-color: #4c1d95
+  :deep(.f-hud-button__body)
+    background-image: linear-gradient(to bottom, #a855f7, #6b21a8)
 
 .bp-stage-grid
   grid-template-columns: repeat(6, minmax(0, 1fr))

@@ -1,9 +1,6 @@
-import { onMounted, onUnmounted, ref, nextTick } from 'vue'
-import useEpicConfig from '@/use/useEpicConfig'
-import useEpicGame from '@/use/useEpicGame'
-import { setState } from '@/use/useEpicState'
+import { onMounted, onUnmounted, ref } from 'vue'
+import useTowerEconomy from '@/use/useTowerEconomy'
 import { toggleDebug } from '@/use/useMatch'
-import { STAGE_KEY } from '@/keys'
 
 // `cheat` stays a top-level localStorage flag — it's an explicit dev toggle
 // that gates the whole keyboard-shortcut module, so we don't want it living
@@ -60,56 +57,68 @@ installDebugUnlock()
 const useCheats = () => {
   if (!isCheat.value) return {}
 
-  const { addCoins } = useEpicConfig()
-  const { spawnTestItemBoxes, spawnTestCratePile, resetForStage } = useEpicGame()
+  const { addCoins } = useTowerEconomy()
 
-  // Epicrolla has open-ended stages (tilesToClear scales with stage), so just
-  // write the stage into the save blob. `useEpicProgress` watches the blob and
-  // refreshes its `stage` ref — but that refresh is a reactive effect that flushes
-  // on the next tick, so we `nextTick` before `resetForStage()` (which reads
-  // `progress.stage`). That regenerates the field at the new stage IMMEDIATELY
-  // (the old behaviour only applied on the next run, so the cheat looked dead).
-  const setStage = (stageId: number) => {
-    if (stageId < 1) {
-      console.warn(`[CHEAT] Invalid stage ${stageId}. Must be >= 1.`)
-      return
-    }
-    setState(STAGE_KEY, stageId)
-    void nextTick(() => {
-      resetForStage()
-      console.warn(`[CHEAT] Stage set to ${stageId} (applied now).`)
+  // Dev shortcuts, retargeted to Tower Siege. Waves are simulated rather than
+  // jumped to (there is no "set wave" that produces a sensible tower), so the
+  // useful cheats are resource / coin injection and wave + speed control.
+  //
+  // The simulation is reached through a DYNAMIC import, never a static one.
+  // `useCheats` is called from `App.vue`, which is on the eager boot path — a
+  // static import would drag the whole game model (blocks, enemies, waves,
+  // renderer deps) into the entry chunk and delay first paint for every
+  // player, to serve a dev-only feature that 99.99% of them never trigger.
+  // Fetching it on the keypress costs a few ms exactly once, for the developer.
+  const withGame = (fn: (game: typeof import('@/use/useTowerGame')) => void): void => {
+    void import('@/use/useTowerGame').then(fn).catch((e) => {
+      console.warn('[CHEAT] could not load the game module', e)
     })
   }
 
+  /**
+   * Hand the live simulation to the console as `window.__tower`.
+   *
+   * Reaching the sim from devtools with a bare `import('@/use/useTowerGame')`
+   * does NOT work during development: Vite serves an HMR-updated module under a
+   * versioned URL, so the import resolves to a second, inert copy of the
+   * singleton and every mutation lands on an object nothing is rendering. The
+   * only reliable handle is one the running app publishes itself.
+   *
+   * Dev-only, and only after the cheat sequence has been typed.
+   */
+  const publishDebugHandle = (): void => {
+    if (typeof window === 'undefined') return
+    void import('@/use/useTowerGame').then((game) => {
+      ;(window as unknown as Record<string, unknown>).__tower = game
+      console.warn('[CHEAT] window.__tower is live (spawn / inspect the running sim).')
+    })
+  }
+  publishDebugHandle()
+
   const cheatsMap: Record<string, () => void> = {
-    'ctrl+shift+1': () => setStage(1),
-    'ctrl+shift+2': () => setStage(2),
-    'ctrl+shift+3': () => setStage(3),
-    'ctrl+shift+4': () => setStage(4),
-    'ctrl+shift+5': () => setStage(5),
-    'ctrl+shift+6': () => setStage(6),
-    'ctrl+shift+7': () => setStage(7),
-    'ctrl+shift+8': () => setStage(8),
-    'ctrl+shift+9': () => setStage(9),
-    'ctrl+shift+alt+0': () => setStage(10),
-    'ctrl+shift+alt+1': () => setStage(11),
-    'ctrl+shift+alt+2': () => setStage(12),
-    'ctrl+shift+alt+3': () => setStage(13),
-    'ctrl+shift+alt+4': () => setStage(14),
-    'ctrl+shift+alt+k': () => addCoins(3000),
-    // Jump to the stage-10 difficulty test level (the old, dense "stage 1").
-    'ctrl+shift+alt+t': () => setStage(10),
-    // Spawn a normal item box 1 tile ahead + a GOLDEN box 4 tiles ahead on the
-    // ball's path — for testing the Racer dash (golden = 40-tile dash).
-    'ctrl+shift+alt+i': () => {
-      spawnTestItemBoxes()
-      console.warn('[CHEAT] Spawned 1 item box + 1 golden box ahead.')
+    'ctrl+shift+alt+k': () => {
+      addCoins(3000)
+      console.warn('[CHEAT] +3000 coins.')
     },
-    // Spawn a 2×2 crate-pile a few tiles ahead — to eyeball the new cluster.
-    'ctrl+shift+alt+c': () => {
-      spawnTestCratePile()
-      console.warn('[CHEAT] Spawned a 2×2 crate-pile ahead.')
-    }
+    'ctrl+shift+alt+b': () => withGame((game) => {
+      // Drop one of every late-game threat onto the field. Reaching wave 24 by
+      // hand to look at an ironclad ram is not a reasonable ask of a reviewer.
+      game.debugSpawn(['bombardier', 'firebug', 'ironRam', 'trebuchet', 'catapult'])
+      console.warn('[CHEAT] Spawned the late-game roster.')
+    }),
+    'ctrl+shift+alt+r': () => withGame((game) => {
+      game.wood.value += 500
+      game.stone.value += 500
+      console.warn('[CHEAT] +500 wood, +500 stone.')
+    }),
+    'ctrl+shift+alt+w': () => withGame((game) => {
+      game.callWave()
+      console.warn('[CHEAT] Wave called.')
+    }),
+    'ctrl+shift+alt+f': () => withGame((game) => {
+      game.toggleSpeed()
+      console.warn('[CHEAT] Battle speed toggled.')
+    })
   }
 
   const heldKeys = new Set<string>()

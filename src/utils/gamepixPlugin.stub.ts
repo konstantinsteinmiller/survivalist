@@ -5,13 +5,13 @@
 // (`https://integration.gamepix.com/sdk/v3/gamepix.sdk.js`) which Yandex's
 // moderation flags as "Service storage URL detected".
 //
-// CRUCIAL: `MawScene.vue` STATICALLY imports `gamePixHappyMoment` from this
-// module, so Rollup emits gamepixPlugin as a shared chunk that MawScene
+// CRUCIAL: `GameScene.vue` STATICALLY imports `gamePixHappyMoment` from this
+// module, so Rollup emits gamepixPlugin as a shared chunk that GameScene
 // depends on. Previously a Vite plugin DELETED that chunk on Yandex builds —
-// but MawScene's import reference remained, so the chunk 404'd at runtime and
-// the whole MawScene route failed to load ("Failed to fetch dynamically
+// but GameScene's import reference remained, so the chunk 404'd at runtime and
+// the whole GameScene route failed to load ("Failed to fetch dynamically
 // imported module"). Aliasing to this stub keeps the real URL out of the
-// bundle AND leaves a valid (tiny, no-op) module for MawScene to import, so
+// bundle AND leaves a valid (tiny, no-op) module for GameScene to import, so
 // there's no dangling chunk reference. This replaces the fragile chunk-strip.
 //
 // Stub matches the real module's FULL export surface (every name imported

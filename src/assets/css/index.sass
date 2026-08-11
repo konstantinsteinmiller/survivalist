@@ -13,28 +13,14 @@ html, body
   /* Extra insurance against the layout moving */
   width: 100%
   height: 100%
-  /* Match app theme so the iOS PWA safe-area / home-indicator gap doesn't
-     render as a stark black bar — it now blends with the arena background. */
-  background-color: #0d2a18
+  /* Match the scene's night sky so the iOS PWA safe-area / home-indicator gap
+     doesn't render as a stark black bar — it blends with the battlefield. */
+  background-color: #0a1224
 
 #app
   height: 100%
   width: 100%
 
-
-// 3. The Responsive Map Scaler
-.map-viewport
-  display: flex
-  align-items: center
-  justify-content: center
-  overflow: hidden
-// Change to 'auto' if you want user to be able to pan the bleed area
-
-.map-scaler
-  position: relative
-  flex-shrink: 0
-  // Centering the scaler within the viewport
-  margin: auto
 
 // 4. Fixed Pulse for Dark Mode Extensions
 .pulse-yellow-fixed

@@ -35,14 +35,14 @@ const updateValue = (event: Event) => {
 </script>
 
 <template lang="pug">
-  div(class="f-slider-container w-full py-4")
+  div.f-slider-container(class="w-full")
     //- Label (Optional)
-    div(v-if="label" class="slider-label mb-2 text-white font-black uppercase italic text-lg tracking-wider") {{ label }}
+    div(v-if="label" class="slider-label mb-2 text-white font-black uppercase italic tracking-wider") {{ label }}
 
-    div(class="relative flex items-center h-8")
+    div.f-slider__row(class="relative flex items-center")
       //- Custom Track Background (The 3D "Well")
       div(
-        class="absolute inset-0 h-6 my-auto rounded-full border-[3px] border-[#0f1a30] overflow-hidden bg-[#0a1425]"
+        class="f-slider__track absolute inset-0 my-auto rounded-full border-[3px] border-[#0f1a30] overflow-hidden bg-[#0a1425]"
       )
         //- Progress Fill
         div(
@@ -63,13 +63,13 @@ const updateValue = (event: Event) => {
         :step="step"
         :value="modelValue"
         @input="updateValue"
-        class="absolute inset-0 w-full h-8 opacity-0 cursor-pointer z-10 touch-manipulation"
+        class="f-slider__input absolute inset-0 w-full opacity-0 cursor-pointer z-10 touch-manipulation"
       )
 
       //- Custom Thumb (Visual Only)
       div(
-        class="thumb-visual pointer-events-none absolute h-10 w-10 flex items-center justify-center transition-transform active:scale-90"
-        :style="{ left: `calc(${progress}% - 20px)` }"
+        class="thumb-visual pointer-events-none absolute flex items-center justify-center transition-transform"
+        :style="{ left: `calc(${progress}% - var(--fsl-thumb) / 2)` }"
       )
         //- The "3D Shadow" of the thumb
         span(class="absolute inset-0 translate-y-[3px] bg-[#102e7a] rounded-xl border-[3px] border-[#0f1a30]")
@@ -84,10 +84,28 @@ const updateValue = (event: Event) => {
 
 <style scoped lang="sass">
 .slider-label
+  font-size: clamp(0.75rem, 3.2vw, 1.1rem)
   text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000
 
 .f-slider-container
+  // Thumb size drives the row height, the track height AND the left offset, so
+  // all three stay in sync at any viewport instead of the old hard-coded 40px.
+  --fsl-thumb: clamp(2rem, 9vw, 2.5rem)
+  padding-block: clamp(0.4rem, 2vw, 1rem)
   -webkit-tap-highlight-color: transparent
+
+.f-slider__row
+  height: var(--fsl-thumb)
+
+.f-slider__track
+  height: calc(var(--fsl-thumb) * 0.6)
+
+.f-slider__input
+  height: var(--fsl-thumb)
+
+.thumb-visual
+  width: var(--fsl-thumb)
+  height: var(--fsl-thumb)
 
 /* Ensure the native range covers the whole area for better hitboxes */
 input[type="range"]
@@ -96,13 +114,13 @@ input[type="range"]
 
   &::-webkit-slider-thumb
     -webkit-appearance: none
-    width: 40px
-    height: 40px
+    width: var(--fsl-thumb)
+    height: var(--fsl-thumb)
     cursor: pointer
 
   &::-moz-range-thumb
-    width: 40px
-    height: 40px
+    width: var(--fsl-thumb)
+    height: var(--fsl-thumb)
     cursor: pointer
     border: none
     background: transparent

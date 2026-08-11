@@ -15,7 +15,7 @@
 // rewarded ads. The fix is structural: route the audio mute through the
 // universal pause gate so it can NEVER be skipped on any provider —
 // CrazyGames, GameDistribution, Playgama, GamePix, or the Noop/web build.
-// The render loop already early-returns on `isGamePaused` (MawScene.vue),
+// The render loop already early-returns on `isGamePaused` (GameScene.vue),
 // so this module is the audio half of the same gate.
 //
 // **Single suspend slot.** `suspendAllAudio` / `resumeAllAudio` are

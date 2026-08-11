@@ -9,7 +9,7 @@
 // ('crazyGames'), and `[crazygames] ...` console log prefixes. Yandex's
 // moderation scanner flags ANY non-Yandex identifier-looking string with
 // "Service storage URL detected", even bare names with no TLD. Many
-// components (MawScene, BattlePass, AchievementsModal, OptionsModal,
+// components (GameScene, BattlePass, AchievementsModal, OptionsModal,
 // UpgradesModal, DailyRewards, SpinnerAchievementsModal) statically import
 // from this module — so even if the actual code paths are dead on Yandex
 // builds, module init pulls every literal into the bundle.
@@ -55,6 +55,9 @@ export const startLoading = (): void => {}
 export const stopLoading = (): void => {}
 export const startGameplay = (): void => {}
 export const stopGameplay = (): void => {}
+export const signalGameplayLoaded = (): void => {}
+export const syncGameplayLifecycle = (_live: boolean): void => { void _live }
+export const __resetGameplayLifecycle = (): void => {}
 
 // Mute-listener registry — return a no-op unsubscribe so callers can
 // safely `const off = onCrazyMuteChange(cb); off()` without crashing.
@@ -80,6 +83,8 @@ const useCrazyGames = () => ({
   stopLoading,
   startGameplay,
   stopGameplay,
+  signalGameplayLoaded,
+  syncGameplayLifecycle,
   onCrazyMuteChange,
   addCrazyMuteListener,
   setCrazyMuted,

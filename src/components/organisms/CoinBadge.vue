@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import IconCoin from '@/components/icons/IconCoin.vue'
-import useEpicConfig from '@/use/useEpicConfig'
+import useTowerEconomy from '@/use/useTowerEconomy'
 
-const { coins } = useEpicConfig()
+const { coins } = useTowerEconomy()
 
 // Exposed so siblings (e.g. TreasureChest) can target the badge for fly-to VFX.
 const rootEl = ref<HTMLElement | null>(null)

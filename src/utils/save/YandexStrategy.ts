@@ -20,7 +20,7 @@
 //
 //   2. **Single blob key.** Yandex's setData accepts an arbitrary object;
 //      we send `{ blob: <serialized snapshot>, meta: <SaveMeta JSON> }`.
-//      The blob is the consolidated `maw_state` blob (the same payload
+//      The blob is the consolidated `tower_state` blob (the same payload
 //      Playgama / GamePix mirror), and `meta` is the same SaveMeta the
 //      CrazyGames merge resolver uses — kept here even though we don't
 //      run the merge today, so a future cross-device merge has the data.
@@ -42,7 +42,7 @@ import type {
   SaveStrategy
 } from './types'
 import { isInternalKey } from './types'
-import { STATE_KEY } from '@/use/useEpicState'
+import { STATE_KEY } from '@/use/useTowerState'
 import { META_KEY } from './SaveMergePolicy'
 import { isDebug } from '@/use/useMatch'
 import { getYandexPlayer } from '@/utils/yandexPlugin'

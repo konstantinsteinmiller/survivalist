@@ -14,7 +14,7 @@
 // flips the modal-visible flag. Mounted unconditionally in App.vue;
 // visibility is purely reactive on the flag.
 //
-// Wording is kid-safe because epicrolla targets ages 6+. No mention
+// Wording is kid-safe because tower-siege targets ages 6+. No mention
 // of "ad blocker brand X", no urging to disable site-wide — just a
 // gentle "we couldn't show your ad, please allow ads here to earn the
 // reward". Adult-audience games can swap copy via a simple text edit.
@@ -70,7 +70,7 @@ const host = computed(() => {
           p.text-sm.mb-5(class="text-slate-300")
             | {{ t('adsBlocked.allowPrefix') }}
             |
-            span.font-mono.font-bold(class="text-amber-300") {{ host }}
+            span.font-bold(class="text-amber-300") {{ host }}
             |
             | {{ t('adsBlocked.allowSuffix') }}
 

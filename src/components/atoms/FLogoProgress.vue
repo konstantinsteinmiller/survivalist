@@ -16,14 +16,14 @@
         div(:style="sizeStyle")
           img(
             :src="logoSrc"
-            alt="epicrolla"
+            alt="tower-siege"
             class="w-full h-full object-contain"
             draggable="false"
           )
 
         //- Loading Text
         div.absolute.-bottom-8(class="mt-0 flex flex-col items-center gap-1")
-          span(class="percentage-text text-shadow font-mono text-amber-500") {{ Math.round(progress) }}%
+          span(class="percentage-text text-shadow text-amber-500") {{ Math.round(progress) }}%
 
         Transition(name="hint-fade")
           div.stuck-hint.mt-4(v-if="showStuckHint") {{ t('loading.tooLong') }}
@@ -210,17 +210,17 @@ watch(done, (isDone) => {
     -webkit-user-drag: none
 
 .percentage-text
-  font-size: 1.2rem
-  font-weight: bold
+  font-size: clamp(0.9rem, 4vw, 1.35rem)
+  font-weight: 900
 
 .splash-backdrop
   position: fixed
   inset: 0
   z-index: 150
-  background-color: #0d2a18
-  background-image: url('/images/bg/bg-tile_400x400.webp')
-  background-repeat: repeat
-  background-size: 400px 400px
+  // Matches the inline splash in index.html AND the scene's sky, so the
+  // handover from static HTML → Vue splash → canvas is one continuous colour
+  // with no flash between the three.
+  background: radial-gradient(circle at 50% 38%, #1b2b52 0%, #0a1224 70%)
 
 .splash-fade-leave-active
   transition: opacity 0.4s ease-out

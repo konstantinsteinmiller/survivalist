@@ -13,19 +13,19 @@ describe('useBattlePass', () => {
     expect(bp.claimedStages.value).toEqual([])
   })
 
-  it('campaign wins accrue xp and unlock stages', async () => {
-    const { default: useBattlePass, BP_XP_PER_STAGE, BP_XP_CAMPAIGN_WIN } = await import('@/use/useBattlePass')
+  it('cleared waves accrue xp and unlock tiers', async () => {
+    const { default: useBattlePass, BP_XP_PER_STAGE, BP_XP_WAVE_CLEARED } = await import('@/use/useBattlePass')
     const bp = useBattlePass()
-    const wins = Math.ceil(BP_XP_PER_STAGE / BP_XP_CAMPAIGN_WIN)
-    for (let i = 0; i < wins; i++) bp.awardCampaignWin()
+    const waves = Math.ceil(BP_XP_PER_STAGE / BP_XP_WAVE_CLEARED)
+    for (let i = 0; i < waves; i++) bp.awardWaveCleared()
     expect(bp.unlockedStages.value).toBeGreaterThanOrEqual(1)
   })
 
   it('claimStage refuses unlocked-but-already-claimed stages', async () => {
-    const { default: useBattlePass, BP_XP_PER_STAGE, BP_XP_CAMPAIGN_WIN } = await import('@/use/useBattlePass')
+    const { default: useBattlePass, BP_XP_PER_STAGE, BP_XP_WAVE_CLEARED } = await import('@/use/useBattlePass')
     const bp = useBattlePass()
-    const wins = Math.ceil(BP_XP_PER_STAGE / BP_XP_CAMPAIGN_WIN)
-    for (let i = 0; i < wins; i++) bp.awardCampaignWin()
+    const waves = Math.ceil(BP_XP_PER_STAGE / BP_XP_WAVE_CLEARED)
+    for (let i = 0; i < waves; i++) bp.awardWaveCleared()
     const result = bp.claimStage(1)
     expect(result).not.toBeNull()
     expect(bp.claimStage(1)).toBeNull()

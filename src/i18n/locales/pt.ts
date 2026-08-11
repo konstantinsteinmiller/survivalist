@@ -1,198 +1,264 @@
 export default {
-  'ads': {
-    'watch': 'Assistir', 'revive': 'Reviver', 'secondChance': 'Segunda chance', 'doubleCoins': '2× moedas', 'plusCoins': '+{n} moedas'
-  },
-  'achievements': {
-    'title': 'Conquistas', 'subtitle': 'Alcance marcos para ganhar moedas.', 'claim': 'Resgatar', 'claimed': 'Resgatado', 'progress': '{c} / {t}',
-    'items': {
-      'tiles1k': { 'name': 'Viajante do Mundo', 'desc': 'Percorra 1.000 casas no total.' },
-      'tiles5k': { 'name': 'Maratonista', 'desc': 'Percorra 5.000 casas no total.' },
-      'tiles10k': { 'name': 'Corredor de Longa Distância', 'desc': 'Percorra 10.000 casas no total.' },
-      'tiles100k': { 'name': 'Viajante', 'desc': 'Percorra 100.000 casas no total.' },
-      'stage5': { 'name': 'Primeiros Passos', 'desc': 'Alcance a fase 5.' },
-      'stage10': { 'name': 'Experiente', 'desc': 'Alcance a fase 10.' },
-      'stage20': { 'name': 'Veterano', 'desc': 'Alcance a fase 20.' },
-      'clears25': { 'name': 'Faxineiro', 'desc': 'Complete 25 fases no total.' },
-      'clears100': { 'name': 'Centurião', 'desc': 'Complete 100 fases no total.' },
-      'bestRun100': { 'name': 'Velocista', 'desc': 'Percorra 100 casas em uma única corrida.' },
-      'bestRun250': { 'name': 'Demônio da Distância', 'desc': 'Percorra 250 casas em uma única corrida.' },
-      'coins5k': { 'name': 'Colecionador de Moedas', 'desc': 'Junte 5.000 moedas no total.' },
-      'coins50k': { 'name': 'Tesoureiro', 'desc': 'Junte 50.000 moedas no total.' },
-      'items50': { 'name': 'Desempacotador', 'desc': 'Pegue 50 caixas de itens no total.' },
-      'items250': { 'name': 'Acumulador', 'desc': 'Pegue 250 caixas de itens no total.' }
-    }
-  },
-  'gameName': 'Epicrolla',
+  'gameName': 'Tower Siege',
   'cancel': 'Cancelar',
   'close': 'Fechar',
   'ok': 'Ok',
   'continue': 'Continuar',
   'tapToContinue': 'Toque para continuar',
   'clickToContinue': 'Clique para continuar',
-  'stage': 'Fase',
   'rewards': 'RECOMPENSAS',
   'tip': 'Dica',
   'crazyGamesOnly': 'Este jogo só está disponível em',
-  'startTouch': 'Toque para começar',
-  'startDesktop': 'Clique para começar',
-  'startSubhint': 'Role para cima — mude de direção para desviar das lacunas e obstáculos!',
-  'hints': {
-    'tapToTurn': 'Toque para mudar de direção',
-    'clickToTurn': 'Clique / Espaço para mudar de direção'
+
+  'hud': {
+    'wave': 'Onda', 'enemies': 'Inimigos', 'callWave': 'Chamar onda', 'callBoss': 'Chamar chefe',
+    'speed': 'Velocidade {n}×',
+    'speedOffer': 'Velocidade dupla por um anúncio',
+    'speedFor': '{n} min', 'recenter': 'Centralizar a vista'
   },
-  'powerups': {
-    'invuln': 'Invencível',
-    'magnet': 'Ímã de Moedas',
-    'dodge': 'Mestre da Esquiva',
-    'slowmo': 'Câmara Lenta',
-    'push': 'Força de Impulso',
-   'racer': 'Racer!' },
-  'secondChance': {
-    'title': 'Continuar rolando?',
-    'body': 'Assista a um anúncio curto para reviver e continuar sua corrida.',
-    'watch': 'Assistir e continuar',
+
+  'hints': {
+    'selectBlock': { 'touch': 'Toque num bloco abaixo para escolhê-lo', 'desktop': 'Clique num bloco abaixo para escolhê-lo' },
+    'placeBlock': { 'touch': 'Agora toque num espaço iluminado para construir', 'desktop': 'Agora clique num espaço iluminado para construir' },
+    'camera': { 'touch': 'Arraste para mover · Pinça para ampliar', 'desktop': 'Arraste para mover · Rolagem para ampliar' },
+    'callWave': { 'touch': 'Toque em «Chamar onda» quando a torre estiver pronta', 'desktop': 'Pressione Espaço para adiantar a onda' },
+    'inspect': { 'touch': 'Segure um bloco para inspecioná-lo', 'desktop': 'Clique num bloco para inspecioná-lo' }
+  },
+
+  'blocks': {
+    'sell': 'Vender',
+    'roofNote': 'Com telhado: nada pode ser construído em cima.',
+    'enhancedNote': 'Reforçado — mais PV e mais dano.',
+    'enhancedHand': 'Mão reforçada',
+    'reroll': 'Trocar esta peça',
+    'kinds': { 'core': 'Núcleo', 'structure': 'Estrutura', 'weapon': 'Arma', 'economy': 'Economia', 'utility': 'Utilidade' },
+    'stats': {
+      'hp': 'PV', 'armor': 'Armadura', 'dmg': 'Dano', 'cooldown': 'Recarga', 'range': 'Alcance',
+      'splash': 'Área', 'yieldWood': 'Madeira / onda', 'yieldStone': 'Pedra / onda', 'yieldCoins': 'Moedas / onda',
+      'repair': 'Reparo / onda', 'blast': 'Explosão',
+      'thorns': 'Espinhos'
+    },
+    'names': {
+      'gate': 'Portão', 'wood': 'Caixa de madeira', 'brace': 'Caixa reforçada', 'stone': 'Bloco de pedra',
+      'archer': 'Torre de arqueiros', 'cannon': 'Canhão', 'mortar': 'Morteiro', 'tesla': 'Bobina elétrica',
+      'frost': 'Agulha de gelo', 'repair': 'Oficina',
+      'sawmill': 'Serraria', 'quarry': 'Pedreira', 'mint': 'Mina de ouro',
+      'spikes': 'Muro de espinhos',
+      'bombard': 'Bombarda'
+    },
+    'descriptions': {
+      'gate': 'O coração da sua torre. Se cair, o cerco acaba.',
+      'wood': 'Enchimento barato. A espinha dorsal de toda torre inicial.',
+      'brace': 'O dobro de madeira e mais que o dobro de resistência.',
+      'stone': 'Pesado e blindado. Melhor na base.',
+      'archer': 'Flechas rápidas em alvo único. Atinge voadores.',
+      'cannon': 'Lento, com forte dano em área. Derrete multidões.',
+      'mortar': 'Tiros em arco de longo alcance, mas não atinge voadores.',
+      'tesla': 'Raios que saltam entre inimigos próximos.',
+      'frost': 'Congela grupos inteiros e os deixa lentíssimos.',
+      'repair': 'Repara todos os blocos vizinhos entre as ondas.',
+      'sawmill': 'Produz madeira ao fim de cada onda vencida.',
+      'quarry': 'Produz pedra ao fim de cada onda vencida.',
+      'mint': 'Produz moedas ao fim de cada onda vencida.',
+      'spikes': 'Os atacantes se ferem nele a cada golpe.',
+      'bombard': 'Lança uma granada quase na vertical. Explosão pequena, só alvos terrestres.'
+    }
+  },
+
+  'enemies': {
+    'names': {
+      'grunt': 'Soldado', 'runner': 'Corredor', 'slinger': 'Fundeiro', 'brute': 'Brutamontes',
+      'bomber': 'Bombardeiro', 'bat': 'Morcego', 'bulwark': 'Baluarte', 'golem': 'Golem de cerco',
+      'wyvern': 'Serpe',
+      'eel': 'Serpente marinha',
+      'kraken': 'Kraken',
+      'ram': 'Aríete',
+      'ballista': 'Balista',
+      'catapult': 'Catapulta',
+      'siegeTower': 'Torre de cerco',
+      'trebuchet': 'Trabuco',
+      'ironRam': 'Aríete blindado',
+      'bombardier': 'Bombardeiro',
+      'firebug': 'Incendiário'
+    }
+  },
+
+  // ─── First-stage tutorial ─────────────────────────────────────────────────
+  'tutorial': {
+    'gate': 'Proteja o Portão. Se cair, a partida acaba.',
+    'pick': 'Escolha uma peça.',
+    'place': 'Coloque-a ao lado do Portão.',
+    'call': 'Chame a onda quando estiver pronto.',
+    'next': 'Próximo',
+    'offer': 'Precisa de um tutorial?',
+    'start': 'Começar',
     'skip': 'Pular'
   },
+
+  // ─── Allies ───────────────────────────────────────────────────────────────
+  'allies': {
+    'cavalry': 'Cavalaria'
+  },
+
   'result': {
-    'win': 'FASE CONCLUÍDA!',
-    'lose': 'FIM DE JOGO',
-    'fell': 'Você caiu em uma lacuna!',
-    'crashed': 'Você bateu em um obstáculo!',
-    'tiles': 'Casas',
-    'winReward': 'incl. +{n} bônus de fase',
+    'towerFell': 'A torre caiu!',
+    'reachedWave': 'Você sobreviveu até a onda {n}',
+    'newRecord': 'Novo recorde!',
+    'defeated': 'Derrotados',
+    'reward': 'Recompensa',
+    'upgrade': 'Melhorar!',
+    'defendAgain': 'Defender de novo',
     'double': 'Dobrar moedas',
-    'firstRunDouble': '2× — primeira corrida de hoje!',
-   'almost': 'Quase! Faltam {n} casas.', 'retry': 'Repetir', },
-  'upgrades': {
-    'title': 'Melhorias',
-    'subtitle': 'Gaste moedas para se fortalecer permanentemente.',
-    'level': 'Nv.{n}',
-    'maxedOut': 'MÁX',
-    'sellBack': 'Vender +{n}',
-    'spotlight': 'Gastar!',
-    'unlocksAtStage': '🔒 Fase {n}',
+    'firstRunDouble': '2× — primeiro cerco de hoje!',
+    'tripleWave': '3× moedas — {n}',
+    'waveCleared': 'Onda {n} contida!'
+  },
+
+  'tech': {
+    'title': 'Árvore tecnológica',
+    'rank': 'Nível {current}/{total}',
+    'maxed': 'No máximo',
+    'rankOpen': 'Nível {n}',
+    'owned': 'Desbloqueado',
+    'requires': 'Requer {n}',
+    'spotlight': 'Gaste!',
     'names': {
-      'powerupDuration': 'Reforço de Poder',
-      'magnetRange': 'Alcance do Ímã',
-      'coinValue': 'Valor da Moeda',
-      'itemLuck': 'Caixas da Sorte',
-      'dodgeApprentice': 'Aprendiz de Esquiva',
-      'deathMagnet': 'Ímã da Morte',
-      'autoCollect': 'Coleta Automática',
-      'rollingBoulder': 'Pedra Rolante'
+      'foundations': 'Fundações', 'sharpBolts': 'Virotes afiados', 'unlockBrace': 'Caixas reforçadas',
+      'lumberStock': 'Reserva de madeira', 'longSight': 'Visão longa', 'rapidFire': 'Tiro rápido',
+      'reinforced': 'Vigas reforçadas', 'unlockSawmill': 'Serraria', 'quarryStock': 'Reserva de pedra',
+      'unlockMortar': 'Morteiro', 'heavyOrdnance': 'Artilharia pesada', 'unlockTesla': 'Bobina elétrica',
+      'gateArmor': 'Blindagem do portão', 'unlockQuarry': 'Pedreira', 'richHauls': 'Espólio farto',
+      'wideFoundation': 'Fundação ampla', 'siegeShells': 'Projéteis de cerco', 'unlockFrost': 'Agulha de gelo',
+      'forkedBolts': 'Raios bifurcados', 'ironPlating': 'Chapas de ferro', 'unlockRepair': 'Oficina',
+      'unlockMint': 'Mina de ouro', 'looting': 'Pilhagem', 'overcharge': 'Sobrecarga',
+      'masterwork': 'Obra-prima', 'fieldRepairs': 'Reparos de campo', 'greatFoundation': 'Grande fundação',
+      'warChest': 'Cofre de guerra',
+      'unlockSpikes': 'Muro de espinhos',
+      'unlockBombard': 'Bombarda',
+      'sharpSpikes': 'Espinhos afiados',
+      'cavalryDrill': 'Treino de cavalaria',
+      'artilleryDoctrine': 'Doutrina de artilharia'
     },
     'descriptions': {
-      'powerupDuration': 'Todos os poderes duram mais (+0,75s por nível).',
-      'magnetRange': 'O Ímã de Moedas alcança mais longe.',
-      'coinValue': 'Cada moeda vale mais.',
-      'itemLuck': 'Caixas de itens aparecem com mais frequência.',
-      'dodgeApprentice': 'Esquiva auto de uma casa mortal, depois recarrega (10s; −0,5s por nível).',
-      'deathMagnet': 'Ao morrer, recolha todas as moedas num raio de 4 casas — garanta o que teria perdido.',
-      'autoCollect': 'Coleta sempre as moedas das casas próximas — um ímã de moedas permanente de 1 casa.',
-      'rollingBoulder': 'Role direto pelas caixas, sem sofrer dano.'
-    },
-    'secondChance': {
-      'name': 'Segunda Chance',
-      'description': 'Comece cada corrida com asas de anjo — sobreviva a uma batida ou queda. Ativo até ser usado.',
-      'active': 'ATIVO',
-      'watch': 'Grátis'
+      'foundations': 'Cada bloco começa com +10 % de PV.',
+      'sharpBolts': 'Todas as armas causam +10 % de dano por nível.',
+      'unlockBrace': 'Desbloqueia a caixa reforçada: o dobro dos PV da madeira.',
+      'lumberStock': 'Comece cada cerco com +25 de madeira por nível.',
+      'longSight': 'Todas as armas alcançam +10 % mais longe por nível.',
+      'rapidFire': 'Todas as armas atiram 8 % mais rápido por nível.',
+      'reinforced': 'Cada bloco ganha +8 % de PV por nível.',
+      'unlockSawmill': 'Desbloqueia a serraria: produz madeira a cada onda.',
+      'quarryStock': 'Comece cada cerco com +18 de pedra por nível.',
+      'unlockMortar': 'Desbloqueia o morteiro: dano em área a longa distância.',
+      'heavyOrdnance': 'Raio de área +15 % por nível.',
+      'unlockTesla': 'Desbloqueia a bobina elétrica: os raios saltam entre inimigos.',
+      'gateArmor': 'O portão ganha +20 % de PV por nível.',
+      'unlockQuarry': 'Desbloqueia a pedreira: produz pedra a cada onda.',
+      'richHauls': 'Recompensas de onda +12 % por nível.',
+      'wideFoundation': 'Construa 2 colunas mais largas por nível.',
+      'siegeShells': 'Todas as armas causam +10 % de dano por nível.',
+      'unlockFrost': 'Desbloqueia a agulha de gelo: retarda grupos inteiros.',
+      'forkedBolts': 'O raio salta para 1 inimigo a mais por nível.',
+      'ironPlating': 'Cada bloco ganha +2 de armadura por nível.',
+      'unlockRepair': 'Desbloqueia a oficina: cura os vizinhos a cada onda.',
+      'unlockMint': 'Desbloqueia a mina de ouro: produz moedas a cada onda.',
+      'looting': 'Inimigos soltam +15 % mais moedas por nível.',
+      'overcharge': 'Todas as armas atiram 10 % mais rápido por nível.',
+      'masterwork': 'Todas as armas causam +12 % de dano por nível.',
+      'fieldRepairs': 'Cada bloco recupera 6 % dos PV máximos por onda contida e por nível.',
+      'greatFoundation': 'Construa mais 2 colunas de largura por nível.',
+      'warChest': 'Recompensas de onda +15 % por nível.',
+      'unlockSpikes': 'Desbloqueia o Muro de espinhos — os atacantes se ferem nele.',
+      'unlockBombard': 'Desbloqueia a Bombarda — fogo de morteiro de curto alcance contra tropas terrestres.',
+      'sharpSpikes': 'Muros de espinhos refletem +20% mais dano por nível.',
+      'cavalryDrill': 'A cavalaria sai com +14% de PV e dano por nível.',
+      'artilleryDoctrine': 'Todas as armas alcançam +9% mais longe por nível.'
     }
   },
-  'battlePass': {
-    'title': 'Passe de Batalha',
-    'progress': '{current} / {total}',
-    'daysLeft': '{n}d restantes',
-    'maxed': 'PASSE DE BATALHA COMPLETO',
-    'xpProgress': '{current} / {total} XP',
-    'howToEarn': 'Como ganhar XP',
-    'perAttempt': 'por corrida',
-    'perStageFinish': 'por fase concluída',
-    'unlockHint': 'Alcance {n} XP para desbloquear a próxima recompensa — recompensas não resgatadas ficam até você tocá-las.'
+
+  'resources': {
+    'wood': 'madeira',
+    'stone': 'pedra',
+    'coins': 'moedas'
   },
-  'dailyRewards': {
-    'title': 'Recompensas Diárias',
-    'subtitle': 'Entre todos os dias para manter sua sequência.',
-    'day': 'Dia {n}',
-    'dayShort': 'D{n}'
+
+  'ads': {
+    'watch': 'Assistir', 'revive': 'Reviver', 'secondChance': 'Segunda chance',
+    'doubleCoins': '2× moedas', 'plusCoins': '+{n} moedas'
   },
-  'skins': {
-    'title': 'Skins da Bola',
-    'subtitle': 'Gaste moedas para desbloquear e equipar novos visuais.',
-    'equip': 'Equipar',
-    'equipped': 'Equipado',
-   'locked': 'Fase {n}', 'new': 'Novo!', 'rarity': { 'common': 'Comum', 'rare': 'Raro', 'epic': 'Épico' }, },
+
+  'achievements': {
+    'title': 'Conquistas', 'subtitle': 'Alcance marcos permanentes para ganhar moedas.',
+    'claim': 'Resgatar', 'claimed': 'Resgatado', 'progress': '{c} / {t}',
+    'items': {
+      'wave5': { 'name': 'Primeira defesa', 'desc': 'Sobreviva até a onda 5.' },
+      'wave10': { 'name': 'Fortaleza', 'desc': 'Sobreviva até a onda 10.' },
+      'wave20': { 'name': 'Baluarte', 'desc': 'Sobreviva até a onda 20.' },
+      'wave30': { 'name': 'Inquebrável', 'desc': 'Sobreviva até a onda 30.' },
+      'waves50': { 'name': 'Quebra-ondas', 'desc': 'Contenha 50 ondas no total.' },
+      'waves250': { 'name': 'Veterano de cercos', 'desc': 'Contenha 250 ondas no total.' },
+      'kills500': { 'name': 'Defensor', 'desc': 'Derrote 500 inimigos no total.' },
+      'kills5k': { 'name': 'Carrasco', 'desc': 'Derrote 5.000 inimigos no total.' },
+      'kills50k': { 'name': 'Lenda', 'desc': 'Derrote 50.000 inimigos no total.' },
+      'height10': { 'name': 'Rumo ao céu', 'desc': 'Construa uma torre de 10 blocos de altura.' },
+      'height20': { 'name': 'Fura-nuvens', 'desc': 'Construa uma torre de 20 blocos de altura.' },
+      'blocks250': { 'name': 'Construtor', 'desc': 'Posicione 250 blocos no total.' },
+      'blocks2k': { 'name': 'Arquiteto', 'desc': 'Posicione 2.000 blocos no total.' },
+      'coins5k': { 'name': 'Colecionador', 'desc': 'Ganhe 5.000 moedas no total.' },
+      'coins50k': { 'name': 'Tesoureiro', 'desc': 'Ganhe 50.000 moedas no total.' },
+      'runs25': { 'name': 'Persistente', 'desc': 'Inicie 25 cercos.' }
+    }
+  },
+
   'missions': {
-    'title': 'Missões Diárias',
-    'subtitle': 'Complete objetivos todos os dias para ganhar moedas.',
-    'claim': 'Resgatar',
-    'done': 'Resgatado',
+    'title': 'Missões diárias', 'subtitle': 'Cumpra objetivos todos os dias para ganhar moedas.',
+    'claim': 'Resgatar', 'done': 'Resgatado',
     'types': {
-      'coins': 'Colete {n} moedas hoje',
-      'tiles': 'Percorra {n} casas em uma corrida',
-      'items': 'Pegue {n} caixas de itens hoje',
-      'clears': 'Complete {n} fases hoje'
+      'coins': 'Ganhe {n} moedas hoje',
+      'waves': 'Sobreviva até a onda {n} num cerco',
+      'kills': 'Derrote {n} inimigos hoje',
+      'blocks': 'Posicione {n} blocos hoje'
     }
   },
-  'endless': {
-    'badge': 'Infinito',
-    'toEndless': 'Modo Infinito',
-    'toCampaign': 'Campanha',
-    'best': 'Recorde: {n}'
+
+  'battlePass': {
+    'title': 'Passe de batalha', 'progress': '{current} / {total}', 'daysLeft': 'Faltam {n} d',
+    'maxed': 'PASSE DE BATALHA COMPLETO', 'xpProgress': '{current} / {total} XP',
+    'howToEarn': 'Como ganhar XP', 'perRun': 'por cerco', 'perWave': 'por onda contida',
+    'unlockHint': 'Alcance {n} XP para a próxima recompensa — as não resgatadas permanecem disponíveis.'
   },
-  'boon': {
-    'title': 'Escolha uma bênção',
-    'names': {
-      'secondChance': 'Segunda Chance',
-      'startPowerup': 'Vantagem',
-      'coinBoost': 'Chuva de Moedas'
-    },
-    'descriptions': {
-      'secondChance': 'Comece a próxima fase com um escudo de Segunda Chance.',
-      'startPowerup': 'Comece a próxima fase com um poder aleatório.',
-      'coinBoost': '1,2× moedas durante toda a próxima fase.'
-    }
+
+  'dailyRewards': {
+    'title': 'Recompensas diárias', 'subtitle': 'Entre todos os dias para manter sua sequência.',
+    'day': 'Dia {n}', 'dayShort': 'D{n}'
   },
+
   'options': {
-    'title': 'Opções',
-    'general': 'Geral',
-    'audio': 'Áudio',
-    'language': 'Idioma',
-    'difficulty': 'Dificuldade',
-    'soundEffects': 'Efeitos Sonoros',
-    'music': 'Música',
-    'musicTrack': 'Faixa de música',
-    'musicTracks': {
-      'cozy': 'Harmonia Aconchegante',
-      'trance': 'Túnel Trance'
-    },
-    'close': 'Salvar e Fechar',
+    'title': 'Opções', 'general': 'Geral', 'audio': 'Áudio', 'language': 'Idioma',
+    'difficulty': 'Dificuldade', 'soundEffects': 'Efeitos sonoros', 'music': 'Música', 'musicTrack': 'Faixa musical',
+    'musicTracks': { 'cozy': 'Harmonia aconchegante', 'trance': 'Túnel trance' },
+    'close': 'Salvar e fechar',
     'difficulties': { 'easy': 'Fácil', 'medium': 'Médio', 'hard': 'Difícil' },
     'difficultyHints': {
-      'easy': 'Velocidade mais lenta — mais tempo para reagir.',
-      'medium': 'O ritmo padrão e equilibrado.',
-      'hard': 'Velocidade maior — tempo mais preciso.'
+      'easy': 'Ondas menores e inimigos mais fracos.',
+      'medium': 'O cerco padrão e equilibrado.',
+      'hard': 'Ondas mais densas e inimigos mais resistentes.'
     }
   },
+
   'adsBlocked': {
     'title': 'Não foi possível exibir o anúncio',
     'body': 'Tentamos mostrar um vídeo para você ganhar sua recompensa, mas algo no seu navegador está bloqueando anúncios.',
     'allowPrefix': 'Permita anúncios em',
-    'allowSuffix': '(ou pause seu bloqueador de anúncios para este jogo) e tente novamente.',
+    'allowSuffix': '(ou pause seu bloqueador para este jogo) e tente novamente.',
     'gotIt': 'Entendi'
   },
   'saveStatus': {
-    'restoredTitle': 'Save na nuvem restaurado',
-    'restoredBody': '+{n} moedas bônus pela recuperação',
-    'tap': 'tocar',
-    'pausedTitle': 'Sincronização na nuvem pausada',
+    'restoredTitle': 'Salvamento na nuvem restaurado', 'restoredBody': '+{n} moedas de bônus pela recuperação',
+    'tap': 'toque', 'pausedTitle': 'Sincronização pausada',
     'pausedBody': 'Jogando offline. Seu progresso está salvo aqui.',
-    'retry': 'Repetir',
-    'dismiss': 'fechar'
+    'retry': 'Tentar de novo', 'dismiss': 'dispensar'
   },
-  'loading': {
-    'tooLong': 'O carregamento está demorando? Desative seu bloqueador de anúncios e atualize.'
-  },
-  'license': {
-    'denied': 'Acesso negado: adquira uma licença.'
-  }
+  'loading': { 'tooLong': 'O carregamento está demorando? Desative seu bloqueador de anúncios e recarregue.' },
+  'license': { 'denied': 'Acesso negado: adquira uma licença.' }
 }

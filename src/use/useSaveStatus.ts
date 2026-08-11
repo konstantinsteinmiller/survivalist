@@ -9,7 +9,7 @@ import { ref, computed } from 'vue'
 import type { Ref } from 'vue'
 import type { SaveManager } from '@/utils/save/SaveManager'
 import type { HydrateNotice, HydrateState } from '@/utils/save/types'
-import { reloadEpicState, flushPersist } from '@/use/useEpicState'
+import { reloadTowerState, flushPersist } from '@/use/useTowerState'
 
 const hydrateState: Ref<HydrateState> = ref('pending')
 const lastNotice: Ref<HydrateNotice | null> = ref(null)
@@ -29,35 +29,35 @@ const saveDataVersion: Ref<number> = ref(0)
 let manager: SaveManager | null = null
 
 /**
- * Refresh the in-memory `maw_state` blob from (now-patched) localStorage,
+ * Refresh the in-memory `tower_state` blob from (now-patched) localStorage,
  * THEN bump `saveDataVersion`. Order is load-bearing: composables re-read
  * their refs via `getState(...)` inside a `watch(saveDataVersion)` callback,
- * and `getState` reads from the `mawState` ref — so the blob MUST already
+ * and `getState` reads from the `towerState` ref — so the blob MUST already
  * hold the cloud-hydrated values when the watcher fires. Without the reload,
- * everything that re-reads on `saveDataVersion` (upgrades, achievements,
- * campaign stage, ghost runs, battle pass, user settings, …) would see the
- * pre-hydrate blob and silently drop the player's cloud progress. (Coins
- * happened to survive via a bespoke `watch(mawState)` in useMawConfig; this
- * makes that workaround unnecessary by fixing the root cause for every key.)
+ * everything that re-reads on `saveDataVersion` (tech levels, achievements,
+ * the resumable run, battle pass, user settings, …) would see the pre-hydrate
+ * blob and silently drop the player's cloud progress — the exact "falsely
+ * treated as a fresh user" bug this ordering exists to prevent.
  */
 const bumpSaveDataVersion = (): void => {
-  reloadEpicState()
+  reloadTowerState()
   saveDataVersion.value++
 }
 
 /**
  * Force the whole save pipeline to flush NOW, bypassing both debounces:
- *   1. `flushPersist()` writes the in-memory `maw_state` blob to localStorage
+ *   1. `flushPersist()` writes the in-memory `tower_state` blob to localStorage
  *      immediately (cancels the 200ms persist debounce) — which routes through
  *      the SaveManager proxy into the active strategy's dirty queue.
  *   2. `manager.flush()` drains that queue to the backend immediately
  *      (cancels the strategy's 250ms flush debounce).
  *
- * Use at hard checkpoints that MUST survive an immediate reload — chiefly a
- * level change. On the CrazyGames cloud-only build the `sdk.data` write is
- * async and only starts after the debounces elapse, so a player who clears a
- * stage and reloads a moment later lands back on the old stage. Starting the
- * push the instant the stage advances gives the cloud write the time it needs.
+ * Use at hard checkpoints that MUST survive an immediate reload — a wave
+ * cleared, a run ended, a tech node bought. On the CrazyGames cloud-only build
+ * the `sdk.data` write is async and only starts after the debounces elapse, so
+ * a player who clears wave 12 and reloads a moment later would land back on
+ * wave 11. Starting the push the instant the wave resolves gives the cloud
+ * write the time it needs.
  * Fire-and-forget (`void`) so callers never block the UI on the network.
  */
 export const flushSaveNow = async (): Promise<void> => {

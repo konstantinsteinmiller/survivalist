@@ -1,198 +1,264 @@
 export default {
-  'ads': {
-    'watch': 'Bekijk', 'revive': 'Herleven', 'secondChance': 'Tweede kans', 'doubleCoins': '2× munten', 'plusCoins': '+{n} munten'
-  },
-  'achievements': {
-    'title': 'Prestaties', 'subtitle': 'Behaal mijlpalen om munten te verdienen.', 'claim': 'Claim', 'claimed': 'Geclaimd', 'progress': '{c} / {t}',
-    'items': {
-      'tiles1k': { 'name': 'Wereldreiziger', 'desc': 'Leg in totaal 1.000 tegels af.' },
-      'tiles5k': { 'name': 'Marathonloper', 'desc': 'Leg in totaal 5.000 tegels af.' },
-      'tiles10k': { 'name': 'Langeafstandsloper', 'desc': 'Leg in totaal 10.000 tegels af.' },
-      'tiles100k': { 'name': 'Reiziger', 'desc': 'Leg in totaal 100.000 tegels af.' },
-      'stage5': { 'name': 'Eerste stappen', 'desc': 'Bereik level 5.' },
-      'stage10': { 'name': 'Doorgewinterd', 'desc': 'Bereik level 10.' },
-      'stage20': { 'name': 'Veteraan', 'desc': 'Bereik level 20.' },
-      'clears25': { 'name': 'Opruimer', 'desc': 'Voltooi in totaal 25 levels.' },
-      'clears100': { 'name': 'Centurion', 'desc': 'Voltooi in totaal 100 levels.' },
-      'bestRun100': { 'name': 'Sprinter', 'desc': 'Leg 100 tegels af in één run.' },
-      'bestRun250': { 'name': 'Afstandsduivel', 'desc': 'Leg 250 tegels af in één run.' },
-      'coins5k': { 'name': 'Muntenverzamelaar', 'desc': 'Verzamel in totaal 5.000 munten.' },
-      'coins50k': { 'name': 'Penningmeester', 'desc': 'Verzamel in totaal 50.000 munten.' },
-      'items50': { 'name': 'Uitpakker', 'desc': 'Pak in totaal 50 itemkisten.' },
-      'items250': { 'name': 'Hamsteraar', 'desc': 'Pak in totaal 250 itemkisten.' }
-    }
-  },
-  'gameName': 'Epicrolla',
+  'gameName': 'Tower Siege',
   'cancel': 'Annuleren',
   'close': 'Sluiten',
   'ok': 'Ok',
   'continue': 'Doorgaan',
   'tapToContinue': 'Tik om door te gaan',
   'clickToContinue': 'Klik om door te gaan',
-  'stage': 'Level',
   'rewards': 'BELONINGEN',
   'tip': 'Tip',
   'crazyGamesOnly': 'Dit spel is alleen beschikbaar op',
-  'startTouch': 'Tik om te starten',
-  'startDesktop': 'Klik om te starten',
-  'startSubhint': 'Rol omhoog — verander van richting om de gaten en obstakels te ontwijken!',
-  'hints': {
-    'tapToTurn': 'Tik om van richting te veranderen',
-    'clickToTurn': 'Klik / Spatie om van richting te veranderen'
+
+  'hud': {
+    'wave': 'Golf', 'enemies': 'Vijanden', 'callWave': 'Golf oproepen', 'callBoss': 'Boss oproepen',
+    'speed': 'Snelheid {n}×',
+    'speedOffer': 'Dubbele snelheid voor een ad',
+    'speedFor': '{n} min', 'recenter': 'Beeld centreren'
   },
-  'powerups': {
-    'invuln': 'Onkwetsbaar',
-    'magnet': 'Muntmagneet',
-    'dodge': 'Ontwijkmeester',
-    'slowmo': 'Slow Motion',
-    'push': 'Duwkracht',
-   'racer': 'Racer!' },
-  'secondChance': {
-    'title': 'Blijven rollen?',
-    'body': 'Bekijk een korte advertentie om te herleven en je run voort te zetten.',
-    'watch': 'Bekijken & doorgaan',
+
+  'hints': {
+    'selectBlock': { 'touch': 'Tik hieronder op een blok om het te kiezen', 'desktop': 'Klik hieronder op een blok om het te kiezen' },
+    'placeBlock': { 'touch': 'Tik nu op een oplichtend vak om te bouwen', 'desktop': 'Klik nu op een oplichtend vak om te bouwen' },
+    'camera': { 'touch': 'Sleep om te bewegen · Knijp om te zoomen', 'desktop': 'Sleep om te bewegen · Scroll om te zoomen' },
+    'callWave': { 'touch': 'Tik op «Golf oproepen» als je toren klaar is', 'desktop': 'Druk op spatie om de golf vroeger te starten' },
+    'inspect': { 'touch': 'Houd een blok ingedrukt om het te bekijken', 'desktop': 'Klik op een blok om het te bekijken' }
+  },
+
+  'blocks': {
+    'sell': 'Verkopen',
+    'roofNote': 'Overdekt — hier kan niets bovenop worden gebouwd.',
+    'enhancedNote': 'Versterkt — meer HP en meer schade.',
+    'enhancedHand': 'Versterkte hand',
+    'reroll': 'Dit stuk ruilen',
+    'kinds': { 'core': 'Kern', 'structure': 'Structuur', 'weapon': 'Wapen', 'economy': 'Economie', 'utility': 'Speciaal' },
+    'stats': {
+      'hp': 'HP', 'armor': 'Pantser', 'dmg': 'Schade', 'cooldown': 'Afkoeling', 'range': 'Bereik',
+      'splash': 'Gebied', 'yieldWood': 'Hout / golf', 'yieldStone': 'Steen / golf', 'yieldCoins': 'Munten / golf',
+      'repair': 'Reparatie / golf', 'blast': 'Explosie',
+      'thorns': 'Stekels'
+    },
+    'names': {
+      'gate': 'Poort', 'wood': 'Houten kist', 'brace': 'Verstevigde kist', 'stone': 'Stenen blok',
+      'archer': 'Boogschuttertoren', 'cannon': 'Kanon', 'mortar': 'Mortier', 'tesla': 'Bliksemspoel',
+      'frost': 'Vorstspits', 'repair': 'Werkplaats',
+      'sawmill': 'Zagerij', 'quarry': 'Steengroeve', 'mint': 'Goudmijn',
+      'spikes': 'Stekelmuur',
+      'bombard': 'Bombarde'
+    },
+    'descriptions': {
+      'gate': 'Het hart van je toren. Valt hij, dan is het beleg voorbij.',
+      'wood': 'Goedkope vulling. De ruggengraat van elke beginnende toren.',
+      'brace': 'Twee keer zoveel hout, meer dan twee keer zo sterk.',
+      'stone': 'Zwaar en gepantserd. Het best in de basis.',
+      'archer': 'Snelle pijlen op één doel. Raakt ook vliegers.',
+      'cannon': 'Traag, zware gebiedsschade. Smelt dichte groepen.',
+      'mortar': 'Boogschoten met groot bereik, maar raakt geen vliegers.',
+      'tesla': 'Bliksem die overspringt naar vijanden in de buurt.',
+      'frost': 'Bevriest hele groepen en vertraagt ze enorm.',
+      'repair': 'Herstelt alle aangrenzende blokken tussen golven door.',
+      'sawmill': 'Produceert hout aan het einde van elke doorstane golf.',
+      'quarry': 'Produceert steen aan het einde van elke doorstane golf.',
+      'mint': 'Produceert munten aan het einde van elke doorstane golf.',
+      'spikes': 'Aanvallers verwonden zichzelf er bij elke klap aan.',
+      'bombard': 'Schiet een granaat recht omhoog. Kleine knal, alleen doelen op de grond.'
+    }
+  },
+
+  'enemies': {
+    'names': {
+      'grunt': 'Voetvolk', 'runner': 'Renner', 'slinger': 'Slingeraar', 'brute': 'Bruut',
+      'bomber': 'Bommenwerper', 'bat': 'Vleermuis', 'bulwark': 'Bolwerk', 'golem': 'Belegeringsgolem',
+      'wyvern': 'Wyvern',
+      'eel': 'Zeeslang',
+      'kraken': 'Kraken',
+      'ram': 'Stormram',
+      'ballista': 'Ballista',
+      'catapult': 'Katapult',
+      'siegeTower': 'Belegeringstoren',
+      'trebuchet': 'Trebuchet',
+      'ironRam': 'IJzeren stormram',
+      'bombardier': 'Bommenwerper',
+      'firebug': 'Brandstichter'
+    }
+  },
+
+  // ─── First-stage tutorial ─────────────────────────────────────────────────
+  'tutorial': {
+    'gate': 'Bescherm de Poort. Valt hij, dan is het voorbij.',
+    'pick': 'Kies een stuk.',
+    'place': 'Plaats het naast de Poort.',
+    'call': 'Roep de golf als je klaar bent.',
+    'next': 'Volgende',
+    'offer': 'Uitleg nodig?',
+    'start': 'Start',
     'skip': 'Overslaan'
   },
+
+  // ─── Allies ───────────────────────────────────────────────────────────────
+  'allies': {
+    'cavalry': 'Cavalerie'
+  },
+
   'result': {
-    'win': 'LEVEL VOLTOOID!',
-    'lose': 'GAME OVER',
-    'fell': 'Je viel in een gat!',
-    'crashed': 'Je botste op een obstakel!',
-    'tiles': 'Tegels',
-    'winReward': 'incl. +{n} levelbonus',
+    'towerFell': 'De toren is gevallen!',
+    'reachedWave': 'Je overleefde tot golf {n}',
+    'newRecord': 'Nieuw record!',
+    'defeated': 'Verslagen',
+    'reward': 'Beloning',
+    'upgrade': 'Verbeteren!',
+    'defendAgain': 'Opnieuw verdedigen',
     'double': 'Munten verdubbelen',
-    'firstRunDouble': '2× — eerste run van vandaag!',
-   'almost': 'Bijna! Nog {n} tegels te gaan.', 'retry': 'Opnieuw', },
-  'upgrades': {
-    'title': 'Upgrades',
-    'subtitle': 'Geef munten uit om permanent sterker te worden.',
-    'level': 'Lv.{n}',
-    'maxedOut': 'MAX',
-    'sellBack': 'Verkoop +{n}',
+    'firstRunDouble': '2× — eerste beleg vandaag!',
+    'tripleWave': '3× munten — {n}',
+    'waveCleared': 'Golf {n} gehouden!'
+  },
+
+  'tech': {
+    'title': 'Techboom',
+    'rank': 'Rang {current}/{total}',
+    'maxed': 'Maximaal',
+    'rankOpen': 'Rang {n}',
+    'owned': 'Ontgrendeld',
+    'requires': 'Vereist {n}',
     'spotlight': 'Uitgeven!',
-    'unlocksAtStage': '🔒 Level {n}',
     'names': {
-      'powerupDuration': 'Krachtboost',
-      'magnetRange': 'Magneetbereik',
-      'coinValue': 'Muntwaarde',
-      'itemLuck': 'Gelukskisten',
-      'dodgeApprentice': 'Ontwijkleerling',
-      'deathMagnet': 'Doodsmagneet',
-      'autoCollect': 'Auto-Verzamelen',
-      'rollingBoulder': 'Rollend Rotsblok'
+      'foundations': 'Fundering', 'sharpBolts': 'Gescherpte pijlen', 'unlockBrace': 'Verstevigde kisten',
+      'lumberStock': 'Houtvoorraad', 'longSight': 'Verrekijker', 'rapidFire': 'Snelvuur',
+      'reinforced': 'Versterkte balken', 'unlockSawmill': 'Zagerij', 'quarryStock': 'Steenvoorraad',
+      'unlockMortar': 'Mortier', 'heavyOrdnance': 'Zwaar geschut', 'unlockTesla': 'Bliksemspoel',
+      'gateArmor': 'Poortpantser', 'unlockQuarry': 'Steengroeve', 'richHauls': 'Rijke buit',
+      'wideFoundation': 'Brede fundering', 'siegeShells': 'Belegeringsgranaten', 'unlockFrost': 'Vorstspits',
+      'forkedBolts': 'Gevorkte bliksem', 'ironPlating': 'IJzeren platen', 'unlockRepair': 'Werkplaats',
+      'unlockMint': 'Goudmijn', 'looting': 'Plundering', 'overcharge': 'Overlading',
+      'masterwork': 'Meesterwerk', 'fieldRepairs': 'Veldreparaties', 'greatFoundation': 'Grote fundering',
+      'warChest': 'Oorlogskas',
+      'unlockSpikes': 'Stekelmuur',
+      'unlockBombard': 'Bombarde',
+      'sharpSpikes': 'Geslepen stekels',
+      'cavalryDrill': 'Cavaleriedrill',
+      'artilleryDoctrine': 'Artilleriedoctrine'
     },
     'descriptions': {
-      'powerupDuration': 'Alle power-ups duren langer (+0,75s per niveau).',
-      'magnetRange': 'De Muntmagneet reikt verder.',
-      'coinValue': 'Elke munt is meer waard.',
-      'itemLuck': 'Itemkisten verschijnen vaker.',
-      'dodgeApprentice': 'Ontwijkt automatisch één dodelijke tegel, daarna opladen (10s; −0,5s per niveau).',
-      'deathMagnet': 'Bij overlijden grijp je elke munt binnen 4 tegels — bewaar wat je anders zou verliezen.',
-      'autoCollect': 'Verzamel altijd munten van nabijgelegen tegels — een permanente magneet van 1 tegel.',
-      'rollingBoulder': 'Rol ongedeerd dwars door kistobstakels heen.'
-    },
-    'secondChance': {
-      'name': 'Tweede Kans',
-      'description': 'Begin elke run met engelenvleugels — overleef één crash of val. Actief tot gebruikt.',
-      'active': 'ACTIEF',
-      'watch': 'Gratis'
+      'foundations': 'Elk blok begint met +10 % HP.',
+      'sharpBolts': 'Alle wapens doen +8 % schade per rang.',
+      'unlockBrace': 'Ontgrendelt de verstevigde kist: twee keer de HP van hout.',
+      'lumberStock': 'Start elk beleg met +25 hout per rang.',
+      'longSight': 'Alle wapens reiken +10 % verder per rang.',
+      'rapidFire': 'Alle wapens vuren 8 % sneller per rang.',
+      'reinforced': 'Elk blok krijgt +8 % HP per rang.',
+      'unlockSawmill': 'Ontgrendelt de zagerij: levert elke golf hout op.',
+      'quarryStock': 'Start elk beleg met +18 steen per rang.',
+      'unlockMortar': 'Ontgrendelt de mortier: gebiedsschade op lange afstand.',
+      'heavyOrdnance': 'Gebiedsstraal +15 % per rang.',
+      'unlockTesla': 'Ontgrendelt de bliksemspoel: bliksem springt over.',
+      'gateArmor': 'De poort krijgt +20 % HP per rang.',
+      'unlockQuarry': 'Ontgrendelt de steengroeve: levert elke golf steen op.',
+      'richHauls': 'Golfbeloningen +12 % per rang.',
+      'wideFoundation': 'Bouw 2 kolommen breder per rang.',
+      'siegeShells': 'Alle wapens doen +10 % schade per rang.',
+      'unlockFrost': 'Ontgrendelt de vorstspits: vertraagt hele groepen.',
+      'forkedBolts': 'Bliksem springt naar 1 extra vijand per rang.',
+      'ironPlating': 'Elk blok krijgt +2 pantser per rang.',
+      'unlockRepair': 'Ontgrendelt de werkplaats: heelt buren elke golf.',
+      'unlockMint': 'Ontgrendelt de goudmijn: levert elke golf munten op.',
+      'looting': 'Vijanden laten +15 % meer munten vallen per rang.',
+      'overcharge': 'Alle wapens vuren 10 % sneller per rang.',
+      'masterwork': 'Alle wapens doen +12 % schade per rang.',
+      'fieldRepairs': 'Elk blok herstelt 6 % van zijn max. HP per doorstane golf, per rang.',
+      'greatFoundation': 'Bouw nog eens 2 kolommen breder per rang.',
+      'warChest': 'Golfbeloningen +15 % per rang.',
+      'unlockSpikes': 'Ontgrendelt de Stekelmuur — aanvallers verwonden zichzelf eraan.',
+      'unlockBombard': 'Ontgrendelt de Bombarde — mortiervuur op korte afstand tegen grondtroepen.',
+      'sharpSpikes': 'Stekelmuren kaatsen +20% meer schade terug per rang.',
+      'cavalryDrill': 'Cavalerie rijdt uit met +14% HP en schade per rang.',
+      'artilleryDoctrine': 'Alle wapens reiken +9% verder per rang.'
     }
   },
-  'battlePass': {
-    'title': 'Battle Pass',
-    'progress': '{current} / {total}',
-    'daysLeft': 'nog {n}d',
-    'maxed': 'BATTLE PASS VOLTOOID',
-    'xpProgress': '{current} / {total} XP',
-    'howToEarn': 'Hoe verdien je XP',
-    'perAttempt': 'per run',
-    'perStageFinish': 'per voltooid level',
-    'unlockHint': 'Bereik {n} XP om de volgende beloning te ontgrendelen — niet-geclaimde beloningen blijven tot je ze aantikt.'
+
+  'resources': {
+    'wood': 'hout',
+    'stone': 'steen',
+    'coins': 'munten'
   },
-  'dailyRewards': {
-    'title': 'Dagelijkse Beloningen',
-    'subtitle': 'Log elke dag in om je reeks te behouden.',
-    'day': 'Dag {n}',
-    'dayShort': 'D{n}'
+
+  'ads': {
+    'watch': 'Bekijken', 'revive': 'Herleven', 'secondChance': 'Tweede kans',
+    'doubleCoins': '2× munten', 'plusCoins': '+{n} munten'
   },
-  'skins': {
-    'title': 'Bal-Skins',
-    'subtitle': 'Geef munten uit om nieuwe looks te ontgrendelen en uit te rusten.',
-    'equip': 'Uitrusten',
-    'equipped': 'Uitgerust',
-   'locked': 'Stage {n}', 'new': 'Nieuw!', 'rarity': { 'common': 'Gewoon', 'rare': 'Zeldzaam', 'epic': 'Episch' }, },
+
+  'achievements': {
+    'title': 'Prestaties', 'subtitle': 'Bereik mijlpalen om munten te verdienen.',
+    'claim': 'Ophalen', 'claimed': 'Opgehaald', 'progress': '{c} / {t}',
+    'items': {
+      'wave5': { 'name': 'Eerste weerstand', 'desc': 'Overleef tot golf 5.' },
+      'wave10': { 'name': 'Bolwerk', 'desc': 'Overleef tot golf 10.' },
+      'wave20': { 'name': 'Vesting', 'desc': 'Overleef tot golf 20.' },
+      'wave30': { 'name': 'Onbreekbaar', 'desc': 'Overleef tot golf 30.' },
+      'waves50': { 'name': 'Golfbreker', 'desc': 'Houd in totaal 50 golven tegen.' },
+      'waves250': { 'name': 'Belegveteraan', 'desc': 'Houd in totaal 250 golven tegen.' },
+      'kills500': { 'name': 'Verdediger', 'desc': 'Versla in totaal 500 vijanden.' },
+      'kills5k': { 'name': 'Slachter', 'desc': 'Versla in totaal 5.000 vijanden.' },
+      'kills50k': { 'name': 'Legende', 'desc': 'Versla in totaal 50.000 vijanden.' },
+      'height10': { 'name': 'Hemelwaarts', 'desc': 'Bouw een toren van 10 blokken hoog.' },
+      'height20': { 'name': 'Wolkenboorder', 'desc': 'Bouw een toren van 20 blokken hoog.' },
+      'blocks250': { 'name': 'Bouwer', 'desc': 'Plaats in totaal 250 blokken.' },
+      'blocks2k': { 'name': 'Architect', 'desc': 'Plaats in totaal 2.000 blokken.' },
+      'coins5k': { 'name': 'Muntverzamelaar', 'desc': 'Verdien in totaal 5.000 munten.' },
+      'coins50k': { 'name': 'Schatbewaarder', 'desc': 'Verdien in totaal 50.000 munten.' },
+      'runs25': { 'name': 'Volhouder', 'desc': 'Start 25 belegeringen.' }
+    }
+  },
+
   'missions': {
-    'title': 'Dagelijkse Missies',
-    'subtitle': 'Voltooi elke dag doelen voor munten.',
-    'claim': 'Claimen',
-    'done': 'Geclaimd',
+    'title': 'Dagelijkse missies', 'subtitle': 'Voltooi elke dag doelen voor munten.',
+    'claim': 'Ophalen', 'done': 'Opgehaald',
     'types': {
-      'coins': 'Verzamel {n} munten vandaag',
-      'tiles': 'Reis {n} tegels in één run',
-      'items': 'Pak {n} itemkisten vandaag',
-      'clears': 'Voltooi {n} levels vandaag'
+      'coins': 'Verdien vandaag {n} munten',
+      'waves': 'Overleef tot golf {n} in één beleg',
+      'kills': 'Versla vandaag {n} vijanden',
+      'blocks': 'Plaats vandaag {n} blokken'
     }
   },
-  'endless': {
-    'badge': 'Eindeloos',
-    'toEndless': 'Eindeloze Modus',
-    'toCampaign': 'Campagne',
-    'best': 'Beste: {n}'
+
+  'battlePass': {
+    'title': 'Battle Pass', 'progress': '{current} / {total}', 'daysLeft': 'Nog {n} d',
+    'maxed': 'BATTLE PASS VOLTOOID', 'xpProgress': '{current} / {total} XP',
+    'howToEarn': 'Zo verdien je XP', 'perRun': 'per beleg', 'perWave': 'per gehouden golf',
+    'unlockHint': 'Bereik {n} XP voor de volgende beloning — niet-opgehaalde beloningen blijven staan.'
   },
-  'boon': {
-    'title': 'Kies een voordeel',
-    'names': {
-      'secondChance': 'Tweede Kans',
-      'startPowerup': 'Vliegende Start',
-      'coinBoost': 'Muntenstormloop'
-    },
-    'descriptions': {
-      'secondChance': 'Begin het volgende level met een Tweede Kans-schild.',
-      'startPowerup': 'Begin het volgende level met een willekeurige power-up.',
-      'coinBoost': '1,2× munten voor het hele volgende level.'
-    }
+
+  'dailyRewards': {
+    'title': 'Dagelijkse beloningen', 'subtitle': 'Log elke dag in om je reeks te behouden.',
+    'day': 'Dag {n}', 'dayShort': 'D{n}'
   },
+
   'options': {
-    'title': 'Opties',
-    'general': 'Algemeen',
-    'audio': 'Audio',
-    'language': 'Taal',
-    'difficulty': 'Moeilijkheid',
-    'soundEffects': 'Geluidseffecten',
-    'music': 'Muziek',
-    'musicTrack': 'Muziektrack',
-    'musicTracks': {
-      'cozy': 'Gezellige Harmonie',
-      'trance': 'Trance-Tunnel'
-    },
-    'close': 'Opslaan & Sluiten',
+    'title': 'Opties', 'general': 'Algemeen', 'audio': 'Audio', 'language': 'Taal',
+    'difficulty': 'Moeilijkheid', 'soundEffects': 'Geluidseffecten', 'music': 'Muziek', 'musicTrack': 'Muzieknummer',
+    'musicTracks': { 'cozy': 'Behaaglijke harmonie', 'trance': 'Trance-tunnel' },
+    'close': 'Opslaan en sluiten',
     'difficulties': { 'easy': 'Makkelijk', 'medium': 'Gemiddeld', 'hard': 'Moeilijk' },
     'difficultyHints': {
-      'easy': 'Langzamer tempo — meer tijd om te reageren.',
-      'medium': 'Het standaard, gebalanceerde tempo.',
-      'hard': 'Sneller tempo — strakkere, preciezere timing.'
+      'easy': 'Kleinere golven en zwakkere vijanden.',
+      'medium': 'Het standaard, gebalanceerde beleg.',
+      'hard': 'Dichtere golven en taaiere vijanden.'
     }
   },
+
   'adsBlocked': {
-    'title': 'Kan advertentie niet tonen',
-    'body': 'We probeerden je een video te tonen zodat je je beloning kon verdienen, maar iets in je browser blokkeert advertenties.',
+    'title': 'Advertentie kon niet worden getoond',
+    'body': 'We wilden je een video tonen zodat je je beloning kon verdienen, maar iets in je browser blokkeert advertenties.',
     'allowPrefix': 'Sta advertenties toe op',
     'allowSuffix': '(of pauzeer je adblocker voor dit spel) en probeer het opnieuw.',
     'gotIt': 'Begrepen'
   },
   'saveStatus': {
-    'restoredTitle': 'Cloud-opslag hersteld',
-    'restoredBody': '+{n} bonusmunten voor het herstel',
-    'tap': 'tik',
-    'pausedTitle': 'Cloud-synchronisatie gepauzeerd',
+    'restoredTitle': 'Cloudopslag hersteld', 'restoredBody': '+{n} bonusmunten voor het herstel',
+    'tap': 'tik', 'pausedTitle': 'Cloudsync gepauzeerd',
     'pausedBody': 'Je speelt offline. Je voortgang wordt hier opgeslagen.',
-    'retry': 'Opnieuw',
-    'dismiss': 'sluiten'
+    'retry': 'Opnieuw', 'dismiss': 'sluiten'
   },
-  'loading': {
-    'tooLong': 'Duurt het laden te lang? Schakel je adblocker uit en vernieuw.'
-  },
-  'license': {
-    'denied': 'Toegang geweigerd: koop een licentie.'
-  }
+  'loading': { 'tooLong': 'Duurt het laden te lang? Schakel je adblocker uit en ververs.' },
+  'license': { 'denied': 'Toegang geweigerd: koop een licentie.' }
 }

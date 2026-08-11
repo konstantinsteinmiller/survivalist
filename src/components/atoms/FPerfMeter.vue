@@ -1,7 +1,7 @@
 <template lang="pug">
   div(
     v-if="visible"
-    class="fixed pointer-events-none select-none font-mono text-right"
+    class="fixed pointer-events-none select-none text-right"
     :style="positionStyle"
   )
     div(:class="['text-base leading-tight font-bold perf-shadow', fpsClass]") {{ fps }} fps

@@ -1,121 +1,264 @@
 export default {
-  'ads': {
-    'watch': 'Tonton', 'revive': 'Hidupkan', 'secondChance': 'Kesempatan Kedua', 'doubleCoins': '2× koin', 'plusCoins': '+{n} koin'
-  },
-  'achievements': {
-    'title': 'Pencapaian', 'subtitle': 'Raih tonggak seumur hidup untuk koin.', 'claim': 'Klaim', 'claimed': 'Diklaim', 'progress': '{c} / {t}',
-    'items': {
-      'tiles1k': { 'name': 'Penjelajah Dunia', 'desc': 'Tempuh total 1.000 ubin.' },
-      'tiles5k': { 'name': 'Pelari Maraton', 'desc': 'Tempuh total 5.000 ubin.' },
-      'tiles10k': { 'name': 'Pelari Jarak Jauh', 'desc': 'Tempuh total 10.000 ubin.' },
-      'tiles100k': { 'name': 'Pengembara', 'desc': 'Tempuh total 100.000 ubin.' },
-      'stage5': { 'name': 'Langkah Awal', 'desc': 'Capai tahap 5.' },
-      'stage10': { 'name': 'Berpengalaman', 'desc': 'Capai tahap 10.' },
-      'stage20': { 'name': 'Veteran', 'desc': 'Capai tahap 20.' },
-      'clears25': { 'name': 'Pembersih', 'desc': 'Selesaikan total 25 tahap.' },
-      'clears100': { 'name': 'Centurion', 'desc': 'Selesaikan total 100 tahap.' },
-      'bestRun100': { 'name': 'Pelari Cepat', 'desc': 'Tempuh 100 ubin dalam satu permainan.' },
-      'bestRun250': { 'name': 'Iblis Jarak', 'desc': 'Tempuh 250 ubin dalam satu permainan.' },
-      'coins5k': { 'name': 'Pengumpul Koin', 'desc': 'Kumpulkan total 5.000 koin.' },
-      'coins50k': { 'name': 'Bendahara', 'desc': 'Kumpulkan total 50.000 koin.' },
-      'items50': { 'name': 'Pembuka Kotak', 'desc': 'Ambil total 50 kotak item.' },
-      'items250': { 'name': 'Penimbun', 'desc': 'Ambil total 250 kotak item.' }
-    }
-  },
-  'gameName': 'Epicrolla',
+  'gameName': 'Tower Siege',
   'cancel': 'Batal',
   'close': 'Tutup',
-  'ok': 'Ok',
-  'continue': 'Lanjutkan',
-  'tapToContinue': 'Ketuk untuk melanjutkan',
-  'clickToContinue': 'Klik untuk melanjutkan',
-  'stage': 'Tahap',
+  'ok': 'Oke',
+  'continue': 'Lanjut',
+  'tapToContinue': 'Ketuk untuk lanjut',
+  'clickToContinue': 'Klik untuk lanjut',
   'rewards': 'HADIAH',
   'tip': 'Tips',
-  'crazyGamesOnly': 'Game ini hanya tersedia di',
-  'startTouch': 'Ketuk untuk Mulai',
-  'startDesktop': 'Klik untuk Mulai',
-  'startSubhint': 'Bergulir ke atas — ubah arah untuk menghindari celah dan rintangan!',
-  'hints': { 'tapToTurn': 'Ketuk untuk mengubah arah', 'clickToTurn': 'Klik / Spasi untuk mengubah arah' },
-  'powerups': { 'invuln': 'Kebal', 'magnet': 'Magnet Koin', 'dodge': 'Ahli Menghindar', 'slowmo': 'Gerak Lambat', 'push': 'Daya Dorong',  'racer': 'Racer!' },
-  'secondChance': { 'title': 'Tetap bergulir?', 'body': 'Tonton iklan singkat untuk hidup kembali dan melanjutkan permainanmu.', 'watch': 'Tonton & Lanjutkan', 'skip': 'Lewati' },
-  'result': { 'win': 'TAHAP SELESAI!', 'lose': 'PERMAINAN BERAKHIR', 'fell': 'Kamu jatuh ke dalam celah!', 'crashed': 'Kamu menabrak rintangan!', 'tiles': 'Ubin', 'winReward': 'termasuk +{n} bonus tahap', 'double': 'Koin ganda', 'firstRunDouble': '2× — main pertama hari ini!',  'almost': 'Hampir! {n} ubin lagi.', 'retry': 'Coba lagi', },
-  'upgrades': {
-    'title': 'Peningkatan',
-    'subtitle': 'Gunakan koin untuk meningkatkan kekuatan secara permanen.',
-    'level': 'Lv.{n}',
-    'maxedOut': 'MAKS',
-    'sellBack': 'Jual +{n}',
-    'spotlight': 'Belanja!',
-    'unlocksAtStage': '🔒 Tahap {n}',
-    'names': { 'powerupDuration': 'Dorongan Daya', 'magnetRange': 'Jangkauan Magnet', 'coinValue': 'Nilai Koin', 'itemLuck': 'Kotak Keberuntungan', 'dodgeApprentice': 'Murid Menghindar', 'deathMagnet': 'Magnet Maut', 'autoCollect': 'Pengumpulan Otomatis', 'rollingBoulder': 'Batu Bergulir' },
-    'descriptions': { 'powerupDuration': 'Semua power-up bertahan lebih lama (+0,75 dtk per level).', 'magnetRange': 'Magnet Koin menjangkau lebih jauh.', 'coinValue': 'Setiap koin yang kamu ambil bernilai lebih tinggi.', 'itemLuck': 'Kotak item muncul lebih sering.', 'dodgeApprentice': 'Hindari otomatis satu ubin mematikan, lalu isi ulang (10 dtk; −0,5 dtk per level).', 'deathMagnet': 'Saat mati, ambil setiap koin dalam jarak 4 ubin — simpan koin yang seharusnya hilang.', 'autoCollect': 'Selalu kumpulkan koin dari ubin di sekitar — magnet permanen 1 ubin.', 'rollingBoulder': 'Bergulir lurus menembus rintangan kotak tanpa cedera.' },
-    'secondChance': { 'name': 'Kesempatan Kedua', 'description': 'Mulai setiap permainan dengan sayap malaikat — selamat dari satu tabrakan atau jatuh. Aktif sampai digunakan.', 'active': 'AKTIF', 'watch': 'Gratis' }
+  'crazyGamesOnly': 'Gim ini hanya tersedia di',
+
+  'hud': {
+    'wave': 'Gelombang', 'enemies': 'Musuh', 'callWave': 'Panggil gelombang', 'callBoss': 'Panggil bos',
+    'speed': 'Kecepatan {n}×',
+    'speedOffer': 'Kecepatan ganda dengan satu iklan',
+    'speedFor': '{n} mnt', 'recenter': 'Pusatkan tampilan'
   },
-  'battlePass': { 'title': 'Battle Pass', 'progress': '{current} / {total}', 'daysLeft': 'sisa {n}h', 'maxed': 'BATTLE PASS SELESAI', 'xpProgress': '{current} / {total} XP', 'howToEarn': 'Cara mendapatkan XP', 'perAttempt': 'per permainan', 'perStageFinish': 'per tahap selesai', 'unlockHint': 'Capai {n} XP untuk membuka hadiah berikutnya — hadiah yang belum diklaim tetap ada sampai kamu mengetuknya.' },
-  'dailyRewards': { 'title': 'Hadiah Harian', 'subtitle': 'Masuk setiap hari untuk menjaga rentetanmu.', 'day': 'Hari {n}', 'dayShort': 'H{n}' },
-  'skins': {
-    'title': 'Skin Bola',
-    'subtitle': 'Belanjakan koin untuk membuka dan memasang tampilan baru.',
-    'equip': 'Pasang',
-    'equipped': 'Terpasang',
-   'locked': 'Tahap {n}', 'new': 'Baru!', 'rarity': { 'common': 'Umum', 'rare': 'Langka', 'epic': 'Epik' }, },
-  'missions': {
-    'title': 'Misi Harian',
-    'subtitle': 'Selesaikan tujuan setiap hari untuk mendapatkan koin.',
-    'claim': 'Klaim',
-    'done': 'Diklaim',
-    'types': {
-      'coins': 'Kumpulkan {n} koin hari ini',
-      'tiles': 'Tempuh {n} ubin dalam satu permainan',
-      'items': 'Ambil {n} kotak item hari ini',
-      'clears': 'Selesaikan {n} tahap hari ini'
-    }
+
+  'hints': {
+    'selectBlock': { 'touch': 'Ketuk blok di bawah untuk memilihnya', 'desktop': 'Klik blok di bawah untuk memilihnya' },
+    'placeBlock': { 'touch': 'Sekarang ketuk kotak bercahaya untuk membangun', 'desktop': 'Sekarang klik kotak bercahaya untuk membangun' },
+    'camera': { 'touch': 'Seret untuk menggeser · Cubit untuk zoom', 'desktop': 'Seret untuk menggeser · Gulir untuk zoom' },
+    'callWave': { 'touch': 'Ketuk «Panggil gelombang» saat menara siap', 'desktop': 'Tekan Spasi untuk memanggil gelombang lebih awal' },
+    'inspect': { 'touch': 'Tahan blok untuk memeriksanya', 'desktop': 'Klik blok untuk memeriksanya' }
   },
-  'endless': {
-    'badge': 'Tanpa Akhir',
-    'toEndless': 'Mode Tanpa Akhir',
-    'toCampaign': 'Kampanye',
-    'best': 'Terbaik: {n}'
-  },
-  'boon': {
-    'title': 'Pilih sebuah berkah',
+
+  'blocks': {
+    'sell': 'Jual',
+    'roofNote': 'Beratap — tidak ada yang bisa dibangun di atasnya.',
+    'enhancedNote': 'Diperkuat — HP dan damage lebih besar.',
+    'enhancedHand': 'Set diperkuat',
+    'reroll': 'Tukar bagian ini',
+    'kinds': { 'core': 'Inti', 'structure': 'Struktur', 'weapon': 'Senjata', 'economy': 'Ekonomi', 'utility': 'Utilitas' },
+    'stats': {
+      'hp': 'HP', 'armor': 'Armor', 'dmg': 'Kerusakan', 'cooldown': 'Jeda', 'range': 'Jangkauan',
+      'splash': 'Area', 'yieldWood': 'Kayu / gelombang', 'yieldStone': 'Batu / gelombang', 'yieldCoins': 'Koin / gelombang',
+      'repair': 'Perbaikan / gelombang', 'blast': 'Ledakan',
+      'thorns': 'Duri'
+    },
     'names': {
-      'secondChance': 'Kesempatan Kedua',
-      'startPowerup': 'Awal Cepat',
-      'coinBoost': 'Serbuan Koin'
+      'gate': 'Gerbang', 'wood': 'Peti Kayu', 'brace': 'Peti Diperkuat', 'stone': 'Blok Batu',
+      'archer': 'Menara Pemanah', 'cannon': 'Meriam', 'mortar': 'Mortir', 'tesla': 'Kumparan Petir',
+      'frost': 'Menara Es', 'repair': 'Bengkel',
+      'sawmill': 'Penggergajian', 'quarry': 'Tambang Batu', 'mint': 'Tambang Emas',
+      'spikes': 'Dinding Berduri',
+      'bombard': 'Bombardir'
     },
     'descriptions': {
-      'secondChance': 'Mulai tahap berikutnya dengan perisai Kesempatan Kedua.',
-      'startPowerup': 'Mulai tahap berikutnya dengan power-up acak.',
-      'coinBoost': '1,2× koin untuk seluruh tahap berikutnya.'
+      'gate': 'Jantung menaramu. Jika jatuh, pengepungan berakhir.',
+      'wood': 'Pengisi murah. Tulang punggung setiap menara awal.',
+      'brace': 'Dua kali lipat kayu, lebih dari dua kali lipat ketahanan.',
+      'stone': 'Berat dan berarmor. Paling cocok di bagian dasar.',
+      'archer': 'Panah cepat ke satu sasaran. Bisa mengenai penerbang.',
+      'cannon': 'Lambat, kerusakan area besar. Melelehkan kerumunan padat.',
+      'mortar': 'Tembakan melengkung jarak jauh — tapi tidak bisa mengenai penerbang.',
+      'tesla': 'Petir yang melompat antar musuh terdekat.',
+      'frost': 'Membekukan seluruh kelompok dan memperlambatnya drastis.',
+      'repair': 'Memperbaiki blok tetangga di antara gelombang.',
+      'sawmill': 'Menghasilkan kayu di akhir setiap gelombang yang bertahan.',
+      'quarry': 'Menghasilkan batu di akhir setiap gelombang yang bertahan.',
+      'mint': 'Menghasilkan koin di akhir setiap gelombang yang bertahan.',
+      'spikes': 'Penyerang melukai diri sendiri setiap kali memukulnya.',
+      'bombard': 'Melontarkan peluru lurus ke atas. Ledakan kecil, hanya target darat.'
     }
   },
-  'options': {
-    'title': 'Opsi', 'general': 'Umum', 'audio': 'Audio', 'language': 'Bahasa', 'difficulty': 'Kesulitan', 'soundEffects': 'Efek Suara', 'music': 'Musik', 'musicTrack': 'Trek Musik', 'musicTracks': { 'cozy': 'Harmoni Nyaman', 'trance': 'Terowongan Trance' }, 'close': 'Simpan & Tutup',
-    'difficulties': { 'easy': 'Mudah', 'medium': 'Sedang', 'hard': 'Sulit' },
-    'difficultyHints': { 'easy': 'Kecepatan gerak lebih lambat — lebih banyak waktu untuk bereaksi.', 'medium': 'Kecepatan standar yang seimbang.', 'hard': 'Kecepatan gerak lebih cepat — waktu yang lebih ketat dan presisi.' }
+
+  'enemies': {
+    'names': {
+      'grunt': 'Prajurit', 'runner': 'Pelari', 'slinger': 'Pengumban', 'brute': 'Raksasa',
+      'bomber': 'Pengebom', 'bat': 'Kelelawar', 'bulwark': 'Pemanggul Perisai', 'golem': 'Golem Pengepung',
+      'wyvern': 'Wyvern',
+      'eel': 'Ular laut',
+      'kraken': 'Kraken',
+      'ram': 'Pendobrak',
+      'ballista': 'Balista',
+      'catapult': 'Katapel',
+      'siegeTower': 'Menara Kepung',
+      'trebuchet': 'Trebuset',
+      'ironRam': 'Pendobrak Baja',
+      'bombardier': 'Pengebom',
+      'firebug': 'Pembakar'
+    }
   },
+
+  // ─── First-stage tutorial ─────────────────────────────────────────────────
+  'tutorial': {
+    'gate': 'Lindungi Gerbang. Kalau jatuh, ronde berakhir.',
+    'pick': 'Pilih satu bagian.',
+    'place': 'Letakkan di samping Gerbang.',
+    'call': 'Panggil gelombang saat siap.',
+    'next': 'Lanjut',
+    'offer': 'Butuh tutorial?',
+    'start': 'Mulai',
+    'skip': 'Lewati'
+  },
+
+  // ─── Allies ───────────────────────────────────────────────────────────────
+  'allies': {
+    'cavalry': 'Kavaleri'
+  },
+
+  'result': {
+    'towerFell': 'Menara runtuh!',
+    'reachedWave': 'Kamu bertahan sampai gelombang {n}',
+    'newRecord': 'Rekor baru!',
+    'defeated': 'Dikalahkan',
+    'reward': 'Hadiah',
+    'upgrade': 'Tingkatkan!',
+    'defendAgain': 'Bertahan lagi',
+    'double': 'Gandakan koin',
+    'firstRunDouble': '2× — pengepungan pertama hari ini!',
+    'tripleWave': '3× koin — {n}',
+    'waveCleared': 'Gelombang {n} berhasil ditahan!'
+  },
+
+  'tech': {
+    'title': 'Pohon Teknologi',
+    'rank': 'Peringkat {current}/{total}',
+    'maxed': 'Maksimum',
+    'rankOpen': 'Peringkat {n}',
+    'owned': 'Terbuka',
+    'requires': 'Butuh {n}',
+    'spotlight': 'Belanjakan!',
+    'names': {
+      'foundations': 'Fondasi', 'sharpBolts': 'Anak Panah Tajam', 'unlockBrace': 'Peti Diperkuat',
+      'lumberStock': 'Stok Kayu', 'longSight': 'Penglihatan Jauh', 'rapidFire': 'Tembakan Cepat',
+      'reinforced': 'Balok Diperkuat', 'unlockSawmill': 'Penggergajian', 'quarryStock': 'Stok Batu',
+      'unlockMortar': 'Mortir', 'heavyOrdnance': 'Artileri Berat', 'unlockTesla': 'Kumparan Petir',
+      'gateArmor': 'Armor Gerbang', 'unlockQuarry': 'Tambang Batu', 'richHauls': 'Rampasan Melimpah',
+      'wideFoundation': 'Fondasi Lebar', 'siegeShells': 'Peluru Pengepungan', 'unlockFrost': 'Menara Es',
+      'forkedBolts': 'Petir Bercabang', 'ironPlating': 'Pelat Besi', 'unlockRepair': 'Bengkel',
+      'unlockMint': 'Tambang Emas', 'looting': 'Penjarahan', 'overcharge': 'Muatan Berlebih',
+      'masterwork': 'Mahakarya', 'fieldRepairs': 'Perbaikan Lapangan', 'greatFoundation': 'Fondasi Agung',
+      'warChest': 'Peti Perang',
+      'unlockSpikes': 'Dinding Berduri',
+      'unlockBombard': 'Bombardir',
+      'sharpSpikes': 'Duri Terasah',
+      'cavalryDrill': 'Latihan Kavaleri',
+      'artilleryDoctrine': 'Doktrin Artileri'
+    },
+    'descriptions': {
+      'foundations': 'Setiap blok mulai dengan +10% HP.',
+      'sharpBolts': 'Semua senjata memberi +8% kerusakan per peringkat.',
+      'unlockBrace': 'Membuka Peti Diperkuat — dua kali HP kayu.',
+      'lumberStock': 'Mulai tiap pengepungan dengan +25 kayu per peringkat.',
+      'longSight': 'Jangkauan semua senjata +10% per peringkat.',
+      'rapidFire': 'Semua senjata menembak 8% lebih cepat per peringkat.',
+      'reinforced': 'Setiap blok mendapat +8% HP per peringkat.',
+      'unlockSawmill': 'Membuka Penggergajian — menghasilkan kayu tiap gelombang.',
+      'quarryStock': 'Mulai tiap pengepungan dengan +18 batu per peringkat.',
+      'unlockMortar': 'Membuka Mortir — kerusakan area jarak jauh.',
+      'heavyOrdnance': 'Radius area +15% per peringkat.',
+      'unlockTesla': 'Membuka Kumparan Petir — petir melompat antar musuh.',
+      'gateArmor': 'Gerbang mendapat +20% HP per peringkat.',
+      'unlockQuarry': 'Membuka Tambang Batu — menghasilkan batu tiap gelombang.',
+      'richHauls': 'Hadiah gelombang +12% per peringkat.',
+      'wideFoundation': 'Bangun 2 kolom lebih lebar per peringkat.',
+      'siegeShells': 'Semua senjata memberi +10% kerusakan per peringkat.',
+      'unlockFrost': 'Membuka Menara Es — memperlambat seluruh kelompok.',
+      'forkedBolts': 'Petir melompat ke 1 musuh tambahan per peringkat.',
+      'ironPlating': 'Setiap blok mendapat +2 armor per peringkat.',
+      'unlockRepair': 'Membuka Bengkel — menyembuhkan tetangga tiap gelombang.',
+      'unlockMint': 'Membuka Tambang Emas — menghasilkan koin tiap gelombang.',
+      'looting': 'Musuh menjatuhkan +15% lebih banyak koin per peringkat.',
+      'overcharge': 'Semua senjata menembak 10% lebih cepat per peringkat.',
+      'masterwork': 'Semua senjata memberi +12% kerusakan per peringkat.',
+      'fieldRepairs': 'Setiap blok memulihkan 6% HP maks. per gelombang yang ditahan, per peringkat.',
+      'greatFoundation': 'Bangun 2 kolom lagi lebih lebar per peringkat.',
+      'warChest': 'Hadiah gelombang +15% per peringkat.',
+      'unlockSpikes': 'Membuka Dinding Berduri — penyerang melukai dirinya sendiri.',
+      'unlockBombard': 'Membuka Bombardir — tembakan mortir jarak dekat ke pasukan darat.',
+      'sharpSpikes': 'Dinding berduri memantulkan +20% damage lebih besar per peringkat.',
+      'cavalryDrill': 'Kavaleri keluar dengan +14% HP dan damage per peringkat.',
+      'artilleryDoctrine': 'Semua senjata menjangkau +9% lebih jauh per peringkat.'
+    }
+  },
+
+  'resources': {
+    'wood': 'kayu',
+    'stone': 'batu',
+    'coins': 'koin'
+  },
+
+  'ads': {
+    'watch': 'Tonton', 'revive': 'Hidupkan', 'secondChance': 'Kesempatan Kedua',
+    'doubleCoins': '2× Koin', 'plusCoins': '+{n} koin'
+  },
+
+  'achievements': {
+    'title': 'Pencapaian', 'subtitle': 'Capai tonggak seumur hidup untuk mendapatkan koin.',
+    'claim': 'Ambil', 'claimed': 'Diambil', 'progress': '{c} / {t}',
+    'items': {
+      'wave5': { 'name': 'Pertahanan Pertama', 'desc': 'Bertahan sampai gelombang 5.' },
+      'wave10': { 'name': 'Benteng', 'desc': 'Bertahan sampai gelombang 10.' },
+      'wave20': { 'name': 'Tembok Kokoh', 'desc': 'Bertahan sampai gelombang 20.' },
+      'wave30': { 'name': 'Tak Terpatahkan', 'desc': 'Bertahan sampai gelombang 30.' },
+      'waves50': { 'name': 'Pemecah Gelombang', 'desc': 'Tahan total 50 gelombang.' },
+      'waves250': { 'name': 'Veteran Pengepungan', 'desc': 'Tahan total 250 gelombang.' },
+      'kills500': { 'name': 'Pembela', 'desc': 'Kalahkan total 500 musuh.' },
+      'kills5k': { 'name': 'Pembantai', 'desc': 'Kalahkan total 5.000 musuh.' },
+      'kills50k': { 'name': 'Legenda', 'desc': 'Kalahkan total 50.000 musuh.' },
+      'height10': { 'name': 'Menjulang', 'desc': 'Bangun menara setinggi 10 blok.' },
+      'height20': { 'name': 'Penembus Awan', 'desc': 'Bangun menara setinggi 20 blok.' },
+      'blocks250': { 'name': 'Pembangun', 'desc': 'Pasang total 250 blok.' },
+      'blocks2k': { 'name': 'Arsitek', 'desc': 'Pasang total 2.000 blok.' },
+      'coins5k': { 'name': 'Kolektor Koin', 'desc': 'Dapatkan total 5.000 koin.' },
+      'coins50k': { 'name': 'Bendahara', 'desc': 'Dapatkan total 50.000 koin.' },
+      'runs25': { 'name': 'Gigih', 'desc': 'Mulai 25 pengepungan.' }
+    }
+  },
+
+  'missions': {
+    'title': 'Misi Harian', 'subtitle': 'Selesaikan tujuan tiap hari untuk mendapatkan koin.',
+    'claim': 'Ambil', 'done': 'Diambil',
+    'types': {
+      'coins': 'Dapatkan {n} koin hari ini',
+      'waves': 'Bertahan sampai gelombang {n} dalam satu pengepungan',
+      'kills': 'Kalahkan {n} musuh hari ini',
+      'blocks': 'Pasang {n} blok hari ini'
+    }
+  },
+
+  'battlePass': {
+    'title': 'Battle Pass', 'progress': '{current} / {total}', 'daysLeft': 'Sisa {n} h',
+    'maxed': 'BATTLE PASS SELESAI', 'xpProgress': '{current} / {total} XP',
+    'howToEarn': 'Cara mendapat XP', 'perRun': 'per pengepungan', 'perWave': 'per gelombang yang ditahan',
+    'unlockHint': 'Capai {n} XP untuk membuka hadiah berikutnya — hadiah yang belum diambil tetap tersimpan.'
+  },
+
+  'dailyRewards': {
+    'title': 'Hadiah Harian', 'subtitle': 'Masuk setiap hari untuk menjaga rentetanmu.',
+    'day': 'Hari {n}', 'dayShort': 'H{n}'
+  },
+
+  'options': {
+    'title': 'Opsi', 'general': 'Umum', 'audio': 'Audio', 'language': 'Bahasa',
+    'difficulty': 'Kesulitan', 'soundEffects': 'Efek Suara', 'music': 'Musik', 'musicTrack': 'Trek Musik',
+    'musicTracks': { 'cozy': 'Harmoni Nyaman', 'trance': 'Terowongan Trance' },
+    'close': 'Simpan & Tutup',
+    'difficulties': { 'easy': 'Mudah', 'medium': 'Sedang', 'hard': 'Sulit' },
+    'difficultyHints': {
+      'easy': 'Gelombang lebih kecil dan musuh lebih lemah.',
+      'medium': 'Pengepungan standar yang seimbang.',
+      'hard': 'Gelombang lebih padat dan musuh lebih tangguh.'
+    }
+  },
+
   'adsBlocked': {
     'title': 'Tidak dapat menampilkan iklan',
-    'body': 'Kami mencoba menampilkan video agar kamu bisa mendapatkan hadiahmu, tetapi sesuatu di browsermu memblokir iklan.',
+    'body': 'Kami mencoba menampilkan video agar kamu bisa mendapat hadiah, tetapi ada yang memblokir iklan di peramban kamu.',
     'allowPrefix': 'Izinkan iklan di',
-    'allowSuffix': '(atau jeda pemblokir iklanmu untuk game ini) dan coba lagi.',
+    'allowSuffix': '(atau jeda pemblokir iklan untuk gim ini) lalu coba lagi.',
     'gotIt': 'Mengerti'
   },
   'saveStatus': {
-    'restoredTitle': 'Simpanan cloud dipulihkan',
-    'restoredBody': '+{n} koin bonus untuk pemulihan',
-    'tap': 'ketuk',
-    'pausedTitle': 'Sinkronisasi cloud dijeda',
+    'restoredTitle': 'Simpanan cloud dipulihkan', 'restoredBody': '+{n} koin bonus untuk pemulihan',
+    'tap': 'ketuk', 'pausedTitle': 'Sinkronisasi cloud dijeda',
     'pausedBody': 'Bermain offline. Progresmu disimpan di sini.',
-    'retry': 'Coba lagi',
-    'dismiss': 'tutup'
+    'retry': 'Coba lagi', 'dismiss': 'tutup'
   },
-  'loading': {
-    'tooLong': 'Pemuatan terlalu lama? Nonaktifkan pemblokir iklan dan segarkan.'
-  },
-  'license': {
-    'denied': 'Akses ditolak: silakan beli lisensi.'
-  }
+  'loading': { 'tooLong': 'Memuat terlalu lama? Nonaktifkan pemblokir iklan lalu muat ulang.' },
+  'license': { 'denied': 'Akses ditolak: silakan beli lisensi.' }
 }

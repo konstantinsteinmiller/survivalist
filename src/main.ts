@@ -14,7 +14,8 @@ import { initAds } from '@/use/useAds'
 import { installGamePauseAudio } from '@/use/useGamePauseAudio'
 import useUser, { isCrazyWeb, isWaveDash, isItch, isGlitch, isGameDistribution, isPlaygama, isGamepix, isGameMonetize, isYandex } from '@/use/useUser'
 import { isDebug } from '@/use/useMatch.ts'
-import { hasState, reloadEpicState } from '@/use/useEpicState'
+import { hasState, reloadTowerState } from '@/use/useTowerState'
+import { LANGUAGE_KEY } from '@/keys'
 import { SaveManager } from '@/utils/save/SaveManager'
 import { resolveSaveStrategy } from '@/platforms/resolveSaveStrategy'
 import { installSaveStatus } from '@/use/useSaveStatus'
@@ -48,7 +49,7 @@ const bootstrap = async () => {
   // `setVConsoleMounter` so vConsole stays out of the main chunk
   // and off the hot path.
   //
-  // Why this matters: epicrolla's main bundle ballooned by ~250KB
+  // Why this matters: tower-siege's main bundle ballooned by ~250KB
   // gzipped when vConsole was statically imported. CrazyGames flagged
   // the regression. Putting the dynamic-import here fixes it without
   // breaking the trigger paths.
@@ -68,7 +69,7 @@ const bootstrap = async () => {
     import.meta.env.VITE_APP_NATIVE === 'true'
     || import.meta.env.VITE_APP_INCLUDE_VCONSOLE === 'true'
   ) {
-    // vConsole removed from this project (was a epicrolla native-build
+    // vConsole removed from this project (was a tower-siege native-build
     // dependency). To restore on-device debugging, reintroduce the
     // `vconsole` package and wire it back to `setVConsoleMounter`.
     bootstrapVConsoleFromUrl()
@@ -176,7 +177,7 @@ const bootstrap = async () => {
 
   // CrazyGames cloud-only mode: gameplay state and our save bookkeeping
   // (`__save_*`) live in memory only; `sdk.data` is the sole persistence
-  // backend. CG QA explicitly requires that no `spinner_*` / `ca_*` /
+  // backend. CG QA explicitly requires that no `tower_state` / `ts_*` /
   // `__save_*` keys appear in raw localStorage — only dev toggles
   // (`fps`, `debug`, `cheat`, `campaign-test`, `full_unlocked`) are
   // exempt. Inline env-literal so Vite tree-shakes the dead branch on
@@ -193,13 +194,13 @@ const bootstrap = async () => {
     // matter the hydrate timing.
   ;(window as any).__saveManager = saveManager
 
-  // Defense-in-depth `spinner_*` / `ca_*` / `__save_*` safety remove on
+  // Defense-in-depth `tower_state` / `ts_*` / `__save_*` safety remove on
   // CG builds. BlobStorage's `scrubRawForCloudOnly()` already wiped these
   // at construction (it seeded into `state` first, so progress is
   // preserved); this second pass catches anything BlobStorage missed.
   // MUST run BEFORE `saveManager.init()` because init patches
   // `localStorage.setItem` / `removeItem` to forward to the strategy —
-  // calling the patched removeItem on a `spinner_*` key would issue a
+  // calling the patched removeItem on a `ts_*` key would issue a
   // cloud delete via `sdk.data.removeItem`, wiping the player's save.
   // Pre-init, `localStorage.removeItem` is still native and these
   // removes are local-only.
@@ -208,7 +209,7 @@ const bootstrap = async () => {
       const stragglers: string[] = []
       for (let i = 0; i < window.localStorage.length; i++) {
         const k = window.localStorage.key(i)
-        if (k && (k.startsWith('spinner_') || k.startsWith('ca_') || k.startsWith('__save_'))) {
+        if (k && (k === 'tower_state' || k.startsWith('ts_') || k.startsWith('__save_'))) {
           stragglers.push(k)
         }
       }
@@ -224,16 +225,16 @@ const bootstrap = async () => {
   installSaveStatus(saveManager)
   await saveManager.init()
 
-  // Refresh the in-memory `mawState` blob from the hydrated localStorage so
+  // Refresh the in-memory `towerState` blob from the hydrated localStorage so
   // synchronous reads further down this file (notably `resolveInitialLocale`'s
-  // `getState('spinner_user_language')` probe) see the cloud-stored values
+  // `getState(LANGUAGE_KEY)` probe) see the cloud-stored values
   // immediately, NOT the stale pre-hydrate blob. Without this, a returning
   // player whose saved language is 'es' would still get a brief flash of the
   // Yandex / CG portal locale on first paint before the post-hydrate language
   // watcher (further down) reloads and switches. The watcher also calls
-  // `reloadMawState()` defensively, so this is the early-flush companion, not
+  // `reloadTowerState()` defensively, so this is the early-flush companion, not
   // a replacement.
-  reloadEpicState()
+  reloadTowerState()
 
   // ─── Background / close flush — critical for mobile webviews ───────────
   //
@@ -357,7 +358,7 @@ const bootstrap = async () => {
   // locale (CG / Yandex) is used ONLY to seed first-time players — it
   // never overrides an explicit OptionsModal choice. After hydrate has
   // populated localStorage from cloud, a null value at
-  // `spinner_user_language` means "this player has never picked a
+  // `ts_user_language` means "this player has never picked a
   // language on any device" and we can safely seed the portal locale.
   // useUser.ts deliberately does NOT seed a language default, so the
   // null/non-null probe here is a reliable signal.
@@ -370,13 +371,13 @@ const bootstrap = async () => {
       (ready) => {
         if (!ready) return
         stopLangSync?.()
-        // Defensive reload — `main.ts` already calls `reloadMawState()`
+        // Defensive reload — `main.ts` already calls `reloadTowerState()`
         // right after `saveManager.init()` so first-paint reads see the
         // hydrated blob. This second call covers the case where hydrate
         // resolves a cloud value AFTER the early reload (Glitch's HTTP
         // strategy resolves out-of-band in some flows, etc.). Idempotent.
-        reloadEpicState()
-        const hasStoredLanguage = hasState('spinner_user_language')
+        reloadTowerState()
+        const hasStoredLanguage = hasState(LANGUAGE_KEY)
         const portalSeed = cgLocale ?? yaLocale
         if (!hasStoredLanguage && portalSeed && LANGUAGES.includes(portalSeed)) {
           setSettingValue('language', portalSeed)

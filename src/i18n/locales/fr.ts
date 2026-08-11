@@ -1,198 +1,264 @@
 export default {
-  'ads': {
-    'watch': 'Regarder', 'revive': 'Revivre', 'secondChance': 'Seconde chance', 'doubleCoins': '2× pièces', 'plusCoins': '+{n} pièces'
-  },
-  'achievements': {
-    'title': 'Succès', 'subtitle': 'Atteignez des jalons pour gagner des pièces.', 'claim': 'Réclamer', 'claimed': 'Réclamé', 'progress': '{c} / {t}',
-    'items': {
-      'tiles1k': { 'name': 'Globe-trotteur', 'desc': 'Parcourez 1 000 cases au total.' },
-      'tiles5k': { 'name': 'Marathonien', 'desc': 'Parcourez 5 000 cases au total.' },
-      'tiles10k': { 'name': 'Coureur de fond', 'desc': 'Parcourez 10 000 cases au total.' },
-      'tiles100k': { 'name': 'Voyageur', 'desc': 'Parcourez 100 000 cases au total.' },
-      'stage5': { 'name': 'Premiers pas', 'desc': 'Atteignez le niveau 5.' },
-      'stage10': { 'name': 'Aguerri', 'desc': 'Atteignez le niveau 10.' },
-      'stage20': { 'name': 'Vétéran', 'desc': 'Atteignez le niveau 20.' },
-      'clears25': { 'name': 'Nettoyeur', 'desc': 'Terminez 25 niveaux au total.' },
-      'clears100': { 'name': 'Centurion', 'desc': 'Terminez 100 niveaux au total.' },
-      'bestRun100': { 'name': 'Sprinteur', 'desc': 'Parcourez 100 cases en une seule partie.' },
-      'bestRun250': { 'name': 'Démon de la distance', 'desc': 'Parcourez 250 cases en une seule partie.' },
-      'coins5k': { 'name': 'Collectionneur de pièces', 'desc': 'Collectez 5 000 pièces au total.' },
-      'coins50k': { 'name': 'Trésorier', 'desc': 'Collectez 50 000 pièces au total.' },
-      'items50': { 'name': 'Déballeur', 'desc': 'Attrapez 50 boîtes d\'objets au total.' },
-      'items250': { 'name': 'Accumulateur', 'desc': 'Attrapez 250 boîtes d\'objets au total.' }
-    }
-  },
-  'gameName': 'Epicrolla',
+  'gameName': 'Tower Siege',
   'cancel': 'Annuler',
   'close': 'Fermer',
   'ok': 'Ok',
   'continue': 'Continuer',
   'tapToContinue': 'Touchez pour continuer',
   'clickToContinue': 'Cliquez pour continuer',
-  'stage': 'Niveau',
   'rewards': 'RÉCOMPENSES',
   'tip': 'Astuce',
   'crazyGamesOnly': 'Ce jeu est uniquement disponible sur',
-  'startTouch': 'Touchez pour commencer',
-  'startDesktop': 'Cliquez pour commencer',
-  'startSubhint': 'Monte en roulant — change de direction pour éviter les trous et les obstacles !',
-  'hints': {
-    'tapToTurn': 'Touchez pour changer de direction',
-    'clickToTurn': 'Clic / Espace pour changer de direction'
+
+  'hud': {
+    'wave': 'Vague', 'enemies': 'Ennemis', 'callWave': 'Appeler la vague', 'callBoss': 'Appeler le boss',
+    'speed': 'Vitesse {n}×',
+    'speedOffer': 'Vitesse ×2 contre une pub',
+    'speedFor': '{n} min', 'recenter': 'Recentrer la vue'
   },
-  'powerups': {
-    'invuln': 'Invincible',
-    'magnet': 'Aimant à pièces',
-    'dodge': "Maître de l'esquive",
-    'slowmo': 'Ralenti',
-    'push': 'Force de poussée',
-   'racer': 'Racer !' },
-  'secondChance': {
-    'title': 'Continuer à rouler ?',
-    'body': 'Regardez une courte pub pour ressusciter et continuer votre partie.',
-    'watch': 'Regarder et continuer',
+
+  'hints': {
+    'selectBlock': { 'touch': 'Touchez un bloc en bas pour le choisir', 'desktop': 'Cliquez sur un bloc en bas pour le choisir' },
+    'placeBlock': { 'touch': 'Touchez maintenant un emplacement lumineux', 'desktop': 'Cliquez maintenant sur un emplacement lumineux' },
+    'camera': { 'touch': 'Glissez pour déplacer · Pincez pour zoomer', 'desktop': 'Glissez pour déplacer · Molette pour zoomer' },
+    'callWave': { 'touch': 'Touchez « Appeler la vague » quand votre tour est prête', 'desktop': 'Espace pour lancer la vague en avance' },
+    'inspect': { 'touch': 'Maintenez un bloc pour l’inspecter', 'desktop': 'Cliquez sur un bloc pour l’inspecter' }
+  },
+
+  'blocks': {
+    'sell': 'Vendre',
+    'roofNote': 'Toituré — impossible de bâtir dessus.',
+    'enhancedNote': 'Renforcé — plus de PV et plus de dégâts.',
+    'enhancedHand': 'Main renforcée',
+    'reroll': 'Changer cette pièce',
+    'kinds': { 'core': 'Cœur', 'structure': 'Structure', 'weapon': 'Arme', 'economy': 'Économie', 'utility': 'Utilitaire' },
+    'stats': {
+      'hp': 'PV', 'armor': 'Armure', 'dmg': 'Dégâts', 'cooldown': 'Recharge', 'range': 'Portée',
+      'splash': 'Zone', 'yieldWood': 'Bois / vague', 'yieldStone': 'Pierre / vague', 'yieldCoins': 'Pièces / vague',
+      'repair': 'Réparation / vague', 'blast': 'Explosion',
+      'thorns': 'Épines'
+    },
+    'names': {
+      'gate': 'Porte', 'wood': 'Caisse en bois', 'brace': 'Caisse renforcée', 'stone': 'Bloc de pierre',
+      'archer': 'Tour d’archers', 'cannon': 'Canon', 'mortar': 'Mortier', 'tesla': 'Bobine électrique',
+      'frost': 'Flèche de givre', 'repair': 'Atelier',
+      'sawmill': 'Scierie', 'quarry': 'Carrière', 'mint': 'Mine d’or',
+      'spikes': 'Mur à pointes',
+      'bombard': 'Bombarde'
+    },
+    'descriptions': {
+      'gate': 'Le cœur de votre tour. Si elle tombe, le siège est fini.',
+      'wood': 'Remplissage bon marché. La colonne vertébrale de toute tour débutante.',
+      'brace': 'Deux fois plus de bois, bien plus de résistance.',
+      'stone': 'Lourd et blindé. Idéal pour la base.',
+      'archer': 'Flèches rapides sur une cible unique. Touche les volants.',
+      'cannon': 'Lent, gros dégâts de zone. Fait fondre les groupes serrés.',
+      'mortar': 'Obus en cloche à longue portée, mais incapable de toucher les volants.',
+      'tesla': 'Éclairs qui rebondissent entre les ennemis proches.',
+      'frost': 'Gèle tout un groupe et le ralentit fortement.',
+      'repair': 'Répare tous les blocs voisins entre les vagues.',
+      'sawmill': 'Produit du bois à la fin de chaque vague repoussée.',
+      'quarry': 'Produit de la pierre à la fin de chaque vague repoussée.',
+      'mint': 'Produit des pièces à la fin de chaque vague repoussée.',
+      'spikes': 'Les assaillants se blessent dessus à chaque coup.',
+      'bombard': 'Envoie un obus à la verticale. Petite explosion, cibles au sol uniquement.'
+    }
+  },
+
+  'enemies': {
+    'names': {
+      'grunt': 'Fantassin', 'runner': 'Coureur', 'slinger': 'Frondeur', 'brute': 'Brute',
+      'bomber': 'Bombardier', 'bat': 'Chauve-souris', 'bulwark': 'Rempart', 'golem': 'Golem de siège',
+      'wyvern': 'Vouivre',
+      'eel': 'Serpent de mer',
+      'kraken': 'Kraken',
+      'ram': 'Bélier',
+      'ballista': 'Baliste',
+      'catapult': 'Catapulte',
+      'siegeTower': 'Tour de siège',
+      'trebuchet': 'Trébuchet',
+      'ironRam': 'Bélier cuirassé',
+      'bombardier': 'Bombardier',
+      'firebug': 'Incendiaire'
+    }
+  },
+
+  // ─── First-stage tutorial ─────────────────────────────────────────────────
+  'tutorial': {
+    'gate': 'Protège la Porte. Si elle tombe, la partie est finie.',
+    'pick': 'Choisis une pièce.',
+    'place': 'Pose-la à côté de la Porte.',
+    'call': 'Lance la vague quand tu es prêt.',
+    'next': 'Suivant',
+    'offer': 'Besoin d’un tutoriel ?',
+    'start': 'Démarrer',
     'skip': 'Passer'
   },
+
+  // ─── Allies ───────────────────────────────────────────────────────────────
+  'allies': {
+    'cavalry': 'Cavalerie'
+  },
+
   'result': {
-    'win': 'NIVEAU TERMINÉ !',
-    'lose': 'PARTIE TERMINÉE',
-    'fell': 'Vous êtes tombé dans un trou !',
-    'crashed': 'Vous avez percuté un obstacle !',
-    'tiles': 'Cases',
-    'winReward': 'dont +{n} bonus de niveau',
+    'towerFell': 'La tour est tombée !',
+    'reachedWave': 'Vous avez tenu jusqu’à la vague {n}',
+    'newRecord': 'Nouveau record !',
+    'defeated': 'Vaincus',
+    'reward': 'Récompense',
+    'upgrade': 'Améliorer !',
+    'defendAgain': 'Défendre à nouveau',
     'double': 'Doubler les pièces',
-    'firstRunDouble': '2× — première partie du jour !',
-   'almost': 'Presque ! Encore {n} cases.', 'retry': 'Réessayer', },
-  'upgrades': {
-    'title': 'Améliorations',
-    'subtitle': 'Dépensez des pièces pour vous renforcer définitivement.',
-    'level': 'Niv.{n}',
-    'maxedOut': 'MAX',
-    'sellBack': 'Vendre +{n}',
-    'spotlight': 'Dépenser !',
-    'unlocksAtStage': '🔒 Niveau {n}',
+    'firstRunDouble': '2× — premier siège du jour !',
+    'tripleWave': '3× pièces — {n}',
+    'waveCleared': 'Vague {n} repoussée !'
+  },
+
+  'tech': {
+    'title': 'Arbre technologique',
+    'rank': 'Rang {current}/{total}',
+    'maxed': 'Au maximum',
+    'rankOpen': 'Rang {n}',
+    'owned': 'Débloqué',
+    'requires': 'Nécessite {n}',
+    'spotlight': 'Dépensez !',
     'names': {
-      'powerupDuration': 'Boost de pouvoir',
-      'magnetRange': "Portée de l'aimant",
-      'coinValue': 'Valeur des pièces',
-      'itemLuck': 'Boîtes chanceuses',
-      'dodgeApprentice': 'Apprenti Esquive',
-      'deathMagnet': 'Aimant Mortel',
-      'autoCollect': 'Collecte Auto',
-      'rollingBoulder': 'Rocher Roulant'
+      'foundations': 'Fondations', 'sharpBolts': 'Carreaux aiguisés', 'unlockBrace': 'Caisses renforcées',
+      'lumberStock': 'Réserve de bois', 'longSight': 'Longue vue', 'rapidFire': 'Tir rapide',
+      'reinforced': 'Poutres renforcées', 'unlockSawmill': 'Scierie', 'quarryStock': 'Réserve de pierre',
+      'unlockMortar': 'Mortier', 'heavyOrdnance': 'Artillerie lourde', 'unlockTesla': 'Bobine électrique',
+      'gateArmor': 'Blindage de la porte', 'unlockQuarry': 'Carrière', 'richHauls': 'Butin abondant',
+      'wideFoundation': 'Fondation large', 'siegeShells': 'Obus de siège', 'unlockFrost': 'Flèche de givre',
+      'forkedBolts': 'Éclairs ramifiés', 'ironPlating': 'Plaques de fer', 'unlockRepair': 'Atelier',
+      'unlockMint': 'Mine d’or', 'looting': 'Pillage', 'overcharge': 'Surcharge',
+      'masterwork': 'Chef-d’œuvre', 'fieldRepairs': 'Réparations de campagne', 'greatFoundation': 'Grande fondation',
+      'warChest': 'Trésor de guerre',
+      'unlockSpikes': 'Mur à pointes',
+      'unlockBombard': 'Bombarde',
+      'sharpSpikes': 'Pointes affûtées',
+      'cavalryDrill': 'Manœuvres de cavalerie',
+      'artilleryDoctrine': 'Doctrine d’artillerie'
     },
     'descriptions': {
-      'powerupDuration': 'Tous les bonus durent plus longtemps (+0,75s par niveau).',
-      'magnetRange': "L'aimant à pièces a une portée accrue.",
-      'coinValue': 'Chaque pièce vaut plus.',
-      'itemLuck': 'Les boîtes apparaissent plus souvent.',
-      'dodgeApprentice': "Esquive auto une case mortelle, puis recharge (10s ; −0,5s par niveau).",
-      'deathMagnet': "À la mort, récupère toutes les pièces dans un rayon de 4 cases — encaisse ce que tu aurais perdu.",
-      'autoCollect': "Collecte toujours les pièces des cases adjacentes — un aimant à pièces permanent d'une case.",
-      'rollingBoulder': 'Traversez les caisses sans dommage.'
-    },
-    'secondChance': {
-      'name': 'Seconde Chance',
-      'description': "Commencez chaque partie avec des ailes d'ange — survivez à un choc ou une chute. Actif jusqu'à utilisation.",
-      'active': 'ACTIF',
-      'watch': 'Gratuit'
+      'foundations': 'Chaque bloc démarre avec +10 % de PV.',
+      'sharpBolts': 'Toutes les armes infligent +8 % de dégâts par rang.',
+      'unlockBrace': 'Débloque la caisse renforcée : deux fois les PV du bois.',
+      'lumberStock': 'Commencez chaque siège avec +25 de bois par rang.',
+      'longSight': 'Toutes les armes portent +10 % plus loin par rang.',
+      'rapidFire': 'Toutes les armes tirent 8 % plus vite par rang.',
+      'reinforced': 'Chaque bloc gagne +8 % de PV par rang.',
+      'unlockSawmill': 'Débloque la scierie : produit du bois à chaque vague.',
+      'quarryStock': 'Commencez chaque siège avec +18 de pierre par rang.',
+      'unlockMortar': 'Débloque le mortier : dégâts de zone à longue portée.',
+      'heavyOrdnance': 'Rayon de zone +15 % par rang.',
+      'unlockTesla': 'Débloque la bobine électrique : les éclairs rebondissent.',
+      'gateArmor': 'La porte gagne +20 % de PV par rang.',
+      'unlockQuarry': 'Débloque la carrière : produit de la pierre à chaque vague.',
+      'richHauls': 'Récompenses de vague +12 % par rang.',
+      'wideFoundation': 'Construisez 2 colonnes plus large par rang.',
+      'siegeShells': 'Toutes les armes infligent +10 % de dégâts par rang.',
+      'unlockFrost': 'Débloque la flèche de givre : ralentit des groupes entiers.',
+      'forkedBolts': 'L’éclair rebondit sur 1 ennemi de plus par rang.',
+      'ironPlating': 'Chaque bloc gagne +2 d’armure par rang.',
+      'unlockRepair': 'Débloque l’atelier : soigne les voisins à chaque vague.',
+      'unlockMint': 'Débloque la mine d’or : produit des pièces à chaque vague.',
+      'looting': 'Les ennemis lâchent +15 % de pièces en plus par rang.',
+      'overcharge': 'Toutes les armes tirent 10 % plus vite par rang.',
+      'masterwork': 'Toutes les armes infligent +12 % de dégâts par rang.',
+      'fieldRepairs': 'Chaque bloc récupère 6 % de ses PV max par vague repoussée et par rang.',
+      'greatFoundation': 'Construisez 2 colonnes de plus par rang.',
+      'warChest': 'Récompenses de vague +15 % par rang.',
+      'unlockSpikes': 'Débloque le Mur à pointes — les assaillants se blessent dessus.',
+      'unlockBombard': 'Débloque la Bombarde — tir de mortier à courte portée sur les troupes au sol.',
+      'sharpSpikes': 'Les murs à pointes renvoient +20 % de dégâts en plus par rang.',
+      'cavalryDrill': 'La cavalerie sort avec +14 % de PV et de dégâts par rang.',
+      'artilleryDoctrine': 'Toutes les armes portent +9 % plus loin par rang.'
     }
   },
-  'battlePass': {
-    'title': 'Battle Pass',
-    'progress': '{current} / {total}',
-    'daysLeft': '{n}j restants',
-    'maxed': 'BATTLE PASS TERMINÉ',
-    'xpProgress': '{current} / {total} XP',
-    'howToEarn': "Comment gagner de l'XP",
-    'perAttempt': 'par partie',
-    'perStageFinish': 'par niveau',
-    'unlockHint': 'Atteignez {n} XP pour débloquer la récompense suivante — les récompenses non réclamées restent disponibles.'
+
+  'resources': {
+    'wood': 'bois',
+    'stone': 'pierre',
+    'coins': 'pièces'
   },
-  'dailyRewards': {
-    'title': 'Récompenses quotidiennes',
-    'subtitle': 'Connectez-vous chaque jour pour garder votre série.',
-    'day': 'Jour {n}',
-    'dayShort': 'J{n}'
+
+  'ads': {
+    'watch': 'Regarder', 'revive': 'Revivre', 'secondChance': 'Seconde chance',
+    'doubleCoins': '2× pièces', 'plusCoins': '+{n} pièces'
   },
-  'skins': {
-    'title': 'Skins de Balle',
-    'subtitle': 'Dépensez des pièces pour débloquer et équiper de nouveaux looks.',
-    'equip': 'Équiper',
-    'equipped': 'Équipé',
-   'locked': 'Niveau {n}', 'new': 'Nouveau !', 'rarity': { 'common': 'Commun', 'rare': 'Rare', 'epic': 'Épique' }, },
+
+  'achievements': {
+    'title': 'Succès', 'subtitle': 'Atteignez des paliers à vie pour gagner des pièces.',
+    'claim': 'Réclamer', 'claimed': 'Réclamé', 'progress': '{c} / {t}',
+    'items': {
+      'wave5': { 'name': 'Première résistance', 'desc': 'Tenez jusqu’à la vague 5.' },
+      'wave10': { 'name': 'Bastion', 'desc': 'Tenez jusqu’à la vague 10.' },
+      'wave20': { 'name': 'Rempart', 'desc': 'Tenez jusqu’à la vague 20.' },
+      'wave30': { 'name': 'Incassable', 'desc': 'Tenez jusqu’à la vague 30.' },
+      'waves50': { 'name': 'Brise-lames', 'desc': 'Repoussez 50 vagues au total.' },
+      'waves250': { 'name': 'Vétéran des sièges', 'desc': 'Repoussez 250 vagues au total.' },
+      'kills500': { 'name': 'Défenseur', 'desc': 'Vainquez 500 ennemis au total.' },
+      'kills5k': { 'name': 'Pourfendeur', 'desc': 'Vainquez 5 000 ennemis au total.' },
+      'kills50k': { 'name': 'Légende', 'desc': 'Vainquez 50 000 ennemis au total.' },
+      'height10': { 'name': 'Vers le ciel', 'desc': 'Construisez une tour de 10 blocs de haut.' },
+      'height20': { 'name': 'Perce-nuages', 'desc': 'Construisez une tour de 20 blocs de haut.' },
+      'blocks250': { 'name': 'Bâtisseur', 'desc': 'Placez 250 blocs au total.' },
+      'blocks2k': { 'name': 'Architecte', 'desc': 'Placez 2 000 blocs au total.' },
+      'coins5k': { 'name': 'Collectionneur', 'desc': 'Gagnez 5 000 pièces au total.' },
+      'coins50k': { 'name': 'Trésorier', 'desc': 'Gagnez 50 000 pièces au total.' },
+      'runs25': { 'name': 'Persévérant', 'desc': 'Lancez 25 sièges.' }
+    }
+  },
+
   'missions': {
-    'title': 'Missions quotidiennes',
-    'subtitle': 'Accomplissez des objectifs chaque jour pour des pièces.',
-    'claim': 'Réclamer',
-    'done': 'Réclamé',
+    'title': 'Missions quotidiennes', 'subtitle': 'Accomplissez des objectifs chaque jour pour des pièces.',
+    'claim': 'Réclamer', 'done': 'Réclamé',
     'types': {
-      'coins': 'Collectez {n} pièces aujourd\'hui',
-      'tiles': 'Parcourez {n} cases en une partie',
-      'items': 'Attrapez {n} boîtes d\'objets aujourd\'hui',
-      'clears': 'Terminez {n} niveaux aujourd\'hui'
+      'coins': 'Gagnez {n} pièces aujourd’hui',
+      'waves': 'Tenez jusqu’à la vague {n} en un siège',
+      'kills': 'Vainquez {n} ennemis aujourd’hui',
+      'blocks': 'Placez {n} blocs aujourd’hui'
     }
   },
-  'endless': {
-    'badge': 'Infini',
-    'toEndless': 'Mode Infini',
-    'toCampaign': 'Campagne',
-    'best': 'Record : {n}'
+
+  'battlePass': {
+    'title': 'Passe de combat', 'progress': '{current} / {total}', 'daysLeft': '{n} j restants',
+    'maxed': 'PASSE DE COMBAT TERMINÉ', 'xpProgress': '{current} / {total} XP',
+    'howToEarn': 'Comment gagner de l’XP', 'perRun': 'par siège', 'perWave': 'par vague repoussée',
+    'unlockHint': 'Atteignez {n} XP pour débloquer la prochaine récompense — les récompenses non réclamées sont conservées.'
   },
-  'boon': {
-    'title': 'Choisissez un bonus',
-    'names': {
-      'secondChance': 'Seconde Chance',
-      'startPowerup': 'Avance',
-      'coinBoost': 'Ruée vers les pièces'
-    },
-    'descriptions': {
-      'secondChance': 'Commencez le niveau suivant avec un bouclier Seconde Chance.',
-      'startPowerup': 'Commencez le niveau suivant avec un bonus aléatoire.',
-      'coinBoost': '1,2× pièces pour tout le niveau suivant.'
-    }
+
+  'dailyRewards': {
+    'title': 'Récompenses quotidiennes', 'subtitle': 'Connectez-vous chaque jour pour garder votre série.',
+    'day': 'Jour {n}', 'dayShort': 'J{n}'
   },
+
   'options': {
-    'title': 'Options',
-    'general': 'Général',
-    'audio': 'Audio',
-    'language': 'Langue',
-    'difficulty': 'Difficulté',
-    'soundEffects': 'Effets Sonores',
-    'music': 'Musique',
-    'musicTrack': 'Piste musicale',
-    'musicTracks': {
-      'cozy': 'Harmonie Cosy',
-      'trance': 'Tunnel Trance'
-    },
-    'close': 'Sauvegarder et Fermer',
+    'title': 'Options', 'general': 'Général', 'audio': 'Audio', 'language': 'Langue',
+    'difficulty': 'Difficulté', 'soundEffects': 'Effets sonores', 'music': 'Musique', 'musicTrack': 'Piste musicale',
+    'musicTracks': { 'cozy': 'Harmonie douce', 'trance': 'Tunnel trance' },
+    'close': 'Enregistrer et fermer',
     'difficulties': { 'easy': 'Facile', 'medium': 'Moyen', 'hard': 'Difficile' },
     'difficultyHints': {
-      'easy': 'Vitesse réduite — plus de temps pour réagir.',
-      'medium': 'Le rythme équilibré par défaut.',
-      'hard': 'Vitesse accrue — timing plus précis requis.'
+      'easy': 'Vagues plus petites et ennemis plus faibles.',
+      'medium': 'Le siège standard et équilibré.',
+      'hard': 'Vagues plus denses et ennemis plus coriaces.'
     }
   },
+
   'adsBlocked': {
-    'title': 'Impossible d\'afficher la pub',
-    'body': 'Nous avons essayé de vous montrer une vidéo pour gagner votre récompense, mais quelque chose dans votre navigateur bloque les pubs.',
-    'allowPrefix': 'Veuillez autoriser les pubs sur',
-    'allowSuffix': '(ou suspendez votre bloqueur de pub pour ce jeu) et réessayez.',
+    'title': 'Impossible d’afficher la publicité',
+    'body': 'Nous avons essayé de vous montrer une vidéo pour votre récompense, mais quelque chose dans votre navigateur bloque les publicités.',
+    'allowPrefix': 'Autorisez les publicités sur',
+    'allowSuffix': '(ou mettez votre bloqueur en pause pour ce jeu) puis réessayez.',
     'gotIt': 'Compris'
   },
   'saveStatus': {
-    'restoredTitle': 'Sauvegarde cloud restaurée',
-    'restoredBody': '+{n} pièces bonus pour la récupération',
-    'tap': 'toucher',
-    'pausedTitle': 'Synchronisation cloud en pause',
-    'pausedBody': 'Jeu hors ligne. Votre progression est sauvegardée ici.',
-    'retry': 'Réessayer',
-    'dismiss': 'fermer'
+    'restoredTitle': 'Sauvegarde cloud restaurée', 'restoredBody': '+{n} pièces bonus pour la récupération',
+    'tap': 'toucher', 'pausedTitle': 'Synchronisation en pause',
+    'pausedBody': 'Vous jouez hors ligne. Votre progression est enregistrée ici.',
+    'retry': 'Réessayer', 'dismiss': 'ignorer'
   },
-  'loading': {
-    'tooLong': 'Le chargement est trop long ? Désactivez votre bloqueur de pub et actualisez.'
-  },
-  'license': {
-    'denied': 'Accès refusé : veuillez acheter une licence.'
-  }
+  'loading': { 'tooLong': 'Le chargement est trop long ? Désactivez votre bloqueur de publicités et rechargez.' },
+  'license': { 'denied': 'Accès refusé : veuillez acheter une licence.' }
 }

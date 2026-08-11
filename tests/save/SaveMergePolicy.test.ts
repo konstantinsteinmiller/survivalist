@@ -16,65 +16,74 @@ const reader = (snap: Record<string, string>): { get: (k: string) => string | nu
   get: (k: string) => (k in snap ? snap[k]! : null)
 })
 
-const upgradesJson = (levels: Record<string, number> = {}): string =>
+const techJson = (levels: Record<string, number> = {}): string =>
   JSON.stringify({ levels })
 
+// Score formula under test:  bestWave × 500 + techLevels × 150 + runs × 10
 describe('SaveMergePolicy.computeMeta', () => {
-  it('returns score=500 for a fresh-defaults snapshot (stage 1, nothing else)', () => {
+  it('returns score=0 for a fresh install (nothing survived, nothing bought)', () => {
     const meta = computeMeta(reader({}), '2026-04-27T10:00:00Z')
     expect(meta).toEqual({
       savedAt: '2026-04-27T10:00:00Z',
-      progressScore: 500,
+      progressScore: 0,
       schemaVersion: SCHEMA_VERSION,
-      maxStage: 1
+      maxStage: 0
     })
   })
 
-  it('counts stage * 500', () => {
-    const meta = computeMeta(reader({ [SAVE_KEYS.STAGE]: '7' }))
+  it('counts bestWave * 500', () => {
+    const meta = computeMeta(reader({ [SAVE_KEYS.BEST_WAVE]: '7' }))
     expect(meta.progressScore).toBe(7 * 500)
     expect(meta.maxStage).toBe(7)
   })
 
-  it('clamps stage at 1 when storage has 0 / negative / garbage', () => {
-    expect(computeMeta(reader({ [SAVE_KEYS.STAGE]: '0' })).progressScore).toBe(500)
-    expect(computeMeta(reader({ [SAVE_KEYS.STAGE]: '-3' })).progressScore).toBe(500)
-    expect(computeMeta(reader({ [SAVE_KEYS.STAGE]: 'abc' })).progressScore).toBe(500)
+  it('floors bestWave at 0 for negative / garbage values', () => {
+    expect(computeMeta(reader({ [SAVE_KEYS.BEST_WAVE]: '0' })).progressScore).toBe(0)
+    expect(computeMeta(reader({ [SAVE_KEYS.BEST_WAVE]: '-3' })).progressScore).toBe(0)
+    expect(computeMeta(reader({ [SAVE_KEYS.BEST_WAVE]: 'abc' })).progressScore).toBe(0)
   })
 
-  it('counts every upgrade level at 150 each', () => {
+  it('counts every tech level at 150 each', () => {
     const meta = computeMeta(reader({
-      [SAVE_KEYS.STAGE]: '1',
-      [SAVE_KEYS.UPGRADES]: upgradesJson({ maxLife: 3, chainLength: 2, sawDamage: 5 })
+      [SAVE_KEYS.BEST_WAVE]: '1',
+      [SAVE_KEYS.TECH]: techJson({ sharpBolts: 3, rapidFire: 2, reinforced: 5 })
     }))
-    // stage 1*500 + 10 levels * 150 = 500 + 1500 = 2000
-    expect(meta.progressScore).toBe(2000)
+    // 1*500 + 10 levels * 150
+    expect(meta.progressScore).toBe(500 + 1500)
   })
 
-  it('ignores negative / non-numeric upgrade values defensively', () => {
+  it('counts runs at 10 each so two equal-wave saves still break their tie', () => {
+    const a = computeMeta(reader({ [SAVE_KEYS.BEST_WAVE]: '4', [SAVE_KEYS.RUNS]: '12' }))
+    const b = computeMeta(reader({ [SAVE_KEYS.BEST_WAVE]: '4', [SAVE_KEYS.RUNS]: '3' }))
+    expect(a.progressScore).toBe(2000 + 120)
+    expect(b.progressScore).toBe(2000 + 30)
+    expect(a.progressScore).toBeGreaterThan(b.progressScore)
+  })
+
+  it('ignores negative / non-numeric tech values defensively', () => {
     const meta = computeMeta(reader({
-      [SAVE_KEYS.UPGRADES]: JSON.stringify({
-        levels: { maxLife: -2, chainLength: 'broken', sawDamage: 4, coinMagnetMs: NaN, rotationSpeed: 3 }
+      [SAVE_KEYS.TECH]: JSON.stringify({
+        levels: { sharpBolts: -2, rapidFire: 'broken', reinforced: 4, gateArmor: NaN, looting: 3 }
       })
     }))
-    // Only `sawDamage: 4` and `rotationSpeed: 3` count → 7 * 150 = 1050; +500 stage = 1550
-    expect(meta.progressScore).toBe(1550)
+    // Only `reinforced: 4` and `looting: 3` count → 7 * 150
+    expect(meta.progressScore).toBe(1050)
   })
 
-  it('combines stage + upgrades per the formula', () => {
+  it('combines every term per the formula', () => {
     const meta = computeMeta(reader({
-      [SAVE_KEYS.STAGE]: '12',
-      [SAVE_KEYS.UPGRADES]: upgradesJson({ maxLife: 5, chainLength: 5 })
+      [SAVE_KEYS.BEST_WAVE]: '12',
+      [SAVE_KEYS.RUNS]: '20',
+      [SAVE_KEYS.TECH]: techJson({ sharpBolts: 5, rapidFire: 5 })
     }))
-    // 12*500 + 10*150
-    expect(meta.progressScore).toBe(6000 + 1500)
+    expect(meta.progressScore).toBe(6000 + 1500 + 200)
     expect(meta.maxStage).toBe(12)
   })
 
-  it('survives malformed JSON in upgrades key', () => {
+  it('survives malformed JSON in the tech key', () => {
     const meta = computeMeta(reader({
-      [SAVE_KEYS.STAGE]: '3',
-      [SAVE_KEYS.UPGRADES]: '{not json'
+      [SAVE_KEYS.BEST_WAVE]: '3',
+      [SAVE_KEYS.TECH]: '{not json'
     }))
     expect(meta.progressScore).toBe(3 * 500)
   })

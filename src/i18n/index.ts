@@ -1,6 +1,7 @@
 import type { I18n } from 'vue-i18n'
 import { LANGUAGES } from '@/utils/enums'
-import { getState } from '@/use/useEpicState'
+import { getState } from '@/use/useTowerState'
+import { LANGUAGE_KEY } from '@/keys'
 
 /**
  * Locale loader — lazy, code-split, cache-safe.
@@ -92,7 +93,7 @@ export const setI18nLocale = async (
  *      portal locale or the player's stored choice from `useUser`. Caller
  *      is responsible for picking the right source; this function does
  *      not touch sessionStorage (CG QA: NO locally-saved data).
- *   2. localStorage `spinner_user_language` — the cloud-hydrated player
+ *   2. `tower_state.ts_user_language` — the cloud-hydrated player
  *      choice. On CG builds this has already been populated from
  *      `sdk.data` by `SaveManager.init()` before `main.ts` calls us.
  *   3. navigator.language short code — first-ever load with no portal
@@ -101,7 +102,7 @@ export const setI18nLocale = async (
  */
 export const resolveInitialLocale = (preferred?: string | null): string => {
   if (isSupportedLocale(preferred)) return preferred
-  const stored = getState<string | undefined>('spinner_user_language')
+  const stored = getState<string | undefined>(LANGUAGE_KEY)
   if (isSupportedLocale(stored)) return stored
   const nav = typeof navigator !== 'undefined'
     ? navigator.language?.split('-')[0]

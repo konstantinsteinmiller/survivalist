@@ -1,10 +1,10 @@
 import { ref } from 'vue'
 import { prependBaseUrl } from '@/utils/function'
 
-// Epicrolla draws all gameplay art programmatically (via Canvas 2D)
-// and uses inline SVG for HUD icons, so the asset preloader is intentionally
-// empty. SFX are decoded on first play (see `useSound.ts`); the splash
-// screen exits as soon as the JS bundle is parsed.
+// Tower Siege draws all gameplay art programmatically (Canvas 2D) and uses
+// inline SVG for HUD icons, so the preloader only has to decode two pieces of
+// UI chrome. SFX decode on first play (see `useSound.ts`) and are warmed on an
+// idle slot after first paint; the splash exits as soon as the bundle parses.
 
 const loadingProgress = ref(100)
 const areAllAssetsLoaded = ref(true)
@@ -207,25 +207,15 @@ export const loadAudioBuffer = async (src: string): Promise<AudioBuffer | null> 
   return promise
 }
 
-// ─── Critical art-asset preload ────────────────────────────────────────
-// Anything the gameplay scene draws inside its hot path needs to be
-// decoded BEFORE the first frame paints, otherwise the renderer hits
-// `img.complete === false` and silently falls back to its procedural
-// substitute — the player then sees a "flash" of the placeholder.
-// `drawRobot` switches between two chain bitmaps (short / long) keyed
-// off the live chain-upgrade level; when the player toggles between
-// them mid-round, the chain bitmap that wasn't loaded yet causes that
-// flash. Preloading both eliminates the swap pop.
+// ─── Critical image preload ────────────────────────────────────────────
+// The only bitmaps on the critical path are UI chrome. Gameplay art is
+// procedural, so there is nothing else to block first paint on.
 const CRITICAL_IMAGE_SRCS: ReadonlyArray<string> = [
-  // Grid tiles drawn every frame in the iso renderer's hot path — decode
-  // before first paint so the floor never flashes its procedural fallback.
-  '/images/props/grid-tile-1.webp',
-  '/images/props/grid-tile-2.webp',
-  '/images/props/grid-tile-3.webp',
-  '/images/props/coin_128x128.webp',
-  // Splash logo — decoded before the splash mounts so the FLogoProgress
-  // <img> never paints a blank box on first frame.
-  '/images/logo/logo_256x256.webp'
+  // Splash logo — decoded before the splash mounts so FLogoProgress never
+  // paints a blank box on the first frame.
+  '/images/logo/logo_256x256.webp',
+  // Result-screen ribbon. Small, and needed the moment a siege ends.
+  '/images/bg/parchment-ribbon_553x188.webp'
 ]
 
 /** Block until `img.complete && naturalWidth > 0` (success) or `error`
@@ -246,73 +236,39 @@ const decodeImage = (src: string): Promise<void> => {
 }
 
 // ─── Off-hot-path background warm-up ───────────────────────────────────────
-// Runs ONCE, only after the splash has hidden (hot path fully done + first
-// paint). Strict priority order so the hot path is never contended:
-//   1. gameplay SFX decode (sounds are NOT in the hot path — they decode on
-//      first play anyway; this just warms them so the first burst is smooth),
-//   2. the parchment-ribbon result-screen bitmap (needed before any win/lose
-//      screen, but never on the first frame), then
-//   3. the remaining (non-selected) ball skins — lowest priority, since the
-//      player only sees them if they open the Skin shop.
-// All dynamic-imported so none of this is linked into the entry chunk.
+// Runs ONCE, after the splash has hidden (hot path done + first paint).
+//
+// Tower Siege draws every block, enemy and background layer procedurally, so
+// there is no gameplay art to decode here — the only deferred work is the SFX
+// buffer decode. Doing it on an idle slot means the first explosion of a
+// session doesn't pay a decode cost mid-frame, without delaying first paint.
 let backgroundWarmStarted = false
-const RIBBON_SRC = 'images/bg/parchment-ribbon_553x188.webp'
 
 const runBackgroundWarmup = (): void => {
   if (backgroundWarmStarted) return
   backgroundWarmStarted = true
   void (async () => {
     try {
-      // 1. Sounds first — bg music still streams lazily on first use (not here).
       const sp = await import('@/use/useSoundPreload')
       await sp.preloadGameplaySounds()
-    } catch { /* non-critical */ }
-
-    let art: typeof import('@/use/useEpicArt') | null = null
-    try { art = await import('@/use/useEpicArt') } catch { /* non-critical */ }
-
-    // 2. Parchment ribbon — before the (already-deferred) remaining skins.
-    try { await art?.warmImages?.([RIBBON_SRC]) } catch { /* non-critical */ }
-
-    // 3. Every other ball skin (the selected one was warmed in the hot path).
-    try {
-      const skins = await import('@/use/useEpicSkins')
-      const selected = skins.selectedSkinId.value
-      const rest = skins.SKINS.filter((s) => s.id !== selected).map((s) => s.src)
-      await art?.warmImages?.(rest)
-    } catch { /* non-critical */ }
+    } catch { /* non-critical — sounds still decode on first play */ }
   })()
 }
 
 export default () => {
   const preloadAssets = async (): Promise<void> => {
+    // ── HOT PATH ──
+    // Tower Siege has NO gameplay bitmaps: blocks, enemies, projectiles and the
+    // whole background are drawn from code. The only critical images are the
+    // splash logo and the result-screen ribbon, and the renderer chunk itself.
+    //
+    // So the "loading" phase is effectively just the JS parse, which is exactly
+    // the fast-start behaviour portals grade on. Everything else (SFX decode,
+    // drop-in art probing) defers to `runBackgroundWarmup()` after first paint.
     loadingProgress.value = 0
     areAllAssetsLoaded.value = false
-    // ── HOT PATH ── Only what the FIRST gameplay frame needs: the grid /
-    // prop sprites and the player's CURRENTLY-EQUIPPED ball skin. No sounds,
-    // no bg-music, no non-selected skins, no result-screen art — those all
-    // warm in `runBackgroundWarmup()` after the splash hides.
-    //
-    // The dynamic import keeps the renderer chunk off the entry bundle; it
-    // streams in PARALLEL with the static splash render, so the player sees the
-    // animated logo immediately while the gameplay bytes arrive.
-    const stageTask = (async () => {
-      try {
-        const art = await import('@/use/useEpicArt')
-        await art.warmTileImages?.()
-        // Warm ONLY the selected skin in the hot path (it's drawn on the ball
-        // from the first frame). The rest defer to the background warm-up.
-        try {
-          const skins = await import('@/use/useEpicSkins')
-          await art.warmImages?.([skins.skinById(skins.selectedSkinId.value).src])
-        } catch { /* selected skin falls back to the default ball texture */ }
-      } catch { /* non-critical: renderer falls back to procedural tiles */ }
-    })()
-    // Kick decoding in parallel; resolve when every critical sprite is
-    // ready. `Promise.allSettled` swallows individual asset errors so a
-    // 404 on one bitmap doesn't strand the splash screen.
-    const imageTasks = CRITICAL_IMAGE_SRCS.map(decodeImage)
-    const tasks: Promise<unknown>[] = [...imageTasks, stageTask]
+
+    const tasks = CRITICAL_IMAGE_SRCS.map(decodeImage)
     let done = 0
     for (const task of tasks) {
       task.then(() => {
@@ -320,11 +276,11 @@ export default () => {
         loadingProgress.value = Math.round((done / tasks.length) * 100)
       })
     }
+    // `allSettled` swallows individual failures so a 404 on one bitmap can
+    // never strand the splash screen.
     await Promise.allSettled(tasks)
     loadingProgress.value = 100
     areAllAssetsLoaded.value = true
-    // Hot path done + splash about to hide → kick the off-path warm-up on the
-    // first idle slot so it never competes with first-frame work.
     scheduleBackgroundWarmup()
   }
 

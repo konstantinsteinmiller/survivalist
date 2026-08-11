@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import useEpicConfig from '@/use/useEpicConfig'
+import useTowerEconomy from '@/use/useTowerEconomy'
 import useSounds from '@/use/useSound.ts'
 import { spawnCoinExplosion } from '@/use/useCoinExplosion'
 import IconCoin from '@/components/icons/IconCoin.vue'
-// Persist through the unified `epicrolla_state` blob — getState/setState write
+// Persist through the unified `tower-siege_state` blob — getState/setState write
 // the chest's collected-at key into the single in-memory record that the
 // SaveManager mirrors to localStorage AND the active platform SDK's cloud save.
-import { getState, setState } from '@/use/useEpicState'
+import { getState, setState } from '@/use/useTowerState'
+import { CHEST_KEY } from '@/keys'
 
 interface Props {
   /** Element where the coin explosion VFX flies to (the coin badge). */
@@ -18,7 +19,7 @@ const props = withDefaults(defineProps<Props>(), {
   targetEl: null
 })
 
-const { addCoins } = useEpicConfig()
+const { addCoins } = useTowerEconomy()
 const { playSound } = useSounds()
 
 const SMALL_READY_AT_MS = 3 * 60 * 1000
@@ -26,7 +27,7 @@ const BIG_READY_AT_MS = 10 * 60 * 1000
 const SMALL_REWARD = 25
 const BIG_REWARD = 100
 
-const STORAGE_KEY = 'spinner_chest_last_collected_at'
+const STORAGE_KEY = CHEST_KEY
 
 const readStoredAt = () => {
   const v = getState<unknown>(STORAGE_KEY)
@@ -68,10 +69,6 @@ const cooldownRingPct = computed(() => {
   if (phase.value !== 'cooldown') return 0
   return remainingMs.value / SMALL_READY_AT_MS
 })
-
-const auraColor = computed(() =>
-  phase.value === 'big' ? 'rgba(255,160,0,0.95)' : 'rgba(192,210,225,0.8)'
-)
 
 const rootEl = ref<HTMLElement | null>(null)
 
@@ -144,19 +141,13 @@ onUnmounted(() => {
         style="transition: y 0.3s linear, height 0.3s linear"
       )
 
-    //- Status label
-    div.absolute.text-center(class="-bottom-4 left-1/2 -translate-x-1/2")
-      span.game-text.font-black.text-white.text-shadow-sm(
-        v-if="!isReady"
-        class="text-[9px] sm:text-[10px] tracking-wide"
-      ) {{ timeDisplay }}
-      div(
-        v-else
-        class="flex items-center gap-0.5 px-1 py-0.5 rounded-md"
-        :style="{ background: auraColor, boxShadow: `0 0 14px ${auraColor}` }"
-      )
-        IconCoin(class="w-3 h-3 text-yellow-100")
-        span.game-text.font-black.text-white.mr-4(class="text-[9px] sm:text-[10px]") +{{ currentReward }}
+    //- Status label: a countdown while it fills, the payout once it is ready.
+    //- Both sit in the same slot so the chest's footprint never jumps.
+    div.chest-label
+      span.chest-timer(v-if="!isReady") {{ timeDisplay }}
+      span.chest-payout(v-else :class="{ 'is-big': phase === 'big' }")
+        IconCoin(class="chest-payout__coin")
+        span.chest-payout__value +{{ currentReward }}
 </template>
 
 <style scoped lang="sass">
@@ -184,4 +175,69 @@ onUnmounted(() => {
 
 .is-big .chest-svg
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px rgba(255, 160, 0, 0.8))
+
+// ─── Status label ───────────────────────────────────────────────────────────
+//
+// The countdown and the payout share one slot, centred under the chest, so the
+// chest's footprint never jumps when it becomes ready.
+//
+// The payout chip is built in the same language as the rest of the HUD — dark
+// outline, vertical gradient, drop shadow, outlined text. The previous version
+// was a flat slab of raw `auraColor` with a stray `mr-4` on the value, which
+// left a third of the chip empty and shoved the number off-centre.
+.chest-label
+  position: absolute
+  top: calc(100% + 0.15rem)
+  left: 50%
+  translate: -50% 0
+  display: flex
+  justify-content: center
+  // The chip is wider than the chest; letting it size itself and centre keeps
+  // it from shunting the wallet column around.
+  white-space: nowrap
+  pointer-events: none
+
+.chest-timer
+  display: inline-block
+  padding: 0.05em 0.4em
+  border-radius: 999px
+  background-color: rgba(10, 16, 30, 0.72)
+  color: #cfdcf0
+  font-weight: 900
+  font-size: clamp(0.5rem, 2.1vw, 0.66rem)
+  line-height: 1.5
+  letter-spacing: 0.04em
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.8)
+
+.chest-payout
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  gap: 0.2em
+  padding: 0.1em 0.45em
+  border: 2px solid #2a1c06
+  border-radius: 999px
+  background-image: linear-gradient(to bottom, #cfd9e6, #93a3b8)
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45)
+  line-height: 1
+
+  // The 10-minute chest is the one worth waiting for, so it gets the gold
+  // treatment and the aura; the 3-minute one stays quiet silver.
+  &.is-big
+    background-image: linear-gradient(to bottom, #ffd85c, #f0a01c)
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45), 0 0 12px rgba(255, 170, 30, 0.75)
+
+.chest-payout__coin
+  flex: 0 0 auto
+  width: clamp(0.5rem, 2.1vw, 0.7rem)
+  height: clamp(0.5rem, 2.1vw, 0.7rem)
+  color: #fff6d0
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.5))
+
+.chest-payout__value
+  color: #fff
+  font-weight: 900
+  font-size: clamp(0.5rem, 2.1vw, 0.68rem)
+  line-height: 1.4
+  text-shadow: 1.5px 1.5px 0 rgba(0, 0, 0, 0.75)
 </style>

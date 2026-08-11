@@ -1,19 +1,19 @@
 import { ref, computed, watch, type Ref } from 'vue'
-import { getState, setState, epicrollaState } from '@/use/useEpicState'
+import { getState, setState, towerState } from '@/use/useTowerState'
 import { saveDataVersion, flushSaveNow } from '@/use/useSaveStatus'
 import { MISSIONS_KEY } from '@/keys'
-import useEpicConfig from '@/use/useEpicConfig'
+import useTowerEconomy from '@/use/useTowerEconomy'
 import useBattlePass from '@/use/useBattlePass'
 
-// ─── Daily mission triplet (roadmap #2) ─────────────────────────────────────
+// ─── Daily mission triplet ──────────────────────────────────────────────────
 //
 // Three rotating goals, regenerated each local day, that give a reason to open
-// the app daily beyond the login chest. Progress is fed by `recordRun()` at the
-// end of every run; completing a mission lets the player claim coins + a chunk
-// of battle-pass XP. State persists in the single `epicrolla_state` blob under
+// the game daily beyond the login chest. Progress is fed by `recordRun()` at
+// the end of every siege; completing a mission pays coins + a chunk of
+// battle-pass XP. State persists in the single `tower_state` blob under
 // `MISSIONS_KEY` as `{ day, missions }`, so it round-trips through cloud save.
 
-export type MissionType = 'coins' | 'tiles' | 'items' | 'clears'
+export type MissionType = 'coins' | 'waves' | 'kills' | 'blocks'
 
 export interface Mission {
   type: MissionType
@@ -28,16 +28,26 @@ export interface Mission {
 
 interface MissionState { day: string; missions: Mission[] }
 
-/** Per-type config: a few candidate targets (a daily seed picks one) and the
- *  matching coin reward. `tiles` is a best-single-run goal; the rest accumulate
- *  across the day's runs. */
-const MISSION_DEFS: Record<MissionType, { targets: number[]; reward: number }> = {
-  coins: { targets: [80, 120, 160], reward: 60 },
-  tiles: { targets: [25, 40, 55], reward: 70 },
-  items: { targets: [3, 5, 7], reward: 50 },
-  clears: { targets: [1, 2, 3], reward: 80 }
+/** One finished siege's contribution to the daily goals. */
+export interface MissionRun {
+  waves: number
+  kills: number
+  coins: number
+  blocks: number
+  height: number
 }
-const ALL_TYPES: MissionType[] = ['coins', 'tiles', 'items', 'clears']
+
+/** Per-type config: a few candidate targets (a daily seed picks one) and the
+ *  matching coin reward. `waves` is a BEST-SINGLE-RUN goal — "survive to wave
+ *  8" should mean one good siege, not eight scrappy ones — while coins, kills
+ *  and blocks accumulate across the day. */
+const MISSION_DEFS: Record<MissionType, { targets: number[]; reward: number }> = {
+  coins: { targets: [120, 200, 300], reward: 60 },
+  waves: { targets: [5, 8, 12], reward: 90 },
+  kills: { targets: [60, 120, 200], reward: 70 },
+  blocks: { targets: [15, 25, 40], reward: 50 }
+}
+const ALL_TYPES: MissionType[] = ['coins', 'waves', 'kills', 'blocks']
 
 const todayKey = (): string => new Date().toISOString().slice(0, 10)
 
@@ -93,7 +103,7 @@ const refresh = (): void => {
   if (next.day !== state.value.day) state.value = next
 }
 watch(saveDataVersion, refresh)
-watch(epicrollaState, refresh, { deep: false })
+watch(towerState, refresh, { deep: false })
 
 const persist = (): void => {
   setState(MISSIONS_KEY, state.value)
@@ -106,7 +116,7 @@ export const claimableMissionCount = computed(
 )
 
 const useMissions = () => {
-  const { addCoins } = useEpicConfig()
+  const { addCoins } = useTowerEconomy()
   const { awardXp } = useBattlePass()
 
   // Roll the day over if needed (e.g. the app was left open past midnight).
@@ -116,17 +126,16 @@ const useMissions = () => {
 
   const missions = computed(() => state.value.missions)
 
-  /** Feed one finished run's stats into the daily missions. `coins`/`items`
-   *  accumulate across the day; `tiles` keeps the best single run; `cleared`
-   *  increments the stage-clear counter. */
-  const recordRun = (run: { tiles: number; coins: number; items: number; cleared: boolean }): void => {
+  /** Feed one finished siege into the daily missions. */
+  const recordRun = (run: MissionRun): void => {
     ensureToday()
     // Coerce every input to a finite, non-negative number. A stale field
     // (undefined) or a NaN that crept into the persisted blob would otherwise
     // poison `progress` permanently via `+=`, surfacing as "NaN /" in the UI.
-    const tiles = Math.max(0, Number(run.tiles) || 0)
+    const waves = Math.max(0, Number(run.waves) || 0)
     const coins = Math.max(0, Number(run.coins) || 0)
-    const items = Math.max(0, Number(run.items) || 0)
+    const kills = Math.max(0, Number(run.kills) || 0)
+    const blocks = Math.max(0, Number(run.blocks) || 0)
     let changed = false
     for (const m of state.value.missions) {
       if (m.claimed) continue
@@ -134,9 +143,9 @@ const useMissions = () => {
       const cur = Number.isFinite(m.progress) ? m.progress : 0
       const before = cur
       if (m.type === 'coins') m.progress = cur + coins
-      else if (m.type === 'items') m.progress = cur + items
-      else if (m.type === 'clears') m.progress = cur + (run.cleared ? 1 : 0)
-      else if (m.type === 'tiles') m.progress = Math.max(cur, tiles)
+      else if (m.type === 'kills') m.progress = cur + kills
+      else if (m.type === 'blocks') m.progress = cur + blocks
+      else if (m.type === 'waves') m.progress = Math.max(cur, waves)
       if (m.progress !== before) changed = true
     }
     if (changed) {

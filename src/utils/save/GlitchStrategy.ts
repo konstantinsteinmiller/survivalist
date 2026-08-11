@@ -330,6 +330,18 @@ export class GlitchStrategy implements SaveStrategy {
     this.scheduleFlush()
   }
 
+  /**
+   * Drain everything pending, and do not resolve until the network write has
+   * actually landed.
+   *
+   * The `inflight` await is load-bearing, not defensive: `main.ts` awaits
+   * `saveManager.flush()` from the `pagehide` / `visibilitychange` handlers, so
+   * this promise is the last thing standing between the player's progress and a
+   * killed JS process. Without it, a flush that arrives while a debounced upload
+   * is already in the air sees `dirty === false` (doFlush cleared it before
+   * issuing the POST) and resolves immediately — reporting "saved" while the
+   * request is still unsent.
+   */
   async flush(): Promise<void> {
     if (this.flushTimer) {
       clearTimeout(this.flushTimer)
@@ -337,6 +349,7 @@ export class GlitchStrategy implements SaveStrategy {
     }
     if (!this.canFlush()) return
     await this.doFlush()
+    if (this.inflight) await this.inflight
   }
 
   dispose(): void {

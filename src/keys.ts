@@ -1,39 +1,84 @@
-// ─── Game-progress field catalogue ──────────────────────────────────────────
+// ─── Game-state field catalogue ─────────────────────────────────────────────
 //
-// Field names INSIDE the single `epicrolla_state` blob (see `useEpicState.ts`).
-// These are not separate localStorage keys — they're properties of the one
-// persisted object — but they're still a contract with the player base:
+// Field names INSIDE the single `tower_state` blob (see `useTowerState.ts`).
+// These are NOT separate localStorage keys — they are properties of the one
+// persisted object — but they are still a contract with the player base:
 // renaming any of them strands existing players' progress on the old field.
 // Treat them as load-bearing constants.
+//
+// Everything is `ts_`-prefixed so `SaveMergePolicy.isPayloadKey` can allowlist
+// the whole surface with a single prefix.
 
-export const STAGE_KEY = 'epic_stage'
-export const COINS_KEY = 'epic_coins'
-export const UPGRADES_KEY = 'epic_upgrades'
-export const BEST_SCORE_KEY = 'epic_best_score'
-// Pre-bought "Second Chance": a sticky flag that arms the player to start every
-// run with angel wings + the second-chance shield until one is consumed.
-export const START_SECOND_CHANCE_KEY = 'epic_start_second_chance'
-// Cosmetic ball skins: { owned: string[], selected: string }. Owned IDs are
-// purchased with coins; `selected` is the equipped skin rendered on the ball.
-export const SKINS_KEY = 'epic_skins'
-// Best tiles travelled in ENDLESS mode (separate from the campaign best score).
-export const BEST_ENDLESS_KEY = 'epic_best_endless'
-// First-run onboarding assist consumed flag (true once the first run finishes).
-export const ONBOARDED_KEY = 'epic_onboarded'
-// Daily missions: { day: 'YYYY-MM-DD', missions: Mission[] } (regen per day).
-export const MISSIONS_KEY = 'epic_missions'
-// First-run-of-day 2× bonus bookkeeping: the local day it was last consumed.
-export const DAILY_BONUS_DAY_KEY = 'epic_daily_bonus_day'
-// One-time "you can afford an upgrade" spotlight on the Upgrades button (#16).
-export const UPGRADE_SPOTLIGHT_KEY = 'epic_upgrade_spotlight_seen'
-// Achievements (roadmap #13): { claimed: string[], stats: { tiles, coins,
-// items, clears, bestRun } }. Lifetime counters + which milestones were banked.
-export const ACHIEVEMENTS_KEY = 'epic_achievements'
-// Skin IDs the player has already seen in the Skin shop — drives the "NEW!"
-// badge on freshly-owned / newly-unlocked skins (roadmap #12). string[].
-export const SKINS_SEEN_KEY = 'epic_skins_seen'
-// Mobile-only hard audio mute (boolean). On phones the OS volume rocker owns the
-// device level and the Web Audio gain has no effect, so the on-screen mute is a
-// silence toggle instead: suspend all audio + block new music/SFX. Persisted so
-// it sticks across sessions; only ever honoured on mobile (see useMobileAudioMute).
-export const MOBILE_MUTE_KEY = 'epic_mobile_mute'
+// ─── Meta progression ───────────────────────────────────────────────────────
+
+/** Meta currency, banked at run end and spent in the tech tree. */
+export const COINS_KEY = 'ts_coins'
+/** Tech-tree node levels: `{ levels: Record<nodeId, number> }`. */
+export const TECH_KEY = 'ts_tech'
+/** Highest wave the player has ever survived (the headline progress number). */
+export const BEST_WAVE_KEY = 'ts_best_wave'
+/** Tallest tower ever built, in rows. */
+export const BEST_HEIGHT_KEY = 'ts_best_height'
+/** Most blocks ever standing in one tower. */
+export const BEST_BLOCKS_KEY = 'ts_best_blocks'
+/** Lifetime enemies killed. */
+export const TOTAL_KILLS_KEY = 'ts_total_kills'
+/** Lifetime waves cleared (across all runs). */
+export const TOTAL_WAVES_KEY = 'ts_total_waves'
+/** Lifetime runs started. */
+export const RUNS_KEY = 'ts_runs'
+/** Lifetime blocks placed. */
+export const TOTAL_BLOCKS_KEY = 'ts_total_blocks'
+/** Lifetime coins earned (achievement metric, never decremented by spending). */
+export const TOTAL_COINS_KEY = 'ts_total_coins'
+
+// ─── The resumable run ──────────────────────────────────────────────────────
+
+/**
+ * Snapshot of the in-progress siege, written at every build-phase entry:
+ * `{ wave, wood, stone, runCoins, kills, killsByType, blocks: [[c,r,type,hp]] }`.
+ * A reload (or a cross-device cloud hydrate) resumes the exact tower instead of
+ * dumping the player back to a fresh foundation.
+ */
+export const RUN_KEY = 'ts_run'
+
+// ─── Retention systems ──────────────────────────────────────────────────────
+
+/** Daily missions: `{ day: 'YYYY-MM-DD', missions: Mission[] }` (regen per day). */
+export const MISSIONS_KEY = 'ts_missions'
+/** Achievements: `{ claimed: string[], stats: {...} }`. */
+export const ACHIEVEMENTS_KEY = 'ts_achievements'
+/** First-run-of-day 2× bonus bookkeeping: the local day it was last consumed. */
+export const DAILY_BONUS_DAY_KEY = 'ts_daily_bonus_day'
+/** Battle pass: `{ xp, claimed: number[], seasonStart }`. */
+export const BATTLE_PASS_KEY = 'ts_battle_pass'
+/** Daily login rewards: `{ streak, lastClaimDay }`. */
+export const DAILY_REWARDS_KEY = 'ts_daily_rewards'
+/** Idle treasure chest: `{ readyAt }`. */
+export const CHEST_KEY = 'ts_chest'
+/** Rewarded-ad button cooldown timestamp. */
+export const AD_COOLDOWN_KEY = 'ts_ad_cooldown'
+
+// ─── Onboarding / one-shot UI nudges ────────────────────────────────────────
+
+/** First-run onboarding consumed flag (true once the first run finishes). */
+export const ONBOARDED_KEY = 'ts_onboarded'
+/** First-stage tutorial seen. Separate from ONBOARDED so the coach marks and
+ *  the control hints can retire independently. */
+export const TUTORIAL_KEY = 'ts_tutorial'
+/** One-time "you can afford a tech node" spotlight on the Tech button. */
+export const TECH_SPOTLIGHT_KEY = 'ts_tech_spotlight_seen'
+/** Which control hints the player has already followed (bitmask-ish string[]). */
+export const HINTS_SEEN_KEY = 'ts_hints_seen'
+
+// ─── User settings ──────────────────────────────────────────────────────────
+
+export const SOUND_KEY = 'ts_user_sound_volume'
+export const MUSIC_KEY = 'ts_user_music_volume'
+export const LANGUAGE_KEY = 'ts_user_language'
+export const DIFFICULTY_KEY = 'ts_user_difficulty'
+export const MUSIC_TRACK_KEY = 'ts_user_music_track'
+/** Mobile-only hard audio mute (boolean). On phones the OS volume rocker owns
+ *  the device level and the Web Audio gain has no effect, so the on-screen mute
+ *  is a silence toggle instead: suspend all audio + block new music/SFX. */
+export const MOBILE_MUTE_KEY = 'ts_mobile_mute'

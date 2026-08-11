@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import IconCoin from '@/components/icons/IconCoin.vue'
+import FHudButton from '@/components/atoms/FHudButton.vue'
+import FHudBadge from '@/components/atoms/FHudBadge.vue'
 import IconMovie from '@/components/icons/IconMovie.vue'
 import { isRewardedReady, showRewardedAd } from '@/use/useAds'
-import useEpicConfig from '@/use/useEpicConfig'
-import { getState, setState } from '@/use/useEpicState'
+import useTowerEconomy from '@/use/useTowerEconomy'
+import { getState, setState } from '@/use/useTowerState'
+import { AD_COOLDOWN_KEY } from '@/keys'
 
 interface Props {
   coins?: number
@@ -18,11 +22,14 @@ const emit = defineEmits<{
   (e: 'coins-awarded', sourceEl: HTMLElement): void
 }>()
 
-const { addCoins } = useEpicConfig()
-const rootEl = ref<HTMLElement | null>(null)
+const { t } = useI18n()
+const { addCoins } = useTowerEconomy()
+// Template ref onto the FHudButton component; the coin-explosion VFX flies
+// from this element to the wallet badge.
+const rootEl = ref<any>(null)
 
 const COOLDOWN_MS = 30_000
-const COOLDOWN_KEY = 'spinner_ad_button_ready_at'
+const COOLDOWN_KEY = AD_COOLDOWN_KEY
 
 const readReadyAt = (): number => {
   const v = getState<unknown>(COOLDOWN_KEY)
@@ -51,7 +58,8 @@ const triggerAdReward = async () => {
   const ok = await showRewardedAd()
   if (ok) {
     addCoins(props.coins)
-    if (rootEl.value) emit('coins-awarded', rootEl.value)
+    const el = (rootEl.value?.$el ?? rootEl.value) as HTMLElement | null
+    if (el) emit('coins-awarded', el)
     adReadyAt.value = Date.now() + COOLDOWN_MS
     setState(COOLDOWN_KEY, adReadyAt.value)
   }
@@ -59,30 +67,22 @@ const triggerAdReward = async () => {
 </script>
 
 <template lang="pug">
-  //- Sized to match the rest of the bottom-row HUD buttons (DailyRewards,
-  //- BattlePass, Settings): square `p-2` inner box, single 7x7 icon,
-  //- `scale-80 sm:scale-100` outer scale. The reward amount is surfaced
-  //- via a small pill badge at the top-right instead of a stacked row,
-  //- so the footprint stays uniform with its neighbours.
-  button.adReward.cursor-pointer.pointer-events-auto.transition-transform(
-    ref="rootEl"
+  //- Uses the shared HUD chip so it sits flush with its neighbours in the
+  //- bottom row at every viewport. The reward amount rides in the badge slot.
+  FHudButton(
     v-if="isVisible"
-    class="active:scale-95 hover:scale-[103%] scale-80 sm:scale-100"
+    ref="rootEl"
+    tone="gold"
+    attention
+    :aria-label="t('ads.plusCoins', { n: coins })"
     @click="triggerAdReward"
   )
-    div.relative
-      div.absolute.inset-0.translate-y-1.rounded-lg(class="bg-[#1a2b4b]")
-      div.relative.rounded-lg.border-2.flex.items-center.justify-center.p-2(
-        class="bg-gradient-to-b from-[#ffcd00] to-[#f7a000] border-[#0f1a30]"
-      )
-        //- Shared "play / movie" icon — sized like the gear / trophy siblings.
-        IconMovie(class="w-7 h-7")
-      //- Reward badge — small pill at the top-right corner. Matches the
-      //- `pendingClaimCount` and "is-collectable" indicators on the other
-      //- bottom-row buttons so the visual language stays consistent.
-      div.absolute.flex.items-center.rounded-full.border-2.shadow-md(
-        class="gap-0.5 -translate-y-1 translate-x-1 top-0 right-0 px-1 py-0.5 bg-[#102e7a] border-white"
-      )
-        span.font-black.game-text.text-yellow-100.leading-none(class="text-[9px]") +{{ coins }}
-        IconCoin(class="w-2.5 h-2.5 text-yellow-300")
+    IconMovie
+    template(#badge)
+      FHudBadge(tone="blue")
+        span +{{ coins }}
+        //- Sized explicitly, like every other `IconCoin` call site. It is an
+        //- `<img>`, so a stylesheet that only sizes `svg` lets it render at its
+        //- intrinsic 128×128 — belt and braces on top of the badge's own rule.
+        IconCoin(class="w-3 h-3")
 </template>

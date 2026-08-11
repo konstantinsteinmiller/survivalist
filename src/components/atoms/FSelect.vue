@@ -50,7 +50,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 <template lang="pug">
   div(class="relative w-full font-black" ref="dropdownRef")
     //- Label (Optional)
-    div(v-if="label" class="label-text mb-1 ml-1 text-white uppercase italic text-lg tracking-wider") {{ label }}
+    div(v-if="label" class="label-text mb-1 ml-1 text-white uppercase italic tracking-wider") {{ label }}
 
     //- The Trigger (Styled like FButton)
     button(
@@ -62,12 +62,12 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
       span(class="absolute inset-0 translate-y-[4px] rounded-2xl bg-[#1a2b4b]")
 
       //- Main Button Body
-      span(class="relative flex items-center justify-between min-w-[140px] rounded-2xl border-[3px] border-[#0f1a30] px-4 py-3 bg-gradient-to-b from-[#ffcd00] to-[#f7a000]")
+      span.f-select__body(class="relative flex items-center justify-between rounded-2xl border-[3px] border-[#0f1a30] bg-gradient-to-b from-[#ffcd00] to-[#f7a000]")
         //- Inner Top Shine
         span(class="absolute inset-x-0 top-0 h-1/2 rounded-t-xl bg-white/25")
 
         //- Selected Text
-        span(class="text relative block text-sm md:text-lg tracking-wide text-white uppercase truncate mr-2") {{ selectedLabel }}
+        span.f-select__value(class="text relative block tracking-wide text-white uppercase truncate mr-2") {{ selectedLabel }}
 
         //- Arrow Icon
         span(
@@ -98,10 +98,27 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
             //- Option Shine (only for selected/hover)
             span(class="absolute inset-x-0 top-0 h-1/2 rounded-t-xl bg-white/10")
 
-            span(class="text relative block text-white uppercase text-md tracking-wide") {{ option.label }}
+            span.f-select__option(class="text relative block text-white uppercase tracking-wide") {{ option.label }}
 </template>
 
 <style scoped lang="sass">
+// Fluid metrics replace the old fixed `text-sm md:text-lg` / `px-4 py-3` pairs
+// so the control reads the same on a 320px phone and a 4K desktop, and the
+// `min-height` floor guarantees a legal touch target in every layout.
+.f-select__body
+  min-height: 2.75rem
+  min-width: clamp(6rem, 40vw, 9rem)
+  padding: clamp(0.4rem, 1.8vw, 0.75rem) clamp(0.6rem, 3vw, 1.1rem)
+
+.f-select__value
+  font-size: clamp(0.7rem, 3vw, 1.05rem)
+
+.f-select__option
+  font-size: clamp(0.7rem, 3vw, 1rem)
+
+.label-text
+  font-size: clamp(0.75rem, 3.2vw, 1.1rem)
+
 .text, .label-text
   text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000
 

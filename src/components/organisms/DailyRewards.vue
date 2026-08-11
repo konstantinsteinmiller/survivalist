@@ -1,21 +1,23 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, nextTick } from 'vue'
+import FHudButton from '@/components/atoms/FHudButton.vue'
+import FHudBadge from '@/components/atoms/FHudBadge.vue'
 import { useI18n } from 'vue-i18n'
 import FModal from '@/components/molecules/FModal.vue'
 import FIconButton from '@/components/atoms/FIconButton.vue'
 import IconCoin from '@/components/icons/IconCoin.vue'
-import useEpicConfig from '@/use/useEpicConfig'
+import useTowerEconomy from '@/use/useTowerEconomy'
 import useSounds from '@/use/useSound.ts'
-import { stopGameplay } from '@/use/useCrazyGames'
 import { spawnCoinExplosion } from '@/use/useCoinExplosion'
-import { getState, setState } from '@/use/useEpicState'
+import { getState, setState } from '@/use/useTowerState'
+import { DAILY_REWARDS_KEY } from '@/keys'
 import { flushSaveNow } from '@/use/useSaveStatus'
 
 const emit = defineEmits<{
   (e: 'coins-awarded', sourceEl: HTMLElement): void
 }>()
 
-const { addCoins } = useEpicConfig()
+const { addCoins } = useTowerEconomy()
 const { t } = useI18n()
 const dailyBtnRef = ref<HTMLElement | null>(null)
 const { playSound } = useSounds()
@@ -24,7 +26,7 @@ const { playSound } = useSounds()
 // daily login is a meaningful boost without trivialising upgrade costs.
 // Each streak level pays 3× its prior baseline (was [10,15,25,40,60,90,150]).
 const DAILY_REWARDS = [30, 45, 75, 120, 180, 270, 450]
-const STORAGE_KEY = 'spinner_daily_rewards'
+const STORAGE_KEY = DAILY_REWARDS_KEY
 
 interface DailyState {
   /** Index of next reward to collect (0..6). Wraps to 0 after day 7. */
@@ -60,10 +62,6 @@ const dayBroken = computed(() =>
   && state.value.lastCollected !== yesterdayStr()
 )
 
-watch(isModalOpen, (open) => {
-  if (open) stopGameplay()
-})
-
 const onOpen = () => {
   isModalOpen.value = true
 }
@@ -92,34 +90,26 @@ const onCardClick = (event: MouseEvent, idx: number) => {
 </script>
 
 <template lang="pug">
-  button.daily-rewards-btn(
+  FHudButton(
     ref="dailyBtnRef"
-    class="cursor-pointer pointer-events-auto active:scale-95 transition-transform scale-80 sm:scale-100"
-    :class="{ 'pulse-collect': isCollectableToday }"
+    tone="blue"
+    :attention="isCollectableToday"
+    :aria-label="t('dailyRewards.title')"
     @click="onOpen"
   )
-    div.relative
-      div.absolute.inset-0.translate-y-1.rounded-lg(class="bg-[#102e7a]")
-      div.relative.rounded-lg.border-2.flex.items-center.justify-center.p-2(
-        class="bg-gradient-to-b from-[#50aaff] to-[#2266ff] border-[#0f1a30]"
-      )
-        //- Calendar icon
-        svg(viewBox="0 0 24 24" class="w-7 h-7 text-white" fill="currentColor")
-          rect(x="3" y="5" width="18" height="16" rx="2" fill="rgba(255,255,255,0.15)" stroke="currentColor" stroke-width="1.5")
-          rect(x="3" y="5" width="18" height="4" fill="currentColor")
-          rect(x="6" y="2" width="2" height="5" rx="0.5")
-          rect(x="16" y="2" width="2" height="5" rx="0.5")
-          circle(cx="8" cy="13" r="1.2")
-          circle(cx="12" cy="13" r="1.2")
-          circle(cx="16" cy="13" r="1.2")
-          circle(cx="8" cy="17" r="1.2")
-          circle(cx="12" cy="17" r="1.2")
-        span.absolute.font-black.game-text.text-white(class="text-[9px] bottom-0.5") {{ t('dailyRewards.dayShort', { n: state.currentDay + 1 }) }}
-      //- Notification dot
-      div.absolute.top-0.right-0.w-3.h-3.rounded-full.border-2(
-        v-if="isCollectableToday"
-        class="-translate-y-1 translate-x-1 bg-red-500 border-white animate-pulse"
-      )
+    //- Calendar glyph with the current streak day stamped on it.
+    svg(viewBox="0 0 24 24" fill="currentColor" class="text-white")
+      rect(x="3" y="5" width="18" height="16" rx="2" fill="rgba(255,255,255,0.15)" stroke="currentColor" stroke-width="1.5")
+      rect(x="3" y="5" width="18" height="4" fill="currentColor")
+      rect(x="6" y="2" width="2" height="5" rx="0.5")
+      rect(x="16" y="2" width="2" height="5" rx="0.5")
+      circle(cx="8" cy="13" r="1.2")
+      circle(cx="12" cy="13" r="1.2")
+      circle(cx="16" cy="13" r="1.2")
+      circle(cx="8" cy="17" r="1.2")
+      circle(cx="12" cy="17" r="1.2")
+    template(#badge)
+      FHudBadge(v-if="isCollectableToday" tone="red") !
 
   FModal(
     v-model="isModalOpen"
@@ -145,15 +135,6 @@ const onCardClick = (event: MouseEvent, idx: number) => {
 </template>
 
 <style scoped lang="sass">
-.pulse-collect
-  animation: pulse-glow 1.6s ease-in-out infinite
-
-@keyframes pulse-glow
-  0%, 100%
-    filter: drop-shadow(0 0 0 rgba(255, 200, 0, 0))
-  50%
-    filter: drop-shadow(0 0 8px rgba(255, 200, 0, 0.7))
-
 .daily-card
   background: rgba(0, 0, 0, 0.35)
   border-color: rgba(255, 255, 255, 0.18)

@@ -40,6 +40,12 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/save/setup.ts'],
+    // The suite's slowest tests are the ones that dynamically `import()` the
+    // whole game model on their first assertion; with every file transforming
+    // in parallel on a cold cache that import alone can exceed the 5 s default
+    // and fail a test that is not actually slow. The work is transform time,
+    // not test time, so the ceiling is raised rather than the tests split up.
+    testTimeout: 30_000,
     // tests/e2e runs under Playwright + a real Vite dev server (Node env,
     // not jsdom). Excluded from the default suite so `pnpm test` stays
     // fast; run them with `pnpm test:e2e`.
