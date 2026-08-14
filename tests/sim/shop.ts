@@ -39,12 +39,12 @@
  */
 
 import type { UpgradeId } from '@/use/useUpgrades'
-import { BASE_FIRE_RATE } from '@/game/survival'
+import { BASE_FIRE_RATE, RANGE_PER_LEVEL } from '@/game/survival'
 
 /** The four tracks, in the order the shop lists them. Declared here rather than
  *  imported so this file never instantiates a second copy of the shop module —
  *  the career owns the real one, inside its own graph. */
-export const TRACKS: readonly UpgradeId[] = ['squad', 'power', 'rate', 'scavenge']
+export const TRACKS: readonly UpgradeId[] = ['squad', 'power', 'rate', 'range', 'scavenge']
 
 /** The three tracks that put numbers into `squad × damage × fireRate`. */
 export const DPS_TRACKS: readonly UpgradeId[] = ['squad', 'power', 'rate']
@@ -205,6 +205,16 @@ const squadLeverage = (view: ShopView): number => {
   return Math.max(1, r.squadAtBoss / Math.max(1, view.startSquad))
 }
 
+/**
+ * How much of Reach's extra window turns into damage that mattered.
+ *
+ * A guess, and flagged as one: the honest number depends on how much of a given
+ * stage is objects worth shooting early, which varies per stage and per line.
+ * 0.6 keeps the track competitive without letting the value strategy treat it
+ * as a straight DPS multiplier.
+ */
+const RANGE_TIME_YIELD = 0.6
+
 /** Marginal DPS the next level of a track would add to the boss fight. */
 export const marginalDps = (view: ShopView, id: UpgradeId): number => {
   const squad = Math.max(1, view.lastRun?.squadAtBoss ?? view.startSquad)
@@ -222,6 +232,21 @@ export const marginalDps = (view: ShopView, id: UpgradeId): number => {
     // more rate crates a run collects.
     case 'rate':
       return squad * damage * (BASE_FIRE_RATE * 0.07)
+    /**
+     * Reach adds no damage — it adds TIME, and time is what damage is spent
+     * over. A round that reaches 3 % further arrives 3 % sooner at everything
+     * on the road, so the crowd gets ~3 % more seconds of fire on each gate,
+     * crate, wall and body before it is reached.
+     *
+     * Priced as that fraction of the run's own DPS, which makes it compound
+     * with every other track exactly as it does in play, and deliberately
+     * DISCOUNTED by `RANGE_TIME_YIELD`: some of the extra window is spent on
+     * things the player was going to clear anyway, and the top of the track is
+     * bounded by the camera (see `BULLET_RANGE_MAX`), so the last levels buy
+     * less than they advertise.
+     */
+    case 'range':
+      return squad * damage * rate * RANGE_PER_LEVEL * RANGE_TIME_YIELD
     default:
       return 0
   }

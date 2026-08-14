@@ -15,6 +15,11 @@ npx vitest run tests/sim                                   # the fast regression
 SIM_STUDY=1 SIM_OUT=out.md npx vitest run tests/sim/study.test.ts -t careers
 ```
 
+Anything that reports through `console.log` rather than `SIM_OUT` — the scratch
+probes, for instance — additionally needs `--reporter=verbose`: Vitest 4's
+default reporter drops console output from passing tests, so a study runs for
+minutes and prints nothing.
+
 Everything below is a median of three careers per cell (eight seeds per cell for
 the fixed-level probes), on the source as of the three-leaf-bank landing.
 Nothing is modelled; every number came out of `useSurvivalGame.step()`.
@@ -683,3 +688,74 @@ strategy until `SUB_EARLIEST` moved bills to a third of the way in. It is the
 clearest argument in this file for running the career matrix on any change that
 touches what a door does — the per-stage tables never saw it, because a stage
 probed on a wiped save starts with a crowd the opening bank cannot delete.
+
+## After the road stopped being shootable
+
+Boulders, crate tiers, monster coin drops, `÷3`, no back-to-back multipliers, and
+`gateAddBase` −1. Three careers per cell:
+
+| player | strategy | before | now |
+| --- | --- | --- | --- |
+| `optimal` | cheapest / balanced / value / scavenge4 | 30 | **30** |
+| `good` | cheapest / balanced / value | 30 | **30** (44 attempts, was 39–41) |
+| `good` | scavenge4 | 30 | **5** |
+| `average` | cheapest | 29 | **30** (20 on one seed, 56 attempts) |
+| `average` | balanced | 29 | **20** |
+| `average` | value | 30 | **6** (30 on one seed) |
+| `optimal` | none | 10 | **14** |
+| `good` / `average` | none | 10 / 9 | **5 / 5** |
+
+**Everything that buys damage early still finishes; everything that buys income
+first now dies in the single digits.** `good` + scavenge4 went 30 → 5, and
+`average` + value is the sharpest swing in the table — 30 → 6 on two of three
+seeds — because `value` front-loads Scavenging and a run that spends its first
+coins on income has nothing to answer a boulder field or a heavy crate with.
+That is the direction the batch was aimed in, and it is now aimed hard: coins
+are more plentiful (monsters drop them) and worth less as a strategy.
+
+`optimal` + none went the other way, 10 → 14, which is the coin drops paying
+for themselves — a player who fights everything in their lane banks enough to
+matter even with the shop switched off.
+
+The mid-skill player is where the cost landed. `average` on a sane strategy now
+needs **56 attempts** to finish where it needed 44, and its per-stage clear rate
+on stage 5 fell to 40 %. That is inside "patchy", which is the design target for
+that policy, but it is the number to watch if churn shows up at stage 5–6.
+
+## Past the campaign: 110 stages, measured
+
+The endless work claims fourteen generator knobs keep scaling past stage 30.
+This is the career that shows what that costs a player. One seed (5000), the
+`value` purchasing strategy, the ×3 claimed, 300 s per attempt, run to stage
+110 — reproduce with `tests/sim/scratch.depth.test.ts` (and
+`--reporter=verbose`, or it prints nothing):
+
+| player | reached | attempts | 1–30 | 31–60 | 61–80 | 81–100 | 101–110 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `optimal` | 110 | 124 | 1.10 | 1.10 | 1.10 | 1.15 | **1.30** |
+| `good` | 110 | 127 | 1.10 | 1.13 | 1.15 | 1.15 | **1.40** |
+| `average` | 110 | 138 | 1.23 | 1.27 | 1.25 | 1.20 | **1.40** |
+
+**The curve keeps rising, and it rises gently.** Attempts per stage are flat
+through the sixties and seventies and then climb in the last twenty — which is
+the shape the endless knobs were aimed at, and the proof that the plateaus are
+gone: before this batch a stage-100 road was a stage-34 road, so the 101–110
+band would have read the same 1.10 as the 31–60 one.
+
+**Nobody walls.** All three policies reach 110 with the shop keeping pace, and
+that is the honest headline: past the authored campaign the game is a marathon,
+not a wall. A deep run currently ends because the player stops, not because the
+road stops them — at stage 110 a mid-skill player is still paying 1.4 attempts
+a stage, roughly what they pay on stage 20.
+
+That is a deliberate reading rather than a comfortable one. Endless mode's job
+is put-down resistance for the players who have already beaten the campaign, and
+a soft curve serves that better than a cliff — but if the depth chart fills up
+with people parked at stage 200 the dial to reach for is `foeHpScale`'s
+post-campaign slope, not any of the density knobs, because density is what is
+carrying the *feel* of a deep stage.
+
+Caveats worth stating: one seed, one strategy, and the ×3 claimed every time.
+A no-ads career at this depth has not been measured — on the thirty-stage
+campaign that costs `average` the run entirely, so the honest expectation is
+that the decline lean, not the generator, is what bounds a non-claiming player.

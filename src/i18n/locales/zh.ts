@@ -41,9 +41,28 @@ export default {
     'rallied': '重整旗鼓',
     'peakSquad': '最大人数',
     'kills': '击杀',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': '金币三倍！',
     'nextStage': '下一关',
     'tryAgain': '再试一次',
-    'upgrade': '升级'
+    'upgrade': '升级',
+    'rankLabel': '排名',
+    'rankOf': '共 {n} 人'
+  },
+
+  'leaderboard': {
+    'title': '排行榜',
+    'rank': '#',
+    'player': '玩家',
+    'stage': '关卡',
+    'squad': '队伍',
+    'empty': '还没有记录，来抢头名吧！',
+    'failed': '无法连接排行榜。',
+    'loading': '加载中…',
+    'you': '你',
+    'yourRank': '你排第 {n}',
+    'of': '共 {n} 人'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': '队伍',
       'power': '火力',
       'rate': '射速',
+      'range': '射程',
       'scavenge': '拾荒'
     },
     'descriptions': {
       'squad': '每关开局的幸存者更多。',
       'power': '每名幸存者每发伤害更高。',
       'rate': '每名幸存者射击更快。',
+      'range': '你的小队能在更远处开火。',
       'scavenge': '每局获得更多金币。'
     }
   },

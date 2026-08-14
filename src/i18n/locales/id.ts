@@ -41,9 +41,28 @@ export default {
     'rallied': 'Napas kedua',
     'peakSquad': 'Regu terbesar',
     'kills': 'Bunuh',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Koin dilipatgandakan!',
     'nextStage': 'Tahap berikutnya',
     'tryAgain': 'Coba lagi',
-    'upgrade': 'Tingkatkan'
+    'upgrade': 'Tingkatkan',
+    'rankLabel': 'Peringkat',
+    'rankOf': 'dari {n}'
+  },
+
+  'leaderboard': {
+    'title': 'Papan Peringkat',
+    'rank': '#',
+    'player': 'Pemain',
+    'stage': 'Tahap',
+    'squad': 'Regu',
+    'empty': 'Belum ada skor. Jadilah yang pertama!',
+    'failed': 'Papan peringkat tidak terjangkau.',
+    'loading': 'Memuat…',
+    'you': 'Kamu',
+    'yourRank': 'Kamu peringkat #{n}',
+    'of': 'dari {n} pemain'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Regu',
       'power': 'Daya tembak',
       'rate': 'Laju tembak',
+      'range': 'Jangkauan',
       'scavenge': 'Pemulungan'
     },
     'descriptions': {
       'squad': 'Mulai tiap tahap dengan lebih banyak penyintas.',
       'power': 'Tiap penyintas memberi damage lebih besar per tembakan.',
       'rate': 'Tiap penyintas menembak lebih cepat.',
+      'range': 'Pasukanmu melepas tembakan lebih jauh di jalan.',
       'scavenge': 'Dapatkan lebih banyak koin tiap ronde.'
     }
   },

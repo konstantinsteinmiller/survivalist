@@ -25,7 +25,7 @@ export type FxEvent =
   /** A survivor fired. Cheap and very frequent — throttled downstream. */
   | { kind: 'shoot'; x: number; y: number }
   /** A round landed on something. `on` picks the impact's colour and weight. */
-  | { kind: 'hit'; x: number; y: number; on: 'gate' | 'crate' | 'barricade' | 'foe' | 'boss' }
+  | { kind: 'hit'; x: number; y: number; on: 'gate' | 'crate' | 'barricade' | 'rock' | 'foe' | 'boss' }
   /** Sustained fire pushed a `+N` gate up by one — THE feedback moment — or a
    *  `-N` gate DOWN by one, which is the same clock costing the player instead
    *  of paying them. `hostile` is which of the two just happened; the mixer and

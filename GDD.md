@@ -33,24 +33,31 @@ cannot have both: there is a pillar between the leaves and it kills.
 | Damage | `squad × damage × fireRate` DPS; 14 visible tracer streams | `SHOOTERS` |
 | Fire rate | starts at **1.9** shots/s and rises **only** from blue crates (+0.55 each, three per stage, cap 6.5) — the one stat a run must earn | `BASE_FIRE_RATE` |
 | Gun range | rounds die **15 % of the screen short of the top edge** (10.8 units ahead of the crowd). Nothing off-screen can be shot, so obstacles arrive intact and a gate has to be approached before it can be pumped | `BULLET_RANGE` |
+| Reach (shop) | +3 %/level to **+30 % at level 10**, clamped at the top of the screen (13.7 u). The only track that buys TIME rather than force — every extra unit is more seconds of fire on each gate, crate and wall before the crowd reaches it — and the clamp is what stops the upgrade re-introducing "obstacles deleted above the camera" as a reward | `RANGE_PER_LEVEL`, `effectiveBulletRange()` |
 | Gate growth | **+1 per 500 ms of sustained fire**, lost after 400 ms of silence, `add` **and `sub`** leaves | `GATE_TICK_MS` |
 | `-N` doors | the mirror of `+N`, and the point is that the crowd fires FORWARD automatically: aim at a `-N` while you approach and the bill grows. The skill is *shoot the door you are not taking* | `GateOp.sub` |
 | Dilemma banks | `÷N` against `-N` — every door hostile, no right answer, only a cheaper wrong one. A division is cheap for a small crowd and ruinous for a big one; a subtraction is the other way round. One per stage from stage 4, never back to back, never the closing bank | `legalise()` rule 6 |
 | Gate bank | two or **three** doors + a lethal pillar between each pair; no two doors may ever be worth the same | `track.bank()` |
 | Gate claim | **one bank, one door.** The door holding the most survivors claims the bank and pays in full; every other offer is destroyed on the spot, pillars included | `claimBank()` |
-| Gate payout | `add`: `+N`; `mul`: `×N` on the survivors that went through; `div`: **kills** all but `1/N` of them | `claimBank()` |
+| Gate payout | `add`: `+N`; `mul`: `×N` on the survivors that went through; `div`: **kills** all but `1/N` of them; `sub`: takes `N` off the top | `claimBank()` |
+| Trap rungs | `÷2` from stage 2, **`÷3` from stage 4**, `÷5` from stage 6. Three rungs, because `÷2` is absorbable and `÷5` ends runs — the middle one is where a hard choice lives, and it is the value most often paired against a `-N` | `rollDiv()` |
+| No back-to-back multipliers | `×2` then `×2` is a free quadruple for anyone who can aim twice. A multiplier now always lands on a crowd the player had to keep alive through something else first | `canMul()` |
 | Funnel | the crowd squeezes to fit the door it is aimed at and spills back out after — which is what lets a bank have three narrow doors instead of two wide ones | `funnelRadius()` |
-| Solid = lethal | barricades, crates and pillars all kill on contact; gates never do | `stepBarricades/Crates/Dividers` |
+| Solid = lethal | barricades, crates, boulders and pillars all kill on contact; gates never do | `stepBarricades/Rocks/Crates/Dividers` |
+| Boulders | **cannot be shot** — they eat the round and shrug. Two ranks with OFFSET gaps, so the crowd commits to a line and then has to change it. The one hazard whose difficulty does not decay as damage grows, which is what keeps steering a skill at stage 25 | `ROCK_CRUSH_FRACTION`, `boulderField()` |
+| Crate tiers | every box prints its HP. **light 0.6× / standard 1× / heavy 2.1×** — a heavy crate is deliberately out of reach of an unupgraded squad, so it is walked past once and cracked open two upgrades later | `crateTierFor()`, `crateTierHp()` |
+| Monsters pay | a dead monster **drops loose coins** where it fell, on top of its bounty. Drops must be driven over, so the pack in your lane pays and the one you steered around does not — and Scavenging finally has a customer who fights | `FOE_COIN_DROP_PER_BOUNTY` |
 | Rounds pierce gates | a doorway is not armour — fire passes through a gate to whatever stands behind it, and still charges the gate on the way | `resolveBullet()` |
 | Walls pay | a barricade block shot down drops **2–4 loose coins**, so removing one is a question rather than pure cost | `spillCoins()` |
 | Coin magnet | starts at **0.55** past the crowd's own body — the trails are a route, not scenery — and is what the Scavenging track sells, to **+3.4** at level 10 | `COIN_MAGNET_BASE`, `coinMagnetBonus` |
 | Foes | 5 archetypes (creep / husk / hound / brute / flyer), introduced across stages 1–7 | `game/foes.ts` |
 | Bite | the LARGER of the archetype's flat cost (1–5) and a **share of the whole crowd** (0.4–1.8 %) — a brute frightens thirty survivors and is still worth fearing at a thousand | `biteShareFor()` |
 | Minibosses | 1 from stage 2, 2 from stage 6; ~13 % / ~15 % of the end boss's health | `track.minibossHp()` |
-| Miniboss hold | it **plants and blocks the road** `ELITE_HOLD_AHEAD` in front of the crowd instead of walking through it, for up to `ELITE_HOLD_MAX` = 9 s, then breaks off | `stepFoes()`, `stepAnchor()` |
+| Miniboss hold | it **plants and blocks the road** `ELITE_HOLD_AHEAD` in front of the crowd instead of walking through it, for up to `ELITE_HOLD_MAX` = 4.5 s, then breaks off | `stepFoes()`, `stepAnchor()` |
 | Miniboss clearance | the generator guarantees **12 units of clear road behind** every elite — clearance is asymmetric, because only the road behind eats the approach | `nudgeClearElite()` |
+| Miniboss body | an elite is **solid**: the crowd parts around it and can never stand inside the sprite. It matters when the fight is LOST — the leash expires and the elite walks back down the road through a squad that used to pass straight through it. Push-only, because the bite loop already owns the damage | `ELITE_BODY_HALF_W`, `partAround()` |
 | Miniboss sweep | the block is a fight, not a wait: **0.3 s** wind-up, then an arc across the **whole lane** reaching 4.3 u down the road, taking **a fifth of the current squad**. Every **1.5 s**, alternating direction | `ELITE_TELEGRAPH`, `ELITE_SWEEP_CD`, `ELITE_SWEEP_FRACTION`, `ELITE_SWEEP_REACH` |
-| …and why it is not dodgeable | deliberate. The boss asks *where are you standing*; the elite asks *how hard do you hit*. A lane-wide arc has no safe side, so the only answer is DPS — and the 9 s leash is what keeps it survivable (six sweeps, ~26 % of the squad left) | `ELITE_HOLD_MAX` |
+| …and why it is not dodgeable | deliberate. The boss asks *where are you standing*; the elite asks *how hard do you hit*. A lane-wide arc has no safe side, so the only answer is DPS — and the 4.5 s leash is what keeps it survivable (three sweeps, ~half the squad left) | `ELITE_HOLD_MAX` |
 | Boss | One per stage, slams **where the crowd is** on a **1.0 s** telegraph, capped at **31 %** of the squad | `stepBoss()` |
 | Boss guard | at **66 %** and **33 %** health it plants, becomes untouchable and swings — overkill is forfeited, so no amount of DPS skips the climax | `damageBoss()` |
 | Boss rage | every swing thrown brings the next one **0.17 s sooner** (floor 0.95 s) and **0.07 u wider** (ceiling 2.55 u) — a long fight is a losing fight | `stepBoss()` |
@@ -138,13 +145,53 @@ A perfect-play policy still clears everything with an empty wallet, which is the
 intended ceiling: the game is beatable by skill alone and the shop is what lets
 everybody else get there.
 
+### The road has no end
+
+Stages 1–5 are hand-authored, 6–30 are the measured campaign, and **there is no
+stage 31 in the sense of a wall** — the generator has always answered any number
+handed to it. What it did not do was keep *scaling*: measured across stages
+1–300, fourteen separate knobs hit a hard cap somewhere between stage 17 and
+stage 34, so a stage-100 road was a stage-34 road with more enemy health on it.
+
+Endless means the knobs never stop moving, and that every promise the road makes
+stays true at depth:
+
+| knob | used to stop at | now |
+| --- | --- | --- |
+| `gateAddBase` | linear forever → overran `MAX_SQUAD` by stage 86 | logarithmic knee past stage 30: 24 → 33 → 41 → 55 at stage 300 |
+| `packSize` | 16, reached at stage 19 | linear to 22, then log toward a **screen** limit of 34 |
+| `beatGap` | flat 7 from stage 30 — every deep stage beat-for-beat identical | keeps closing toward 5.2 (6.0 at stage 100) |
+| `maxTriples` / `mulLeaves` / `mulThrees` | flat from stages 22 / 6 / 8 | grow with the number of banks a stage actually has, so the *ratio* holds |
+| `MAX_SQUAD` | 1 600 — a thirty-stage ceiling | **4 000**, and the log knee is what keeps doors honest past it |
+| `GATE_MAX_VALUE` | 99 — banks printed **two identical doors from stage 161** | 999 |
+| pack / wall beat weights | floors reached at stages 34 / 32, then crowded out by hazards | floors drift up with the stage |
+
+The honest limit, stated rather than hidden: no finite `MAX_SQUAD` survives an
+unbounded sum. The theoretical best-case additive total first crosses 4 000
+around **stage 240** — roughly three hours of unbroken play, and a figure that
+ignores attrition, so a real run never approaches it.
+
 ## Progression
 
 * **In-run:** squad size, per-survivor damage and fire rate — all three reset
   every stage, all three built entirely from what the player does on the road.
-* **Between runs:** four coin-bought tracks (Squad / Firepower / Fire Rate /
-  Scavenging). Deliberately four, not forty: the meta exists to make the *next*
-  attempt feel different within thirty seconds.
+* **Between runs:** five coin-bought tracks (Squad / Firepower / Fire Rate /
+  Reach / Scavenging). Deliberately five, not forty: the meta exists to make the
+  *next* attempt feel different within thirty seconds.
+* **…and three of them never max.** Squad, Firepower and Scavenging are
+  uncapped, because a road with no last stage cannot have a shop with a last
+  level: measured, a benchmark career reached stage 80 with **every track maxed
+  and 893 063 coins unspent**. Fire Rate and Reach stay capped, and that is a
+  rule rather than an omission — both are bounded by something physical (the
+  bullet budget, the camera), so an endless level on either would sell a number
+  that cannot move. The endless tail is priced *gentler* than the authored head
+  (×1.16 a level against ×1.38–1.55): continuing the authored slope would put
+  level 21 tens of stages away, and "endless" would mean "locked".
+* **Standing:** highest stage ever reached, posted to a global board, with squad
+  size as the tie-breaking second column. Read once per page load, written only
+  when the player beats their own posted record — the board is a decoration on a
+  game that works perfectly without it, and every failure path ends in "no rank
+  shown".
 * **Persistence:** one `tower_state` blob, one localStorage key, mirrored to
   whichever platform cloud the build targets. The stage number alone rebuilds
   the layout, so a reload resumes exactly where the player was.

@@ -167,12 +167,25 @@ respects that).
 *Implementation:* `buildTrack(seed)` is already a pure function of an integer —
 pass `YYYYMMDD` as the seed. One chip on the HUD, one flag in the save.
 
-### 12. Endless mode after stage 20
+### 12. Endless mode after stage 20 — **SHIPPED**, and not the way it is written here
 **Moves:** put-down resistance, APT (whales of playtime) · **Effort:** 1 d
 
-Past stage 20 the difficulty curve flattens into infinity: same generator, HP
-scaling continues, and the only score is "how far". Add a personal-best line
-drawn on the progress rail.
+The plan was "the curve flattens into infinity: same generator, HP scaling
+continues". Measured, that is exactly what the game already did — and it is the
+version that does not work. Fourteen generator knobs plateaued between stages 17
+and 34, so a stage-100 road was a stage-34 road with more enemy health: the same
+beat spacing, the same pack size, the same three-leaf frequency, forever. HP
+scaling alone is not a difficulty curve, it is a multiplier on one.
+
+What shipped instead keeps every knob climbing (see the endless entries in
+`game-implementation-plan.md`), fixes two hard breaks that only exist at depth
+(`MAX_SQUAD` overrun at stage 86, identical gate doors from stage 161), and
+uncaps the three shop tracks that are not physically bounded — a benchmark
+career reached stage 80 with everything maxed and 893 063 coins unspent.
+
+Still outstanding from this item: **the personal-best line on the progress
+rail.** The number itself is persisted and posted (see the global board), it is
+simply not drawn on the rail yet.
 
 ---
 

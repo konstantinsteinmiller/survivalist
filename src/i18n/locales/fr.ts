@@ -41,9 +41,28 @@ export default {
     'rallied': 'Second souffle',
     'peakSquad': 'Plus grande escouade',
     'kills': 'Éliminations',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Pièces triplées !',
     'nextStage': 'Niveau suivant',
     'tryAgain': 'Réessayer',
-    'upgrade': 'Améliorer'
+    'upgrade': 'Améliorer',
+    'rankLabel': 'Rang',
+    'rankOf': 'sur {n}'
+  },
+
+  'leaderboard': {
+    'title': 'Classement',
+    'rank': '#',
+    'player': 'Joueur',
+    'stage': 'Niveau',
+    'squad': 'Escouade',
+    'empty': 'Aucun score pour l’instant. Sois le premier !',
+    'failed': 'Classement inaccessible.',
+    'loading': 'Chargement…',
+    'you': 'Toi',
+    'yourRank': 'Tu es #{n}',
+    'of': 'sur {n} joueurs'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Escouade',
       'power': 'Puissance',
       'rate': 'Cadence',
+      'range': 'Portée',
       'scavenge': 'Récupération'
     },
     'descriptions': {
       'squad': 'Commence chaque niveau avec plus de survivants.',
       'power': 'Chaque survivant inflige plus de dégâts par tir.',
       'rate': 'Chaque survivant tire plus vite.',
+      'range': 'Ton escouade ouvre le feu plus loin sur la route.',
       'scavenge': 'Gagne plus de pièces à chaque partie.'
     }
   },

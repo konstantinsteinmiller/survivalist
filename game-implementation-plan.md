@@ -22,12 +22,18 @@ src/use/
   useSurvivalArt.ts   the renderer — Canvas 2D, 11 layers, FX → juice table
   useVfx.ts           event bus + pooled particles / text / decals
   useGameAudio.ts     synth + sample cue bus (`playFx`)
-  useUpgrades.ts      the four coin-bought meta tracks
+  useUpgrades.ts      the five coin-bought meta tracks (three of them uncapped)
   useTowerState.ts    the single `tower_state` save blob (pre-existing)
+  useLeaderboard.ts   the global depth board — every path swallows, nothing waits
+  usePlayerIdentity.ts anonymous stable id + display name, persisted in the blob
 
 src/views/GameScene.vue     canvas + RAF loop + HUD + result flow + ad ordering
 src/components/game/        RunHud.vue, ControlHint.vue, TutorialOverlay.vue
-src/components/organisms/   UpgradeModal.vue, OptionsModal.vue, CoinBadge.vue
+src/components/organisms/   UpgradeModal.vue, OptionsModal.vue, CoinBadge.vue,
+                            LeaderboardModal.vue
+
+worker/                     Cloudflare Worker + D1 behind the board. Its own
+                            package.json and deploy cycle; see worker/SETUP.md
 ```
 
 ## Done
@@ -197,7 +203,193 @@ src/components/organisms/   UpgradeModal.vue, OptionsModal.vue, CoinBadge.vue
       starts the stage anyway if the gesture never arrives — and deliberately
       does NOT spend the flag, because a device whose input never reached the
       canvas is the one device that must not lose its second chance.
-- [x] 423 unit + simulation tests green, `vue-tsc --build` clean, production build clean.
+- [x] **Boulders: the obstacle with no HP bar.** Every solid thing in the game
+      had a number on it, so every routing problem had a lazier second answer —
+      point at it and hold — and since DPS is the stat the whole run grows, the
+      road got *easier* to navigate as the crowd got bigger. A boulder eats the
+      round and shrugs. Two ranks with OFFSET gaps, so the crowd commits to a
+      line and then has to change it inside about a second, and the same
+      `ensureRunnable` guarantee the walls get so a field is never a dice roll.
+      Grey, irregular, no badge, no meter: the absence of a number IS the
+      mechanic.
+- [x] **Crates come in tiers, and print their HP.** Light 0.6× / standard 1× /
+      heavy 2.1×, per crate rather than per row, now also scaled by difficulty
+      and retry relief like every other obstacle. A heavy crate is deliberately
+      out of reach of an unupgraded squad — a box you walk past on stage 3 and
+      crack open two upgrades later, which is the only way a stat crate can
+      reward progression instead of just handing it out.
+- [x] **Monsters drop coins.** The bounty was always there and always invisible
+      (a counter behind the HUD), so a pack read as pure cost. A corpse now
+      scatters loose coins that must be driven over — the pack in your lane pays
+      and the one you steered around does not, and Scavenging finally has a
+      customer who fights rather than routes.
+- [x] **`÷3`, and no back-to-back multipliers.** Three trap rungs instead of two
+      (`÷2` absorbable, `÷3` from stage 4, `÷5` ends runs), because the middle
+      rung is where a hard choice lives and it is the value most often paired
+      against a `-N`. And `canMul` gained the clause it was missing: `×2` then
+      `×2` was a free quadruple for anyone who could aim twice.
+- [x] **The `×3` is the income.** A rewarded-video button on EVERY result
+      screen — win and defeat, because the run that ended badly is the one whose
+      coins the player most wants back — with a film-clapper icon, which is the
+      cross-portal convention that lets the button avoid the word "ad". Three
+      rather than two on purpose: the stage's own payout keeps the shop moving
+      slowly, the tripled one keeps it moving at the pace the difficulty curve
+      is priced against.
+- [x] **Declining leans the road, silently.** Each consecutive stage cleared
+      without claiming adds 7 % enemy health, capped at six steps, and **one
+      claim resets it to zero**. It is a lean, not a debt. Two guards keep it a
+      nudge: it never fires on a defeat (stacking difficulty on a losing streak
+      is how a losing streak becomes a quit) and it never fires when the offer
+      was not actually available (a no-fill must not make the game harder).
+      **Not announced.** A first pass put a warning line on the result screen;
+      it was removed because it turns an offer into a threat. The road simply
+      gets heavier and the player works out that the ×3 buys upgrades that keep
+      pace — the choice stays theirs.
+- [x] **Both careers measured** (3 seeds × policy × strategy, `claimsReward`
+      models the two players the placement creates):
+
+      | player | claims | reached | attempts | worst stage |
+      | --- | --- | --- | --- | --- |
+      | `optimal` | yes | 30 | 34 | 2 goes |
+      | `optimal` | no | 30 | 42–43 | 3 goes |
+      | `good` | yes | 30 | 35–36 | 2 goes |
+      | `good` | no | 30 median, **5–6 on some seeds** | 40–42 | 5 goes |
+      | `average` | yes | 30 | 39–41 | 3 goes |
+      | `average` | no | **6** | 16 | 5 goes |
+
+      Claiming lands where it was aimed: `optimal` finishes thirty stages in 34
+      attempts — 1.13 a stage, easy without being free. Declining is a real hard
+      mode: a competent player still finishes but pays ~25 % more attempts, and
+      a mid-skill player walls at stage 6. That wall is the open question, not a
+      bug — see the trade-off note.
+- [x] **Reward gating fixed across five portals.** `isRewardGated` read
+      `isCrazyWeb && isCrazyGamesFullRelease`, written when CG was the only
+      portal wired for rewarded ads. Playgama, GamePix, GameMonetize, Yandex and
+      GameDistribution all resolve real providers, so that predicate was handing
+      every rewarded perk out **for free on five shipping portals** — no video,
+      no revenue, and a reviewer clicking a button marked with a film icon
+      seeing nothing. It now follows the resolved provider.
+- [x] **Interstitial pacing 120 s → 121 s.** CG and Playgama both rate-limit to
+      one every two minutes and reject the early request, so a gate set to
+      exactly the platform's limit loses to clock skew and background-tab timer
+      coalescing. The ordering was already right: awaited BEFORE the result
+      overlay, never after.
+- [x] **Rewarded ads now take the audio drain too.** The midgame path waited
+      `AUDIO_DRAIN_MS` after killing audio (GamePix QA: "wait for the music to
+      be stopped before showing the ad"); the rewarded path skipped it purely
+      because it was written first, so claiming the `×3` on a stage-clear jingle
+      cut the tail into the video.
+- [x] **Reach — a fifth upgrade track.** +3 % gun range a level, **+30 % at
+      level 10**, and the only track that buys TIME rather than force: a round
+      that reaches further arrives sooner at every gate, crate and wall, so the
+      crowd gets more seconds of fire on each before it is reached.
+      `effectiveBulletRange()` clamps it at `BULLET_RANGE_MAX` — the top of the
+      screen — because an unclamped +30 % is 14.1 units against a 13.7-unit
+      camera, which would have re-introduced "obstacles deleted above the
+      screen" gradually, as a reward, which is far harder to spot in a playtest
+      than the original bug was. The track's promise is exactly "shoot further,
+      up to everything you can see". Measured: the `value` strategy maxes it in
+      every career without it becoming dominant, `cheapest` never buys it and
+      still finishes thirty stages, and Reach alone carries a run to stage 14 —
+      the same depth as Firepower alone.
+- [x] **The road has no end — and now it scales like it.** There was never a
+      "campaign complete" branch: `buildTrack(31)` always worked. What did not
+      work was everything the generator stopped scaling. Measured across stages
+      1–300, **fourteen knobs hit a hard cap between stage 17 and stage 34**, so
+      a stage-100 road was a stage-34 road with more enemy health on it. The two
+      that were not merely flat but actually BROKEN:
+      `gateAddBase` grew linearly forever, so the sum of a stage's best `add`
+      leaves overran `MAX_SQUAD` at **stage 86** and every door past it silently
+      short-changed the player; and with `GATE_MAX_VALUE` at 99 every `add`
+      clamped to the same number, so from **stage 161** banks printed two
+      identical doors — the core invariant of the whole game failing quietly,
+      turning the pillar between them into a punishment for existing.
+      Fixed as a family: `MAX_SQUAD` 1 600 → 4 000, `GATE_MAX_VALUE` 99 → 999,
+      a logarithmic knee on `gateAddBase` past stage 30 (24 → 33 → 41 → 55 at
+      stage 300), `packSize` linear to 22 then log toward a **screen** limit of
+      34, `beatGap` closing toward 5.2 instead of stopping at 7, `maxTriples` /
+      `mulLeaves` / `mulThrees` growing with the number of banks a stage
+      actually has so the RATIO of wide banks and multipliers holds, hazard
+      chances creeping past their thirty-stage ceilings, and the plain-pack /
+      plain-wall beat weights given rising floors so the simple beats are not
+      crowded out of the vocabulary by hazards that grow without bound.
+      The limit is stated rather than hidden: no finite `MAX_SQUAD` survives an
+      unbounded sum. The theoretical additive total first crosses 4 000 at
+      **stage ~240** — about three hours of unbroken play, and a figure that
+      ignores attrition, so a real run never approaches it. `endless.test.ts`
+      asserts the properties at stages 31 → 1 000.
+- [x] **The shop has no last level either.** A road with no last stage cannot
+      have a shop with a last level: measured, a benchmark career reached stage
+      80 with **every track maxed and 893 063 coins unspent**, and no stage past
+      40 cost it more than two attempts — the difficulty curve kept climbing and
+      the only thing that answers it had stopped. Squad, Firepower and
+      Scavenging are now uncapped. Fire Rate and Reach are NOT, and that is a
+      rule rather than an omission: both are bounded by something physical
+      (`MAX_FIRE_RATE`, the camera), and a level that sells a number which
+      cannot move is worse than a maxed track. The tail is priced **gentler**
+      than the head — ×1.16 a level against the authored ×1.38–1.55 — which
+      looks backwards and is not: by level 20 the authored curve costs ~2 850×
+      the first purchase, so continuing it would put the first endless level
+      tens of stages away and "endless" would mean "locked".
+      Found on the way: the Fire Rate readout used **0.09**/level while the
+      simulation used **0.07** — the shop promised 4.0 shots/s at max and the
+      run delivered 3.5, a 13 % lie in the direction that flatters the purchase.
+- [x] **A global board, and it may never cost a run.** The score is the highest
+      stage ever reached — the game's whole progression is "how deep did you
+      get" — with squad size as a second column, because two players on stage 40
+      are not the same player. Cloudflare Worker + D1 in `worker/`, deployed on
+      its own schedule with its own `package.json`; `worker/SETUP.md` is the
+      start-to-finish runbook.
+      **Nothing in the client may throw, block or delay a run**: every fetch is
+      wrapped and swallowed, `reportRun` is called with `void` and never
+      awaited, and a captive-portal proxy answering 200 with an HTML login page
+      ends in "no rank shown" like every other failure. **Quota** is the second
+      rule — free tier, so: read at most once per page load, write ONLY when the
+      player beat their own posted record (a rename re-posts the same score, and
+      the worker touches only the name so nobody jumps their ties). A player
+      grinding one stage for an hour costs one edge-cached GET.
+      Off by default where it has to be: with no `VITE_LEADERBOARD_URL` the
+      feature is absent rather than broken, which is how the Yandex build ships
+      — their moderation greps the bundle for third-party storage endpoints, so
+      the URL is emptied AND the CSP origin omitted, two switches that fail
+      independently. The CSP entry is the URL's **origin only**, never the
+      configured URL: a CSP source with a path is a prefix match, and a typo'd
+      env var must cost a leaderboard, not a release.
+- [x] **The miniboss is a body, not a hologram.** Reported from play: a squad
+      that fails to kill the elite watches it break off at `ELITE_HOLD_MAX` and
+      walk back down the road **straight through them** — survivors crossing the
+      sprite and coming out the far side, which reads as missing collision
+      rather than as a monster shouldering past. Every other solid thing on the
+      road already parts the crowd (`crushAgainst` pushes whatever it does not
+      kill); the elite was the one exception, purely because foes are handled by
+      the bite loop instead of the obstacle loop.
+      `partAround()` is the push half of that rule with no damage attached —
+      the bite loop already decides what contact costs, and a second killer on
+      the same body would bill the player twice for one monster. Same three
+      invariants as the obstacle push: the unit moves and never the anchor (a
+      monster shoves the crowd, not the thumb), the shove is clamped to the
+      road, and a survivor dead-centre breaks its tie on index parity so a body
+      on the crowd's centre line parts it into two lobes instead of sweeping
+      everyone one way.
+      The footprint is the DRAWN one — `drawFoes` paints the contact shadow at
+      0.38 of a `scale × 1.25` body, so `ELITE_BODY_HALF_W` is `scale × 0.475`
+      exactly. Depth is deliberately deeper than the shadow: the sprite stands
+      up out of its own footprint, and a body only as deep as the ellipse would
+      still let a survivor walk through the monster's knees.
+      **Ordinary foes stay non-solid**, which is a rule and not an oversight: a
+      creep is a body the crowd is meant to absorb, and making a pack of twelve
+      solid would turn every routine fight into a routing puzzle the road was
+      never authored for — at an O(units) pass per foe per frame.
+      The fight itself is untouched, and the geometry is why: while the elite
+      HOLDS, `stopAt = f.y - ELITE_HOLD_AHEAD` keeps the crowd 1.3 units clear
+      of the body, so nothing is ever pushed during the fight the player is
+      trying to win. Locked by `crowdBounds.test.ts`, which needs an
+      under-gunned squad to reach the case at all — stage 14 against forty
+      survivors loses the fight, where a 400-strong squad on stage 6 kills the
+      elite in 7.5 s and never gets closer than 1.30. Without the fix that test
+      catches a survivor standing at x = −0.19 inside a body centred on 0.00
+      with a half-width of 1.13.
+- [x] 458 unit + simulation tests green, `vue-tsc --build` clean, production build clean.
 
 ## Verified in Chrome (390×844 and 320×658)
 
@@ -289,6 +481,19 @@ table could: a `-N` door can reach ZERO where a `÷N` cannot, so an `-8` on an
 opening bank deleted a four-strong squad outright and walled `average` at stage
 7 on **every** purchasing strategy. See `SUB_EARLIEST`.
 
+Re-run once more past the campaign, to stage **110**, when the road went
+endless. All three policies reach it — `optimal` in 124 attempts, `good` 127,
+`average` 138 — and the attempts-per-stage curve rises rather than flattening:
+1.10 through the sixties, 1.30–1.40 across stages 101–110. The rise is the
+result that matters, because it is what a plateaued generator cannot produce; a
+pre-endless stage-100 road would have cost exactly what stage 31–60 cost. Full
+table and the caveats in `CAREER.md`.
+
+Studies report through `console.log`, and **Vitest 4's default reporter drops
+console output from passing tests** — a study now runs for five minutes, passes,
+and prints nothing unless `--reporter=verbose` is passed (`--reporter=basic`,
+the old answer, no longer exists). Both study docs carry the corrected commands.
+
 The study also found five outright bugs — a contact-damage model that punished
 correcting a mistake four times harder than never correcting it, a run clock
 that leaked between stages, a chicane that exited on the wrong side of its own
@@ -324,6 +529,15 @@ report.
   price of guaranteeing the climax happens, and it is paid only by players who
   had already won — but it is a deliberate lie about their damage and it should
   be watched in playtests before it is defended.
+* **A player who never takes the ×3 walls at stage 6 if they are mid-skill.**
+  Measured, not guessed: `average` reaches stage 30 claiming and stage 6 not
+  claiming, while `good` finishes either way (at 40–42 attempts instead of
+  35–36) and `optimal` never notices. That is a strong lean — arguably the
+  right one, since the ×3 is the designed primary income and the pressure is
+  supposed to be felt — but it is close to the line where a portal reviewer
+  reads it as a paywall rather than a difficulty curve. The dials are
+  `DECLINE_STEP` (0.07) and `DECLINE_MAX` (6); halving either moves `average`'s
+  no-ads wall several stages deeper.
 * **The sweep is undodgeable, and stage 3 is currently paying for it.** This is
   the biggest open number in the game. A fifth of the squad every 1.5 s against
   a crowd that cannot leave is, by construction, a pure DPS check — and the
@@ -351,6 +565,23 @@ report.
   neither scripted policy ever detours for a crate. Whether that is the numbers
   or the policies being unrealistically stubborn is the top open question in
   `tests/sim/REPORT.md`.
-* Stages 6+ are generated rather than authored and have not been studied.
+* **The endless road is a marathon, not a wall — measured, and it is a design
+  question rather than a bug.** A career run to stage 110 (`scratch.depth.test.ts`,
+  seed 5000, `value` strategy, ×3 claimed) has all three policies reaching 110:
+  `optimal` in 124 attempts, `good` 127, `average` 138. Attempts per stage do
+  climb — 1.10 through the sixties to 1.30–1.40 across 101–110 — which is the
+  proof the plateaus are gone, since a pre-endless stage-100 road would have
+  read the same 1.10 as stage 31–60. But nobody is stopped: at stage 110 a
+  mid-skill player still pays about what they pay at stage 20. For put-down
+  resistance that is arguably right; if the board fills with players parked at
+  stage 200 the dial is `foeHpScale`'s post-campaign slope, NOT the density
+  knobs — density is what carries the feel of a deep stage.
+* One seed, one strategy, ×3 always claimed. **A non-claiming career past stage
+  30 has never been measured**, and on the authored campaign declining is what
+  walls `average` at stage 6 — so the expectation is that the decline lean, not
+  the generator, is what bounds a deep no-ads run.
+* Stages 6+ are generated rather than authored; they are now studied to stage
+  110 by career and to stage 1 000 by property (`endless.test.ts`), but nothing
+  past stage 5 has ever been *played* by a human end to end.
 * `MonsterLab.vue` (`/#/monsters`) is kept as a lazy design bench for the
   monster cast — it costs a player who never opens it nothing.

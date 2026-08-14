@@ -41,9 +41,28 @@ export default {
     'rallied': 'Tweede adem',
     'peakSquad': 'Grootste team',
     'kills': 'Kills',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Munten verdrievoudigd!',
     'nextStage': 'Volgend level',
     'tryAgain': 'Opnieuw',
-    'upgrade': 'Upgraden'
+    'upgrade': 'Upgraden',
+    'rankLabel': 'Plaats',
+    'rankOf': 'van {n}'
+  },
+
+  'leaderboard': {
+    'title': 'Ranglijst',
+    'rank': '#',
+    'player': 'Speler',
+    'stage': 'Level',
+    'squad': 'Team',
+    'empty': 'Nog geen scores. Wees de eerste!',
+    'failed': 'Ranglijst niet bereikbaar.',
+    'loading': 'Laden…',
+    'you': 'Jij',
+    'yourRank': 'Jij bent #{n}',
+    'of': 'van {n} spelers'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Team',
       'power': 'Vuurkracht',
       'rate': 'Vuursnelheid',
+      'range': 'Bereik',
       'scavenge': 'Sprokkelen'
     },
     'descriptions': {
       'squad': 'Begin elk level met meer overlevenden.',
       'power': 'Elke overlevende doet meer schade per schot.',
       'rate': 'Elke overlevende schiet sneller.',
+      'range': 'Je team opent verder op de weg het vuur.',
       'scavenge': 'Verdien meer munten per run.'
     }
   },

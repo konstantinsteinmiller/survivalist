@@ -1,35 +1,41 @@
 import { computed, ref } from 'vue'
 import {
   BARRICADE_COIN_MAX, BARRICADE_COIN_MIN,
-  BARRICADE_H, BASE_FIRE_RATE, BOSS_BASE_HP, BOSS_GUARD_GATES,
-  BULLET_LIFE_MS, BULLET_R, BULLET_RANGE, BULLET_SPEED,
+  BARRICADE_H, BASE_FIRE_RATE, ROCK_CRUSH_FRACTION, ROCK_H, BOSS_BASE_HP, BOSS_GUARD_GATES,
+  BULLET_LIFE_MS, BULLET_R, BULLET_SPEED, effectiveBulletRange,
   CHALLENGE_MAX, CHALLENGE_STEP,
   COIN_MAGNET_BASE, COIN_PULL_LEAD, CRATE_DAMAGE_GAIN,
+  FOE_COIN_DROP_ELITE, FOE_COIN_DROP_PER_BOUNTY,
   CRATE_R, CRATE_RATE_GAIN, CROWD_MAX_R, CROWD_SQUASH, DIVIDER_H, DIVIDER_HALF_W,
+  ELITE_BODY_HALF_H, ELITE_BODY_HALF_W,
   ELITE_HOLD_AHEAD, ELITE_HOLD_MAX, ELITE_LUNGE, ELITE_SWEEP_CD,
   ELITE_SWEEP_FRACTION, ELITE_SWEEP_REACH, ELITE_TELEGRAPH, FOE_REACH, FUNNEL_LEAD,
+  SLAM_FRACTION_MAX, SWEEP_FRACTION_MAX, endlessPressure,
   GATE_DEPTH, GATE_MAX_VALUE, GATE_SUB_MAX, GATE_TICK_MS, LANE_HALF, MAX_FIRE_RATE, MAX_SQUAD,
   SHOOTERS, SLAM_CD_BASE, SLAM_CD_DECAY, SLAM_CD_MIN, SLAM_RADIUS,
   SLAM_RADIUS_GROWTH, SLAM_RADIUS_MAX, STEER_SPRING, UNIT_R,
-  biteShareFor, challengeBiteFactor, challengeFactor, challengePackFactor,
+  DECLINE_MAX, biteShareFor, challengeBiteFactor, challengeFactor, challengePackFactor,
+  rewardDeclineFactor,
   contactReliefFor,
   funnelRadius, reliefFor, slamReliefFor,
   startBonusFor, stageReward, stageSpeed, wipeReward,
   type Barricade, type Boss, type Bullet, type Crate, type Divider, type Foe,
-  type Gate, type Pickup, type Unit
+  type Gate, type Pickup, type Rock, type Unit
 } from '@/game/survival'
 import { bossDesign, bossHpScale, foeDef, foeHpScale } from '@/game/foes'
 import { buildTrack, type Track } from '@/game/track'
 import { pushFx } from '@/use/useVfx'
 import { difficultyFactor } from '@/use/useUser'
 import {
-  coinMagnetBonus, coinMultiplier, fireRate as metaFireRate, gatePayoutBonus,
+  __setUpgradeLevel,
+  coinMagnetBonus, coinMultiplier, fireRate as metaFireRate, gatePayoutBonus, rangeBonus,
   startSquad, unitDamage
 } from '@/use/useUpgrades'
 import { getState, setStates } from '@/use/useTowerState'
 import { flushSaveNow } from '@/use/useSaveStatus'
 import {
-  BEST_SQUAD_KEY, BEST_STAGE_KEY, CHALLENGE_KEY, FAILED_STAGES_KEY, RUNS_KEY,
+  BEST_SQUAD_KEY, BEST_STAGE_KEY, CHALLENGE_KEY, FAILED_STAGES_KEY,
+  REWARD_DECLINE_KEY, RUNS_KEY,
   STAGE_KEY, TOTAL_KILLS_KEY
 } from '@/keys'
 
@@ -108,6 +114,10 @@ export const reliefActive = ref(false)
  * nobody can see is indistinguishable from the game being inconsistent.
  */
 export const challenge = ref(0)
+/** Consecutive stage wins finished without claiming the `×3`. Surfaced so the
+ *  result screen can say WHY the road is leaning, rather than leaving the
+ *  player to feel a difficulty change they were never told about. */
+export const declines = ref(0)
 /** Bumped whenever the world's contents change enough that a cache should be
  *  dropped (new stage). The renderer watches it instead of diffing arrays. */
 export const worldVersion = ref(0)
@@ -124,6 +134,7 @@ let gates: Gate[] = []
 let dividers: Divider[] = []
 let crates: Crate[] = []
 let barricades: Barricade[] = []
+let rocks: Rock[] = []
 let foes: Foe[] = []
 let pickups: Pickup[] = []
 let boss: Boss | null = null
@@ -167,6 +178,7 @@ export const getGates = (): Gate[] => gates
 export const getDividers = (): Divider[] => dividers
 export const getCrates = (): Crate[] => crates
 export const getBarricades = (): Barricade[] => barricades
+export const getRocks = (): Rock[] => rocks
 export const getFoes = (): Foe[] => foes
 export const getPickups = (): Pickup[] => pickups
 export const getBoss = (): Boss | null => boss
@@ -297,6 +309,7 @@ const resetWorld = (): void => {
   dividers = []
   crates = []
   barricades = []
+  rocks = []
   foes = []
   pickups = []
   boss = null
@@ -367,7 +380,12 @@ export const startStage = (n?: number): void => {
   const failures = failureCount(target)
   reliefActive.value = failures > 0
   challenge.value = Math.max(0, Math.min(CHALLENGE_MAX, Number(getState(CHALLENGE_KEY, 0)) || 0))
-  hpRelief = reliefFor(failures) * challengeFactor(challenge.value)
+  // Three forces, one number: the streak winds it up, the decline lean winds it
+  // up further, and a history of losing THIS stage winds it back down.
+  declines.value = Math.max(0, Math.min(DECLINE_MAX, Number(getState(REWARD_DECLINE_KEY, 0)) || 0))
+  hpRelief = reliefFor(failures)
+    * challengeFactor(challenge.value)
+    * rewardDeclineFactor(declines.value)
   slamRelief = slamReliefFor(failures)
   contactRelief = contactReliefFor(failures)
 
@@ -568,9 +586,24 @@ const streamTrack = (): void => {
 
       case 'crates':
         for (const c of e.crates) {
+          // Scaled by the same difficulty and relief the walls get. A crate is
+          // an obstacle with a reward inside it, and it was the one thing on
+          // the road that ignored both — so a stuck player got a softer stage
+          // in every respect except the boxes that would have got them unstuck.
+          const hp = Math.max(1, Math.round(c.hp * diff * hpRelief))
           crates.push({
-            id: entityId++, kind: c.kind, x: c.x, y: e.y, hp: e.hp, maxHp: e.hp,
+            id: entityId++, kind: c.kind, x: c.x, y: e.y, hp, maxHp: hp,
             spin: (Math.random() - 0.5) * 0.4, dead: false
+          })
+        }
+        break
+
+      case 'rocks':
+        for (const r of e.blocks) {
+          rocks.push({
+            id: entityId++, x: r.x, y: e.y, w: r.w,
+            spin: (Math.random() - 0.5) * 0.5,
+            seed: Math.floor(Math.random() * 1000)
           })
         }
         break
@@ -718,6 +751,7 @@ export const step = (dtMs: number): void => {
   stepDividers(dt)
   stepFoes(dt)
   stepBarricades(dt)
+  stepRocks(dt)
   stepCrates(dt)
   stepPickups(dt)
   stepBoss(dt)
@@ -1028,6 +1062,43 @@ const crushAgainst = (id: number, c: Crush, dt: number): boolean => {
   return killed
 }
 
+/**
+ * A body the crowd has to go AROUND, with no damage attached.
+ *
+ * The push half of `crushAgainst` on its own, for something that already owns
+ * its own damage rule. The elite is the only user: its bite loop decides what
+ * the contact costs, and adding a second killer to the same body would bill the
+ * player twice for one monster. So this displaces and never kills.
+ *
+ * Same three invariants as the obstacle push, for the same reasons:
+ *
+ *   • the UNIT moves and the anchor never does, so the player's steering stays
+ *     authoritative — a monster shoves the crowd, it does not shove the thumb;
+ *   • the shove is clamped to the road, so a body near a rail squeezes the
+ *     crowd along the barrier instead of pushing survivors over it;
+ *   • a survivor dead-centre breaks its tie on index parity rather than always
+ *     going right, so a body sitting exactly on the crowd's centre line parts it
+ *     into two lobes instead of sweeping everybody to one side.
+ */
+const partAround = (x: number, y: number, halfW: number, halfH: number): void => {
+  // Same bounding-disc guard as every other O(units) pass — an elite that is
+  // still walking in never touches the unit array.
+  if (!nearCrowd(x, y, Math.max(halfW, halfH) + UNIT_R + 0.2)) return
+
+  for (const u of units) {
+    // The dying tumble out of the crowd on their own arc; shoving a corpse
+    // sideways mid-fall reads as a body being kicked.
+    if (u.dying > 0) continue
+    const dx = u.x - x
+    const overlapX = halfW + UNIT_R - Math.abs(dx)
+    if (overlapX <= 0) continue
+    if (Math.abs(u.y - y) > halfH + UNIT_R) continue
+
+    const dir = Math.sign(dx) || (u.i % 2 === 0 ? 1 : -1)
+    u.x = Math.max(-EDGE_X, Math.min(EDGE_X, u.x + dir * overlapX))
+  }
+}
+
 /** Kill a survivor: mark it dying, fling it, and tell the world. */
 const killUnit = (u: Unit, dirX = 0, cause: DeathCause = 'foe'): void => {
   if (u.dying > 0) return
@@ -1097,6 +1168,10 @@ const stepShooting = (dt: number): void => {
  * never looks at anything it cannot reach this frame.
  */
 const stepBullets = (dt: number): void => {
+  // Read ONCE per frame, not per bullet: `rangeBonus` is a Vue computed and a
+  // thousand rounds in flight is a thousand dependency reads for a number that
+  // cannot change mid-tick.
+  const gunRange = effectiveBulletRange(rangeBonus.value)
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i]!
     b.life -= dt * 1000
@@ -1108,7 +1183,7 @@ const stepBullets = (dt: number): void => {
     // the squad. A round fired a moment before the crowd sped up therefore
     // reaches slightly further in world terms, which is correct — it is still
     // on screen, and still short of the top.
-    if (b.life <= 0 || b.y > anchorY + BULLET_RANGE || Math.abs(b.x) > LANE_HALF + 1) {
+    if (b.life <= 0 || b.y > anchorY + gunRange || Math.abs(b.x) > LANE_HALF + 1) {
       bullets.splice(i, 1)
       continue
     }
@@ -1154,6 +1229,20 @@ const resolveBullet = (b: Bullet): boolean => {
       pushFx({ kind: 'barricadeBreak', x: bar.x, y: bar.y })
       spillCoins(bar.x, bar.y, BARRICADE_COIN_MIN, BARRICADE_COIN_MAX)
     }
+    return true
+  }
+
+  // ─── A boulder eats the round and shrugs ──────────────────────────────────
+  //
+  // No damage branch, on purpose. This is the one solid thing in the game that
+  // fire cannot answer, and the round has to be VISIBLY consumed — a bullet
+  // that passed through would read as a hitbox bug, and a bullet that vanished
+  // silently would read as the gun jamming. It sparks like a wall and dies.
+  for (const r of rocks) {
+    const dy = r.y - b.y
+    if (dy < -ROCK_H / 2 || dy > ROCK_H / 2 + 0.4) continue
+    if (Math.abs(r.x - b.x) > r.w / 2 + BULLET_R) continue
+    pushFx({ kind: 'hit', x: b.x, y: b.y, on: 'rock' })
     return true
   }
 
@@ -1281,6 +1370,24 @@ const damageFoe = (f: Foe, amount: number): void => {
   if (f.elite) pushFx({ kind: 'eliteDie', x: f.x, y: f.y })
   else pushFx({ kind: 'foeDie', x: f.x, y: f.y, big: def.scale > 1.1 })
   pushFx({ kind: 'coin', x: f.x, y: f.y, value: coins })
+
+  // ─── …and a body DROPS something ──────────────────────────────────────────
+  //
+  // The bounty above is real but invisible: it lands in a counter behind the
+  // HUD, so shooting a pack read as pure cost — spend the rounds, take the
+  // bites, get nothing you can see. A corpse now scatters loose coins on the
+  // road as well, which turns the same kill into a reason to be somewhere.
+  //
+  // Deliberately DROPPED rather than granted. Loose coins have to be driven
+  // over (see `COIN_MAGNET_BASE`), so killing the pack in front of you pays and
+  // killing the pack you are steering away from pays less — and Scavenging,
+  // which was worth nothing to a player who fights, is now worth something to
+  // exactly that player. The scatter is sized by the archetype, so a brute is
+  // visibly worth more than a creep without a second number to tune.
+  const drop = f.elite
+    ? FOE_COIN_DROP_ELITE
+    : Math.max(1, Math.round(def.coins * FOE_COIN_DROP_PER_BOUNTY))
+  spillCoins(f.x, f.y, drop, drop + 1)
 }
 
 /**
@@ -1619,7 +1726,14 @@ const stepFoes = (dt: number): void => {
         // to say about whether it reached them. Sorting by depth is what makes
         // the loss legible — the crowd is eaten from the end nearest the thing
         // eating it, not hollowed out at random.
-        let budget = Math.max(1, Math.ceil(squadCount.value * ELITE_SWEEP_FRACTION * slamRelief))
+        // Percentage damage is the endless road's difficulty dial — see
+        // `endlessPressure`. A bigger crowd cannot out-scale a share of itself,
+        // which is exactly why this is the term that keeps biting at depth.
+        const sweepShare = Math.min(
+          SWEEP_FRACTION_MAX,
+          ELITE_SWEEP_FRACTION * endlessPressure(stage.value)
+        )
+        let budget = Math.max(1, Math.ceil(squadCount.value * sweepShare * slamRelief))
         const reachable: Unit[] = []
         for (const u of units) {
           if (u.dying > 0) continue
@@ -1633,6 +1747,17 @@ const stepFoes = (dt: number): void => {
           budget--
         }
       }
+    }
+
+    // ─── The elite is solid ───────────────────────────────────────────────
+    //
+    // ABOVE the bite cooldown on purpose: being a body is not an attack. The
+    // crowd has to part around it on every frame it is alive, including the
+    // frames between bites and — the case this was written for — the walk back
+    // down the road after `ELITE_HOLD_MAX` breaks the hold, where a crowd that
+    // failed to kill it used to pass straight through the sprite.
+    if (f.elite && !f.dead) {
+      partAround(f.x, f.y, f.scale * ELITE_BODY_HALF_W, f.scale * ELITE_BODY_HALF_H)
     }
 
     f.biteCd -= dt
@@ -1691,6 +1816,30 @@ const stepBarricades = (dt: number): void => {
     crushAgainst(bar.id, {
       x: bar.x, halfW: bar.w / 2, y: bar.y, halfH: BARRICADE_H / 2,
       cause: 'barricade', fraction: 0.22
+    }, dt)
+  }
+}
+
+/**
+ * Boulders: solid, lethal, and permanent.
+ *
+ * The same contact channel as every other solid thing — one `crushAgainst`, so
+ * a boulder bills exactly the way a wall does and the player never has to learn
+ * a second rule. What it does NOT have is a branch that can delete it. It rolls
+ * off the bottom of the road when the crowd is past it and that is the only way
+ * it ever leaves.
+ */
+const stepRocks = (dt: number): void => {
+  for (let i = rocks.length - 1; i >= 0; i--) {
+    const r = rocks[i]!
+    if (r.y < anchorY - 6) {
+      rocks.splice(i, 1)
+      continue
+    }
+    if (r.y > anchorY + 6) continue
+    crushAgainst(r.id, {
+      x: r.x, halfW: r.w / 2, y: r.y, halfH: ROCK_H / 2,
+      cause: 'barricade', fraction: ROCK_CRUSH_FRACTION
     }, dt)
   }
 }
@@ -1911,7 +2060,10 @@ const stepBoss = (dt: number): void => {
   // nothing measurable — 14 of 15 simulated retries moved the clear rate by
   // exactly zero — because 68–80 % of a failing run's losses are slams, which
   // no amount of enemy HP relief ever touches.
-  const slamShare = SLAM_MAX_FRACTION * slamRelief
+  const slamShare = Math.min(
+    SLAM_FRACTION_MAX,
+    SLAM_MAX_FRACTION * endlessPressure(stage.value)
+  ) * slamRelief
   let budget = Math.max(1, Math.ceil(squadCount.value * slamShare))
   for (const u of units) {
     if (budget <= 0) break
@@ -1988,6 +2140,16 @@ export const debugAddUnits = (n: number): void => {
 }
 
 export const debugAddDamage = (n: number): void => { damage.value += n }
+/**
+ * Test/dev seam: set the Reach upgrade level directly.
+ *
+ * Goes through the shop's own state rather than poking a private so the range
+ * the sim fires at is the one a real save would produce — a seam that bypassed
+ * `rangeBonus` would happily pass while the shipping path was broken.
+ */
+export const debugSetRangeLevel = (level: number): void => {
+  __setUpgradeLevel('range', level)
+}
 export const debugAddFireRate = (n: number): void => setFireRate(runFireRate.value + n)
 
 /** Test-only: wipe both the world and the persisted failure record. */

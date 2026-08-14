@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import {
   stage, phase, squadCount, damage, runFireRate, progress01, bossHp01, bestStage,
-  eliteAlive, eliteHp01, challenge,
+  eliteAlive, eliteHp01, challenge, declines,
   startStage, advanceStage, retryStage, step, steerTo, steerBy, steerOnly, runSummary,
   isChargingGate, getCrates, getGates, getDividers, getBoss, anchor, crowdRadius
 } from '@/use/useSurvivalGame'
@@ -13,11 +13,13 @@ import {
 } from '@/use/useSurvivalArt'
 import { resetVfx } from '@/use/useVfx'
 import { warmAudio, playFx } from '@/use/useGameAudio'
-import { LANE_HALF } from '@/game/survival'
+import { DECLINE_MAX, LANE_HALF } from '@/game/survival'
 
 import { getState, setState } from '@/use/useTowerState'
 import { flushSaveNow } from '@/use/useSaveStatus'
-import { GUARD_HINT_KEY, ONBOARDED_KEY, SHOP_SPOTLIGHT_KEY, TUTORIAL_KEY } from '@/keys'
+import {
+  GUARD_HINT_KEY, ONBOARDED_KEY, REWARD_DECLINE_KEY, SHOP_SPOTLIGHT_KEY, TUTORIAL_KEY
+} from '@/keys'
 import useTowerEconomy from '@/use/useTowerEconomy'
 import { affordableCount } from '@/use/useUpgrades'
 import useSounds, { useMusic } from '@/use/useSound'
@@ -25,14 +27,20 @@ import { useScreenshake } from '@/use/useScreenshake'
 import { isGamePaused, isAdShowing } from '@/use/useGamePause'
 import { spawnCoinExplosion } from '@/use/useCoinExplosion'
 import { isInterstitialReady, showMidgameAd } from '@/use/useAds'
-import { canShowInterstitial, markInterstitialShown, adInFlight } from '@/use/useAdGate'
+import {
+  canShowInterstitial, markInterstitialShown, adInFlight, canOfferReward, claimReward, isRewardGated
+} from '@/use/useAdGate'
 import { signalGameplayLoaded, syncGameplayLifecycle, triggerHappytime } from '@/use/useCrazyGames'
 import { isAnyModalOpen } from '@/use/useModalState'
 import { playFirstStartInterstitial } from '@/use/useFirstStartInterstitial'
+import {
+  OUTSIDE_BOARD, boardSize, leaderboardEnabled, leaderboardFailed, playerTotal, rankFor, reportRun
+} from '@/use/useLeaderboard'
 
 import RunHud from '@/components/game/RunHud.vue'
 import ControlHint, { type HintId } from '@/components/game/ControlHint.vue'
 import TutorialOverlay from '@/components/game/TutorialOverlay.vue'
+import RewardAdIcon from '@/components/atoms/RewardAdIcon.vue'
 import FHudButton from '@/components/atoms/FHudButton.vue'
 import FHudBadge from '@/components/atoms/FHudBadge.vue'
 import FMuteButton from '@/components/atoms/FMuteButton.vue'
@@ -41,6 +49,7 @@ import FButton from '@/components/atoms/FButton.vue'
 import CoinBadge from '@/components/organisms/CoinBadge.vue'
 import OptionsModal from '@/components/organisms/OptionsModal.vue'
 import UpgradeModal from '@/components/organisms/UpgradeModal.vue'
+import LeaderboardModal from '@/components/organisms/LeaderboardModal.vue'
 import IconCoin from '@/components/icons/IconCoin.vue'
 
 /**
@@ -213,6 +222,7 @@ const onKeyDown = (e: KeyboardEvent): void => {
   if (e.code === 'Escape') {
     showOptions.value = false
     showUpgrades.value = false
+    showLeaderboard.value = false
   }
 }
 const onKeyUp = (e: KeyboardEvent): void => { keys.delete(e.code) }
@@ -406,7 +416,30 @@ watch(bossGuarding, (now, before) => {
 const showResult = ref(false)
 const showOptions = ref(false)
 const showUpgrades = ref(false)
+const showLeaderboard = ref(false)
 const summary = ref(runSummary())
+
+/**
+ * The player's global rank, for the result screen.
+ *
+ * A STRING because the cell is prose, not a number: `#42` when it is known,
+ * `#100+` once the player is past the last published row, `…` while the request
+ * is still out, and empty — which hides the whole cell — when there is nothing
+ * honest to say. The `#` is built here rather than in the template because `#{}`
+ * is Pug interpolation and a literal `#` in front of a mustache is a parse
+ * error, not a hash sign.
+ */
+const resultRank = computed<string>(() => {
+  if (!leaderboardEnabled) return ''
+  const rank = rankFor(bestStage.value)
+  if (rank === OUTSIDE_BOARD) return `#${boardSize.value}+`
+  if (rank > 0) return `#${rank}`
+  // Nothing known yet. The ellipsis holds the cell's place so the stats row does
+  // not jump sideways when the rank lands a beat later — but only until the
+  // endpoint has actually failed, after which the cell goes away and stays away
+  // rather than showing a permanent "loading" to a player with no connection.
+  return leaderboardFailed.value ? '' : '…'
+})
 
 const rewardCoinRef = ref<HTMLElement | null>(null)
 const coinBadgeRef = ref<InstanceType<typeof CoinBadge> | null>(null)
@@ -439,8 +472,18 @@ const presentResult = async (): Promise<void> => {
   // Ad FIRST, overlay second. See the header note.
   await maybeShowInterstitial()
 
+  rewardClaimed.value = false
+  rewardWasOffered.value = canOfferReward.value
   showResult.value = true
   void bankCoins()
+
+  // Fire-and-forget, and it MUST stay that way. The board is a decoration on a
+  // game that works without it, so the result screen is already up before the
+  // request leaves — awaiting it would put a captive-portal wifi login page
+  // between the player and their coins for the full 6 s timeout. `reportRun`
+  // swallows every failure and only writes when the player beat their own
+  // posted best, so the usual cost of this line is nothing at all.
+  void reportRun(bestStage.value, summary.value.peakSquad)
 
   // The first cleared stage is the end of onboarding: the player has seen every
   // primer that matters and a returning player must never be taught again.
@@ -449,6 +492,84 @@ const presentResult = async (): Promise<void> => {
     setState(ONBOARDED_KEY, true)
   }
 }
+
+// ─── The ×3, which is the game's income ─────────────────────────────────────
+//
+// Offered on EVERY result screen, win or lose, because a run that ended badly
+// is exactly the run whose coins the player most wants back — and because a
+// placement that only appears on a win teaches the player to stop watching
+// after their first defeat.
+//
+// The multiplier is 3, not 2, on purpose: this is the primary source of income
+// rather than a bonus on top of one. A stage's own payout keeps the shop moving
+// slowly; the tripled payout keeps it moving at the pace the difficulty curve is
+// priced against. Declining is a real choice with a real cost — see
+// `rewardDeclineFactor` — and claiming once pays that cost off in full.
+
+const REWARD_MULTIPLIER = 3
+
+/** Already claimed on THIS result screen — the button is one-shot per run. */
+const rewardClaimed = ref(false)
+/** Was the offer genuinely available while this screen was up? Only then does
+ *  walking away count as a decline. */
+const rewardWasOffered = ref(false)
+
+/** Extra coins the ×3 would pay on top of what was already banked. */
+const rewardBonus = computed(() => summary.value.coins * (REWARD_MULTIPLIER - 1))
+
+const showRewardButton = computed(() =>
+  showResult.value && !rewardClaimed.value && summary.value.coins > 0 && canOfferReward.value
+)
+
+/**
+ * Record that the player left a result screen without taking the offer.
+ *
+ * Silent, on purpose. An earlier pass put a line on the result screen warning
+ * that skipping makes the next stage harder; it was removed because it turns an
+ * offer into a threat. The lean is meant to be FELT — the road gets heavier and
+ * the player works out that the ×3 buys upgrades that keep pace — not sold. A
+ * game that tells you it will punish you for not watching an ad has stopped
+ * offering you something.
+ */
+const recordDecline = (): void => {
+  if (rewardClaimed.value || !rewardWasOffered.value) return
+  // Only a WIN leans the curve. Losing already costs the player the stage, and
+  // stacking a difficulty increase on top of a defeat is how a losing streak
+  // becomes a quit.
+  if (!summary.value.cleared) return
+  const next = Math.min(DECLINE_MAX, declines.value + 1)
+  declines.value = next
+  setState(REWARD_DECLINE_KEY, next)
+}
+
+const onClaimReward = async (): Promise<void> => {
+  if (rewardClaimed.value || adInFlight.value) return
+  const granted = await claimReward(() => {
+    rewardClaimed.value = true
+    addCoins(rewardBonus.value)
+    // One claim buys back the whole lean.
+    declines.value = 0
+    setState(REWARD_DECLINE_KEY, 0)
+    void flushSaveNow()
+  })
+  if (!granted) return
+  await nextTick()
+  const el = rewardCoinRef.value
+  if (el && coinBadgeEl.value) {
+    spawnCoinExplosion({
+      sourceEl: el,
+      targetEl: coinBadgeEl.value,
+      count: Math.min(60, 20 + Math.round(rewardBonus.value / 5))
+    })
+  }
+  playFx('countUp', 0.85)
+}
+
+// Inventory can land a beat after the screen does — a player who saw the button
+// at any point during the screen was genuinely offered the reward.
+watch(canOfferReward, (can) => {
+  if (can && showResult.value) rewardWasOffered.value = true
+})
 
 const bankCoins = async (): Promise<void> => {
   const total = summary.value.coins
@@ -471,12 +592,20 @@ watch(phase, (p, prev) => {
 })
 
 const beginStage = (next: boolean): void => {
+  // Leaving the result screen IS the decline. Counted here rather than on a
+  // dedicated "no thanks" button because there isn't one — the player declines
+  // by pressing on, which is the only honest place to read the intent.
+  recordDecline()
   showResult.value = false
   resetVfx()
   invalidateArt()
   if (next) advanceStage()
   else retryStage()
   startBattleMusic()
+  // `isLiveGameplay` flips true here and `syncGameplayLifecycle` sends the
+  // matching `gameplayStart` on the full release. Nothing to do by hand: the
+  // one computed owns every start and stop, which is what stops the redundant
+  // pairs the SDK complains about.
 }
 
 const onNext = (): void => {
@@ -674,6 +803,16 @@ onUnmounted(() => {
       div.scene__bottom(ref="bottomBarRef")
         div.scene__meta
           FMuteButton
+          //- Gone entirely — not disabled — on a build with no endpoint. A
+          //- button that opens an empty board is worse than no button.
+          FHudButton(
+            v-if="leaderboardEnabled"
+            tone="slate"
+            :aria-label="t('leaderboard.title')"
+            @click="showLeaderboard = true"
+          )
+            svg(viewBox="0 0 24 24" fill="currentColor")
+              path(d="M6 3h12v2h3v3a4 4 0 0 1-3.6 4A6 6 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1A6 6 0 0 1 6.6 12 4 4 0 0 1 3 8V5h3V3Zm0 4H5v1a2 2 0 0 0 1 1.7V7Zm12 2.7A2 2 0 0 0 19 8V7h-1v2.7Z")
           FHudButton(
             tone="slate"
             :aria-label="t('options.title')"
@@ -719,10 +858,37 @@ onUnmounted(() => {
           div.result__stat
             span.result__stat-value {{ summary.kills }}
             span.result__stat-label {{ t('result.kills') }}
+          //- The whole cell disappears when the rank is unknown — an empty
+          //- third column is a question the screen cannot answer.
+          div.result__stat(v-if="resultRank")
+            span.result__stat-value.is-rank {{ resultRank }}
+            span.result__stat-label {{ playerTotal > 0 ? t('result.rankOf', { n: playerTotal }) : t('result.rankLabel') }}
 
         div.result__coins(ref="rewardCoinRef")
           IconCoin(class="result__coin-icon")
           span.result__coin-value +{{ summary.coins }}
+
+        //- The ×3, above the actions and visually louder than either of them:
+        //- it is the primary income of the game, not a footnote on the way out.
+        FButton.result__reward(
+          v-if="showRewardButton"
+          size="md"
+          type="warning"
+          :is-disabled="adInFlight"
+          @click="onClaimReward"
+        )
+          //- The film frame is the ad signal and comes first, exactly as it does
+          //- on every other rewarded button on every portal we ship to.
+          RewardAdIcon.result__reward-icon
+          span.result__reward-mult {{ t('result.tripleCoins') }}
+          IconCoin.result__reward-coin
+          span.result__reward-bonus {{ t('result.tripleBonus', { n: rewardBonus }) }}
+
+        //- Claimed: the button is replaced rather than merely disabled, so the
+        //- screen never shows a dead control the player already used.
+        div.result__claimed(v-else-if="rewardClaimed")
+          IconCoin(class="result__claimed-icon")
+          span {{ t('result.tripleClaimed') }}
 
         div.result__actions
           FButton(
@@ -735,6 +901,7 @@ onUnmounted(() => {
 
     OptionsModal(:is-open="showOptions" @close="showOptions = false")
     UpgradeModal(v-model="showUpgrades")
+    LeaderboardModal(v-if="leaderboardEnabled" v-model="showLeaderboard")
 </template>
 
 <style scoped lang="sass">
@@ -805,19 +972,28 @@ onUnmounted(() => {
   align-items: center
   pointer-events: auto
 
+// The "you can afford an upgrade" chip.
+//
+// It shipped at `clamp(0.5rem, 2.2vw, 0.68rem)` — eight pixels on a 320 px
+// phone, which is smaller than the badge counter beside it and unreadable in
+// portrait. It is a call to action for the one screen in the game that spends
+// the currency, so it is now sized like one: a 0.8rem floor, real padding, and
+// a shadow that lifts it off the road behind it.
 .scene__spotlight
   position: absolute
   right: 100%
-  margin-right: 0.4rem
-  padding: 0.15em 0.5em
+  margin-right: 0.5rem
+  padding: 0.3em 0.7em
   border: 2px solid #0f1a30
-  border-radius: 0.5rem
+  border-radius: 0.6rem
   background-image: linear-gradient(to bottom, #ffcd00, #f7a000)
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 12px rgba(255, 205, 0, 0.35)
   color: #fff
   font-weight: 900
   text-transform: uppercase
   white-space: nowrap
-  font-size: clamp(0.5rem, 2.2vw, 0.68rem)
+  letter-spacing: 0.02em
+  font-size: clamp(0.8rem, 4.2vw, 1.05rem)
   text-shadow: 2px 2px 0 #000
   animation: spotlight-pulse 1.2s ease-in-out infinite
 
@@ -889,6 +1065,11 @@ onUnmounted(() => {
   font-size: clamp(1rem, 5vw, 1.6rem)
   text-shadow: 2px 2px 0 #000
 
+  // The rank is the one stat that is about other people, so it wears the board's
+  // gold rather than the run's blue.
+  &.is-rank
+    color: #ffd93c
+
 .result__stat-label
   color: #b9cbe8
   text-transform: uppercase
@@ -898,6 +1079,55 @@ onUnmounted(() => {
   display: flex
   align-items: center
   gap: 0.4rem
+
+// ─── The ×3 ──────────────────────────────────────────────────────────────────
+//
+// Deliberately the loudest control on the screen: it is where the game's money
+// comes from, and a primary action that looks like a secondary one gets read as
+// optional. The breathe is slow enough not to nag.
+.result__reward
+  animation: reward-breathe 2.6s ease-in-out infinite
+
+  // FButton drops slot content into a `display: block` span, so the icon and
+  // the label were stacking on their own baselines instead of sitting on one
+  // line. Laid out here rather than by changing FButton: every other button in
+  // the game passes plain text, and widening the shared component to serve one
+  // caller is how a design system stops being one.
+  :deep(.f-button__text)
+    display: inline-flex
+    align-items: center
+    justify-content: center
+    gap: 0.45rem
+
+.result__reward-coin
+  flex: 0 0 auto
+  width: 1.15em
+  height: 1.15em
+  color: #fff8d0
+
+.result__reward-mult,
+.result__reward-bonus
+  white-space: nowrap
+
+.result__claimed
+  display: inline-flex
+  align-items: center
+  gap: 0.4rem
+  color: #8fe9a6
+  font-weight: 900
+  font-size: clamp(0.72rem, 3.2vw, 1rem)
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.75)
+
+.result__claimed-icon
+  width: clamp(1rem, 4.6vw, 1.4rem)
+  height: clamp(1rem, 4.6vw, 1.4rem)
+  color: #ffd93c
+
+@keyframes reward-breathe
+  0%, 100%
+    scale: 1
+  50%
+    scale: 1.045
 
 .result__coin-icon
   width: clamp(1.3rem, 6vw, 2rem)

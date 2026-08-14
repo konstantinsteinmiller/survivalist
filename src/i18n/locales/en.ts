@@ -86,9 +86,47 @@ export default {
     'rallied': 'Second wind',
     'peakSquad': 'Biggest squad',
     'kills': 'Kills',
+    // ─── The ×3, the game's primary income ──────────────────────────────────
+    // The label renders as `[film] 3× [coin] (+123)` — two strings with a coin
+    // ICON between them, so the currency never has to be named in 21 languages
+    // and the button stays short enough for a 320 px screen.
+    //
+    // Split in two because the multiplier's ORDER is locale-dependent (`3×` in
+    // most, `×3` in ru/uk/kk/ar) while the bonus is the same shape everywhere.
+    // `tripleBonus` takes {n} = the BONUS the video adds, not the new total.
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Coins tripled!',
     'nextStage': 'Next stage',
     'tryAgain': 'Try again',
-    'upgrade': 'Upgrade'
+    'upgrade': 'Upgrade',
+    // The global-rank cell. `rankLabel` is the fallback label used before the
+    // player count is known; once it is, `rankOf` replaces it — "of 4 812"
+    // under a "#61" says more in the same space than "Rank" does.
+    'rankLabel': 'Rank',
+    'rankOf': 'of {n}'
+  },
+
+  // ─── Leaderboard ──────────────────────────────────────────────────────────
+  // A four-column table on a 320 px phone, so every column header has to be one
+  // short word — translate for brevity over literalness, and reuse whatever
+  // this locale already calls a stage and a squad elsewhere in this file.
+  //
+  // `{n}` in `yourRank` is NOT always a number: it is `100+` once the player is
+  // past the last published row, so no locale may wrap it in a grammatical case
+  // or a counter that only works for digits.
+  'leaderboard': {
+    'title': 'Leaderboard',
+    'rank': '#',
+    'player': 'Player',
+    'stage': 'Stage',
+    'squad': 'Squad',
+    'empty': 'No runs posted yet. Be the first.',
+    'failed': "Couldn't reach the leaderboard.",
+    'loading': 'Loading…',
+    'you': 'You',
+    'yourRank': 'You are #{n}',
+    'of': 'of {n} players'
   },
 
   // ─── Upgrades ─────────────────────────────────────────────────────────────
@@ -101,12 +139,14 @@ export default {
       'squad': 'Squad',
       'power': 'Firepower',
       'rate': 'Fire Rate',
+      'range': 'Reach',
       'scavenge': 'Scavenging'
     },
     'descriptions': {
       'squad': 'Start every stage with more survivors.',
       'power': 'Every survivor deals more damage per shot.',
       'rate': 'Every survivor shoots faster.',
+      'range': 'Your squad opens fire further up the road.',
       'scavenge': 'Earn more coins from every run.'
     }
   },

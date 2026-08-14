@@ -41,9 +41,28 @@ export default {
     'rallied': 'Segundo aire',
     'peakSquad': 'Mayor escuadrón',
     'kills': 'Bajas',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': '¡Monedas triplicadas!',
     'nextStage': 'Siguiente nivel',
     'tryAgain': 'Reintentar',
-    'upgrade': 'Mejorar'
+    'upgrade': 'Mejorar',
+    'rankLabel': 'Puesto',
+    'rankOf': 'de {n}'
+  },
+
+  'leaderboard': {
+    'title': 'Clasificación',
+    'rank': '#',
+    'player': 'Jugador',
+    'stage': 'Nivel',
+    'squad': 'Escuadrón',
+    'empty': 'Aún no hay marcas. ¡Sé el primero!',
+    'failed': 'No se pudo cargar la clasificación.',
+    'loading': 'Cargando…',
+    'you': 'Tú',
+    'yourRank': 'Eres #{n}',
+    'of': 'de {n} jugadores'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Escuadrón',
       'power': 'Potencia',
       'rate': 'Cadencia',
+      'range': 'Alcance',
       'scavenge': 'Carroñeo'
     },
     'descriptions': {
       'squad': 'Empieza cada nivel con más supervivientes.',
       'power': 'Cada superviviente hace más daño por disparo.',
       'rate': 'Cada superviviente dispara más rápido.',
+      'range': 'Tu escuadrón abre fuego más lejos en la carretera.',
       'scavenge': 'Gana más monedas en cada partida.'
     }
   },

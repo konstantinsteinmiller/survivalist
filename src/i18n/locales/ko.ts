@@ -41,9 +41,28 @@ export default {
     'rallied': '기사회생',
     'peakSquad': '최대 부대',
     'kills': '처치',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': '코인 3배!',
     'nextStage': '다음 스테이지',
     'tryAgain': '다시 시도',
-    'upgrade': '업그레이드'
+    'upgrade': '업그레이드',
+    'rankLabel': '순위',
+    'rankOf': '{n}명 중'
+  },
+
+  'leaderboard': {
+    'title': '리더보드',
+    'rank': '#',
+    'player': '플레이어',
+    'stage': '스테이지',
+    'squad': '부대',
+    'empty': '아직 기록이 없습니다. 첫 주자가 되세요!',
+    'failed': '리더보드에 연결할 수 없습니다.',
+    'loading': '불러오는 중…',
+    'you': '나',
+    'yourRank': '내 순위 {n}',
+    'of': '{n}명 중'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': '부대',
       'power': '화력',
       'rate': '연사 속도',
+      'range': '사거리',
       'scavenge': '수집'
     },
     'descriptions': {
       'squad': '더 많은 생존자로 스테이지를 시작합니다.',
       'power': '생존자마다 한 발당 피해량이 증가합니다.',
       'rate': '모든 생존자가 더 빠르게 사격합니다.',
+      'range': '부대가 더 멀리서 사격을 시작합니다.',
       'scavenge': '한 판마다 더 많은 코인을 얻습니다.'
     }
   },

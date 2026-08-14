@@ -176,6 +176,10 @@ onUnmounted(() => {
   // Leave generous horizontal room on each side so wider labels don't
   // crash into the tail folds.
   padding: 0 18%
+  :deep(.scene__ribbon)
+    transform: scale(150%)
+    margin-top: 4px
+    text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000
 
 @media (orientation: landscape) and (max-height: 500px)
   .ribbon-wrap

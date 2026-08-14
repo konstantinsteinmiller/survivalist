@@ -1,21 +1,32 @@
 import { ref, computed } from 'vue'
 import { isCrazyWeb } from '@/use/useUser'
 import { isCrazyGamesFullRelease } from '@/use/useMatch'
-import { isRewardedReady, showRewardedAd } from '@/use/useAds'
+import { adProviderName, isRewardedReady, showRewardedAd } from '@/use/useAds'
 
 /**
  * ─── Reward gating ──────────────────────────────────────────────────────────
  *
- * Some perks (double coins, rebuild-and-continue, a reinforced hand of blocks)
- * are paid for with a rewarded video — but ONLY on the CrazyGames full release.
+ * A perk is paid for with a rewarded video on every build that HAS one, and is
+ * simply free on every build that does not.
  *
- * Everywhere else they are simply free. That covers local dev, every non-CG
- * portal, and the CG pre-release build used for QA: on those, a gate would
- * either be untestable (no ad inventory) or would degrade a build the player
- * never agreed to watch ads on. One predicate, checked in one place, so a
- * perk can never accidentally ship gated on a build that has no ads.
+ * It used to read `isCrazyWeb && isCrazyGamesFullRelease`, which was written
+ * when CrazyGames was the only portal wired for rewarded ads. It is now wrong
+ * in the expensive direction: Playgama, GamePix, GameMonetize, Yandex and
+ * GameDistribution all resolve real providers, so that predicate was handing
+ * out every rewarded perk for free on five shipping portals — the ad never
+ * played, the placement never earned, and a reviewer clicking a button marked
+ * with a video icon saw no video.
+ *
+ * The rule is now the honest one: is a real provider resolved?
+ *
+ *   • any real provider  → gated, the video plays.
+ *   • CG PRE-release     → NOT gated. It is a QA artefact with no inventory,
+ *                          so a gate there is untestable by construction.
+ *   • noop (local dev,
+ *     plain web, itch…)  → not gated, perks are free.
  */
-export const isRewardGated = isCrazyWeb && isCrazyGamesFullRelease
+export const isRewardGated =
+  adProviderName !== 'noop' && (!isCrazyWeb || isCrazyGamesFullRelease)
 
 // ─── Rewarded rate limit ────────────────────────────────────────────────────
 //
@@ -121,8 +132,17 @@ export const canOfferReward = computed(
 
 // ─── Interstitial pacing ────────────────────────────────────────────────────
 
-/** Minimum gap between interstitials, ms. */
-const INTERSTITIAL_MIN_GAP_MS = 120_000
+/**
+ * Minimum gap between interstitials, ms.
+ *
+ * 121 s, not 120. CrazyGames and Playgama both rate-limit interstitials to one
+ * every two minutes and REJECT the request that arrives early — so a gate set
+ * to exactly the platform's own limit loses the race to clock skew, timer
+ * coalescing in a background tab, or the few milliseconds between our check and
+ * the SDK's. The extra second costs nothing and turns a rejected request into a
+ * filled one.
+ */
+const INTERSTITIAL_MIN_GAP_MS = 121_000
 
 let lastInterstitialAt = 0
 

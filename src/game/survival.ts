@@ -63,14 +63,26 @@ export const START_SQUAD = 3
  * hit the ceiling. The player who read the bank correctly was the one being
  * short-changed.
  *
- * 1 600 clears the measured ceiling with room over a thirty-stage career. The
- * crowd stopped reading as individuals somewhere around 150, so everything past
- * `MAX_DRAWN` is a number rather than a body — but it is a number the player was
- * promised, and the two hot loops that scale with it (foe bites, obstacle
- * contact) now skip the whole crowd with one distance test when they are
+ * 1 600 cleared the measured ceiling for a THIRTY-stage career. The campaign is
+ * now endless, and 1 600 does not: summing the best `add` leaf of every bank,
+ * a maxed-Squad player pins the cap on additive payouts alone by **stage 86**,
+ * and a player with no shop at all by **stage 116**. Past that point every gate
+ * on every stage silently short-changes them — the exact regression this
+ * constant was raised to fix, arriving again, later.
+ *
+ * 4 000 buys roughly another sixty stages of honest doors. It cannot buy
+ * infinity: the additive path grows without bound and any finite cap is
+ * eventually a lie, which is why `gateAddBase` also flattens into a logarithm
+ * past the authored campaign — the two together keep the promise legible for
+ * far longer than any player will play.
+ *
+ * The crowd stopped reading as individuals somewhere around 150, so everything
+ * past `MAX_DRAWN` is a number rather than a body — but it is a number the
+ * player was promised, and the two hot loops that scale with it (foe bites,
+ * obstacle contact) skip the whole crowd with one distance test when they are
  * nowhere near it.
  */
-export const MAX_SQUAD = 1600
+export const MAX_SQUAD = 4000
 
 /** Ceiling on DRAWN survivors. Beyond this the extra bodies are invisible
  *  anyway (they are behind the front ranks) so we spend the frame elsewhere. */
@@ -187,6 +199,37 @@ export const BULLET_R = 0.16
 export const BULLET_RANGE_SCREEN_MARGIN = 0.15
 export const BULLET_RANGE = (CROWD_SCREEN_Y - BULLET_RANGE_SCREEN_MARGIN) * VIEW_HEIGHT
 
+/**
+ * …and the hard ceiling the Reach upgrade may buy up to.
+ *
+ * The top of the screen, exactly. The base range exists so that a player cannot
+ * shoot what they have not properly seen; the upgrade walks that back to "you
+ * can shoot everything you CAN see", and stops dead there. One unit further and
+ * the game is back to deleting obstacles above the camera — the bug the range
+ * rule was written to fix — except now it would arrive gradually, as a reward,
+ * which is a far harder thing to notice in a playtest.
+ *
+ * Nominal +30 % at level 10 is 14.08 units against a 13.68-unit screen, so the
+ * last level and a half of the track is bounded by the camera rather than by
+ * the number. That is deliberate and it is the honest way round: the track's
+ * promise is "shoot further, up to the whole screen", and the clamp is what
+ * makes the second half of that sentence true.
+ */
+export const BULLET_RANGE_MAX = CROWD_SCREEN_Y * VIEW_HEIGHT
+
+/** Extra reach per Reach level. Ten levels → the +30 % the track advertises. */
+export const RANGE_PER_LEVEL = 0.03
+
+/**
+ * The range the simulation actually fires at.
+ *
+ * `bonus` is `rangeBonus` from the shop (0 … 0.30). Kept in `game/` rather than
+ * in the composable so the pure simulation and its tests never have to reach
+ * into Vue state to answer "how far does a bullet go".
+ */
+export const effectiveBulletRange = (bonus: number): number =>
+  Math.min(BULLET_RANGE_MAX, BULLET_RANGE * (1 + Math.max(0, bonus)))
+
 /** Backstop only — `BULLET_RANGE` is what actually ends a round's flight. Kept
  *  a comfortable margin above the worst case (a stationary crowd, so the round
  *  covers the range at its own speed: 10.8 / 21 ≈ 0.52 s). */
@@ -197,9 +240,20 @@ export const BULLET_LIFE_MS = 900
 /** Sustained fire needed to add one to a `+N` gate. The headline mechanic. */
 export const GATE_TICK_MS = 500
 
-/** A gate stops climbing here so a player who parks on one cannot break the
- *  economy — and so the number always fits its frame. */
-export const GATE_MAX_VALUE = 99
+/**
+ * A gate stops climbing here so a player who parks on one cannot break the
+ * economy — and so the number always fits its frame.
+ *
+ * Was 99, which was fine for thirty stages and a hard break past them: once
+ * `gateAddBase` passes ~91 every `add` leaf clamps to the same 99, and
+ * `legalise` rule 4 — which separates two identical doors by GROWING one —
+ * cannot separate them any more. Measured on the endless road, the first bank
+ * printing two identical doors appears at **stage 161**, and several per stage
+ * beyond it. That is the core invariant of the whole game ("no two doors are
+ * ever worth the same") failing silently, and it turns the pillar between them
+ * into a pure punishment for existing.
+ */
+export const GATE_MAX_VALUE = 999
 
 /**
  * Half-width of one gate leaf.
@@ -305,6 +359,24 @@ export const BARRICADE_COIN_MIN = 2
 export const BARRICADE_COIN_MAX = 4
 
 /**
+ * Loose coins a dead monster scatters, per point of its kill bounty.
+ *
+ * Monsters always paid a bounty; the problem was that the bounty is INVISIBLE —
+ * it lands in a counter behind the HUD — so a pack read as pure cost: rounds
+ * spent, survivors bitten, nothing on screen to show for it. Killing things is
+ * the second verb this game has and it was the only one with no feedback.
+ *
+ * A drop fixes the feel and, more usefully, gives the fight a POSITION: loose
+ * coins must be driven over, so the pack in your lane pays and the pack you
+ * steered around does not. It also gives the Scavenging track a customer it
+ * never had — a player who fights rather than routes.
+ */
+export const FOE_COIN_DROP_PER_BOUNTY = 1.5
+/** An elite drops a real pile — it is the landmark of the stage, and the one
+ *  body worth crossing the lane for. */
+export const FOE_COIN_DROP_ELITE = 14
+
+/**
  * End-boss health before per-stage scaling.
  *
  * Derived from the DPS a stage actually produces, measured with the balance
@@ -378,6 +450,46 @@ export const SLAM_RADIUS_MAX = 2.55
 export const BARRICADE_W = 1.5
 export const BARRICADE_H = 1.0
 
+/**
+ * ─── …and the thing you cannot shoot ────────────────────────────────────────
+ *
+ * Every solid object in the game had an HP bar, which meant every routing
+ * problem had a second, lazier answer: point at it and hold. A player with
+ * enough DPS never had to steer, and DPS is the stat the whole run is built to
+ * grow — so the road got EASIER to navigate exactly as the crowd got bigger.
+ *
+ * A boulder has no number. It eats rounds and does not care, it kills what
+ * walks into it, and the only answer it accepts is the one control the game
+ * actually has. It is what keeps steering a skill at stage 25.
+ *
+ * Deliberately narrow: this is a slalom, not a wall. `nudgeClearRocks` in the
+ * generator guarantees a gap the crowd fits through at full size, so a boulder
+ * field is always passable and never a coin-flip — the difficulty is holding a
+ * line through it while something else is happening, not discovering whether
+ * there was a line at all.
+ */
+export const ROCK_W = 1.35
+export const ROCK_H = 1.15
+/**
+ * Share of the squad a boulder takes per second of contact.
+ *
+ * BELOW a barricade's 0.22, and that is the opposite of where it started.
+ *
+ * The first pass reasoned that a boulder should hurt more than a wall, because
+ * a wall is a mistake you could have shot your way out of. That reasoning
+ * ignored the thing that makes a boulder different: it is PERMANENT. A wall
+ * bills you once and then it is gone, and a rank of boulders bills you for as
+ * long as you are threading it — twice, because the second rank's gap is
+ * offset. At 0.28 the career study walled a competent player at stage 6, on
+ * every purchasing strategy, from the first stage boulders appear on.
+ *
+ * 0.12 keeps the bite real (a hundred-strong crowd grinding one loses a dozen
+ * survivors a second) while leaving the field a routing problem rather than a
+ * toll. The difficulty of a boulder is supposed to be in the line you take
+ * through it, not in the price of touching it.
+ */
+export const ROCK_CRUSH_FRACTION = 0.12
+
 /** Contact radius at which a foe starts eating survivors. */
 export const FOE_REACH = 0.72
 
@@ -449,6 +561,56 @@ export const ELITE_SWEEP_CD = 1.5
  * invisible at a thousand, and the elite has to mean the same thing on stage 2
  * and stage 27.
  */
+/**
+ * ─── The endless road's real difficulty dial ────────────────────────────────
+ *
+ * Everything else the game scales with depth is ABSOLUTE — enemy health, pack
+ * size, wall HP — and a crowd is not. The player's damage is
+ * `squad × damage × fireRate`: three multiplicative terms, all fed by a shop
+ * that is now endless, against enemy health that grows linearly. The crowd wins
+ * that race by construction, and the measurement says so — with the endless
+ * shop in, a benchmark career reached stage 100 with **no stage past 60 costing
+ * more than 1.05 attempts on average**. No wall, but no spread either, and a
+ * leaderboard with no spread ranks patience rather than skill.
+ *
+ * Percentage damage is the one thing a bigger crowd cannot out-scale. The elite
+ * sweep takes a fifth of the squad whatever the squad is; the boss slam takes
+ * nearly a third. Scaling THOSE with depth is the only lever that keeps biting
+ * at stage 200, and it is the lever that separates a player who dodges from one
+ * who merely arrived — which is exactly what the board should be measuring.
+ *
+ * ─── The SHAPE matters more than the slope ─────────────────────────────────
+ *
+ * The first version ramped linearly from stage 30 and it landed on exactly the
+ * wrong player. Measured over careers to 110: a competent run barely noticed
+ * (1.05 → 1.20 attempts a stage at depth) while a MID-SKILL one walled at stage
+ * 32 — the pressure arrived the instant the endless regime began, and the
+ * player who cannot dodge a lane-wide sweep lost a fifth of their crowd over
+ * and over from the first endless stage onward.
+ *
+ * It is quadratic now, which puts almost nothing in the first twenty endless
+ * stages and most of it past eighty:
+ *
+ *     stage   40     60     80     100    110+
+ *     ×       1.03   1.29   1.80   2.20   2.20 (capped)
+ *     sweep   0.21   0.26   0.36   0.40   0.40 (ceiling)
+ *     slam    0.32   0.40   0.50   0.50   0.50 (ceiling)
+ *
+ * So stages 31–60 stay a continuation of the authored campaign — which is where
+ * a returning player who is still learning actually lives — and the squeeze
+ * arrives where only committed players are, which is the half of the curve the
+ * leaderboard is trying to spread out.
+ *
+ * Both ceilings are hard: a percentage attack past ~0.5 is a coin flip on
+ * whether the run continues rather than a hit that can be played around.
+ */
+export const endlessPressure = (stage: number): number =>
+  1 + Math.min(1.2, ((Math.max(0, stage - 30) / 90) ** 2) * 2.6)
+
+/** Ceilings on what one percentage attack may ever take. */
+export const SWEEP_FRACTION_MAX = 0.4
+export const SLAM_FRACTION_MAX = 0.5
+
 export const ELITE_SWEEP_FRACTION = 0.2
 /**
  * How far down the road the arc reaches, from the elite's own feet. It spans
@@ -490,6 +652,38 @@ export const ELITE_LUNGE = 0.55
  * question may be asked before the game accepts the answer.
  */
 export const ELITE_HOLD_MAX = 4.5
+
+/**
+ * ─── …and the body it leaves behind when the fight is lost ──────────────────
+ *
+ * The leash above is what stops a lost fight becoming a death sentence, and it
+ * created the problem this constant fixes: after `ELITE_HOLD_MAX` the elite
+ * breaks off and walks back down the road THROUGH the crowd that failed to kill
+ * it — and it walked through them literally. Survivors crossed the sprite and
+ * came out the other side, which reads as a missing collision rather than as a
+ * monster shouldering its way past.
+ *
+ * Every other solid thing in the game already parts the crowd (`crushAgainst`
+ * pushes what it does not kill). A miniboss is the largest solid thing on the
+ * road and was the one exception, purely because foes are handled by the bite
+ * loop rather than by the obstacle loop.
+ *
+ * The numbers are the DRAWN footprint, not a hitbox invented for the physics:
+ * `drawFoes` paints the body at `scale × 1.25` and its contact shadow at 0.38 of
+ * that across, so a half-width of `scale × 0.475` is exactly the shadow the
+ * player can see. The depth is deliberately larger than the shadow's 0.15: the
+ * sprite stands up out of its own footprint, so a body only as deep as the
+ * ellipse would still let a survivor walk through the monster's KNEES, which is
+ * the same bug with a smaller radius.
+ *
+ * Ordinary foes are NOT solid, and that is a rule rather than an oversight. A
+ * creep is a body the crowd is meant to absorb — making a pack of twelve solid
+ * would turn every routine fight into a routing puzzle the road was never
+ * authored for, and it costs an O(units) pass per foe per frame. Only the elite
+ * is big enough to be walked through visibly, and there is at most one or two.
+ */
+export const ELITE_BODY_HALF_W = 0.475
+export const ELITE_BODY_HALF_H = 0.3
 
 /**
  * ─── Why a bite is also a FRACTION ──────────────────────────────────────────
@@ -554,13 +748,19 @@ export const biteShareFor = (typeId: string): number => {
  */
 export const CHALLENGE_STEP = 0.13
 /**
- * …and 30, not 20, for the same reason 20 was not 12: a cap reached on stage 21
- * is a constant for the last third of the campaign, i.e. it stops being a
- * difficulty curve exactly where the player has had the most practice. A player
- * who has cleared thirty stages without ever losing one has earned a game that
- * is still moving.
+ * …and 90, not 30, for the same reason 30 was not 12: a cap the player REACHES
+ * is a constant from that moment on, i.e. it stops being a difficulty curve
+ * exactly where they have had the most practice.
+ *
+ * 30 was reached on stage 31 of a clean career — which was the last stage of
+ * the campaign when it was written, and is now barely the start of one. At 90
+ * the handicap is still climbing at stage 91, by which point it is worth ×12.7
+ * enemy health on its own; anyone that deep is choosing to be, and the streak
+ * is the only knob in the game that measures the PLAYER rather than the stage.
+ * A single loss still wipes it to zero, so it can never be why somebody is
+ * stuck — it is the endless game's real difficulty dial.
  */
-export const CHALLENGE_MAX = 30
+export const CHALLENGE_MAX = 90
 
 /** Enemy-health multiplier for a challenge streak. */
 export const challengeFactor = (streak: number): number =>
@@ -579,6 +779,41 @@ export const challengePackFactor = (streak: number): number =>
 
 export const challengeBiteFactor = (streak: number): number =>
   1 + Math.max(0, Math.min(CHALLENGE_MAX, streak)) * 0.04
+
+/**
+ * ─── The lean, and why it is a difficulty knob rather than a paywall ────────
+ *
+ * The `×3` at the end of a stage is the game's primary income: the coins a run
+ * banks by itself buy an upgrade every few stages, and the tripled version buys
+ * one every stage. A player who takes it keeps pace with the curve. A player
+ * who never takes it falls behind it — and that is already true without any
+ * code, because the shop is what the curve is priced against.
+ *
+ * This makes the falling-behind FELT rather than merely arithmetic. Each
+ * consecutive stage cleared without claiming leans the road a little harder, so
+ * the pressure arrives as "this is getting heavy" during the run instead of as
+ * a wall six stages later when the shop is empty and it is too late to act on.
+ *
+ * Three rules keep it a nudge and not a punishment:
+ *
+ *   1. It RESETS to zero the moment the player claims once. It is a lean, not a
+ *      debt — one claim buys back the whole curve.
+ *   2. It is capped (`DECLINE_MAX` steps). A player who never wants to watch an
+ *      ad still has a finite, beatable game; they are simply playing the hard
+ *      version of it.
+ *   3. It only counts a decline when the offer was actually THERE. A no-fill,
+ *      a rate limit, or a build with no ad provider must never make the game
+ *      harder — that would be punishing the player for the network's weather.
+ *
+ * Health only, deliberately: unlike the challenge streak this does not thicken
+ * the packs or sharpen the bites, because it is meant to be a slope the player
+ * can still climb with skill rather than a different game.
+ */
+export const DECLINE_STEP = 0.07
+export const DECLINE_MAX = 6
+
+export const rewardDeclineFactor = (declines: number): number =>
+  1 + Math.max(0, Math.min(DECLINE_MAX, declines)) * DECLINE_STEP
 
 /**
  * Health multiplier applied to EVERY enemy on a stage the player has already
@@ -704,7 +939,7 @@ export type GateOp = 'add' | 'sub' | 'mul' | 'div'
  *  two are one mechanic with a sign, and an asymmetric cap would make the
  *  mirror a lie. In practice the pump window (see `BULLET_RANGE`) keeps a
  *  sub in the low tens. */
-export const GATE_SUB_MAX = 99
+export const GATE_SUB_MAX = 999
 
 export interface Gate {
   id: number
@@ -781,6 +1016,24 @@ export interface Barricade {
   maxHp: number
   flash: number
   dead: boolean
+}
+
+/**
+ * A boulder. No `hp`, no `dead`, and that absence is the whole entity.
+ *
+ * Everything else solid in the lane can be deleted with enough fire, which
+ * quietly turned routing into a DPS check as a run grew. This cannot, so it is
+ * the one obstacle whose answer is always the steering.
+ */
+export interface Rock {
+  id: number
+  x: number
+  y: number
+  w: number
+  /** Fixed per-body tilt and silhouette seed, so a field of them does not read
+   *  as one shape stamped four times. */
+  spin: number
+  seed: number
 }
 
 export interface Foe {

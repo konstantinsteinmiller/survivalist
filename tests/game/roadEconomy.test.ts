@@ -342,30 +342,45 @@ describe('the coin magnet is bought, not given', () => {
 
   it('leaves coins on the road for a player who does not drive over them',
     async () => {
+      // Asserted on ONE coin at a known position rather than on a whole run's
+      // income, and that is a deliberate rewrite. The old version raced two
+      // runs — one sweeping the lane, one pinned to a rail — and compared their
+      // totals, which worked only while placed trails were the entire economy.
+      // They are not any more: monsters drop coins where they die (see
+      // `FOE_COIN_DROP_PER_BOUNTY`) and monsters home in on the crowd, so both
+      // runs now bank a pile from wherever they happened to be fighting and the
+      // trail signal drowns in it. This asks the question the name asks.
       const game = await importGame()
-      const collectedFrom = (aim: (i: number) => number): number => {
-        game.startStage(2)
-        // Enough bodies and damage that the run finishes either way — this
-        // measures the haul, not survival.
-        game.debugAddUnits(150)
-        game.debugAddDamage(40)
-        for (let i = 0; i < 6000; i++) {
-          game.steerTo(aim(i))
-          game.step(STEP_MS)
-          if (settled(game)) break
-        }
-        return game.runCoins.value
+      game.startStage(2)
+      game.debugAddUnits(40)
+      game.step(STEP_MS)
+
+      const drop = (x: number): { value: number; taken: boolean } => {
+        const p = { id: -1, x, y: game.anchor().y + 3, value: 7, taken: false, phase: 0 }
+        game.getPickups().push(p)
+        return p
       }
 
-      // A player who sweeps the whole lane versus one who pins themselves to a
-      // rail. If the magnet were lane-wide these would be identical, because
-      // every coin would arrive regardless of where the crowd ran — which is
-      // exactly what shipped first and exactly what made the trails scenery.
-      const sweeping = collectedFrom((i) => Math.sin(i / 45) * LANE_HALF)
-      const pinned = collectedFrom(() => -LANE_HALF)
-      expect(sweeping, 'nothing was collected at all').toBeGreaterThan(0)
-      expect(sweeping, 'hugging one rail collected as much as working the lane')
-        .toBeGreaterThan(pinned)
+      // Across the lane from the crowd: an unupgraded magnet must not reach it.
+      const far = drop(LANE_HALF - 0.5)
+      const coinsBefore = game.runCoins.value
+      for (let i = 0; i < 90; i++) {
+        game.steerTo(-LANE_HALF)
+        game.step(STEP_MS)
+      }
+      expect(far.taken, 'the magnet swept a coin from across the lane').toBe(false)
+      expect(game.runCoins.value, 'a coin nobody drove over still paid')
+        .toBe(coinsBefore)
+
+      // …and the same coin, driven over, is collected. Without this half the
+      // test above passes just as well on a magnet that is broken outright.
+      const near = drop(game.anchor().x)
+      for (let i = 0; i < 90; i++) {
+        game.steerTo(near.x)
+        game.step(STEP_MS)
+        if (near.taken) break
+      }
+      expect(near.taken, 'a coin driven straight over was not collected').toBe(true)
     })
 
   it('grows with the Scavenging track', async () => {

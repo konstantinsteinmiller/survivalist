@@ -59,6 +59,17 @@ export const FAILED_STAGES_KEY = 'ts_failed_stages'
  */
 export const CHALLENGE_KEY = 'ts_challenge'
 
+/**
+ * Consecutive stage wins the player finished WITHOUT claiming the `×3` reward.
+ *
+ * Persisted because it is a curve, not a session mood: the pressure to take the
+ * reward has to survive the tab being closed, or the whole mechanism resets
+ * itself every time somebody comes back tomorrow. Reset to 0 by a single claim,
+ * and only ever incremented when the offer was genuinely available — see
+ * `rewardDeclineFactor`.
+ */
+export const REWARD_DECLINE_KEY = 'ts_reward_declines'
+
 // ─── Onboarding / one-shot UI nudges ────────────────────────────────────────
 
 /** First-run onboarding consumed flag — retires the control hints for good. */
@@ -86,6 +97,55 @@ export const SHOP_SPOTLIGHT_KEY = 'ts_shop_spotlight_seen'
  * likely to read as a bug is the one mechanic nobody is ever told about.
  */
 export const GUARD_HINT_KEY = 'ts_guard_hint_seen'
+
+// ─── Leaderboard identity + posting bookkeeping ─────────────────────────────
+//
+// All six live inside the same `ts_` blob as everything else, so they ride the
+// cloud save with the rest of the player's progress. That is the point: an id
+// that does not survive a device change hands the same player a second row on
+// the board, and a board row nobody can reclaim is the one kind of progress
+// loss that cannot be repaired from the client.
+
+/**
+ * The player's stable leaderboard id — the primary key of their row.
+ *
+ * Mirrored to a standalone `survivalist_uid` localStorage entry OUTSIDE this
+ * prefix (see `usePlayerIdentity.ts`), because a hydrate from an older cloud
+ * blob can hand the game a save with no id in it and the game would mint a
+ * second one.
+ */
+export const PLAYER_ID_KEY = 'ts_player_id'
+/** A name the player chose for themselves. Highest precedence, never
+ *  overwritten by a platform SDK or by the generated fallback. */
+export const PLAYER_NAME_KEY = 'ts_player_name'
+/**
+ * The last display name a platform SDK handed us, REMEMBERED.
+ *
+ * Without it an offline session — or a portal that only exposes a name to
+ * signed-in players — flips the board row back to a generated name and the
+ * player's friends stop finding them.
+ */
+export const SDK_NAME_KEY = 'ts_sdk_name'
+/** The generated `Runner418302`-style fallback, minted once and kept. Re-rolling
+ *  it every session would relabel the row on every visit. */
+export const ANON_NAME_KEY = 'ts_anon_name'
+/**
+ * The name the board row is currently labelled with, as far as we know.
+ *
+ * Compared against the resolved name after every run: when they differ the
+ * client re-posts the SAME score purely to relabel the row. Without this the
+ * only way a rename ever reaches the board is a new personal record.
+ */
+export const POSTED_NAME_KEY = 'ts_posted_name'
+/**
+ * The highest stage already sent to the leaderboard.
+ *
+ * The whole quota design rests on this: the client writes ONLY when the player
+ * beats it. A board that is posted to at the end of every run costs one write
+ * per ~40 s of play per player, which is the difference between a free tier and
+ * a bill.
+ */
+export const SUBMITTED_STAGE_KEY = 'ts_submitted_stage'
 
 // ─── User settings ──────────────────────────────────────────────────────────
 

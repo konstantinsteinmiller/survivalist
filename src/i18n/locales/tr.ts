@@ -41,9 +41,28 @@ export default {
     'rallied': 'İkinci nefes',
     'peakSquad': 'En büyük ekip',
     'kills': 'Öldürme',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Altınlar üçe katlandı!',
     'nextStage': 'Sonraki bölüm',
     'tryAgain': 'Tekrar dene',
-    'upgrade': 'Geliştir'
+    'upgrade': 'Geliştir',
+    'rankLabel': 'Sıra',
+    'rankOf': '{n} içinde'
+  },
+
+  'leaderboard': {
+    'title': 'Liderlik Tablosu',
+    'rank': '#',
+    'player': 'Oyuncu',
+    'stage': 'Bölüm',
+    'squad': 'Ekip',
+    'empty': 'Henüz skor yok. İlk sen ol!',
+    'failed': 'Liderlik tablosuna ulaşılamadı.',
+    'loading': 'Yükleniyor…',
+    'you': 'Sen',
+    'yourRank': 'Sıran #{n}',
+    'of': '{n} oyuncu içinde'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Ekip',
       'power': 'Ateş gücü',
       'rate': 'Atış hızı',
+      'range': 'Menzil',
       'scavenge': 'Toplayıcılık'
     },
     'descriptions': {
       'squad': 'Her bölüme daha çok hayatta kalanla başla.',
       'power': 'Her hayatta kalan atış başına daha çok hasar verir.',
       'rate': 'Her hayatta kalan daha hızlı ateş eder.',
+      'range': 'Takımın yolda daha ileriden ateş açar.',
       'scavenge': 'Her turdan daha çok altın kazan.'
     }
   },

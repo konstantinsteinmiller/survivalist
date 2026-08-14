@@ -68,6 +68,62 @@ describe('the crowd behaves like a swarm against the rail, not a ghost through i
     // rail, which is the same visual bug wearing a different hat.
     expect(pinned).toBeGreaterThan(centred * 1.15)
   })
+
+  it('parts around a miniboss instead of walking through it', async () => {
+    const game = await importGame()
+    const { ELITE_BODY_HALF_H, ELITE_BODY_HALF_W, UNIT_R } = await import('@/game/survival')
+
+    // The reported bug: a squad that FAILS to kill the elite watches it break
+    // off after `ELITE_HOLD_MAX` and walk back down the road straight through
+    // them, survivors crossing the sprite and coming out the far side. Every
+    // other solid thing on the road already parts the crowd; the elite was the
+    // exception because foes are handled by the bite loop, not the obstacle one.
+    //
+    // Deliberately UNDER-GUNNED, and that is the whole setup: while the elite is
+    // holding, `stopAt = f.y - ELITE_HOLD_AHEAD` keeps the crowd a clear 1.3
+    // units short of the body, so a squad that wins the fight never touches it
+    // and proves nothing. Stage 14 against forty survivors with no upgrades is a
+    // fight the crowd loses — the leash expires, the elite breaks off, and it
+    // walks back down the road through the middle of them. (Measured: a
+    // 400-strong squad on stage 6 kills it in 7.5 s and never gets closer than
+    // 1.30.) Steered dead centre so it ends up inside the formation rather than
+    // by a rail, where the road clamp would legitimately pin a survivor inside.
+    game.startStage(14)
+    game.debugAddUnits(40)
+    game.steerTo(0)
+
+    let sawElite = false
+    let sawInBand = false
+    let sawItPass = false
+
+    for (let i = 0; i < 2600; i++) {
+      game.step(16)
+      const elite = game.getFoes().find((f) => f.elite && !f.dead)
+      if (!elite) continue
+      sawElite = true
+      if (elite.y < game.anchor().y) sawItPass = true
+
+      const halfW = elite.scale * ELITE_BODY_HALF_W
+      const halfH = elite.scale * ELITE_BODY_HALF_H
+      for (const u of game.getUnits()) {
+        if (u.dying > 0) continue
+        // Only the survivors level with the body can be inside it at all.
+        if (Math.abs(u.y - elite.y) > halfH + UNIT_R) continue
+        sawInBand = true
+        expect(
+          Math.abs(u.x - elite.x),
+          `frame ${i}: a survivor stood inside the miniboss at x=${u.x.toFixed(2)} ` +
+          `against a body at ${elite.x.toFixed(2)} ±${halfW.toFixed(2)}`
+        ).toBeGreaterThanOrEqual(halfW + UNIT_R - 1e-6)
+      }
+    }
+
+    expect(sawElite, 'no elite ever spawned — the test proved nothing').toBe(true)
+    expect(sawInBand, 'no survivor ever stood level with the body').toBe(true)
+    // …and the case that was actually reported: the crowd out-lived the hold and
+    // the elite walked back through them.
+    expect(sawItPass, 'the elite never broke off and walked past').toBe(true)
+  })
 })
 
 describe('the HUD can never be handed a number it cannot render', () => {

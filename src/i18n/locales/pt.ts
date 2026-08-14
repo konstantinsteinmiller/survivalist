@@ -41,9 +41,28 @@ export default {
     'rallied': 'Segundo fôlego',
     'peakSquad': 'Maior esquadrão',
     'kills': 'Abates',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Moedas triplicadas!',
     'nextStage': 'Próxima fase',
     'tryAgain': 'Tentar de novo',
-    'upgrade': 'Melhorar'
+    'upgrade': 'Melhorar',
+    'rankLabel': 'Posição',
+    'rankOf': 'de {n}'
+  },
+
+  'leaderboard': {
+    'title': 'Classificação',
+    'rank': '#',
+    'player': 'Jogador',
+    'stage': 'Fase',
+    'squad': 'Esquadrão',
+    'empty': 'Ainda não há marcas. Seja o primeiro!',
+    'failed': 'Não foi possível carregar a classificação.',
+    'loading': 'Carregando…',
+    'you': 'Você',
+    'yourRank': 'Você é #{n}',
+    'of': 'de {n} jogadores'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Esquadrão',
       'power': 'Poder de fogo',
       'rate': 'Cadência',
+      'range': 'Alcance',
       'scavenge': 'Coleta'
     },
     'descriptions': {
       'squad': 'Comece cada fase com mais sobreviventes.',
       'power': 'Cada sobrevivente causa mais dano por tiro.',
       'rate': 'Cada sobrevivente atira mais rápido.',
+      'range': 'Seu esquadrão abre fogo mais adiante na estrada.',
       'scavenge': 'Ganhe mais moedas em cada partida.'
     }
   },

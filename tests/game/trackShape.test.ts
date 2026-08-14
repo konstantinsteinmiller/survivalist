@@ -11,6 +11,7 @@ import {
   SUB_EARLIEST,
   MINIBOSS_STAGE_THIRD,
   mulLeaves,
+  mulThrees,
   packSize,
   trapChance,
   TRAP_EARLIEST,
@@ -50,7 +51,22 @@ import {
 // Each one is a one-character change away from silently becoming something
 // else, so they are asserted across the whole thirty-stage campaign.
 
-const STAGES = Array.from({ length: 30 }, (_, i) => i + 1)
+/**
+ * The campaign is ENDLESS, so "the whole campaign" is not a list any more.
+ *
+ * Every invariant below is asserted across the thirty authored stages AND a
+ * spread of the endless road — including stages past every place the generator
+ * used to quietly stop scaling (the beat-gap floor at 32, the trap-odds cap at
+ * 30, the multiplier freeze at 6) and past the two measured hard breaks: the
+ * `MAX_SQUAD` overrun around stage 86 and the identical-doors break at 161.
+ *
+ * 300 is the far end because that is roughly a day of unbroken play; if the
+ * shape holds there it holds anywhere a human will actually go.
+ */
+const STAGES = [
+  ...Array.from({ length: 30 }, (_, i) => i + 1),
+  35, 40, 50, 60, 75, 90, 100, 120, 150, 161, 175, 200, 250, 300
+]
 
 /** Thirty stages × a dozen assertions is thirty `buildTrack` calls, not four
  *  hundred. Determinism is asserted separately, so caching cannot hide a bug. */
@@ -314,14 +330,19 @@ describe('traps and multipliers arrive on schedule', () => {
     }
   })
 
-  it('holds ×3 until stage 8 and ÷5 until stage 6', () => {
+  it('holds ÷3 until stage 4, ÷5 until stage 6 and ×3 until stage 8', () => {
     for (const stage of STAGES) {
       for (const bank of gateBanks(stage)) {
         for (const leaf of bank.leaves) {
           if (leaf.op === 'mul') expect(leaf.value === 2 || leaf.value === 3).toBe(true)
           if (leaf.op === 'mul' && leaf.value >= 3) expect(stage).toBeGreaterThanOrEqual(8)
+          // Three rungs of trap, each with its own unlock. `÷3` is the middle
+          // one — harsh enough to be a real decision, survivable enough to be
+          // worth offering against something good.
+          if (leaf.op === 'div') expect([2, 3, 5], `stage ${stage} rolled ÷${leaf.value}`)
+            .toContain(leaf.value)
+          if (leaf.op === 'div' && leaf.value === 3) expect(stage).toBeGreaterThanOrEqual(4)
           if (leaf.op === 'div' && leaf.value >= 5) expect(stage).toBeGreaterThanOrEqual(6)
-          if (leaf.op === 'div') expect(leaf.value === 2 || leaf.value === 5).toBe(true)
         }
       }
     }
@@ -334,8 +355,11 @@ describe('traps and multipliers arrive on schedule', () => {
       const muls = leaves.filter((l) => l.op === 'mul')
       expect(muls.length, `stage ${stage} compounds ${muls.length} multipliers`)
         .toBeLessThanOrEqual(mulLeaves(stage))
-      expect(muls.filter((l) => l.value >= 3).length, `stage ${stage} rolls more than one ×3`)
-        .toBeLessThanOrEqual(1)
+      // The `×3` budget grows with the road for the same reason `mulLeaves`
+      // does: "exactly one, forever" gets rarer every stage in a campaign with
+      // no end, and by stage 100 it was one spike in twenty banks.
+      expect(muls.filter((l) => l.value >= 3).length, `stage ${stage} overspends its ×3 budget`)
+        .toBeLessThanOrEqual(mulThrees(stage))
     }
   })
 
@@ -454,16 +478,23 @@ describe('the curve ramps for all thirty stages', () => {
     }
   })
 
-  it('tightens the beat gap right up to the last stage', () => {
-    // The one knob that goes DOWN. Its floor is 7 units — below that the
-    // previous beat is still on screen when the next arrives.
+  it('keeps tightening the beat gap forever, and never past readable', () => {
+    // The one knob that goes DOWN, and the single biggest reason a stage-100
+    // road used to feel like a stage-30 road: the floor was a flat 7 reached at
+    // stage 30, so every endless stage beat identically. It now keeps closing
+    // logarithmically toward a hard 5.2 — below about 5 the previous beat is
+    // still on screen when the next arrives, which is not difficulty.
     for (const stage of STAGES) {
       if (stage === 1) continue
       expect(beatGap(stage, 0), `beatGap loosens at stage ${stage}`).toBeLessThanOrEqual(
         beatGap(stage - 1, 0)
       )
-      expect(beatGap(stage, 1)).toBeGreaterThanOrEqual(7)
+      expect(beatGap(stage, 1), `stage ${stage} beats faster than it can be read`)
+        .toBeGreaterThanOrEqual(5.2)
     }
     expect(beatGap(30, 0), 'the beat gap plateaus before stage 30').toBeLessThan(beatGap(20, 0))
+    // …and it is STILL moving deep into the endless road.
+    expect(beatGap(120, 0), 'the beat gap stopped moving past the campaign')
+      .toBeLessThan(beatGap(60, 0))
   })
 })

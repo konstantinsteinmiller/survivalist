@@ -8,14 +8,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * The ceiling has to hold whether the caller came through a button or not.
  */
 
-const loadGate = async (opts: { crazy?: boolean; fullRelease?: boolean; granted?: boolean } = {}) => {
+const loadGate = async (
+  opts: { crazy?: boolean; fullRelease?: boolean; granted?: boolean; provider?: string } = {}
+) => {
   vi.resetModules()
   vi.doMock('@/use/useUser', () => ({ isCrazyWeb: opts.crazy ?? true }))
   vi.doMock('@/use/useMatch', () => ({ isCrazyGamesFullRelease: opts.fullRelease ?? true }))
   const showRewardedAd = vi.fn(async () => opts.granted ?? true)
   vi.doMock('@/use/useAds', async () => {
     const { ref } = await import('vue')
-    return { isRewardedReady: ref(true), showRewardedAd }
+    return {
+      // Gating now follows the resolved provider, not the CG flags alone.
+      adProviderName: opts.provider ?? 'crazygames',
+      isRewardedReady: ref(true),
+      showRewardedAd
+    }
   })
   const mod = await import('@/use/useAdGate')
   mod.__resetRewardWindow()
@@ -78,7 +85,8 @@ describe('rewarded rate limit', () => {
   })
 
   it('does not limit an ungated build — nothing is being requested', async () => {
-    const gate = await loadGate({ crazy: false, fullRelease: false })
+    // Ungated now means "no provider resolved", not "not CrazyGames".
+    const gate = await loadGate({ crazy: false, fullRelease: false, provider: 'noop' })
     for (let i = 0; i < 20; i++) {
       await expect(gate.claimReward(vi.fn())).resolves.toBe(true)
     }

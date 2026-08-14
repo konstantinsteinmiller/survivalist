@@ -39,7 +39,8 @@
  *      flight. Purchases happen between attempts and only between attempts.
  */
 
-import { CHALLENGE_KEY, COINS_KEY, FAILED_STAGES_KEY } from '@/keys'
+import { CHALLENGE_KEY, COINS_KEY, FAILED_STAGES_KEY, REWARD_DECLINE_KEY } from '@/keys'
+import { DECLINE_MAX } from '@/game/survival'
 import type { UpgradeId } from '@/use/useUpgrades'
 import type { DeathCause } from '@/use/useSurvivalGame'
 import { newGraph, playOne, type Graph, type RunResult } from './harness'
@@ -64,11 +65,17 @@ export const CAREER_MAX_SECONDS = 180
 /** The last stage a career is asked to reach. Thirty is the brief. */
 export const LAST_STAGE = 30
 
+/** The result-screen multiplier, mirrored from `GameScene`. */
+const REWARD_MULTIPLIER = 3
+
 export interface CareerOptions {
   policy: Policy
   strategy: BuyStrategy
   seed: number
   lastStage?: number
+  /** Does this player take the `×3` on every stage clear? Default false —
+   *  the career the campaign must stay beatable on. */
+  claimsReward?: boolean
   stuckAfter?: number
   maxSecondsPerAttempt?: number
 }
@@ -291,9 +298,31 @@ export const runCareer = async (o: CareerOptions): Promise<CareerResult> => {
 
       if (run.timedOut) recordTimeoutAsLoss(graph, stage)
 
-      wallet += run.banked
-      earned += run.banked
+      // ── The ×3, or the lack of it ──
+      //
+      // `claimsReward` models the two players the placement creates, and the
+      // difference between them is the whole point of the design:
+      //
+      //   FALSE (default) — banks the stage's own payout and, on every clear,
+      //     accrues a decline. The road leans a little harder each time (see
+      //     `rewardDeclineFactor`) and the shop fills at the slow rate. This is
+      //     the career the campaign has to remain BEATABLE on.
+      //   TRUE            — banks three times the payout and holds the decline
+      //     count at zero. This is the career it has to remain INTERESTING on.
+      //
+      // Modelled here rather than in `playOne` because claiming is a decision
+      // taken on the result screen, after the run has resolved.
+      const banked = o.claimsReward ? run.banked * REWARD_MULTIPLIER : run.banked
+      wallet += banked
+      earned += banked
       cleared = run.cleared
+
+      if (cleared) {
+        const next = o.claimsReward
+          ? 0
+          : Math.min(DECLINE_MAX, Number(graph.state.getState(REWARD_DECLINE_KEY, 0)) || 0) + 1
+        graph.state.setState(REWARD_DECLINE_KEY, Math.min(DECLINE_MAX, next))
+      }
 
       const trip = shop(graph, o.strategy, cleared ? stage + 1 : stage, wallet, run)
       wallet = trip.wallet
@@ -507,7 +536,7 @@ export const careerSamples = async (
   policy: Policy,
   strategy: BuyStrategy,
   samples: number,
-  opts: { seed0?: number; lastStage?: number; stuckAfter?: number } = {}
+  opts: { seed0?: number; lastStage?: number; stuckAfter?: number; claimsReward?: boolean } = {}
 ): Promise<CareerResult[]> => {
   const out: CareerResult[] = []
   const seed0 = opts.seed0 ?? 5000
@@ -518,7 +547,8 @@ export const careerSamples = async (
         strategy,
         seed: seed0 + i * 6367,
         lastStage: opts.lastStage,
-        stuckAfter: opts.stuckAfter
+        stuckAfter: opts.stuckAfter,
+        claimsReward: opts.claimsReward
       })
     )
   }

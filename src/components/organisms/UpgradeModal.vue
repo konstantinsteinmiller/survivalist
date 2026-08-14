@@ -71,8 +71,9 @@ const buy = (row: Row): void => {
   playFx('damageUp')
 }
 
-/** The suffix a track's value carries — "%" for scavenging, nothing else. */
-const suffix = (id: UpgradeId): string => (id === 'scavenge' ? '%' : '')
+/** The suffix a track's value carries. Both percentage tracks wear it: a bare
+ *  `100 → 103` reads as a count of something, which Reach is not. */
+const suffix = (id: UpgradeId): string => (id === 'scavenge' || id === 'range' ? '%' : '')
 </script>
 
 <template lang="pug">
@@ -97,6 +98,12 @@ const suffix = (id: UpgradeId): string => (id === 'scavenge' ? '%' : '')
               path(d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z")
             svg(v-else-if="row.id === 'rate'" viewBox="0 0 24 24" fill="currentColor")
               path(d="M12 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-7-7V3Zm1 3v6l4 2 .9-1.8L14 10.8V6h-1Z")
+            //- Reach: an arrow flying up the lane between two rails, which is
+            //- literally what the track buys — the shot gets further up the
+            //- screen. A crosshair would read as accuracy, which this is not.
+            svg(v-else-if="row.id === 'range'" viewBox="0 0 24 24" fill="currentColor")
+              path(d="M4 3h1.6v18H4zm14.4 0H20v18h-1.6z")
+              path(d="M12 2.6 8.4 7.2h2.4v9.1H9l3 4.6 3-4.6h-1.8V7.2h2.4L12 2.6Z")
             svg(v-else viewBox="0 0 24 24" fill="currentColor")
               path(d="M12 2 9.6 8.6 3 9.8l4.8 4.5L6.5 21 12 17.6 17.5 21l-1.3-6.7L21 9.8l-6.6-1.2L12 2Z")
 
@@ -191,6 +198,8 @@ const suffix = (id: UpgradeId): string => (id === 'scavenge' ? '%' : '')
     color: #ffca6b
   &.is-rate
     color: #a6ff9c
+  &.is-range
+    color: #c8a6ff
   &.is-scavenge
     color: #ffd93c
 

@@ -44,6 +44,14 @@ pnpm build        # type-check + production build
 * **Fully responsive.** 320×658 portrait through desktop fullscreen, safe-area
   insets throughout, no fixed pixel sizing in the UI.
 * **21 languages**, key-parity enforced by a test.
+* **Endless by construction.** Thirty authored stages and then a generator that
+  never stops scaling — fourteen knobs that used to plateau between stages 17
+  and 34 now keep climbing to stage 300 and past it, and three of the five shop
+  tracks have no last level. Locked down by `tests/game/endless.test.ts`.
+* **Optional global board.** Deepest stage reached, posted to a Cloudflare
+  Worker + D1 (`worker/`). One read per page load, one write only on a personal
+  record — and with no endpoint configured the whole feature is simply absent,
+  which is how the Yandex build ships.
 
 ## How it plays
 
@@ -55,12 +63,17 @@ pnpm build        # type-check + production build
 | **Choose** | Gates arrive in banks of two — sometimes three — with a **lethal pillar** between each pair. **One bank, one door:** the door holding most of your crowd claims it and pays in full, and every other offer is destroyed in a shockwave cascade that travels outward from the door you took. The crowd squeezes to fit whichever door you aim at and spills out the far side. |
 | **Grow** | `+N` pays flat; `×2` / `×3` multiply only the survivors that came through; `÷2` / `÷5` are traps that cut them; **`−N` bills you a flat count**. And `−N` charges exactly like `+N` does — your crowd shoots forward whether you like it or not, so *the door you are aiming at is the door that grows*. Aim at the bill and you buy a bigger bill. |
 | **Choose badly** | Some banks have no right answer: **`÷2` beside `−9`**, one pillar between them. A division is cheap when your crowd is small and ruinous when it is big; a subtraction is the reverse. Which door is cheaper depends on the run you are actually having. |
-| **Upgrade** | Supply crates give **+1 damage to every survivor** for the rest of the stage. Total DPS is `squad × damage × fire rate`, so crates and gates compound. |
+| **Upgrade** | Supply crates give **+1 damage to every survivor** for the rest of the stage. Total DPS is `squad × damage × fire rate`, so crates and gates compound. **Every crate prints its HP and they are not all the same**: a heavy one is out of reach until your squad is bigger, so some boxes are things you walk past now and come back for later. |
+| **Hunt** | Monsters **drop coins where they fall**, on top of what they were already worth. You have to drive over them, so the pack in your lane pays and the one you swerved around does not. |
+| **Dodge** | Some things cannot be shot at all. **Boulders** eat your rounds and shrug — they come in two ranks with the gaps offset, so you commit to a line and then have to change it. There is no DPS answer, only steering. |
 | **Survive** | Barricades are numbered HP walls with a guaranteed gap — shoot them down for **2–4 coins** or steer around them; contact kills survivors. Five monster archetypes (creep, husk, hound, brute, flyer) are introduced across stages 1–7. Your fire passes **through** gates, so a doorway never stops you starting a fight — but it only reaches so far: **rounds stop short of the top of the screen**, so anything up there arrives whole and you have to choose what to spend the range on. |
 | **Stand** | One or two minibosses per stage **plant themselves and block the road** — and then **sweep it**. A third of a second of wind-up, an arc across the entire lane, and **a fifth of your squad is gone**. Every 1.5 seconds, alternating sides. There is no safe rail and nothing to dodge behind: either your guns kill it or you walk away from the fight with a quarter of the crowd you brought to it. |
 | **Boss** | One per stage, slamming **where your crowd is** on a one-second telegraph. A missed dodge costs nearly a third of the squad. At two-thirds and one-third health it **plants and shields**, so no amount of firepower skips the fight — and every swing it lands makes the next one arrive sooner and reach further. Arriving with too small a squad no longer means a slow win; it means losing. |
 | **Adapt** | The game keeps pace with you: every stage cleared in a row makes the next 13 % harder — tougher, denser, and costlier per bite — and a single loss resets that completely. A stage that keeps beating you comes back weaker each time: 80 % → 62 % enemy health, a 40 %-weaker slam, and a few extra survivors to start with. |
-| **Bank** | Stage cleared or squad wiped, coins are paid out (a wipe still pays, scaled by progress) and spent on four permanent tracks: Squad, Firepower, Fire Rate, Scavenging. |
+| **Triple** | Every result screen — win or lose — offers **×3 coins** for a short video. It is the game's main income, not a bonus: the stage's own payout moves the shop slowly, the tripled one moves it at the pace the difficulty is priced against. Skip it repeatedly and the road quietly leans harder each stage — never announced, because an offer that threatens you has stopped being an offer; claim once and the lean resets completely. |
+| **Bank** | Stage cleared or squad wiped, coins are paid out (a wipe still pays, scaled by progress) and spent on five permanent tracks: Squad, Firepower, Fire Rate, Reach, Scavenging. Three of them **never max** — Fire Rate and Reach do, because both are bounded by something physical (the bullet budget, the top of the screen) and a level that cannot move the number is worse than no level. |
+| **Keep going** | There is no last stage. The road keeps generating, and everything that makes it a road keeps scaling with it — doors get bigger, packs get denser, beats arrive closer together, three-door banks and multipliers stay as common as they were at stage 10. |
+| **Compare** | Every finished run posts your **deepest stage** to a global board, with squad size as the tie-break. It is optional scenery: no network, no rank, no interruption to the game. |
 
 Full player-facing copy lives in [`description.md`](./description.md); the
 design rationale is in [`GDD.md`](./GDD.md).
@@ -83,13 +96,16 @@ src/use/           reactive layer (module-level singletons)
   useSurvivalArt   the renderer — 11 layers, plus the FX → juice table
   useVfx           event bus + pooled particles / text / decals
   useGameAudio     synth + sample cue router with per-cue throttling
-  useUpgrades      the four coin-bought meta tracks
+  useUpgrades      the five coin-bought meta tracks (three uncapped)
   useTowerState    the single `tower_state` blob + debounced persistence
   useTowerEconomy  coins
+  useLeaderboard   the global depth board — never throws, blocks or delays a run
+  usePlayerIdentity anonymous, stable player id + display name
 
 src/platforms/     platform registry, CSP, capability gates, resolvers
 src/utils/save/    SaveManager, BlobStorage, 8 cloud strategies
 src/components/    F-* design system + game HUD + modals
+worker/            Cloudflare Worker + D1 behind the leaderboard (deploys alone)
 ```
 
 **Balance contract:** difficulty is measured, not guessed. `tests/sim/` drives
@@ -162,6 +178,7 @@ and emits a per-platform CSP.
 | [`retention-roadmap.md`](./retention-roadmap.md) | 18 prioritised retention / conversion features |
 | [`art-todo.md`](./art-todo.md) | Drop-in bitmap override manifest |
 | [`sound-todo.md`](./sound-todo.md) | Audio cue map + what's worth commissioning |
+| [`worker/SETUP.md`](./worker/SETUP.md) | Deploying the leaderboard Worker + D1, start to finish |
 
 ## Dev tools
 

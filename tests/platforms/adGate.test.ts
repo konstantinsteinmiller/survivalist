@@ -11,14 +11,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  *      worst possible moment for one.
  */
 
-const loadGate = async (opts: { crazy?: boolean; fullRelease?: boolean; rewardedReady?: boolean } = {}) => {
+type GateOpts = {
+  crazy?: boolean
+  fullRelease?: boolean
+  rewardedReady?: boolean
+  /** Which ad provider resolved. `'noop'` is local dev / plain web. */
+  provider?: string
+}
+
+const loadGate = async (opts: GateOpts = {}) => {
   vi.resetModules()
   vi.doMock('@/use/useUser', () => ({ isCrazyWeb: opts.crazy ?? false }))
   vi.doMock('@/use/useMatch', () => ({ isCrazyGamesFullRelease: opts.fullRelease ?? false }))
   const showRewardedAd = vi.fn(async () => true)
   vi.doMock('@/use/useAds', async () => {
     const { ref } = await import('vue')
-    return { isRewardedReady: ref(opts.rewardedReady ?? true), showRewardedAd }
+    return {
+      // Default follows the build: a CG build resolves the CG provider, and
+      // anything else defaults to noop unless the test names one.
+      adProviderName: opts.provider ?? (opts.crazy ? 'crazygames' : 'noop'),
+      isRewardedReady: ref(opts.rewardedReady ?? true),
+      showRewardedAd
+    }
   })
   const mod = await import('@/use/useAdGate')
   return { ...mod, showRewardedAd }
@@ -30,13 +44,29 @@ beforeEach(() => {
 })
 
 describe('reward gating', () => {
-  it('grants the perk for free off the CrazyGames full release', async () => {
-    const gate = await loadGate({ crazy: false, fullRelease: false })
+  it('grants the perk for free when no ad provider resolved', async () => {
+    // Local dev, plain web, itch — there is no video to play, so a gate would
+    // make the perk permanently unavailable.
+    const gate = await loadGate({ crazy: false, provider: 'noop' })
     const grant = vi.fn()
     expect(gate.isRewardGated).toBe(false)
     await expect(gate.claimReward(grant)).resolves.toBe(true)
     expect(grant).toHaveBeenCalledTimes(1)
     expect(gate.showRewardedAd).not.toHaveBeenCalled()
+  })
+
+  it('plays a rewarded video on every portal that has one', async () => {
+    // The bug this locks: the gate used to read `isCrazyWeb && fullRelease`, so
+    // five shipping portals with real rewarded inventory handed every perk out
+    // for free — the video never played and the placement never earned.
+    for (const provider of ['playgama', 'gamepix', 'gamemonetize', 'yandex', 'gameDistribution']) {
+      const gate = await loadGate({ crazy: false, provider })
+      const grant = vi.fn()
+      expect(gate.isRewardGated, `${provider} did not gate the reward`).toBe(true)
+      await expect(gate.claimReward(grant)).resolves.toBe(true)
+      expect(gate.showRewardedAd, `${provider} skipped the video`).toHaveBeenCalledTimes(1)
+      expect(grant).toHaveBeenCalledTimes(1)
+    }
   })
 
   it('grants for free on a CrazyGames build that is not the full release', async () => {

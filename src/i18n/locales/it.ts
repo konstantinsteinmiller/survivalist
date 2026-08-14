@@ -41,9 +41,28 @@ export default {
     'rallied': 'Secondo fiato',
     'peakSquad': 'Squadra massima',
     'kills': 'Eliminazioni',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Monete triplicate!',
     'nextStage': 'Livello successivo',
     'tryAgain': 'Riprova',
-    'upgrade': 'Potenzia'
+    'upgrade': 'Potenzia',
+    'rankLabel': 'Posizione',
+    'rankOf': 'su {n}'
+  },
+
+  'leaderboard': {
+    'title': 'Classifica',
+    'rank': '#',
+    'player': 'Giocatore',
+    'stage': 'Livello',
+    'squad': 'Squadra',
+    'empty': 'Ancora nessun punteggio. Sii il primo!',
+    'failed': 'Classifica non raggiungibile.',
+    'loading': 'Caricamento…',
+    'you': 'Tu',
+    'yourRank': 'Sei #{n}',
+    'of': 'su {n} giocatori'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Squadra',
       'power': 'Potenza',
       'rate': 'Cadenza',
+      'range': 'Gittata',
       'scavenge': 'Recupero'
     },
     'descriptions': {
       'squad': 'Inizia ogni livello con più sopravvissuti.',
       'power': 'Ogni sopravvissuto infligge più danni per colpo.',
       'rate': 'Ogni sopravvissuto spara più velocemente.',
+      'range': 'La squadra apre il fuoco più avanti sulla strada.',
       'scavenge': 'Guadagna più monete a ogni partita.'
     }
   },

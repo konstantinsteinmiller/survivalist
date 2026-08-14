@@ -33,51 +33,68 @@ weaker.
    fit whichever door you aim at and spills back out the far side.
 5. **Know what each gate is worth.** `+N` grows while you shoot it. `×2` / `×3`
    multiply only the survivors that actually went through, so they pay best to a
-   big crowd. `÷2` and `÷5` are **traps** — they cut the part of your squad that
-   walks into them. Reading the bank correctly, in the second and a half you
-   have, is the whole game.
+   big crowd. `÷2`, `÷3` and `÷5` are **traps** — they cut the part of your squad
+   that walks into them, and `÷3` is the one that is genuinely arguable against a
+   good offer. Reading the bank correctly, in the second and a half you have, is
+   the whole game.
 6. **Two kinds of supply crate, both worth a detour.**
    *Green* crates give every survivor **+1 damage**. *Blue* crates make every
    survivor **shoot faster** — the only way your rate of fire climbs in a run.
    Both sit off the racing line, and an unbroken crate is a solid object: shoot
-   it down or go around it.
+   it down or go around it. **Every crate prints its health, and they are not
+   all the same** — a heavy one takes more than a small squad can spare, so some
+   boxes are things you walk past today and come back for once you are stronger.
 7. **Everything solid kills.** Barricades, crates and pillars all kill whoever
    runs into them. Every barricade row has a gap; finding it is the point — but
    a wall you shoot down **drops coins**, so removing one is a real choice
    rather than a chore.
-8. **Your fire goes through gates.** A doorway is not armour: shoot through it
+8. **Some things cannot be shot at all.** **Boulders** eat your rounds and
+   shrug. They come in two ranks with the gaps offset, so you commit to a line
+   and then have to change it a second later. There is no firepower answer to a
+   boulder field — only steering.
+9. **Your fire goes through gates.** A doorway is not armour: shoot through it
    at whatever is waiting on the other side, and the gate still climbs while
    you do. But your guns only reach so far up the road — whatever is still near
    the top of the screen arrives whole, so range is something you spend.
-9. **Not every door pays.** `−9` doors bill you a flat count of survivors, and
-   they charge up exactly the way `+N` doors do: your crowd fires forward
-   automatically, so **the door you are aiming at is the door that grows**.
-   Point at the bill on the way in and you buy a bigger bill. Sometimes both
-   doors are bad — `÷2` on one side, `−9` on the other, one lethal pillar
-   between them — and the only question left is which mistake is cheaper for
-   the crowd you happen to have.
-10. **Monsters eat your crowd on contact.** Kill them before they arrive — the
-    hounds and the fliers punish tunnel vision. Each stage also has one or two
-    **minibosses**, and they do not walk past: they **plant themselves and block
-    the road**, then **sweep it end to end**. The road lights up amber for a
-    third of a second, the arc crosses the whole lane, and **a fifth of your
-    squad is gone** — every 1.5 seconds, until one of you is dead. There is no
-    safe side. Kill it fast or leave with a quarter of what you brought.
-11. **Coins do not come to you.** Your crowd picks up what it runs over, so the
+10. **Not every door pays.** `−9` doors bill you a flat count of survivors, and
+    they charge up exactly the way `+N` doors do: your crowd fires forward
+    automatically, so **the door you are aiming at is the door that grows**.
+    Point at the bill on the way in and you buy a bigger bill. Sometimes both
+    doors are bad — `÷2` on one side, `−9` on the other, one lethal pillar
+    between them — and the only question left is which mistake is cheaper for
+    the crowd you happen to have.
+11. **Monsters eat your crowd on contact.** Kill them before they arrive — the
+    hounds and the fliers punish tunnel vision. **They also pay**: a monster you
+    kill drops loose coins where it fell, and you have to drive over them, so
+    the pack in your lane is worth something and the one you swerved around is
+    not. Each stage also has one or two **minibosses**, and they do not walk
+    past: they **plant themselves and block the road**, then **sweep it end to
+    end**. The road lights up amber for a third of a second, the arc crosses the
+    whole lane, and **a fifth of your squad is gone** — every 1.5 seconds, until
+    one of you is dead. There is no safe side. Kill it fast or leave with a
+    quarter of what you brought.
+12. **Coins do not come to you.** Your crowd picks up what it runs over, so the
     curved coin trails are a route worth taking. Upgrade **Scavenging** and the
     magnet reaches further, until you can sweep a whole trail in one pass.
-12. **The boss is the climax of every stage.** It slams the ground where your
+13. **The boss is the climax of every stage.** It slams the ground where your
     crowd is standing, telegraphed by a closing red ring. Keep moving, keep
     firing. Twice a fight — at two-thirds and one-third of its health — it
     **plants and shields**: your fire stops landing, and the swing that follows
     is unavoidable unless you move. And the longer the fight runs, the faster
     and wider it hits. Bring a big enough crowd and it never gets that far.
-13. **Coins buy permanent upgrades** between runs: squad size, firepower, fire
-    rate and coin gain. A wiped run still pays out, and a stage that keeps
-    beating you comes back weaker each time — so no attempt is ever wasted.
-14. **The game keeps pace with you.** Every stage you clear in a row makes the
+14. **Coins buy permanent upgrades** between runs: squad size, firepower, fire
+    rate, **reach** and coin gain. Reach is the quiet one — a longer gun means
+    every gate, crate and wall comes into range sooner, so you get more seconds
+    of fire on each of them. Three of the five tracks **never max out**. A wiped
+    run still pays out, and a stage that keeps beating you comes back weaker
+    each time — so no attempt is ever wasted.
+15. **The game keeps pace with you.** Every stage you clear in a row makes the
     next one a little harder; the moment you lose, that pressure resets
     completely. The streak is the flame on your HUD.
+16. **There is no last stage.** The road keeps generating, and it keeps getting
+    harder in every direction at once — bigger doors, denser packs, beats
+    arriving closer together. How deep you got is the score, and every run posts
+    your best to a **global board**.
 
 ## Controls
 

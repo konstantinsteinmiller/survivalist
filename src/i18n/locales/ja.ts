@@ -41,9 +41,28 @@ export default {
     'rallied': '巻き返し',
     'peakSquad': '最大部隊',
     'kills': '撃破数',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'コイン3倍！',
     'nextStage': '次のステージ',
     'tryAgain': 'もう一度',
-    'upgrade': '強化'
+    'upgrade': '強化',
+    'rankLabel': '順位',
+    'rankOf': '{n} 人中'
+  },
+
+  'leaderboard': {
+    'title': 'ランキング',
+    'rank': '#',
+    'player': 'プレイヤー',
+    'stage': 'ステージ',
+    'squad': '部隊',
+    'empty': 'まだ記録がありません。最初の1人に！',
+    'failed': 'ランキングに接続できません。',
+    'loading': '読み込み中…',
+    'you': 'あなた',
+    'yourRank': 'あなたは {n} 位',
+    'of': '{n} 人中'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': '部隊',
       'power': '火力',
       'rate': '連射速度',
+      'range': '射程',
       'scavenge': '回収'
     },
     'descriptions': {
       'squad': 'より多い仲間でステージを開始。',
       'power': '仲間1人あたりのダメージが上昇。',
       'rate': '仲間全員の射撃が速くなる。',
+      'range': '部隊がより前方から射撃を開始します。',
       'scavenge': '1回のランで得られるコインが増加。'
     }
   },

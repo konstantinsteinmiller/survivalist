@@ -1,5 +1,5 @@
 import {
-  BARRICADE_H, BASE_FIRE_RATE, CRATE_R, CROWD_MAX_R, CROWD_SQUASH, DIVIDER_H,
+  BARRICADE_H, BASE_FIRE_RATE, ROCK_H, CRATE_R, CROWD_MAX_R, CROWD_SQUASH, DIVIDER_H,
   DIVIDER_HALF_W, ELITE_SWEEP_REACH, ELITE_TELEGRAPH,
   LANE_HALF, MAX_FIRE_RATE, SLAM_RADIUS, SLAM_RADIUS_GROWTH,
   SLAM_RADIUS_MAX, VIEW_HEIGHT, UNIT_R,
@@ -7,7 +7,7 @@ import {
 } from '@/game/survival'
 import {
   anchor, crowdRadius, damage, eliteAlive, formationRadius, getBarricades, getBoss,
-  getBullets, getCrates, getDividers, getFoes, getGates, getPickups, getUnits,
+  getBullets, getCrates, getDividers, getFoes, getGates, getPickups, getRocks, getUnits,
   nowMs, phase, runFireRate, squadCount, stage
 } from '@/use/useSurvivalGame'
 import {
@@ -1006,6 +1006,7 @@ export const drawScene = (
   drawPickups(ctx)
   drawCrates(ctx)
   drawBarricades(ctx)
+  drawRocks(ctx)
   // Shock ring → live leaves → the leaves being torn down → the pillars. The
   // ring is flat on the road and the wreckage must never sit over a pillar.
   drawShocks(ctx)
@@ -1312,6 +1313,110 @@ const drawCrates = (ctx: CanvasRenderingContext2D): void => {
     }
     ctx.closePath()
     ctx.fill()
+    ctx.stroke()
+
+    // ── The number ──
+    //
+    // Crates used to be identical boxes, so the only question a crate asked was
+    // "can you be bothered to steer". They now come in tiers (see
+    // `crateTierFor`), and a tier the player cannot READ is a tier that does
+    // not exist — a heavy crate has to be recognisable as the thing to come
+    // back for rather than discovered by wasting three seconds of fire on it.
+    //
+    // Same treatment as a barricade's HP, in the crate's own ink, sat under the
+    // badge so the two never collide: the badge says WHICH stat, the number
+    // says WHAT IT COSTS.
+    const label = formatCount(Math.ceil(c.hp))
+    const fs = Math.max(9, r * 0.62)
+    ctx.font = `900 ${fs}px Angry, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.lineJoin = 'round'
+    ctx.lineWidth = Math.max(2, r * 0.16)
+    ctx.strokeStyle = 'rgba(0,0,0,0.9)'
+    ctx.strokeText(label, 0, r * 0.98)
+    ctx.fillStyle = '#fff'
+    ctx.fillText(label, 0, r * 0.98)
+
+    ctx.restore()
+  }
+}
+
+/**
+ * Boulders.
+ *
+ * The read has to be instant and it has to say ONE thing: *this is not yours to
+ * break*. Every destructible object in the game is a rounded box with a number
+ * and a warm rim; a boulder is an irregular grey lump with neither. No HP bar,
+ * no badge, no glow — the absence of a number IS the mechanic, so nothing on it
+ * may look like a meter.
+ *
+ * Silhouette over detail: it is drawn as a jittered polygon seeded per body, so
+ * a rank of four reads as four rocks rather than one shape repeated, at a cost
+ * of a dozen `lineTo`s. The lit top edge is what stops it reading as a hole in
+ * the road.
+ */
+const drawRocks = (ctx: CanvasRenderingContext2D): void => {
+  for (const r of getRocks()) {
+    const sy = worldToScreenY(r.y)
+    if (sy < -80 || sy > viewH + 80) continue
+    const sx = worldToScreenX(r.x)
+    const w = r.w * scale
+    const h = ROCK_H * scale
+
+    ctx.save()
+    ctx.translate(sx, sy)
+
+    // Contact shadow, so it sits ON the road rather than floating over it.
+    ctx.fillStyle = 'rgba(0,0,0,0.42)'
+    ctx.beginPath()
+    ctx.ellipse(0, h * 0.42, w * 0.52, h * 0.2, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.rotate(r.spin * 0.25)
+
+    // The lump. Eight points on an ellipse, pushed in and out by a hash of the
+    // body's seed — deterministic per rock, so it never shimmers frame to frame.
+    const pts = 8
+    ctx.beginPath()
+    for (let i = 0; i < pts; i++) {
+      const a = (i / pts) * Math.PI * 2
+      const n = ((Math.sin((r.seed + i * 37) * 12.9898) * 43758.5453) % 1 + 1) % 1
+      const rr = 0.78 + n * 0.3
+      const x = Math.cos(a) * w * 0.5 * rr
+      const y = Math.sin(a) * h * 0.5 * rr
+      if (i === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.closePath()
+
+    const body = ctx.createLinearGradient(0, -h * 0.5, 0, h * 0.5)
+    body.addColorStop(0, '#8f97a6')
+    body.addColorStop(0.45, '#5c6472')
+    body.addColorStop(1, '#333a46')
+    ctx.fillStyle = body
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(16,20,28,0.9)'
+    ctx.lineWidth = Math.max(1.6, h * 0.09)
+    ctx.stroke()
+
+    // Two fracture lines. Cheap, and they are what makes it read as stone
+    // rather than as a potato.
+    ctx.strokeStyle = 'rgba(20,24,32,0.55)'
+    ctx.lineWidth = Math.max(1, h * 0.05)
+    ctx.beginPath()
+    ctx.moveTo(-w * 0.22, -h * 0.3)
+    ctx.lineTo(w * 0.04, h * 0.06)
+    ctx.lineTo(-w * 0.1, h * 0.34)
+    ctx.moveTo(w * 0.3, -h * 0.16)
+    ctx.lineTo(w * 0.12, h * 0.1)
+    ctx.stroke()
+
+    // Lit crown.
+    ctx.strokeStyle = 'rgba(210,220,236,0.5)'
+    ctx.lineWidth = Math.max(1, h * 0.06)
+    ctx.beginPath()
+    ctx.arc(0, 0, Math.min(w, h) * 0.42, Math.PI * 1.15, Math.PI * 1.85)
     ctx.stroke()
 
     ctx.restore()
@@ -2987,12 +3092,15 @@ const applyFx = (e: FxEvent): void => {
       break
 
     case 'hit': {
-      const hard = e.on === 'gate' || e.on === 'barricade'
+      const hard = e.on === 'gate' || e.on === 'barricade' || e.on === 'rock'
       playFx(hard ? 'hitHard' : 'hitSoft')
+      // Stone sparks grey-white and reads COLDER than anything the player can
+      // break — the ricochet is the feedback that says "stop shooting this".
       const colour: [number, number, number] = e.on === 'gate' ? [150, 230, 255]
         : e.on === 'crate' ? [200, 160, 90]
           : e.on === 'foe' ? [230, 90, 90]
-            : [200, 205, 215]
+            : e.on === 'rock' ? [225, 232, 245]
+              : [200, 205, 215]
       const n = quality.value === 'low' ? 2 : 4
       for (let i = 0; i < n; i++) {
         emit({

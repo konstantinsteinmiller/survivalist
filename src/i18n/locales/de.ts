@@ -41,9 +41,28 @@ export default {
     'rallied': 'Zweiter Atem',
     'peakSquad': 'Größter Trupp',
     'kills': 'Kills',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Münzen verdreifacht!',
     'nextStage': 'Nächstes Level',
     'tryAgain': 'Nochmal',
-    'upgrade': 'Upgrade'
+    'upgrade': 'Upgrade',
+    'rankLabel': 'Rang',
+    'rankOf': 'von {n}'
+  },
+
+  'leaderboard': {
+    'title': 'Bestenliste',
+    'rank': '#',
+    'player': 'Spieler',
+    'stage': 'Level',
+    'squad': 'Trupp',
+    'empty': 'Noch keine Einträge. Sei der Erste!',
+    'failed': 'Bestenliste nicht erreichbar.',
+    'loading': 'Wird geladen…',
+    'you': 'Du',
+    'yourRank': 'Du bist #{n}',
+    'of': 'von {n} Spielern'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Trupp',
       'power': 'Feuerkraft',
       'rate': 'Feuerrate',
+      'range': 'Reichweite',
       'scavenge': 'Plündern'
     },
     'descriptions': {
       'squad': 'Starte jedes Level mit mehr Überlebenden.',
       'power': 'Jeder Überlebende macht mehr Schaden pro Schuss.',
       'rate': 'Jeder Überlebende schießt schneller.',
+      'range': 'Dein Trupp eröffnet das Feuer weiter vorn.',
       'scavenge': 'Verdiene mehr Münzen pro Lauf.'
     }
   },

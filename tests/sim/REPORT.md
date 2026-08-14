@@ -3,10 +3,15 @@
 How to reproduce every number here:
 
 ```bash
-SIM_STUDY=1 npx vitest run tests/sim/study.test.ts                 # 20 samples/cell
-SIM_STUDY=1 SIM_SAMPLES=10 npx vitest run tests/sim/study.test.ts  # faster
-# PowerShell: $env:SIM_STUDY=1; npx vitest run tests/sim/study.test.ts
+SIM_STUDY=1 npx vitest run tests/sim/study.test.ts --reporter=verbose
+SIM_STUDY=1 SIM_SAMPLES=10 npx vitest run tests/sim/study.test.ts --reporter=verbose
+# PowerShell: $env:SIM_STUDY=1; npx vitest run tests/sim/study.test.ts --reporter=verbose
 ```
+
+**`--reporter=verbose` is not optional.** Vitest 4's default reporter no longer
+echoes `console.log` from a passing test — the study runs for minutes, passes,
+and prints nothing at all. (`--reporter=basic` was the old answer and no longer
+exists in v4.) Studies that write through `SIM_OUT` are unaffected.
 
 The study is excluded from the default suite (it runs 500 full games). The fast
 regression that guards the conclusions — `tests/sim/balance.test.ts` — is in the
@@ -285,6 +290,56 @@ Two side effects worth knowing:
   `s6 p7 r5`. Probed with what the career study says players actually hold at
   that point (`s15 p11 r12`), stage 12 at an eleven-clear streak clears on every
   seed with a peak of 528–588. The wall was in the probe.
+
+## Six changes at once, and what the isolation runs found
+
+Boulders, crate tiers, monster coin drops, `÷3`, no back-to-back multipliers,
+and a cut to the positive-gate base. Two of them behaved nothing like they were
+supposed to, and only isolation runs found it.
+
+**The boulder crush rate was the wrong way round.** Reasoning said a boulder
+should hurt MORE than a barricade (0.28 against 0.22) because a wall is a
+mistake you could have shot your way out of. That ignored permanence: a wall
+bills once and is gone, a boulder field bills for as long as you are threading
+it, twice, because the second rank's gap is offset. Measured on the career: a
+competent player on the cheapest strategy **walled at stage 6 — the first stage
+boulders appear on — on every purchasing strategy**, with the gate base back at
+its old value. At 0.12 the same career is clean and a hundred-strong crowd still
+loses a dozen survivors a second to grinding one.
+
+**Boulders were also generating nowhere at all.** The first field left a two-slot
+gap (3.0 units of clear road) against `MIN_RUN_GAP` = 4.4, so `ensureRunnable`
+stripped every rank to nothing: stage 8 generated zero. Three slots, exactly as
+a barricade row leaves. Coverage after the fix: **21 of 30 stages**.
+
+**The requested gate cut is bounded by the career, not by taste.** Asked for −3
+on `gateAddBase`; measured, with the boulders fixed:
+
+| cut | result |
+| --- | --- |
+| **−1 (shipped)** | campaign clean — competent player reaches stage 12 inside the retry budget |
+| −2 | campaign completes, but one stage in twelve costs a FOURTH attempt |
+| −3 | competent player walls at stage 6 and never recovers |
+
+At −3 a stage-1 door prints `+1` against a starting squad of 3, so the crowd
+never starts and every later multiplier has nothing to multiply — `good` held
+2–5 survivors at mid-road on stage 3. The flat cut is also the wrong shape for
+its own goal: it costs stage 1 seventy-five per cent of a door and stage 14
+twenty-three. The rule that actually attacks compounding is the new `canMul`
+spacing clause.
+
+Where the whole batch landed, 20 seeds per cell:
+
+| stage | optimal | good | average | careless | trail |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 100% | 100% | 100% | 0% | 0% |
+| 2 | 100% | 100% | 80% | 0% | 5% |
+| 3 | 100% | 95% | 75% | 0% | 0% |
+| 4 | 100% | 100% | 100% | 0% | 60% |
+| 5 | 100% | 100% | 40% | 0% | 0% |
+
+Against 100 / 95–100 / 80–100 before the batch: the ceiling is untouched, the
+mid-skill player is measurably squeezed, and the floor is where it always was.
 
 ## Still open
 

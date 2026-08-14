@@ -1,5 +1,6 @@
 import {
   BARRICADE_W,
+  ROCK_W,
   BOSS_BASE_HP,
   CROWD_MAX_R,
   GATE3_DIVIDER_X,
@@ -86,8 +87,12 @@ export type TrackEvent =
    *  A two-leaf bank has exactly one, at 0; a three-leaf bank has two, at
    *  ±`GATE3_DIVIDER_X`. The sim gives each of them `DIVIDER_HALF_W`. */
   | { kind: 'gates'; y: number; leaves: GateLeaf[]; dividers: number[] }
-  | { kind: 'crates'; y: number; crates: Array<{ x: number; kind: CrateKind }>; hp: number }
+  /** `hp` is PER CRATE, not per row: a row is a spread of tiers now, and the
+   *  number is printed on the box. See `crateTierFor`. */
+  | { kind: 'crates'; y: number; crates: Array<{ x: number; kind: CrateKind; hp: number }> }
   | { kind: 'barricade'; y: number; blocks: Array<{ x: number; w: number; hp: number }> }
+  /** Boulders. No `hp` — they cannot be shot, only steered around. */
+  | { kind: 'rocks'; y: number; blocks: Array<{ x: number; w: number }> }
   | { kind: 'foes'; y: number; typeId: string; count: number; spread: number }
   /** One elite body. `hpScale` multiplies the ARCHETYPE'S BASE HP (`foeDef().hp`)
    *  — it already carries the stage scaling, see `minibossHp()`. */
@@ -264,38 +269,71 @@ export const minibossHpScale = (
  * single multiplier is counted, and every `×N` after that is a promise the
  * `MAX_SQUAD` ceiling quietly breaks.
  *
- * ─── The flat term is compensation for `BULLET_RANGE` ──────────────────────
+ * ─── The flat term, and why it has moved twice ─────────────────────────────
  *
- * It was 2, and it is 4 because the guns stopped outranging the camera. A bank
+ * It was 2. It went to 4 when the guns stopped outranging the camera: a bank
  * used to be shootable from ~26 units out, which at stage speed is a ~4.8 s
- * pump — nine ticks — so the number on the plate was a down payment and the
- * pump was the purchase. In range, the same approach is ~2.0 s, or four ticks.
- * Measured across five stages × five policies × 20 seeds, the difference walked
- * `average` from a 60–100 % clear rate to **0 % on stages 2, 3 and 5**, dying
- * at the boss with a crowd that never got built.
+ * pump (nine ticks), and in range the same approach is ~2.0 s (four). That took
+ * `average` from a 60–100 % clear rate to 0 % on stages 2, 3 and 5, so the
+ * value the pump could no longer add moved into the print.
  *
- * So the value moved from the pump to the print, which is where it belongs
- * now: what the door is worth should be mostly readable, and the seconds spent
- * holding fire on it should be the smaller, riskier half of the decision rather
- * than the whole thing. +4 restored the old curve outright (everything cleared
- * everything); +2 lands `optimal` at 100 %, `good` at 95–100 % and `average` at
- * 80–100 %, which is the spread the game had before any of this.
+ * It is now **3**, and the shortfall against the requested −3 is measured
+ * rather than chosen. Doors pay less so the exponential they drive starts
+ * smaller, which is the ask; how much less is bounded by the career:
+ *
+ *   −1 (this)  campaign clean — a competent player reaches stage 12 inside the
+ *              retry budget, `optimal` still clears the authored stages.
+ *   −2         campaign completes, but one stage in twelve costs a competent
+ *              player a FOURTH attempt.
+ *   −3         a competent player walls at stage 6 and never recovers: at
+ *              stage 1 a door prints `+1` against a starting squad of 3, so the
+ *              crowd never gets started and every later multiplier has nothing
+ *              to multiply.
+ *
+ * The flat cut is also the wrong shape for the goal it was aimed at. "Harder to
+ * amass tons of units" is about the top of the curve, and −3 costs stage 1
+ * seventy-five per cent of a door while costing stage 14 twenty-three. The rule
+ * that actually attacks the compounding is `canMul`'s new spacing clause: two
+ * `×2` banks in a row was a free quadruple for anybody who could aim twice, and
+ * that is now impossible.
  */
-export const gateAddBase = (stage: number): number =>
-  Math.min(
-    GATE_MAX_VALUE,
-    4 + Math.floor(Math.min(stage, 14) * 0.9 + Math.max(0, stage - 14) * 0.55)
-  )
+export const gateAddBase = (stage: number): number => {
+  const authored = 3 + Math.floor(Math.min(stage, 14) * 0.9 + Math.max(0, stage - 14) * 0.55)
+  if (stage <= 30) return Math.min(GATE_MAX_VALUE, authored)
+  // ── The endless knee ──
+  //
+  // Past the authored campaign the slope drops again, to a logarithm. Doors
+  // keep getting bigger forever — they have to, or a stage-100 bank is a
+  // stage-30 bank — but the SUM of a stage's adds has to stay under `MAX_SQUAD`
+  // for as long as possible, and a linear +0.55 a stage does not: measured, it
+  // pins the cap on additive payouts alone by stage 86 and every door past that
+  // point lies about its payout.
+  //
+  // 24 at stage 30 → 33 at 60 → 41 at 100 → 55 at 300. Still climbing at three
+  // hundred, and still honest.
+  const base = 3 + Math.floor(14 * 0.9 + 16 * 0.55)
+  return Math.min(GATE_MAX_VALUE, base + Math.floor(Math.log2(1 + (stage - 30) / 7) * 7.4))
+}
 
 /**
  * Bodies in a standard pack.
  *
- * Capped, because twenty on screen is a crowd and forty is a smear — but the
- * old cap of 16 landed on stage 19 and then never moved again, so eleven of the
- * game's thirty stages had exactly the same pack in them. 22 is reached at
- * stage 28, which turns a plateau into a ramp without ever printing a smear.
+ * Two regimes, because two different things are being respected.
+ *
+ * Up to stage 28 the pack grows linearly: twenty on screen is a crowd and the
+ * old cap of 16 landed on stage 19 and then never moved again.
+ *
+ * Past it the cap is a SCREEN limit rather than a campaign one — forty bodies
+ * in one beat is a smear whatever stage it is on — so the pack keeps growing
+ * logarithmically toward a hard 34. Stage 60 gets 25, stage 100 gets 27, stage
+ * 300 gets 31: still climbing at stage 300, still readable, and the endless
+ * game's density comes mostly from `beatGap` sending them more often.
  */
-export const packSize = (stage: number): number => Math.min(22, 3 + Math.floor(stage * 0.7))
+export const packSize = (stage: number): number => {
+  const linear = 3 + Math.floor(stage * 0.7)
+  if (linear <= 22) return linear
+  return Math.min(34, 22 + Math.floor(Math.log2(1 + (stage - 28) / 9) * 3.2))
+}
 
 /**
  * HP of one barricade block.
@@ -332,6 +370,86 @@ export const crateHp = (stage: number, kind: CrateKind): number =>
   )
 
 /**
+ * ─── …and not every crate is the same crate ─────────────────────────────────
+ *
+ * Every box on the road used to carry the identical number, which made the
+ * detour a pure routing question: if you could break one you could break all of
+ * them, so the only thing a crate ever asked was "can you be bothered to steer".
+ *
+ * Three tiers, printed on the box, turn that into a question about the RUN.
+ * A light crate is a freebie for anybody. A standard one is the curve above. A
+ * heavy one is deliberately out of reach of an unupgraded squad at that point
+ * on the road — it is there to be walked past on stage 3 and cracked open on
+ * stage 3 two upgrades later, which is the only way a stat-crate can reward
+ * progression rather than just handing out progression.
+ *
+ * The multipliers are the whole design: 0.6 / 1 / 2.1. The heavy tier is a
+ * little over twice the standard one because "twice" is the point at which a
+ * benchmark run stops breaking it incidentally on the way past and has to
+ * either commit the seconds or come back stronger.
+ */
+/**
+ * ─── …and where on the road it sits ─────────────────────────────────────────
+ *
+ * A crate's HP was a function of the STAGE alone, which priced every box on a
+ * stage against the squad the player had at the start of it. That squad is not
+ * the one that meets the box: the crowd is built on the road, so by three
+ * quarters of the way through a well-played stage it is several times what it
+ * was at the first bank — and the last crate of the stage was being erased in
+ * passing by a run that had to work for the first one.
+ *
+ * The multiplier follows the crowd instead of the stage: a crate at the very
+ * start is priced as it always was, and one at the far end costs `1 + DEPTH`
+ * times as much. 1.9 at the arena end, measured against the crowd growth a
+ * competent run actually produces, so the LAST box on the road is about as much
+ * work as the first one — which is what makes a late detour a decision rather
+ * than a formality.
+ */
+export const CRATE_DEPTH_SCALE = 1.9
+
+/**
+ * `fraction` is the crate's position along the road, 0 … 1.
+ *
+ * The effect FADES IN with the stage, because the premise fades in with it: a
+ * stage-2 crowd barely grows across a stage, so pricing its last crate against
+ * a squad it does not have just makes an early box unbreakable. Full strength
+ * from stage 24, nothing before stage 4.
+ */
+export const crateDepthFactor = (fraction: number, stage: number): number => {
+  const ramp = Math.max(0, Math.min(1, (stage - 4) / 20))
+  return 1 + Math.max(0, Math.min(1, fraction)) * CRATE_DEPTH_SCALE * ramp
+}
+
+export type CrateTier = 'light' | 'standard' | 'heavy'
+
+export const CRATE_TIER_SCALE: Record<CrateTier, number> = {
+  light: 0.6,
+  standard: 1,
+  heavy: 2.1
+}
+
+/**
+ * Roll a tier for one crate.
+ *
+ * Heavies stay rare and arrive late: before stage 3 there is no shop history to
+ * make "come back for it" mean anything, so an unbreakable box would just be a
+ * box that does not work. Lights exist so that a row of three crates is visibly
+ * a row of DIFFERENT crates — the variety has to be legible at a glance or the
+ * number on the box is decoration.
+ */
+export const crateTierFor = (stage: number, roll: number): CrateTier => {
+  const heavy = stage < 3 ? 0 : Math.min(0.3, 0.1 + (stage - 3) * 0.012)
+  if (roll < heavy) return 'heavy'
+  if (roll < heavy + 0.28) return 'light'
+  return 'standard'
+}
+
+/** Final integer HP for one crate: the stage curve, by tier. Always ≥ 1, and
+ *  always an integer, because it is printed on the box. */
+export const crateTierHp = (stage: number, kind: CrateKind, tier: CrateTier): number =>
+  Math.max(1, Math.round(crateHp(stage, kind) * CRATE_TIER_SCALE[tier]))
+
+/**
  * Odds a procedurally-rolled bank carries a `÷N` trap leaf.
  *
  * The old curve hit its 0.55 ceiling at stage 11 and then said the same thing
@@ -341,7 +459,12 @@ export const crateHp = (stage: number, kind: CrateKind): number =>
  * at least one" guarantee in `rollBank`), harder than before where they have
  * been reading them for half an hour (0.58 by stage 29).
  */
-export const trapChance = (stage: number): number => Math.min(0.58, 0.2 + stage * 0.013)
+export const trapChance = (stage: number): number =>
+  // 0.58 was the ceiling of a thirty-stage game and it was reached ON stage 30,
+  // so every endless stage would have inherited exactly the same odds. It now
+  // creeps on toward 0.72 — 0.63 at stage 60, 0.67 at 100 — which keeps the
+  // bank a question without turning the road into a toll booth.
+  Math.min(0.72, 0.2 + stage * 0.013 + Math.max(0, stage - 30) * 0.0012)
 
 /**
  * Odds a trap-free bank carries a `-N` bill instead.
@@ -356,7 +479,7 @@ export const trapChance = (stage: number): number => Math.min(0.58, 0.2 + stage 
  * still be reading the doors.
  */
 export const subChance = (stage: number): number =>
-  stage < 3 ? 0 : Math.min(0.55, 0.3 + (stage - 3) * 0.012)
+  stage < 3 ? 0 : Math.min(0.7, 0.3 + (stage - 3) * 0.012 + Math.max(0, stage - 24) * 0.001)
 
 /**
  * …and how often a stage's one dilemma actually gets rolled.
@@ -367,7 +490,7 @@ export const subChance = (stage: number): number =>
  * stage where the player cannot learn to expect it.
  */
 export const dilemmaChance = (stage: number): number =>
-  stage < 4 ? 0 : Math.min(0.6, 0.35 + (stage - 4) * 0.02)
+  stage < 4 ? 0 : Math.min(0.85, 0.35 + (stage - 4) * 0.02 + Math.max(0, stage - 17) * 0.0015)
 
 /**
  * …and how often that trap is the big one.
@@ -379,7 +502,7 @@ export const dilemmaChance = (stage: number): number =>
  * already at full strength.
  */
 export const bigDivChance = (stage: number): number =>
-  stage < 6 ? 0 : Math.min(0.5, 0.12 + (stage - 6) * 0.015)
+  stage < 6 ? 0 : Math.min(0.68, 0.12 + (stage - 6) * 0.015 + Math.max(0, stage - 32) * 0.0015)
 
 /**
  * Distance between two beats of the procedural body.
@@ -389,8 +512,17 @@ export const bigDivChance = (stage: number): number =>
  * when the next arrives and the player is reacting to two things at once, which
  * reads as unfair rather than fast.
  */
-export const beatGap = (stage: number, roll: number): number =>
-  Math.max(7, 12 - stage * 0.167) + roll * (3 - Math.min(1.4, stage * 0.045))
+export const beatGap = (stage: number, roll: number): number => {
+  // The floor was a flat 7 from stage 30, which made every stage past it beat
+  // for beat identical — the single biggest reason a stage-100 road felt like a
+  // stage-30 road. It now keeps closing, logarithmically, toward a hard 5.2:
+  // 6.4 at stage 60, 6.0 at 100, 5.5 at 300. Below ~5 the crowd cannot finish
+  // reacting to one beat before the next arrives, which is not difficulty.
+  const base = stage <= 30
+    ? Math.max(7, 12 - stage * 0.167)
+    : Math.max(5.2, 7 - Math.log2(1 + (stage - 30) / 12) * 0.55)
+  return base + roll * (3 - Math.min(1.6, stage * 0.045))
+}
 
 /**
  * Which arrangements a stage may roll, and how often.
@@ -411,12 +543,28 @@ export const beatGap = (stage: number, roll: number): number =>
  * ratios inside a family matter.
  */
 export const hazardWeights = (stage: number): Record<Hazard, number> => ({
-  pack: Math.max(1.4, 3.4 - stage * 0.06),
-  wall: Math.max(1.2, 2.8 - stage * 0.05),
+  // Pack and wall are FLOORS that used to be reached at stages 34 and 32 while
+  // every other weight in the family grew without bound — so by stage 100 the
+  // plain pack was 8 % of body beats and the plain wall 5 % of structure beats,
+  // and half of every structure beat was an unshootable boulder field. The
+  // floors now drift up with the stage, slowly, so the simple beats stay part
+  // of the vocabulary instead of being crowded out of it.
+  pack: Math.max(1.4 + Math.max(0, stage - 34) * 0.035, 3.4 - stage * 0.06),
+  wall: Math.max(1.2 + Math.max(0, stage - 32) * 0.03, 2.8 - stage * 0.05),
   chicane: stage >= 4 ? 1.6 + stage * 0.04 : 0,
   gauntlet: stage >= 5 ? 1.2 + stage * 0.03 : 0,
   pincer: stage >= 6 ? 1.0 + stage * 0.06 : 0,
-  swarmWall: stage >= 8 ? 0.8 + stage * 0.09 : 0
+  swarmWall: stage >= 8 ? 0.8 + stage * 0.09 : 0,
+  // Boulders grow faster than anything else in the family, because they are the
+  // only hazard whose difficulty does not decay as the crowd's damage climbs —
+  // every other structure eventually becomes something a big run erases without
+  // changing line. By stage 12 they are the heaviest structure on the roll.
+  //
+  // The gate says 3, but the hand-shaped stages 1–5 do not roll hazards at all,
+  // so in practice the player meets their first boulder on stage 6 — the same
+  // stage the pincer arrives, and one stage after walls have finished teaching
+  // "solid things kill". Measured coverage: 21 of the 30 stages.
+  boulders: stage >= 3 ? 1.1 + stage * 0.11 : 0
 })
 
 // ─── Three-leaf banks, and the multiplier budget ────────────────────────────
@@ -447,7 +595,7 @@ export const CLOSING_TRIPLE_STAGE = 14
  *  climbing slowly: the spike stops being a spike the moment it is the shape a
  *  player expects. */
 export const tripleChance = (stage: number): number =>
-  stage < TRIPLE_STAGE ? 0 : Math.min(0.3, 0.12 + (stage - TRIPLE_STAGE) * 0.008)
+  stage < TRIPLE_STAGE ? 0 : Math.min(0.5, 0.12 + (stage - TRIPLE_STAGE) * 0.008 + Math.max(0, stage - 32) * 0.001)
 
 /**
  * Hard cap on three-leaf banks per stage.
@@ -456,8 +604,16 @@ export const tripleChance = (stage: number): number =>
  * clear minority — which is the point. Two-leaf banks are the game's grammar;
  * the triple is the sentence that makes the player sit up.
  */
-export const maxTriples = (stage: number): number =>
-  stage < TRIPLE_STAGE ? 0 : stage < CLOSING_TRIPLE_STAGE ? 1 : stage < 22 ? 2 : 3
+export const maxTriples = (stage: number): number => {
+  if (stage < TRIPLE_STAGE) return 0
+  if (stage < CLOSING_TRIPLE_STAGE) return 1
+  if (stage < 22) return 2
+  // The ladder used to stop dead at 3 on stage 22. Past it a three-leaf bank
+  // has to keep pace with the road for the same reason multipliers do: a
+  // stage-100 road fits twenty banks, and three widest-question banks in twenty
+  // is a rarer spike than three in ten was.
+  return 3 + Math.floor(Math.max(0, stage - 34) / 18)
+}
 
 /**
  * How many multiplier leaves one stage may print.
@@ -477,7 +633,16 @@ export const maxTriples = (stage: number): number =>
  * Stages 1–5 are exempt: their multipliers are hand-placed and measured, and
  * this budget exists to discipline the GENERATOR, not the level design.
  */
-export const mulLeaves = (stage: number): number => (stage < 6 ? 99 : 3)
+export const mulLeaves = (stage: number): number => {
+  // Was a flat 3 from stage 6 onward — forever. A stage-100 road carries twenty
+  // banks, so 85 % of them were add-vs-add and the `×N` had stopped being part
+  // of the vocabulary. The budget now grows with the number of banks the stage
+  // actually has, one more multiplier per ~14 stages, so the RATIO of
+  // multiplier banks stays roughly what it is at stage 10 instead of decaying
+  // toward zero.
+  if (stage < 6) return 99
+  return 3 + Math.floor(Math.max(0, stage - 20) / 14)
+}
 
 /**
  * …and how many of them may be a `×3`. Exactly one, from the stage it unlocks.
@@ -487,7 +652,13 @@ export const mulLeaves = (stage: number): number => (stage < 6 ? 99 : 3)
  * a stage gets one, it goes to the widest bank on the road (see `canMulThree`),
  * and everything else that wants a multiplier gets a `×2`.
  */
-export const mulThrees = (stage: number): number => (stage < 8 ? 0 : 1)
+export const mulThrees = (stage: number): number => {
+  // Same reasoning as `mulLeaves`, one step behind it: the biggest multiplier
+  // on a stage should stay rare, but "exactly one, forever" made it rarer every
+  // stage in a campaign with no end.
+  if (stage < 8) return 0
+  return 1 + Math.floor(Math.max(0, stage - 30) / 22)
+}
 
 /**
  * How far into a stage a multiplier may first appear, as a fraction of the road.
@@ -585,6 +756,9 @@ interface Beat {
    *  bank just emitted was one. Rationed hard: see `legalise` rule 6. */
   dilemmaLeft: number
   dilemmaLast: boolean
+  /** Did the bank just emitted carry a multiplier? Two in a row is a free
+   *  exponent for anyone who can aim twice — see `canMul`. */
+  mulLast: boolean
   /** Should the next bank be a pure routing call (no pumpable leaf)? Toggled
    *  on every bank so a stage alternates its two question types. */
   routingNext: boolean
@@ -642,6 +816,10 @@ const isDilemma = (specs: readonly LeafSpec[]): boolean =>
  *                 `-N` punishes the door you were AIMING at on the way in, and
  *                 a player needs one stage of "gates can be bad" before the
  *                 subtler version of it is fair.
+ *   stage 4+    — `÷3`: the middle trap. `÷2` is a bank you can afford to read
+ *                 wrong and `÷5` ends runs, which left nothing in between —
+ *                 and "nothing in between" is where a hard choice lives, so
+ *                 this is the value most likely to be paired against a `-N`.
  *   stage 5+    — `×3`: only once a crowd is big enough for a multiplier to be
  *                 the greedy option rather than the obvious one.
  *   stage 6+    — `÷5`: a leaf that ends runs. Never twice in a row (see below).
@@ -653,7 +831,13 @@ const sanitiseLeaf = (stage: number, spec: LeafSpec): LeafSpec => {
   }
   if (spec.op === 'div') {
     if (stage < 2) return add(gateAddBase(stage))
-    return div(stage < 6 ? 2 : spec.value >= 5 ? 5 : 2)
+    // Snap to the harshest legal value at or below what was asked for, so a
+    // caller can always write `div(5)` and get the strongest trap the stage has
+    // earned rather than a crash or a silent `÷2`.
+    const want = Math.round(spec.value)
+    if (want >= 5 && stage >= 6) return div(5)
+    if (want >= 3 && stage >= 4) return div(3)
+    return div(2)
   }
   if (spec.op === 'sub') {
     if (stage < 3) return add(gateAddBase(stage))
@@ -707,6 +891,20 @@ const offerScore = (stage: number, spec: LeafSpec): number =>
         : spec.value
 
 /**
+ * Which trap this bank gets.
+ *
+ * Three rungs rather than two. `÷2` is the one a run absorbs, `÷5` is the one
+ * that ends it, and `÷3` — unlocked at stage 4 — is the rung that was missing:
+ * harsh enough to be a real decision, survivable enough to be worth offering
+ * against something good. `sanitiseLeaf` clamps whatever comes out of here to
+ * what the stage has actually earned, so this only has to express intent.
+ */
+const rollDiv = (b: Beat): LeafSpec => {
+  if (b.rng() < bigDivChance(b.stage)) return div(5)
+  return div(b.stage >= 4 && b.rng() < 0.45 ? 3 : 2)
+}
+
+/**
  * Make a list of offers legal, whatever the caller asked for.
  *
  * Every rule that makes a bank a DECISION is enforced here rather than at the
@@ -749,6 +947,11 @@ const legalise = (b: Beat, specs: readonly LeafSpec[]): LeafSpec[] => {
     // Still no two identical doors, and still at most one trap — a dilemma is a
     // hard question, not a coin flip between two of the same thing.
     if (out[0]!.op === out[1]!.op) out[1] = out[0]!.op === 'div' ? sub(gateSubBase(b.stage)) : div(2)
+    // …and it still owes rule 2. This branch returns early, so the big-trap
+    // cooldown has to be paid HERE or a dilemma becomes a back door for two
+    // consecutive `÷5`s — which is precisely what it did: stage 20 doubled
+    // down at y = 188.
+    if (b.bigDivLast) for (let i = 0; i < out.length; i++) if (isBigTrap(out[i]!)) out[i] = div(3)
     return out.slice(0, 2)
   }
   b.dilemmaLast = false
@@ -862,6 +1065,7 @@ const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
   const halfW = triple ? GATE3_LEAF_HALF : GATE_LEAF_HALF
 
   b.bigDivLast = offers.some(isBigTrap)
+  b.mulLast = offers.some((s) => s.op === 'mul')
   const trapped = offers.some((s) => s.op === 'div')
   b.routingNext = offers.some((s) => s.op === 'add')
   b.trapPlaced = b.trapPlaced || trapped
@@ -926,7 +1130,20 @@ const soloGate = (b: Beat, y: number, value: number): void => {
  * — which is why the threshold is 2 rather than 1), and the crowd has to be big
  * enough for the question to have two answers (`MUL_EARLIEST`).
  */
-const canMul = (b: Beat, y: number): boolean => b.mulLeft >= 2 && y > b.arenaY * MUL_EARLIEST
+/**
+ * May this bank carry a multiplier?
+ *
+ * `!b.mulLast` is the load-bearing clause and it was missing. Two multiplier
+ * banks in a row is the single most degenerate shape the generator can print:
+ * `×2` then `×2` is a quadruple for a player who simply aimed twice, no read
+ * required, and it hands perfect play an exponent the difficulty curve was
+ * never priced against. Spacing them means a multiplier always lands on a crowd
+ * the player had to keep alive through something else first, which is the only
+ * thing that makes "worth the most to a big crowd" a decision rather than a
+ * reward for existing.
+ */
+const canMul = (b: Beat, y: number): boolean =>
+  b.mulLeft >= 2 && !b.mulLast && y > b.arenaY * MUL_EARLIEST
 
 /**
  * May this bank carry a trap?
@@ -977,7 +1194,6 @@ const rollTriple = (b: Beat, y: number): boolean => {
   // Trap-carrying more often than not: three doors is where a `÷N` reads
   // cleanest, because the two offers beside it are visibly, differently better.
   const trap = mayTrap && (!big || b.rng() < 0.6)
-  const bigTrap = trap && b.rng() < bigDivChance(b.stage)
 
   const best = big
     ? mul(canMulThree(b, true) && b.rng() < 0.5 ? 3 : 2)
@@ -991,7 +1207,7 @@ const rollTriple = (b: Beat, y: number): boolean => {
     ? add(base + Math.floor(b.rng() * 3))
     : add(Math.max(2, Math.round(base * 0.55)))
   const worst = trap
-    ? div(bigTrap ? 5 : 2)
+    ? rollDiv(b)
     : add(Math.max(1, Math.round(base * 0.4)))
 
   const roll = b.rng()
@@ -1032,7 +1248,6 @@ const rollBank = (b: Beat, y: number): void => {
   // the stage arrives with none rolled, the next bank is one.
   const overdue = b.stage >= 6 && !b.trapPlaced && y > b.arenaY * 0.55
   const trap = canTrap(b, y) && (overdue || b.rng() < trapChance(b.stage))
-  const bigTrap = trap && b.rng() < bigDivChance(b.stage)
   const side = b.rng() < 0.5
 
   // ── The dilemma: `÷N` against `-N`, no good answer ──
@@ -1053,7 +1268,12 @@ const rollBank = (b: Beat, y: number): void => {
     b.rng() < dilemmaChance(b.stage)
   ) {
     const bill = sub(gateSubBase(b.stage) + Math.floor(b.rng() * 3))
-    const cut = div(2)
+    // `÷3` is the dilemma's favourite trap and the reason it was unlocked: it
+    // is the value where a fraction and a count are genuinely close together,
+    // so the answer flips on the crowd the player actually has instead of being
+    // "obviously the ÷2" or "obviously not the ÷5". The harsher one shows up
+    // late, when a crowd is big enough that even a third of it is a real loss.
+    const cut = div(b.rng() < bigDivChance(b.stage) ? 5 : 3)
     bank(b, y, side ? cut : bill, side ? bill : cut)
     return
   }
@@ -1079,7 +1299,7 @@ const rollBank = (b: Beat, y: number): void => {
     // — an `add` leaf is pumpable by definition — so once the stage's budget is
     // spent, every remaining bank is a pumpable one.
     const good = mul(canMulThree(b, false) && b.rng() < 0.4 ? 3 : 2)
-    const bad = trap ? div(bigTrap ? 5 : 2) : add(base + 1 + Math.floor(b.rng() * 3))
+    const bad = trap ? rollDiv(b) : add(base + 1 + Math.floor(b.rng() * 3))
     bank(b, y, side ? good : bad, side ? bad : good)
     return
   }
@@ -1089,7 +1309,7 @@ const rollBank = (b: Beat, y: number): void => {
   // difference is worth.
   const pumpable = add(base + Math.floor(b.rng() * 3))
   const other = trap
-    ? div(bigTrap ? 5 : 2)
+    ? rollDiv(b)
     : canMul(b, y) && b.rng() < 0.45
       ? mul(canMulThree(b, false) && b.rng() < 0.35 ? 3 : 2)
       : add(base + 3 + Math.floor(b.rng() * 3))
@@ -1154,6 +1374,45 @@ const wall = (b: Beat, y: number, blocks: readonly Block[]): void => {
 }
 
 /**
+ * A scatter of boulders, in two ranks, with a lane through them.
+ *
+ * The same runnability guarantee the walls get (`ensureRunnable` → at least
+ * `MIN_RUN_GAP` of clear road), because a field with no line through it is not
+ * a routing problem — it is a dice roll, and one the player cannot even shoot
+ * their way out of. What makes it hard is that the gap in the second rank is
+ * OFFSET from the gap in the first: the crowd has to commit to a line, then
+ * change it, inside about a second.
+ */
+const boulderField = (b: Beat, y: number, count: number): void => {
+  const rank = (gapStart: number, n: number): Array<{ x: number; w: number }> => {
+    const out: Array<{ x: number; w: number }> = []
+    for (let i = 0; i < SLOT_X.length && out.length < n; i++) {
+      // THREE free slots, exactly as a barricade row leaves — 4.5 units of
+      // clear road against `MIN_RUN_GAP` = 4.4. Two slots looks passable on
+      // paper (3.0 units) and is not: measured, `ensureRunnable` stripped every
+      // rank down to nothing and stage 8 generated zero boulders.
+      if (i >= gapStart && i <= gapStart + 2) continue
+      out.push({ x: SLOT_X[i]!, w: ROCK_W })
+    }
+    return out
+  }
+  const firstGap = Math.floor(b.rng() * 4)
+  // Offset, and clamped to the grid: the second rank must ask a DIFFERENT
+  // question, or the field is one wall drawn twice.
+  const secondGap = Math.max(0, Math.min(3, firstGap + (b.rng() < 0.5 ? -2 : 2)))
+
+  for (const [i, gap] of [firstGap, secondGap].entries()) {
+    const kept = ensureRunnable(rank(gap, count).map((r) => ({ ...r, hp: 1 })))
+    if (kept.length === 0) continue
+    b.events.push({
+      kind: 'rocks',
+      y: r2(y + i * 3.2),
+      blocks: kept.map((r) => ({ x: r2(r.x), w: r.w }))
+    })
+  }
+}
+
+/**
  * A wall with a hole in it.
  *
  * The hole is always three slots wide (4.5 units, comfortably past
@@ -1162,19 +1421,67 @@ const wall = (b: Beat, y: number, blocks: readonly Block[]): void => {
  * and a hole where you already are is a breather. Both are useful; the
  * generator alternates them by luck rather than by rule.
  */
+/**
+ * How many ranks deep a wall is.
+ *
+ * One rank is a question a run answers with DPS: two or three upgrades in, the
+ * crowd erases a single row without changing line, and the "shoot it or dodge
+ * it" decision quietly stops being a decision.
+ *
+ * A wall two or three ranks deep cannot be shot through at any sane cost — the
+ * same column has to be broken two or three times over while the crowd closes —
+ * so the only answer left is the gap. That is the point: depth converts a
+ * damage check back into a routing one, and routing is the skill that does not
+ * inflate with the shop.
+ *
+ * Rare early, common late: a stage-6 player still needs walls they can shoot to
+ * learn that walls can be shot.
+ */
+const wallDepth = (b: Beat): number => {
+  // Stage 12, not 6, and measured rather than guessed: at stage 6 a player has
+  // barely opened the shop, and a wall they cannot shoot through is just a wall
+  // — the whole premise of this hazard is that ONE rank stops mattering "once
+  // you have two or three upgrades", so it must not arrive before they do. A
+  // career that never takes the ×3 walled at stage 5 with the earlier gate.
+  if (b.stage < 12) return 1
+  const roll = b.rng()
+  const deep = Math.min(0.5, 0.1 + (b.stage - 12) * 0.011)
+  const triple = Math.min(0.26, 0.02 + Math.max(0, b.stage - 20) * 0.007)
+  if (roll < triple) return 3
+  if (roll < deep) return 2
+  return 1
+}
+
 const barricadeRow = (b: Beat, y: number, count: number): void => {
   const holeStart = Math.floor(b.rng() * 4) // 0..3 → three free slots from here
-  const blocks: Block[] = []
-  const order: number[] = []
-  for (let i = 0; i < SLOT_X.length; i++) if (i < holeStart || i > holeStart + 2) order.push(i)
-  for (const idx of order.slice(0, Math.max(1, count))) {
-    blocks.push({
-      x: SLOT_X[idx]!,
-      w: BARRICADE_W,
-      hp: Math.max(6, Math.round(barricadeHp(b.stage) * (0.8 + b.rng() * 0.45)))
-    })
+  const depth = wallDepth(b)
+
+  for (let rank = 0; rank < depth; rank++) {
+    // The gap stays PUT across ranks, give or take one slot.
+    //
+    // Offsetting it would make a deep wall a slalom, and there is already one
+    // of those (`boulderField`). A deep wall asks a different question: find the
+    // lane, commit to it early, and hold it — the jitter is what stops the lane
+    // being a straight tunnel the player can aim at from ten units back.
+    const jitter = rank === 0 ? 0 : (b.rng() < 0.5 ? -1 : 1) * (b.rng() < 0.45 ? 1 : 0)
+    const start = Math.max(0, Math.min(3, holeStart + jitter))
+    const blocks: Block[] = []
+    const order: number[] = []
+    for (let i = 0; i < SLOT_X.length; i++) if (i < start || i > start + 2) order.push(i)
+    for (const idx of order.slice(0, Math.max(1, count))) {
+      blocks.push({
+        x: SLOT_X[idx]!,
+        w: BARRICADE_W,
+        // Back ranks are cheaper per block. The DEPTH is the cost; making each
+        // rank full price as well would turn a wall into a stage-ender rather
+        // than a detour.
+        hp: Math.max(6, Math.round(
+          barricadeHp(b.stage) * (0.8 + b.rng() * 0.45) * (rank === 0 ? 1 : 0.72)
+        ))
+      })
+    }
+    wall(b, y + rank * 1.7, blocks)
   }
-  wall(b, y, blocks)
 }
 
 // ─── Arrangements ───────────────────────────────────────────────────────────
@@ -1183,7 +1490,7 @@ const barricadeRow = (b: Beat, y: number, count: number): void => {
 // vocabulary the hand-shaped stages are written in and the procedural body
 // rolls between.
 
-export type Hazard = 'pack' | 'wall' | 'chicane' | 'gauntlet' | 'pincer' | 'swarmWall'
+export type Hazard = 'pack' | 'wall' | 'chicane' | 'gauntlet' | 'pincer' | 'swarmWall' | 'boulders'
 
 /**
  * Hazards come in two families and a stage strictly alternates between them:
@@ -1195,7 +1502,7 @@ export type Hazard = 'pack' | 'wall' | 'chicane' | 'gauntlet' | 'pincer' | 'swar
  * the same rhythm the hand-shaped stages are written in.
  */
 const BODY_HAZARDS: readonly Hazard[] = ['pack', 'pincer', 'swarmWall']
-const STRUCTURE_HAZARDS: readonly Hazard[] = ['wall', 'chicane', 'gauntlet']
+const STRUCTURE_HAZARDS: readonly Hazard[] = ['wall', 'chicane', 'gauntlet', 'boulders']
 
 const weightedHazard = (
   rng: () => number,
@@ -1341,8 +1648,14 @@ const crates = (b: Beat, y: number, kind: CrateKind, xs: readonly number[]): voi
   b.events.push({
     kind: 'crates',
     y: r2(y),
-    crates: xs.map((x) => ({ x: clampX(x), kind })),
-    hp: crateHp(b.stage, kind)
+    crates: xs.map((x) => ({
+      x: clampX(x),
+      kind,
+      hp: Math.max(1, Math.round(
+        crateTierHp(b.stage, kind, crateTierFor(b.stage, b.rng()))
+        * crateDepthFactor(y / Math.max(1, b.arenaY), b.stage)
+      ))
+    }))
   })
 }
 
@@ -1668,6 +1981,14 @@ const proceduralBody = (b: Beat): void => {
         b.y += 9
         break
 
+      case 'boulders':
+        boulderField(b, b.y, 3 + (b.rng() < 0.45 ? 1 : 0))
+        // Two ranks 3.2 apart, plus room to be back on a line before whatever
+        // comes next — a slalom that runs straight into a gate bank is a bank
+        // nobody got to read.
+        b.y += 9
+        break
+
       case 'pincer':
         pincer(b, b.y, pickFoe(b, roster), 1 + (b.rng() < 0.4 ? 1 : 0))
         b.y += 5
@@ -1782,12 +2103,33 @@ const nudgeClearElite = (b: Beat, y: number): number => {
  */
 const placeMinibosses = (b: Beat): void => {
   if (b.stage < 2) return
+
+  // ── How many landmarks a road gets ──
+  //
+  // Three was the ceiling and it was reached on stage 20, so a stage-100 road —
+  // 620 units, ~83 seconds — still got exactly three, spaced almost half a
+  // minute apart. An elite is the thing that breaks a stage into fights; at
+  // that spacing the stage stops having a shape at all.
+  //
+  // Past stage 40 a fourth arrives, and one more every 30 stages after that,
+  // capped at six because beyond that the leash windows overlap and the road
+  // becomes one continuous block. They are spread evenly across the middle of
+  // the road, which is the same thing the fixed fractions below were doing by
+  // hand for the first three.
+  const extra = b.stage < 40 ? 0 : Math.min(3, 1 + Math.floor((b.stage - 40) / 30))
+
   if (b.stage >= MINIBOSS_STAGE_THIRD) {
     miniboss(b, nudgeClearElite(b, b.arenaY * (0.26 + b.rng() * 0.05)), 'early')
   }
   miniboss(b, nudgeClearElite(b, b.arenaY * (0.45 + b.rng() * 0.15)), 'first')
   if (b.stage >= 6) {
     miniboss(b, nudgeClearElite(b, b.arenaY * (0.78 + b.rng() * 0.05)), 'second')
+  }
+  for (let i = 0; i < extra; i++) {
+    // Slotted between the authored three, alternating light and heavy so a long
+    // road is not four copies of the same fight.
+    const at = 0.34 + (i + 1) * (0.42 / (extra + 1)) + b.rng() * 0.03
+    miniboss(b, nudgeClearElite(b, b.arenaY * at), i % 2 === 0 ? 'early' : 'first')
   }
 }
 
@@ -1815,11 +2157,24 @@ const ensureSupplies = (b: Beat): void => {
   // collision forward — so the floor is always met however empty the roll was.
   const fractions = [0.3, 0.66, 0.48, 0.82, 0.2, 0.57, 0.74, 0.38]
   let slot = 0
+  // The budget scales with the floors it has to satisfy, and the placement
+  // fraction wraps rather than piling onto 0.88.
+  //
+  // Both were sized for a thirty-stage game: a flat 24 slots SHARED between the
+  // two crate kinds, and `Math.min(0.88, f)` which sent every late slot to the
+  // same mark. Measured on the endless road, the damage floor first went unmet
+  // at stage 140 and the rate floor at 255 — the stage silently shipped without
+  // the supplies its own difficulty was priced against, which is the worst
+  // possible failure because the player has no way to see it.
+  const budget = minRateCrates(b.stage) + minDamageCrates(b.stage) + 8
   const topUp = (kind: CrateKind, want: number): void => {
-    while (countOf(kind) < want && slot < 24) {
-      const f = (fractions[slot % fractions.length] ?? 0.5) + Math.floor(slot / fractions.length) * 0.03
+    while (countOf(kind) < want && slot < budget) {
+      const lap = Math.floor(slot / fractions.length)
+      // Wrap the extra laps into the gaps between the base fractions instead of
+      // walking them all off the end of the road.
+      const f = (fractions[slot % fractions.length] ?? 0.5) + (lap % 5) * 0.028 - (lap >= 5 ? 0.11 : 0)
       const side = slot % 2 === 0 ? -1 : 1
-      crates(b, nudgeClear(b, b.arenaY * Math.min(0.88, f)), kind, [side * (CRATE_DETOUR_X + 0.5)])
+      crates(b, nudgeClear(b, b.arenaY * Math.max(0.12, Math.min(0.9, f))), kind, [side * (CRATE_DETOUR_X + 0.5)])
       slot++
     }
   }
@@ -1851,6 +2206,7 @@ export const buildTrack = (stage: number): Track => {
     // having, not beside a trap.
     dilemmaLeft: stage >= 4 ? 1 : 0,
     dilemmaLast: false,
+    mulLast: false,
     routingNext: false,
     mulLeft: mulLeaves(stage),
     mulThreeLeft: mulThrees(stage),

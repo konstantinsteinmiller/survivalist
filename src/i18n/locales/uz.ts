@@ -41,9 +41,28 @@ export default {
     'rallied': 'Ikkinchi nafas',
     'peakSquad': 'Eng katta guruh',
     'kills': 'Yo‘q qilingan',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Tangalar uch barobar!',
     'nextStage': 'Keyingi bosqich',
     'tryAgain': 'Qayta urinish',
-    'upgrade': 'Yaxshilash'
+    'upgrade': 'Yaxshilash',
+    'rankLabel': 'O‘rin',
+    'rankOf': '{n} dan'
+  },
+
+  'leaderboard': {
+    'title': 'Reyting',
+    'rank': '#',
+    'player': 'O‘yinchi',
+    'stage': 'Bosqich',
+    'squad': 'Guruh',
+    'empty': 'Hozircha bo‘sh. Birinchi bo‘ling!',
+    'failed': 'Reytingga ulanib bo‘lmadi.',
+    'loading': 'Yuklanmoqda…',
+    'you': 'Siz',
+    'yourRank': 'Siz #{n} o‘rindasiz',
+    'of': '{n} o‘yinchidan'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Guruh',
       'power': 'Otish kuchi',
       'rate': 'Otish tezligi',
+      'range': 'Masofa',
       'scavenge': 'Yig‘ish'
     },
     'descriptions': {
       'squad': 'Har bosqichni ko‘proq omon qolgan bilan boshlang.',
       'power': 'Har bir omon qolgan har otishda ko‘proq zarar beradi.',
       'rate': 'Har bir omon qolgan tezroq otadi.',
+      'range': 'Otryading yo‘lda uzoqroqdan o‘q ochadi.',
       'scavenge': 'Har o‘yindan ko‘proq tanga oling.'
     }
   },

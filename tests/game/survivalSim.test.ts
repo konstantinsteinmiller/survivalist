@@ -800,3 +800,85 @@ describe('the onboarding hold', () => {
     expect(game.anchor().y, 'the road never restarted').toBeGreaterThan(y0 + 1)
   })
 })
+
+describe('the Reach upgrade', () => {
+  /**
+   * The track buys the one thing every other track spends: seconds. A round
+   * that reaches further arrives sooner at every gate, crate and wall on the
+   * road — so the whole value of Reach is the range number, and the whole RISK
+   * of it is that number growing past the camera.
+   *
+   * `BULLET_RANGE` exists because "you cannot shoot what you have not properly
+   * seen" — rounds stop 15 % of the screen short of the top. An upgrade that
+   * walked past the top edge would restore, gradually and as a reward, exactly
+   * the bug the range rule was written to fix: obstacles deleted above the
+   * camera. That is why the clamp is asserted here and not merely commented.
+   */
+  it('reaches further with every level, and never past the screen', async () => {
+    const { BULLET_RANGE, BULLET_RANGE_MAX, RANGE_PER_LEVEL, effectiveBulletRange } =
+      await import('@/game/survival')
+
+    // Level 0 is the base rule, untouched.
+    expect(effectiveBulletRange(0)).toBe(BULLET_RANGE)
+
+    let prev = effectiveBulletRange(0)
+    for (let level = 1; level <= 10; level++) {
+      const r = effectiveBulletRange(level * RANGE_PER_LEVEL)
+      expect(r, `level ${level} did not reach further`).toBeGreaterThanOrEqual(prev)
+      expect(r, `level ${level} shoots off the top of the screen`)
+        .toBeLessThanOrEqual(BULLET_RANGE_MAX)
+      prev = r
+    }
+
+    // The advertised +30 % is nominal; the camera is the real ceiling, and the
+    // track is worth a real increase either way.
+    expect(effectiveBulletRange(10 * RANGE_PER_LEVEL)).toBe(BULLET_RANGE_MAX)
+    expect(BULLET_RANGE_MAX / BULLET_RANGE).toBeGreaterThan(1.2)
+
+    // Nonsense from a restored save must never shorten the guns or overshoot.
+    expect(effectiveBulletRange(-1)).toBe(BULLET_RANGE)
+    expect(effectiveBulletRange(99)).toBe(BULLET_RANGE_MAX)
+  })
+
+  it('actually lets the crowd hit something it could not reach before', async () => {
+    const game = await importGame()
+    const { BULLET_RANGE, BULLET_RANGE_MAX } = await import('@/game/survival')
+
+    /** Park an unkillable target at `gap` ahead and see if any round lands. */
+    const hitsAt = (gap: number, rangeLevel: number): boolean => {
+      game.startStage(3)
+      game.debugAddUnits(60)
+      game.debugSetRangeLevel(rangeLevel)
+      for (let i = 0; i < 900; i++) {
+        game.step(16)
+        const foe = game.getFoes()[0]
+        if (!foe) continue
+        foe.hp = 1e9
+        foe.maxHp = 1e9
+        foe.dead = false
+        foe.x = game.anchor().x
+        foe.y = game.anchor().y + gap
+        const before = foe.hp
+        // Long enough for the round to actually arrive: the target is pinned at
+        // a fixed gap ahead of a crowd that is itself advancing, so the closing
+        // speed is `BULLET_SPEED - stageSpeed` ≈ 15.6 u/s and a 12-unit gap
+        // takes ~0.8 s. Forty frames is 0.64 s, which measured as "the upgrade
+        // does nothing" when the upgrade was working perfectly.
+        for (let k = 0; k < 150; k++) {
+          foe.x = game.anchor().x
+          foe.y = game.anchor().y + gap
+          foe.dead = false
+          game.step(16)
+          if (foe.hp < before) return true
+        }
+        return false
+      }
+      return false
+    }
+
+    // A gap the base guns cannot cover, but an upgraded one can.
+    const gap = (BULLET_RANGE + BULLET_RANGE_MAX) / 2
+    expect(hitsAt(gap, 0), 'the base guns already reached this far').toBe(false)
+    expect(hitsAt(gap, 10), 'a maxed Reach did not extend the guns').toBe(true)
+  })
+})

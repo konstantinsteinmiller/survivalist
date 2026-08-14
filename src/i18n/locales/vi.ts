@@ -41,9 +41,28 @@ export default {
     'rallied': 'Hồi sức',
     'peakSquad': 'Đội đông nhất',
     'kills': 'Tiêu diệt',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Xu đã nhân ba!',
     'nextStage': 'Màn tiếp theo',
     'tryAgain': 'Thử lại',
-    'upgrade': 'Nâng cấp'
+    'upgrade': 'Nâng cấp',
+    'rankLabel': 'Hạng',
+    'rankOf': 'trên {n}'
+  },
+
+  'leaderboard': {
+    'title': 'Bảng xếp hạng',
+    'rank': '#',
+    'player': 'Người chơi',
+    'stage': 'Màn',
+    'squad': 'Đội',
+    'empty': 'Chưa có ai. Hãy là người đầu tiên!',
+    'failed': 'Không kết nối được bảng xếp hạng.',
+    'loading': 'Đang tải…',
+    'you': 'Bạn',
+    'yourRank': 'Bạn hạng #{n}',
+    'of': 'trên {n} người chơi'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Đội',
       'power': 'Sát thương',
       'rate': 'Tốc độ bắn',
+      'range': 'Tầm bắn',
       'scavenge': 'Nhặt nhạnh'
     },
     'descriptions': {
       'squad': 'Bắt đầu mỗi màn với nhiều người sống sót hơn.',
       'power': 'Mỗi người gây nhiều sát thương hơn mỗi phát.',
       'rate': 'Mỗi người bắn nhanh hơn.',
+      'range': 'Đội của bạn khai hỏa xa hơn trên đường.',
       'scavenge': 'Kiếm nhiều xu hơn sau mỗi lượt.'
     }
   },

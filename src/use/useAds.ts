@@ -113,6 +113,18 @@ export const dismissAdsBlockedModal = (): void => {
 
 export const initAds = (): Promise<void> => provider.init()
 
+/**
+ * Small wait after the audio kill so the audio thread has time to drain
+ * the in-flight buffer before the SDK opens the ad overlay. `pause()` on
+ * HTMLAudio and `suspend()` on the Web Audio context both apply
+ * synchronously on the main thread, but the actual audio output can lag
+ * by a buffer or two on some browsers / devices. GamePix QA explicitly
+ * called this out: "wait for the music to be stopped before showing the
+ * interstitial ad." 200ms is below human-perceptible delay yet covers the
+ * largest audio buffer Chrome/Edge will hold.
+ */
+const AUDIO_DRAIN_MS = 200
+
 export const showRewardedAd = async (): Promise<boolean> => {
   // Throttle gate: refuse the SDK call once the player has burned
   // their 10-min budget. Returning `false` here matches the
@@ -135,6 +147,13 @@ export const showRewardedAd = async (): Promise<boolean> => {
   dlog(`${TAG} ▶ rewarded START (provider=${provider.name})`)
   isAdShowing.value = true
   try {
+    // Same drain the midgame path takes, and for the same reason GamePix QA
+    // gave us: `suspend()` and `pause()` apply synchronously on the main
+    // thread, but the audio device can still be holding a buffer or two. The
+    // rewarded path was skipping it purely because it was written first — a
+    // player who claims the ×3 on a stage-clear jingle would hear the tail cut
+    // into the ad exactly as they would have on a midgame.
+    await new Promise((r) => setTimeout(r, AUDIO_DRAIN_MS))
     const granted = await provider.showRewardedAd()
     if (granted) {
       recordRewardedGranted()
@@ -158,18 +177,6 @@ export const showRewardedAd = async (): Promise<boolean> => {
     isAdShowing.value = false
   }
 }
-
-/**
- * Small wait after the audio kill so the audio thread has time to drain
- * the in-flight buffer before the SDK opens the ad overlay. `pause()` on
- * HTMLAudio and `suspend()` on the Web Audio context both apply
- * synchronously on the main thread, but the actual audio output can lag
- * by a buffer or two on some browsers / devices. GamePix QA explicitly
- * called this out: "wait for the music to be stopped before showing the
- * interstitial ad." 200ms is below human-perceptible delay yet covers the
- * largest audio buffer Chrome/Edge will hold.
- */
-const AUDIO_DRAIN_MS = 200
 
 export const showMidgameAd = async (): Promise<void> => {
   // The audio kill: hard-stop the music, cut every in-flight one-shot SFX so

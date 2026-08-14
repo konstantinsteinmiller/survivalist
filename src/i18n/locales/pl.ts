@@ -41,9 +41,28 @@ export default {
     'rallied': 'Drugi oddech',
     'peakSquad': 'Największy oddział',
     'kills': 'Zabici',
+    'tripleCoins': '3×',
+    'tripleBonus': '(+{n})',
+    'tripleClaimed': 'Monety potrojone!',
     'nextStage': 'Następny etap',
     'tryAgain': 'Spróbuj ponownie',
-    'upgrade': 'Ulepsz'
+    'upgrade': 'Ulepsz',
+    'rankLabel': 'Miejsce',
+    'rankOf': 'z {n}'
+  },
+
+  'leaderboard': {
+    'title': 'Ranking',
+    'rank': '#',
+    'player': 'Gracz',
+    'stage': 'Etap',
+    'squad': 'Oddział',
+    'empty': 'Brak wyników. Bądź pierwszy!',
+    'failed': 'Nie można wczytać rankingu.',
+    'loading': 'Wczytywanie…',
+    'you': 'Ty',
+    'yourRank': 'Jesteś #{n}',
+    'of': 'z {n} graczy'
   },
 
   'upgrades': {
@@ -55,12 +74,14 @@ export default {
       'squad': 'Oddział',
       'power': 'Siła ognia',
       'rate': 'Szybkostrzelność',
+      'range': 'Zasięg',
       'scavenge': 'Zbieractwo'
     },
     'descriptions': {
       'squad': 'Zaczynaj każdy etap z większą liczbą ocalałych.',
       'power': 'Każdy ocalały zadaje większe obrażenia na strzał.',
       'rate': 'Każdy ocalały strzela szybciej.',
+      'range': 'Twój oddział otwiera ogień dalej na drodze.',
       'scavenge': 'Zdobywaj więcej monet w każdej rundzie.'
     }
   },
