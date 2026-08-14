@@ -42,7 +42,7 @@ describe('slotted icon sizing', () => {
     // Belt and braces: the badge rule is the real fix, but a call site that
     // also states a size cannot regress if the component is ever reused
     // somewhere without one.
-    const src = read('src/components/organisms/AdRewardButton.vue')
+    const src = read('src/components/organisms/CoinBadge.vue')
     expect(src).toMatch(/IconCoin\(class="[^"]*\bw-\d/)
   })
 })

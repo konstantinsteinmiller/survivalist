@@ -159,7 +159,11 @@ const handleTabChange = (val: string | number): void => emit('update:activeTab',
 .f-modal
   position: fixed
   inset: 0
-  z-index: 50
+  // Above the result overlay (`FReward`, z-100) and below the ad-blocker
+  // explainer (z-150) and the splash (z-200). The shop is opened FROM the
+  // result screen — at z-50 it rendered behind it and the player got a blurred
+  // rectangle with the result buttons floating on top.
+  z-index: 110
   display: flex
   align-items: center
   justify-content: center

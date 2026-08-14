@@ -403,8 +403,8 @@ const shouldRunSanityGuard = (state: HydrateState, local: LocalStorageAccessor):
  * Read one field out of the consolidated `tower_state` blob, falling back to a
  * top-level key read.
  *
- * This indirection is load-bearing: Tower Siege persists everything INSIDE one
- * localStorage entry, so a naive `local.get('ts_best_wave')` always returns
+ * This indirection is load-bearing: Survivalist persists everything INSIDE one
+ * localStorage entry, so a naive `local.get('ts_best_stage')` always returns
  * null and `localLooksFresh` would report "fresh" for every player — making the
  * boot-sanity guard fire (and cost 3 s of boot latency) on every single launch
  * of a returning player, while telling us nothing.
@@ -426,18 +426,18 @@ const readStateField = (local: LocalStorageAccessor, field: string): string | nu
 
 /**
  * "Does this device look like a brand-new install?" — the precondition for the
- * boot-sanity retry loop. Any signal of real progress (a wave survived, coins
- * banked, a tech node bought, a run in flight) means the local snapshot is
- * worth booting with and we don't stall the player waiting on the cloud.
+ * boot-sanity retry loop. Any signal of real progress (a stage cleared, coins
+ * banked, an upgrade bought, a run started) means the local snapshot is worth
+ * booting with and we don't stall the player waiting on the cloud.
  */
 const localLooksFresh = (local: LocalStorageAccessor): boolean => {
-  const bestWave = parseInt(readStateField(local, SAVE_KEYS.BEST_WAVE) ?? '0', 10) || 0
-  if (bestWave > 0) return false
+  const bestStage = parseInt(readStateField(local, SAVE_KEYS.BEST_STAGE) ?? '0', 10) || 0
+  if (bestStage > 0) return false
   const coins = parseInt(readStateField(local, SAVE_KEYS.COINS) ?? '0', 10) || 0
   if (coins > 0) return false
   const runs = parseInt(readStateField(local, SAVE_KEYS.RUNS) ?? '0', 10) || 0
   if (runs > 0) return false
-  if (readStateField(local, SAVE_KEYS.TECH)) return false
+  if (readStateField(local, SAVE_KEYS.UPGRADES)) return false
   return true
 }
 

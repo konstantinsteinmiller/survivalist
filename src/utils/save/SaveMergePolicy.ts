@@ -9,14 +9,14 @@
 // the player's actual keys. The blob lets the next hydrate score local vs.
 // remote and pick a winner deterministically without prompting.
 //
-// Score formula (Tower Siege):
-//   bestWave         × 500
-// + totalTechLevels  × 150
-// + runsPlayed       ×  10
+// Score formula (Survivalist):
+//   bestStage           × 500
+// + totalUpgradeLevels  × 150
+// + runsPlayed          ×  10
 //
-// `bestWave` is the headline progress number (highest wave ever survived),
-// tech levels are the permanent spend, and the run counter breaks ties between
-// two saves that reached the same wave with the same build.
+// `bestStage` is the headline progress number (deepest stage ever cleared),
+// upgrade levels are the permanent spend, and the run counter breaks ties
+// between two saves that reached the same stage with the same upgrades.
 //
 // Conflict policy:
 //   - higher score wins
@@ -25,7 +25,7 @@
 //   - if remote wins and local had ANY progress (score > 0), the player
 //     gets bonus coins = winner.maxStage × 50 to soften the loss
 
-import { BEST_WAVE_KEY, COINS_KEY, TECH_KEY, RUNS_KEY } from '@/keys'
+import { BEST_STAGE_KEY, COINS_KEY, UPGRADES_KEY, RUNS_KEY } from '@/keys'
 import { STATE_KEY } from '@/use/useTowerState'
 
 /** Where the meta blob is stored in localStorage / on the remote backend.
@@ -51,9 +51,7 @@ export interface SaveMeta {
   /** Output of the score formula above. */
   progressScore: number
   schemaVersion: number
-  /** Highest wave the save represents — used to compute the conflict bonus.
-   *  Field name kept as `maxStage` for wire-compat with saves already in the
-   *  cloud from earlier builds; semantically it is "best wave". */
+  /** Deepest stage the save represents — used to compute the conflict bonus. */
   maxStage: number
   /**
    * Cloud `savedAt` for which this client already received the conflict
@@ -140,28 +138,26 @@ export const computeMeta = (
   read: SnapshotReader,
   savedAt: string = new Date().toISOString()
 ): SaveMeta => {
-  // `bestWave` is 0 for a player who has never finished a wave, so a brand-new
+  // `bestStage` is 0 for a player who has never cleared a stage, so a brand-new
   // local snapshot scores 0 and can never beat a real cloud save on a tie.
-  const bestWave = Math.max(0, safeInt(readField(read, BEST_WAVE_KEY), 0))
+  const bestStage = Math.max(0, safeInt(readField(read, BEST_STAGE_KEY), 0))
   const runs = Math.max(0, safeInt(readField(read, RUNS_KEY), 0))
 
-  const tech = safeJson<{ levels?: Record<string, number> }>(
-    readField(read, TECH_KEY),
-    {}
-  )
-  let techLevels = 0
-  if (tech.levels) {
-    for (const v of Object.values(tech.levels)) {
-      if (typeof v === 'number' && Number.isFinite(v) && v > 0) techLevels += v
-    }
+  // Upgrades are stored as a flat `{ id: level }` record. Summing the levels
+  // (rather than counting the tracks) makes a deeply-invested save beat a
+  // broadly-dabbled one, which is the right tie-break for a meta this small.
+  const upgrades = safeJson<Record<string, number>>(readField(read, UPGRADES_KEY), {})
+  let upgradeLevels = 0
+  for (const v of Object.values(upgrades)) {
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) upgradeLevels += v
   }
 
   const progressScore =
-    bestWave * 500
-    + techLevels * 150
+    bestStage * 500
+    + upgradeLevels * 150
     + runs * 10
 
-  return { savedAt, progressScore, schemaVersion: SCHEMA_VERSION, maxStage: bestWave }
+  return { savedAt, progressScore, schemaVersion: SCHEMA_VERSION, maxStage: bestStage }
 }
 
 /**
@@ -281,8 +277,8 @@ export const isPayloadKey = (key: string): boolean => {
 
 // Re-exported so tests / other modules don't have to re-declare them.
 export const SAVE_KEYS = {
-  BEST_WAVE: BEST_WAVE_KEY,
+  BEST_STAGE: BEST_STAGE_KEY,
   COINS: COINS_KEY,
-  TECH: TECH_KEY,
+  UPGRADES: UPGRADES_KEY,
   RUNS: RUNS_KEY
 } as const

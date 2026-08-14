@@ -1,5 +1,5 @@
 export default {
-  'gameName': 'Tower Siege',
+  'gameName': 'Survivalist',
   'cancel': 'Bekor qilish',
   'close': 'Yopish',
   'ok': 'Ok',
@@ -11,226 +11,58 @@ export default {
   'crazyGamesOnly': 'Bu o‘yin faqat quyidagi joyda mavjud:',
 
   'hud': {
-    'wave': 'To‘lqin', 'enemies': 'Dushmanlar', 'callWave': 'To‘lqinni chaqirish', 'callBoss': 'Bossni chaqirish',
-    'speed': 'Tezlik {n}×',
-    'speedOffer': 'Reklama uchun ikki barobar tezlik',
-    'speedFor': '{n} daq', 'recenter': 'Ko‘rinishni markazlash'
+    'stage': '{n}-bosqich',
+    'best': 'Rekord {n}',
+    'boss': 'Bos',
+    'miniboss': 'Mini bos',
+    'fireRate': 'Tezlik'
   },
 
-  'hints': {
-    'selectBlock': { 'touch': 'Tanlash uchun pastdagi blokni bosing', 'desktop': 'Tanlash uchun pastdagi blokni cherting' },
-    'placeBlock': { 'touch': 'Endi qurish uchun yorqin katakni bosing', 'desktop': 'Endi qurish uchun yorqin katakni cherting' },
-    'camera': { 'touch': 'Surish uchun torting · Kattalashtirish uchun chimdib torting', 'desktop': 'Surish uchun torting · Kattalashtirish uchun aylantiring' },
-    'callWave': { 'touch': 'Minora tayyor bo‘lganda «To‘lqinni chaqirish»ni bosing', 'desktop': 'To‘lqinni erta chaqirish uchun Bo‘shliqni bosing' },
-    'inspect': { 'touch': 'Ko‘rish uchun blokni bosib turing', 'desktop': 'Ko‘rish uchun blokni cherting' }
-  },
-
-  'blocks': {
-    'sell': 'Sotish',
-    'roofNote': 'Tomli — ustiga hech narsa qurib bo‘lmaydi.',
-    'enhancedNote': 'Kuchaytirilgan — ko‘proq HP va zarar.',
-    'enhancedHand': 'Kuchaytirilgan qo‘l',
-    'reroll': 'Bu bo‘lakni almashtirish',
-    'kinds': { 'core': 'Yadro', 'structure': 'Tuzilma', 'weapon': 'Qurol', 'economy': 'Iqtisod', 'utility': 'Yordamchi' },
-    'stats': {
-      'hp': 'JS', 'armor': 'Zirh', 'dmg': 'Zarar', 'cooldown': 'Kutish', 'range': 'Masofa',
-      'splash': 'Hudud', 'yieldWood': 'Yog‘och / to‘lqin', 'yieldStone': 'Tosh / to‘lqin', 'yieldCoins': 'Tanga / to‘lqin',
-      'repair': 'Ta’mir / to‘lqin', 'blast': 'Portlash',
-      'thorns': 'Tikanlar'
-    },
-    'names': {
-      'gate': 'Darvoza', 'wood': 'Yog‘och quti', 'brace': 'Mustahkamlangan quti', 'stone': 'Tosh blok',
-      'archer': 'Kamonchi minorasi', 'cannon': 'To‘p', 'mortar': 'Minomyot', 'tesla': 'Chaqmoq g‘altagi',
-      'frost': 'Sovuq minora', 'repair': 'Ta’mirxona',
-      'sawmill': 'Arrachilik', 'quarry': 'Tosh koni', 'mint': 'Oltin koni',
-      'spikes': 'Tikanli devor',
-      'bombard': 'Bombarda'
-    },
-    'descriptions': {
-      'gate': 'Minorangizning yuragi. Qulasa, qamal tugaydi.',
-      'wood': 'Arzon to‘ldirgich. Har bir dastlabki minoraning umurtqasi.',
-      'brace': 'Ikki barobar yog‘och, ikki barobardan ortiq mustahkamlik.',
-      'stone': 'Og‘ir va zirhli. Poydevor uchun eng yaxshisi.',
-      'archer': 'Bitta nishonga tez o‘qlar. Uchuvchilarni ham uradi.',
-      'cannon': 'Sekin, lekin hududiy zarari katta. Zich to‘dalarni eritadi.',
-      'mortar': 'Uzoq masofaga yoysimon o‘q — lekin uchuvchilarni ura olmaydi.',
-      'tesla': 'Yaqin dushmanlar orasida sakraydigan chaqmoq.',
-      'frost': 'Butun guruhni muzlatib, kuchli sekinlashtiradi.',
-      'repair': 'To‘lqinlar orasida qo‘shni bloklarni ta’mirlaydi.',
-      'sawmill': 'Har bir qaytarilgan to‘lqin oxirida yog‘och beradi.',
-      'quarry': 'Har bir qaytarilgan to‘lqin oxirida tosh beradi.',
-      'mint': 'Har bir qaytarilgan to‘lqin oxirida tanga beradi.',
-      'spikes': 'Hujumchilar har zarbada undan jarohat oladi.',
-      'bombard': 'Snaryadni tik yuqoriga otadi. Kichik portlash, faqat yerdagi nishonlar.'
-    }
-  },
-
-  'enemies': {
-    'names': {
-      'grunt': 'Askar', 'runner': 'Yuguruvchi', 'slinger': 'Palaxmonchi', 'brute': 'Bahaybat',
-      'bomber': 'Portlatuvchi', 'bat': 'Ko‘rshapalak', 'bulwark': 'Qalqonli', 'golem': 'Qamal golemi',
-      'wyvern': 'Vivern',
-      'eel': 'Dengiz iloni',
-      'kraken': 'Kraken',
-      'ram': 'Qo‘chqor',
-      'ballista': 'Ballista',
-      'catapult': 'Katapulta',
-      'siegeTower': 'Qamal minorasi',
-      'trebuchet': 'Trebushet',
-      'ironRam': 'Zirhli qo‘chqor',
-      'bombardier': 'Bombardimonchi',
-      'firebug': 'Ot qo‘yuvchi'
-    }
-  },
-
-  // ─── First-stage tutorial ─────────────────────────────────────────────────
   'tutorial': {
-    'gate': 'Darvozani himoya qil. Qulasa, o‘yin tugaydi.',
-    'pick': 'Bo‘lak tanla.',
-    'place': 'Uni Darvoza yoniga qo‘y.',
-    'call': 'Tayyor bo‘lsang, to‘lqinni chaqir.',
-    'next': 'Keyingi',
-    'offer': 'Qo‘llanma kerakmi?',
-    'start': 'Boshlash',
-    'skip': 'O‘tkazish'
+    'touch': 'Otryadni harakatlantirish uchun suring',
+    'desktop': 'Otryadni boshqarish uchun sichqonchani suring'
   },
-
-  // ─── Allies ───────────────────────────────────────────────────────────────
-  'allies': {
-    'cavalry': 'Otliqlar'
+  'hints': {
+    'move': { 'touch': 'Harakat uchun bosing', 'desktop': 'Harakat uchun bosing' },
+    'gate': { 'touch': 'Darvozaga otishda davom eting: har yarim soniyada +1', 'desktop': 'Darvozaga otishda davom eting: har yarim soniyada +1' },
+    'trap': { 'touch': 'Qizil darvoza guruhni KAMAYTIRADI — boshqasini tanlang!', 'desktop': 'Qizil darvoza guruhni KAMAYTIRADI — boshqasini tanlang!' },
+    'divider': { 'touch': 'Darvozalar orasidagi ustunga hech tegmang', 'desktop': 'Darvozalar orasidagi ustunga hech tegmang' },
+    'crate': { 'touch': 'Yashil sandiq: hamma kuchliroq uradi', 'desktop': 'Yashil sandiq: hamma kuchliroq uradi' },
+    'rate': { 'touch': 'Ko‘k sandiq: hamma tezroq otadi', 'desktop': 'Ko‘k sandiq: hamma tezroq otadi' },
+    'boss': { 'touch': 'Qizil doiradan uzoqroq turing!', 'desktop': 'Qizil doiradan uzoqroq turing!' },
+    'guard': { 'touch': 'Qalqon yoqilgan — o‘qlaring o‘tmaydi. QOCH!', 'desktop': 'Qalqon yoqilgan — o‘qlaring o‘tmaydi. QOCH!' }
   },
 
   'result': {
-    'towerFell': 'Minora quladi!',
-    'reachedWave': 'Siz {n}-to‘lqingacha bardosh berdingiz',
+    'stageClear': 'Bosqich tugadi!',
+    'wipedOut': 'Guruh yo‘q qilindi',
+    'reachedStage': '{n}-bosqich',
     'newRecord': 'Yangi rekord!',
-    'defeated': 'Yengilganlar',
-    'reward': 'Mukofot',
-    'upgrade': 'Yaxshilash!',
-    'defendAgain': 'Yana himoya qilish',
-    'double': 'Tangalarni ikkilantirish',
-    'firstRunDouble': '2× — bugungi birinchi qamal!',
-    'tripleWave': '3× tanga — {n}',
-    'waveCleared': '{n}-to‘lqin qaytarildi!'
+    'rallied': 'Ikkinchi nafas',
+    'peakSquad': 'Eng katta guruh',
+    'kills': 'Yo‘q qilingan',
+    'nextStage': 'Keyingi bosqich',
+    'tryAgain': 'Qayta urinish',
+    'upgrade': 'Yaxshilash'
   },
 
-  'tech': {
-    'title': 'Texnologiya daraxti',
-    'rank': 'Daraja {current}/{total}',
-    'maxed': 'Maksimal',
-    'rankOpen': 'Daraja {n}',
-    'owned': 'Ochilgan',
-    'requires': 'Kerak: {n}',
+  'upgrades': {
+    'title': 'Yaxshilashlar',
     'spotlight': 'Sarflang!',
+    'level': 'Dar. {n}',
+    'maxed': 'Maks',
     'names': {
-      'foundations': 'Poydevor', 'sharpBolts': 'O‘tkir o‘qlar', 'unlockBrace': 'Mustahkam qutilar',
-      'lumberStock': 'Yog‘och zaxirasi', 'longSight': 'Uzoqni ko‘rish', 'rapidFire': 'Tez otish',
-      'reinforced': 'Mustahkam to‘sinlar', 'unlockSawmill': 'Arrachilik', 'quarryStock': 'Tosh zaxirasi',
-      'unlockMortar': 'Minomyot', 'heavyOrdnance': 'Og‘ir artilleriya', 'unlockTesla': 'Chaqmoq g‘altagi',
-      'gateArmor': 'Darvoza zirhi', 'unlockQuarry': 'Tosh koni', 'richHauls': 'Boy o‘lja',
-      'wideFoundation': 'Keng poydevor', 'siegeShells': 'Qamal snaryadlari', 'unlockFrost': 'Sovuq minora',
-      'forkedBolts': 'Tarmoqlangan chaqmoq', 'ironPlating': 'Temir qoplama', 'unlockRepair': 'Ta’mirxona',
-      'unlockMint': 'Oltin koni', 'looting': 'Talon-taroj', 'overcharge': 'Ortiqcha quvvat',
-      'masterwork': 'Shoh asar', 'fieldRepairs': 'Dala ta’miri', 'greatFoundation': 'Buyuk poydevor',
-      'warChest': 'Urush xazinasi',
-      'unlockSpikes': 'Tikanli devor',
-      'unlockBombard': 'Bombarda',
-      'sharpSpikes': 'Charxlangan tikanlar',
-      'cavalryDrill': 'Otliqlar mashqi',
-      'artilleryDoctrine': 'Artilleriya doktrinasi'
+      'squad': 'Guruh',
+      'power': 'Otish kuchi',
+      'rate': 'Otish tezligi',
+      'scavenge': 'Yig‘ish'
     },
     'descriptions': {
-      'foundations': 'Har bir blok +10 % JS bilan boshlanadi.',
-      'sharpBolts': 'Barcha qurollar daraja boshiga +8 % zarar yetkazadi.',
-      'unlockBrace': 'Mustahkam qutini ochadi — yog‘ochdan ikki barobar ko‘p JS.',
-      'lumberStock': 'Har qamalni daraja boshiga +25 yog‘och bilan boshlang.',
-      'longSight': 'Barcha qurollar daraja boshiga +10 % uzoqroq uradi.',
-      'rapidFire': 'Barcha qurollar daraja boshiga 8 % tezroq otadi.',
-      'reinforced': 'Har bir blok daraja boshiga +8 % JS oladi.',
-      'unlockSawmill': 'Arrachilikni ochadi — har to‘lqinda yog‘och beradi.',
-      'quarryStock': 'Har qamalni daraja boshiga +18 tosh bilan boshlang.',
-      'unlockMortar': 'Minomyotni ochadi — uzoq masofadagi hududiy zarar.',
-      'heavyOrdnance': 'Hudud radiusi daraja boshiga +15 %.',
-      'unlockTesla': 'Chaqmoq g‘altagini ochadi — chaqmoq dushmanlar orasida sakraydi.',
-      'gateArmor': 'Darvoza daraja boshiga +20 % JS oladi.',
-      'unlockQuarry': 'Tosh konini ochadi — har to‘lqinda tosh beradi.',
-      'richHauls': 'To‘lqin mukofotlari daraja boshiga +12 %.',
-      'wideFoundation': 'Daraja boshiga 2 ustun kengroq quring.',
-      'siegeShells': 'Barcha qurollar daraja boshiga +10 % zarar yetkazadi.',
-      'unlockFrost': 'Sovuq minorani ochadi — butun guruhni sekinlashtiradi.',
-      'forkedBolts': 'Chaqmoq daraja boshiga yana 1 dushmanga sakraydi.',
-      'ironPlating': 'Har bir blok daraja boshiga +2 zirh oladi.',
-      'unlockRepair': 'Ta’mirxonani ochadi — har to‘lqinda qo‘shnilarni davolaydi.',
-      'unlockMint': 'Oltin konini ochadi — har to‘lqinda tanga beradi.',
-      'looting': 'Dushmanlar daraja boshiga +15 % ko‘proq tanga tashlaydi.',
-      'overcharge': 'Barcha qurollar daraja boshiga 10 % tezroq otadi.',
-      'masterwork': 'Barcha qurollar daraja boshiga +12 % zarar yetkazadi.',
-      'fieldRepairs': 'Har qaytarilgan to‘lqinda har bir blok daraja boshiga maks. JS ning 6 % ini tiklaydi.',
-      'greatFoundation': 'Daraja boshiga yana 2 ustun kengroq quring.',
-      'warChest': 'To‘lqin mukofotlari daraja boshiga +15 %.',
-      'unlockSpikes': 'Tikanli devorni ochadi — hujumchilar undan jarohat oladi.',
-      'unlockBombard': 'Bombardani ochadi — yerdagi qo‘shinga qarshi qisqa masofali minomyot o‘ti.',
-      'sharpSpikes': 'Tikanli devorlar har darajada +20% ko‘p zarar qaytaradi.',
-      'cavalryDrill': 'Otliqlar har darajada +14% HP va zarar bilan chiqadi.',
-      'artilleryDoctrine': 'Barcha qurollar har darajada +9% uzoqroqqa yetadi.'
+      'squad': 'Har bosqichni ko‘proq omon qolgan bilan boshlang.',
+      'power': 'Har bir omon qolgan har otishda ko‘proq zarar beradi.',
+      'rate': 'Har bir omon qolgan tezroq otadi.',
+      'scavenge': 'Har o‘yindan ko‘proq tanga oling.'
     }
-  },
-
-  'resources': {
-    'wood': 'yog‘och',
-    'stone': 'tosh',
-    'coins': 'tanga'
-  },
-
-  'ads': {
-    'watch': 'Ko‘rish', 'revive': 'Tiriltirish', 'secondChance': 'Ikkinchi imkoniyat',
-    'doubleCoins': '2× tanga', 'plusCoins': '+{n} tanga'
-  },
-
-  'achievements': {
-    'title': 'Yutuqlar', 'subtitle': 'Umumiy marralarga erishib tanga toping.',
-    'claim': 'Olish', 'claimed': 'Olingan', 'progress': '{c} / {t}',
-    'items': {
-      'wave5': { 'name': 'Birinchi qarshilik', 'desc': '5-to‘lqingacha bardosh bering.' },
-      'wave10': { 'name': 'Qal’a', 'desc': '10-to‘lqingacha bardosh bering.' },
-      'wave20': { 'name': 'Istehkom', 'desc': '20-to‘lqingacha bardosh bering.' },
-      'wave30': { 'name': 'Sindirilmas', 'desc': '30-to‘lqingacha bardosh bering.' },
-      'waves50': { 'name': 'To‘lqin to‘sgich', 'desc': 'Jami 50 to‘lqinni qaytaring.' },
-      'waves250': { 'name': 'Qamal faxriysi', 'desc': 'Jami 250 to‘lqinni qaytaring.' },
-      'kills500': { 'name': 'Himoyachi', 'desc': 'Jami 500 dushmanni yenging.' },
-      'kills5k': { 'name': 'Qirg‘inchi', 'desc': 'Jami 5 000 dushmanni yenging.' },
-      'kills50k': { 'name': 'Afsona', 'desc': 'Jami 50 000 dushmanni yenging.' },
-      'height10': { 'name': 'Osmonga', 'desc': '10 blok balandlikda minora quring.' },
-      'height20': { 'name': 'Bulut teshuvchi', 'desc': '20 blok balandlikda minora quring.' },
-      'blocks250': { 'name': 'Quruvchi', 'desc': 'Jami 250 blok joylang.' },
-      'blocks2k': { 'name': 'Me’mor', 'desc': 'Jami 2 000 blok joylang.' },
-      'coins5k': { 'name': 'Tanga yig‘uvchi', 'desc': 'Jami 5 000 tanga toping.' },
-      'coins50k': { 'name': 'Xazinachi', 'desc': 'Jami 50 000 tanga toping.' },
-      'runs25': { 'name': 'Qat’iyatli', 'desc': '25 ta qamal boshlang.' }
-    }
-  },
-
-  'missions': {
-    'title': 'Kunlik topshiriqlar', 'subtitle': 'Har kuni maqsadlarni bajarib tanga oling.',
-    'claim': 'Olish', 'done': 'Olingan',
-    'types': {
-      'coins': 'Bugun {n} tanga toping',
-      'waves': 'Bitta qamalda {n}-to‘lqingacha bardosh bering',
-      'kills': 'Bugun {n} dushmanni yenging',
-      'blocks': 'Bugun {n} blok joylang'
-    }
-  },
-
-  'battlePass': {
-    'title': 'Jang chiptasi', 'progress': '{current} / {total}', 'daysLeft': '{n} kun qoldi',
-    'maxed': 'JANG CHIPTASI TUGADI', 'xpProgress': '{current} / {total} XP',
-    'howToEarn': 'XP qanday topiladi', 'perRun': 'har qamal uchun', 'perWave': 'har qaytarilgan to‘lqin uchun',
-    'unlockHint': 'Keyingi mukofot uchun {n} XP to‘plang — olinmagan mukofotlar saqlanadi.'
-  },
-
-  'dailyRewards': {
-    'title': 'Kunlik mukofotlar', 'subtitle': 'Ketma-ketligingizni saqlash uchun har kuni kiring.',
-    'day': '{n}-kun', 'dayShort': 'K{n}'
   },
 
   'options': {
@@ -240,9 +72,9 @@ export default {
     'close': 'Saqlash va yopish',
     'difficulties': { 'easy': 'Oson', 'medium': 'O‘rta', 'hard': 'Qiyin' },
     'difficultyHints': {
-      'easy': 'Kichikroq to‘lqinlar va kuchsizroq dushmanlar.',
-      'medium': 'Standart, muvozanatli qamal.',
-      'hard': 'Zichroq to‘lqinlar va bardoshliroq dushmanlar.'
+      'easy': 'Kuchsizroq dushmanlar va ingichka to‘siqlar.',
+      'medium': 'Standart o‘yin.',
+      'hard': 'Kuchliroq dushmanlar va og‘ir to‘siqlar.'
     }
   },
 

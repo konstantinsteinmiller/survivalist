@@ -1,5 +1,5 @@
 export default {
-  'gameName': 'Tower Siege',
+  'gameName': 'Survivalist',
   'cancel': '取消',
   'close': '关闭',
   'ok': '确定',
@@ -11,226 +11,58 @@ export default {
   'crazyGamesOnly': '本游戏仅在以下平台提供：',
 
   'hud': {
-    'wave': '波次', 'enemies': '敌人', 'callWave': '召唤波次', 'callBoss': '召唤首领',
-    'speed': '速度 {n}×',
-    'speedOffer': '看广告获得双倍速度',
-    'speedFor': '{n} 分钟', 'recenter': '视角复位'
+    'stage': '第 {n} 关',
+    'best': '最佳 {n}',
+    'boss': '首领',
+    'miniboss': '小首领',
+    'fireRate': '射速'
   },
 
-  'hints': {
-    'selectBlock': { 'touch': '点击下方的方块来选择', 'desktop': '单击下方的方块来选择' },
-    'placeBlock': { 'touch': '现在点击发光的格子进行建造', 'desktop': '现在单击发光的格子进行建造' },
-    'camera': { 'touch': '拖动平移 · 双指缩放', 'desktop': '拖动平移 · 滚轮缩放' },
-    'callWave': { 'touch': '塔准备好后点击“召唤波次”', 'desktop': '按空格键提前召唤波次' },
-    'inspect': { 'touch': '长按方块查看详情', 'desktop': '单击方块查看详情' }
-  },
-
-  'blocks': {
-    'sell': '出售',
-    'roofNote': '带屋顶——上方无法再建造。',
-    'enhancedNote': '强化 — 生命值与伤害更高。',
-    'enhancedHand': '强化积木',
-    'reroll': '更换此方块',
-    'kinds': { 'core': '核心', 'structure': '结构', 'weapon': '武器', 'economy': '经济', 'utility': '功能' },
-    'stats': {
-      'hp': '生命', 'armor': '护甲', 'dmg': '伤害', 'cooldown': '冷却', 'range': '射程',
-      'splash': '溅射', 'yieldWood': '木材 / 波', 'yieldStone': '石材 / 波', 'yieldCoins': '金币 / 波',
-      'repair': '修复 / 波', 'blast': '爆炸',
-      'thorns': '尖刺'
-    },
-    'names': {
-      'gate': '城门', 'wood': '木箱', 'brace': '加固木箱', 'stone': '石块',
-      'archer': '弓箭塔', 'cannon': '加农炮', 'mortar': '迫击炮', 'tesla': '闪电线圈',
-      'frost': '寒霜尖塔', 'repair': '维修站',
-      'sawmill': '锯木厂', 'quarry': '采石场', 'mint': '金矿',
-      'spikes': '尖刺墙',
-      'bombard': '臼炮'
-    },
-    'descriptions': {
-      'gate': '高塔的核心。它一旦倒下，围攻就结束了。',
-      'wood': '廉价填充物，每座早期高塔的骨干。',
-      'brace': '两倍木材，超过两倍的坚固度。',
-      'stone': '沉重且带护甲，最适合放在底部。',
-      'archer': '快速单体箭矢，可攻击飞行单位。',
-      'cannon': '射速慢但范围伤害高，能融化密集敌群。',
-      'mortar': '远程抛射炮弹，但无法命中飞行单位。',
-      'tesla': '在附近敌人之间跳跃的闪电。',
-      'frost': '冻结整群敌人并大幅减速。',
-      'repair': '在波次之间修复相邻方块。',
-      'sawmill': '每守住一波结束时产出木材。',
-      'quarry': '每守住一波结束时产出石材。',
-      'mint': '每守住一波结束时产出金币。',
-      'spikes': '近战攻击它的敌人每次都会被反伤。',
-      'bombard': '垂直抛射炮弹。爆炸范围很小，只能打地面目标。'
-    }
-  },
-
-  'enemies': {
-    'names': {
-      'grunt': '步兵', 'runner': '疾行者', 'slinger': '投石手', 'brute': '蛮兵',
-      'bomber': '爆破兵', 'bat': '蝙蝠', 'bulwark': '盾卫', 'golem': '攻城魔像',
-      'wyvern': '双足飞龙',
-      'eel': '海蛇',
-      'kraken': '海妖',
-      'ram': '攻城槌',
-      'ballista': '弩炮',
-      'catapult': '投石机',
-      'siegeTower': '攻城塔',
-      'trebuchet': '配重投石机',
-      'ironRam': '铁甲攻城槌',
-      'bombardier': '投弹手',
-      'firebug': '燃烧瓶手'
-    }
-  },
-
-  // ─── First-stage tutorial ─────────────────────────────────────────────────
   'tutorial': {
-    'gate': '守住城门，城门倒下即结束。',
-    'pick': '选择一个方块。',
-    'place': '把它放在城门旁边。',
-    'call': '准备好就召唤敌潮。',
-    'next': '下一步',
-    'offer': '需要新手教学吗？',
-    'start': '开始',
-    'skip': '跳过'
+    'touch': '滑动来移动你的小队',
+    'desktop': '移动鼠标来操控你的小队'
   },
-
-  // ─── Allies ───────────────────────────────────────────────────────────────
-  'allies': {
-    'cavalry': '骑兵'
+  'hints': {
+    'move': { 'touch': '点击移动', 'desktop': '点击移动' },
+    'gate': { 'touch': '持续射击闸门：每半秒 +1', 'desktop': '持续射击闸门：每半秒 +1' },
+    'trap': { 'touch': '红色闸门会减少人数——走另一边！', 'desktop': '红色闸门会减少人数——走另一边！' },
+    'divider': { 'touch': '千万别碰闸门之间的柱子', 'desktop': '千万别碰闸门之间的柱子' },
+    'crate': { 'touch': '绿色箱子：全队伤害提升', 'desktop': '绿色箱子：全队伤害提升' },
+    'rate': { 'touch': '蓝色箱子：全队射速提升', 'desktop': '蓝色箱子：全队射速提升' },
+    'boss': { 'touch': '远离红圈！', 'desktop': '远离红圈！' },
+    'guard': { 'touch': '护盾开启——射击无效，快躲开！', 'desktop': '护盾开启——射击无效，快躲开！' }
   },
 
   'result': {
-    'towerFell': '高塔倒塌了！',
-    'reachedWave': '你坚持到了第 {n} 波',
+    'stageClear': '通关！',
+    'wipedOut': '小队全灭',
+    'reachedStage': '第 {n} 关',
     'newRecord': '新纪录！',
-    'defeated': '击败',
-    'reward': '奖励',
-    'upgrade': '升级！',
-    'defendAgain': '再次防守',
-    'double': '金币翻倍',
-    'firstRunDouble': '2× — 今日首次围攻！',
-    'tripleWave': '3× 金币 — {n}',
-    'waveCleared': '第 {n} 波已守住！'
+    'rallied': '重整旗鼓',
+    'peakSquad': '最大人数',
+    'kills': '击杀',
+    'nextStage': '下一关',
+    'tryAgain': '再试一次',
+    'upgrade': '升级'
   },
 
-  'tech': {
-    'title': '科技树',
-    'rank': '等级 {current}/{total}',
-    'maxed': '已满级',
-    'rankOpen': '等级 {n}',
-    'owned': '已解锁',
-    'requires': '需要 {n}',
-    'spotlight': '快花掉！',
+  'upgrades': {
+    'title': '升级',
+    'spotlight': '去花费！',
+    'level': '等级 {n}',
+    'maxed': '已满',
     'names': {
-      'foundations': '地基', 'sharpBolts': '锐利箭矢', 'unlockBrace': '加固木箱',
-      'lumberStock': '木材储备', 'longSight': '远视', 'rapidFire': '速射',
-      'reinforced': '加固梁柱', 'unlockSawmill': '锯木厂', 'quarryStock': '石材储备',
-      'unlockMortar': '迫击炮', 'heavyOrdnance': '重型火炮', 'unlockTesla': '闪电线圈',
-      'gateArmor': '城门护甲', 'unlockQuarry': '采石场', 'richHauls': '丰厚战利品',
-      'wideFoundation': '宽阔地基', 'siegeShells': '攻城炮弹', 'unlockFrost': '寒霜尖塔',
-      'forkedBolts': '分叉闪电', 'ironPlating': '铁质装甲', 'unlockRepair': '维修站',
-      'unlockMint': '金矿', 'looting': '掠夺', 'overcharge': '过载',
-      'masterwork': '大师之作', 'fieldRepairs': '战地维修', 'greatFoundation': '宏伟地基',
-      'warChest': '军费金库',
-      'unlockSpikes': '尖刺墙',
-      'unlockBombard': '臼炮',
-      'sharpSpikes': '磨利尖刺',
-      'cavalryDrill': '骑兵操练',
-      'artilleryDoctrine': '炮兵学说'
+      'squad': '队伍',
+      'power': '火力',
+      'rate': '射速',
+      'scavenge': '拾荒'
     },
     'descriptions': {
-      'foundations': '每个方块初始生命值 +10%。',
-      'sharpBolts': '所有武器每级伤害 +8%。',
-      'unlockBrace': '解锁加固木箱——生命值是木材的两倍。',
-      'lumberStock': '每级围攻开局多 25 木材。',
-      'longSight': '所有武器每级射程 +10%。',
-      'rapidFire': '所有武器每级射速 +8%。',
-      'reinforced': '每个方块每级生命值 +8%。',
-      'unlockSawmill': '解锁锯木厂——每波产出木材。',
-      'quarryStock': '每级围攻开局多 18 石材。',
-      'unlockMortar': '解锁迫击炮——远程范围伤害。',
-      'heavyOrdnance': '溅射半径每级 +15%。',
-      'unlockTesla': '解锁闪电线圈——闪电会在敌人之间跳跃。',
-      'gateArmor': '城门每级生命值 +20%。',
-      'unlockQuarry': '解锁采石场——每波产出石材。',
-      'richHauls': '波次奖励每级 +12%。',
-      'wideFoundation': '每级可多建造 2 列宽度。',
-      'siegeShells': '所有武器每级伤害 +10%。',
-      'unlockFrost': '解锁寒霜尖塔——减速整群敌人。',
-      'forkedBolts': '闪电每级多跳跃 1 个敌人。',
-      'ironPlating': '每个方块每级护甲 +2。',
-      'unlockRepair': '解锁维修站——每波治疗相邻方块。',
-      'unlockMint': '解锁金矿——每波产出金币。',
-      'looting': '敌人每级多掉落 15% 金币。',
-      'overcharge': '所有武器每级射速 +10%。',
-      'masterwork': '所有武器每级伤害 +12%。',
-      'fieldRepairs': '每守住一波，每个方块按每级恢复 6% 最大生命值。',
-      'greatFoundation': '每级再多建造 2 列宽度。',
-      'warChest': '波次奖励每级 +15%。',
-      'unlockSpikes': '解锁尖刺墙 — 攻击它的敌人会被反伤。',
-      'unlockBombard': '解锁臼炮 — 对地面部队的近距离迫击火力。',
-      'sharpSpikes': '尖刺墙每级反弹伤害 +20%。',
-      'cavalryDrill': '骑兵每级生命值与伤害 +14%。',
-      'artilleryDoctrine': '所有武器每级射程 +9%。'
+      'squad': '每关开局的幸存者更多。',
+      'power': '每名幸存者每发伤害更高。',
+      'rate': '每名幸存者射击更快。',
+      'scavenge': '每局获得更多金币。'
     }
-  },
-
-  'resources': {
-    'wood': '木材',
-    'stone': '石材',
-    'coins': '金币'
-  },
-
-  'ads': {
-    'watch': '观看', 'revive': '复活', 'secondChance': '第二次机会',
-    'doubleCoins': '2× 金币', 'plusCoins': '+{n} 金币'
-  },
-
-  'achievements': {
-    'title': '成就', 'subtitle': '达成长期里程碑赚取金币。',
-    'claim': '领取', 'claimed': '已领取', 'progress': '{c} / {t}',
-    'items': {
-      'wave5': { 'name': '首次坚守', 'desc': '坚持到第 5 波。' },
-      'wave10': { 'name': '要塞', 'desc': '坚持到第 10 波。' },
-      'wave20': { 'name': '壁垒', 'desc': '坚持到第 20 波。' },
-      'wave30': { 'name': '坚不可摧', 'desc': '坚持到第 30 波。' },
-      'waves50': { 'name': '破浪者', 'desc': '累计守住 50 波。' },
-      'waves250': { 'name': '围攻老兵', 'desc': '累计守住 250 波。' },
-      'kills500': { 'name': '守卫者', 'desc': '累计击败 500 名敌人。' },
-      'kills5k': { 'name': '屠戮者', 'desc': '累计击败 5,000 名敌人。' },
-      'kills50k': { 'name': '传奇', 'desc': '累计击败 50,000 名敌人。' },
-      'height10': { 'name': '直上云霄', 'desc': '建造 10 格高的高塔。' },
-      'height20': { 'name': '穿云者', 'desc': '建造 20 格高的高塔。' },
-      'blocks250': { 'name': '建造者', 'desc': '累计放置 250 个方块。' },
-      'blocks2k': { 'name': '建筑师', 'desc': '累计放置 2,000 个方块。' },
-      'coins5k': { 'name': '金币收藏家', 'desc': '累计赚取 5,000 金币。' },
-      'coins50k': { 'name': '司库', 'desc': '累计赚取 50,000 金币。' },
-      'runs25': { 'name': '坚持不懈', 'desc': '开始 25 次围攻。' }
-    }
-  },
-
-  'missions': {
-    'title': '每日任务', 'subtitle': '每天完成目标赚取金币。',
-    'claim': '领取', 'done': '已领取',
-    'types': {
-      'coins': '今天赚取 {n} 金币',
-      'waves': '单次围攻坚持到第 {n} 波',
-      'kills': '今天击败 {n} 名敌人',
-      'blocks': '今天放置 {n} 个方块'
-    }
-  },
-
-  'battlePass': {
-    'title': '战斗通行证', 'progress': '{current} / {total}', 'daysLeft': '剩余 {n} 天',
-    'maxed': '战斗通行证已完成', 'xpProgress': '{current} / {total} XP',
-    'howToEarn': '如何获得经验', 'perRun': '每次围攻', 'perWave': '每守住一波',
-    'unlockHint': '达到 {n} XP 解锁下一个奖励——未领取的奖励会一直保留。'
-  },
-
-  'dailyRewards': {
-    'title': '每日奖励', 'subtitle': '每天登录以保持连续记录。',
-    'day': '第 {n} 天', 'dayShort': 'D{n}'
   },
 
   'options': {
@@ -240,9 +72,9 @@ export default {
     'close': '保存并关闭',
     'difficulties': { 'easy': '简单', 'medium': '普通', 'hard': '困难' },
     'difficultyHints': {
-      'easy': '波次更小，敌人更弱。',
-      'medium': '标准且平衡的围攻。',
-      'hard': '波次更密集，敌人更强韧。'
+      'easy': '敌人更弱，路障更薄。',
+      'medium': '标准难度。',
+      'hard': '敌人更强，路障更厚。'
     }
   },
 

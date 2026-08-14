@@ -1,5 +1,5 @@
 export default {
-  'gameName': 'Tower Siege',
+  'gameName': 'Survivalist',
   'cancel': 'Hủy',
   'close': 'Đóng',
   'ok': 'OK',
@@ -11,226 +11,58 @@ export default {
   'crazyGamesOnly': 'Trò chơi này chỉ có trên',
 
   'hud': {
-    'wave': 'Đợt', 'enemies': 'Kẻ địch', 'callWave': 'Gọi đợt', 'callBoss': 'Gọi trùm',
-    'speed': 'Tốc độ {n}×',
-    'speedOffer': 'Tốc độ gấp đôi khi xem quảng cáo',
-    'speedFor': '{n} phút', 'recenter': 'Căn giữa khung nhìn'
+    'stage': 'Màn {n}',
+    'best': 'Kỷ lục {n}',
+    'boss': 'Trùm',
+    'miniboss': 'Trùm nhỏ',
+    'fireRate': 'Tốc độ'
   },
 
-  'hints': {
-    'selectBlock': { 'touch': 'Chạm vào một khối bên dưới để chọn', 'desktop': 'Nhấp vào một khối bên dưới để chọn' },
-    'placeBlock': { 'touch': 'Giờ hãy chạm vào ô phát sáng để xây', 'desktop': 'Giờ hãy nhấp vào ô phát sáng để xây' },
-    'camera': { 'touch': 'Kéo để di chuyển · Chụm để phóng to', 'desktop': 'Kéo để di chuyển · Cuộn để phóng to' },
-    'callWave': { 'touch': 'Chạm «Gọi đợt» khi tháp đã sẵn sàng', 'desktop': 'Nhấn Space để gọi đợt sớm' },
-    'inspect': { 'touch': 'Giữ một khối để xem chi tiết', 'desktop': 'Nhấp một khối để xem chi tiết' }
-  },
-
-  'blocks': {
-    'sell': 'Bán',
-    'roofNote': 'Có mái — không thể xây gì lên trên.',
-    'enhancedNote': 'Gia cố — nhiều HP và sát thương hơn.',
-    'enhancedHand': 'Bộ khối gia cố',
-    'reroll': 'Đổi mảnh này',
-    'kinds': { 'core': 'Lõi', 'structure': 'Kết cấu', 'weapon': 'Vũ khí', 'economy': 'Kinh tế', 'utility': 'Tiện ích' },
-    'stats': {
-      'hp': 'HP', 'armor': 'Giáp', 'dmg': 'Sát thương', 'cooldown': 'Hồi chiêu', 'range': 'Tầm bắn',
-      'splash': 'Diện rộng', 'yieldWood': 'Gỗ / đợt', 'yieldStone': 'Đá / đợt', 'yieldCoins': 'Xu / đợt',
-      'repair': 'Sửa chữa / đợt', 'blast': 'Vụ nổ',
-      'thorns': 'Gai'
-    },
-    'names': {
-      'gate': 'Cổng', 'wood': 'Thùng gỗ', 'brace': 'Thùng gia cố', 'stone': 'Khối đá',
-      'archer': 'Tháp cung thủ', 'cannon': 'Đại bác', 'mortar': 'Súng cối', 'tesla': 'Cuộn sét',
-      'frost': 'Tháp băng', 'repair': 'Xưởng sửa chữa',
-      'sawmill': 'Xưởng cưa', 'quarry': 'Mỏ đá', 'mint': 'Mỏ vàng',
-      'spikes': 'Tường gai',
-      'bombard': 'Pháo cối'
-    },
-    'descriptions': {
-      'gate': 'Trái tim của tháp. Mất nó là cuộc vây hãm kết thúc.',
-      'wood': 'Vật liệu rẻ. Xương sống của mọi tháp thuở đầu.',
-      'brace': 'Gấp đôi gỗ, hơn gấp đôi độ bền.',
-      'stone': 'Nặng và có giáp. Hợp nhất cho phần móng.',
-      'archer': 'Mũi tên nhanh vào một mục tiêu. Bắn được kẻ bay.',
-      'cannon': 'Chậm nhưng sát thương diện rộng lớn. Tan chảy đám đông dày đặc.',
-      'mortar': 'Đạn vòng cung tầm xa — nhưng không bắn được kẻ bay.',
-      'tesla': 'Tia sét nhảy giữa các kẻ địch gần nhau.',
-      'frost': 'Đóng băng cả nhóm và làm chậm chúng nghiêm trọng.',
-      'repair': 'Sửa các khối liền kề giữa các đợt.',
-      'sawmill': 'Sản xuất gỗ sau mỗi đợt chặn thành công.',
-      'quarry': 'Sản xuất đá sau mỗi đợt chặn thành công.',
-      'mint': 'Sản xuất xu sau mỗi đợt chặn thành công.',
-      'spikes': 'Kẻ tấn công tự làm mình bị thương sau mỗi đòn đánh.',
-      'bombard': 'Bắn đạn thẳng lên cao. Vụ nổ nhỏ, chỉ nhắm mục tiêu mặt đất.'
-    }
-  },
-
-  'enemies': {
-    'names': {
-      'grunt': 'Lính quèn', 'runner': 'Kẻ chạy nhanh', 'slinger': 'Xạ thủ ná', 'brute': 'Gã vạm vỡ',
-      'bomber': 'Lính đánh bom', 'bat': 'Dơi', 'bulwark': 'Lính khiên', 'golem': 'Golem công thành',
-      'wyvern': 'Phi long',
-      'eel': 'Rắn biển',
-      'kraken': 'Kraken',
-      'ram': 'Cỗ phá thành',
-      'ballista': 'Nỏ bắn đá',
-      'catapult': 'Máy bắn đá',
-      'siegeTower': 'Tháp công thành',
-      'trebuchet': 'Máy ném đá lớn',
-      'ironRam': 'Cỗ phá thành bọc thép',
-      'bombardier': 'Máy bay ném bom',
-      'firebug': 'Kẻ phóng hoả'
-    }
-  },
-
-  // ─── First-stage tutorial ─────────────────────────────────────────────────
   'tutorial': {
-    'gate': 'Bảo vệ Cổng. Cổng đổ là kết thúc.',
-    'pick': 'Chọn một mảnh.',
-    'place': 'Đặt nó cạnh Cổng.',
-    'call': 'Gọi đợt tấn công khi đã sẵn sàng.',
-    'next': 'Tiếp',
-    'offer': 'Cần hướng dẫn?',
-    'start': 'Bắt đầu',
-    'skip': 'Bỏ qua'
+    'touch': 'Vuốt để di chuyển đội của bạn',
+    'desktop': 'Di chuyển chuột để điều khiển đội'
   },
-
-  // ─── Allies ───────────────────────────────────────────────────────────────
-  'allies': {
-    'cavalry': 'Kỵ binh'
+  'hints': {
+    'move': { 'touch': 'Chạm để di chuyển', 'desktop': 'Nhấp để di chuyển' },
+    'gate': { 'touch': 'Bắn liên tục vào cổng: +1 mỗi nửa giây', 'desktop': 'Bắn liên tục vào cổng: +1 mỗi nửa giây' },
+    'trap': { 'touch': 'Cổng đỏ LÀM GIẢM quân — chọn bên kia!', 'desktop': 'Cổng đỏ LÀM GIẢM quân — chọn bên kia!' },
+    'divider': { 'touch': 'Đừng bao giờ chạm cột giữa hai cổng', 'desktop': 'Đừng bao giờ chạm cột giữa hai cổng' },
+    'crate': { 'touch': 'Thùng xanh lá: cả đội đánh mạnh hơn', 'desktop': 'Thùng xanh lá: cả đội đánh mạnh hơn' },
+    'rate': { 'touch': 'Thùng xanh dương: cả đội bắn nhanh hơn', 'desktop': 'Thùng xanh dương: cả đội bắn nhanh hơn' },
+    'boss': { 'touch': 'Tránh xa vòng tròn đỏ!', 'desktop': 'Tránh xa vòng tròn đỏ!' },
+    'guard': { 'touch': 'Khiên bật — bắn vô ích. TRÁNH RA!', 'desktop': 'Khiên bật — bắn vô ích. TRÁNH RA!' }
   },
 
   'result': {
-    'towerFell': 'Tháp đã sụp đổ!',
-    'reachedWave': 'Bạn trụ được đến đợt {n}',
+    'stageClear': 'Qua màn!',
+    'wipedOut': 'Đội bị xóa sổ',
+    'reachedStage': 'Màn {n}',
     'newRecord': 'Kỷ lục mới!',
-    'defeated': 'Đã tiêu diệt',
-    'reward': 'Phần thưởng',
-    'upgrade': 'Nâng cấp!',
-    'defendAgain': 'Phòng thủ lại',
-    'double': 'Nhân đôi xu',
-    'firstRunDouble': '2× — cuộc vây hãm đầu tiên hôm nay!',
-    'tripleWave': '3× vàng — {n}',
-    'waveCleared': 'Đã chặn đợt {n}!'
+    'rallied': 'Hồi sức',
+    'peakSquad': 'Đội đông nhất',
+    'kills': 'Tiêu diệt',
+    'nextStage': 'Màn tiếp theo',
+    'tryAgain': 'Thử lại',
+    'upgrade': 'Nâng cấp'
   },
 
-  'tech': {
-    'title': 'Cây công nghệ',
-    'rank': 'Bậc {current}/{total}',
+  'upgrades': {
+    'title': 'Nâng cấp',
+    'spotlight': 'Tiêu đi!',
+    'level': 'Cấp {n}',
     'maxed': 'Tối đa',
-    'rankOpen': 'Cấp {n}',
-    'owned': 'Đã mở',
-    'requires': 'Cần {n}',
-    'spotlight': 'Hãy tiêu!',
     'names': {
-      'foundations': 'Nền móng', 'sharpBolts': 'Mũi tên sắc', 'unlockBrace': 'Thùng gia cố',
-      'lumberStock': 'Kho gỗ', 'longSight': 'Tầm nhìn xa', 'rapidFire': 'Bắn nhanh',
-      'reinforced': 'Dầm gia cố', 'unlockSawmill': 'Xưởng cưa', 'quarryStock': 'Kho đá',
-      'unlockMortar': 'Súng cối', 'heavyOrdnance': 'Pháo hạng nặng', 'unlockTesla': 'Cuộn sét',
-      'gateArmor': 'Giáp cổng', 'unlockQuarry': 'Mỏ đá', 'richHauls': 'Chiến lợi phẩm dồi dào',
-      'wideFoundation': 'Nền móng rộng', 'siegeShells': 'Đạn công thành', 'unlockFrost': 'Tháp băng',
-      'forkedBolts': 'Sét phân nhánh', 'ironPlating': 'Tấm thép', 'unlockRepair': 'Xưởng sửa chữa',
-      'unlockMint': 'Mỏ vàng', 'looting': 'Cướp bóc', 'overcharge': 'Quá tải',
-      'masterwork': 'Kiệt tác', 'fieldRepairs': 'Sửa chữa dã chiến', 'greatFoundation': 'Đại nền móng',
-      'warChest': 'Quỹ chiến tranh',
-      'unlockSpikes': 'Tường gai',
-      'unlockBombard': 'Pháo cối',
-      'sharpSpikes': 'Gai sắc',
-      'cavalryDrill': 'Huấn luyện kỵ binh',
-      'artilleryDoctrine': 'Học thuyết pháo binh'
+      'squad': 'Đội',
+      'power': 'Sát thương',
+      'rate': 'Tốc độ bắn',
+      'scavenge': 'Nhặt nhạnh'
     },
     'descriptions': {
-      'foundations': 'Mọi khối khởi đầu với +10% HP.',
-      'sharpBolts': 'Mọi vũ khí gây +8% sát thương mỗi bậc.',
-      'unlockBrace': 'Mở khóa Thùng gia cố — HP gấp đôi gỗ thường.',
-      'lumberStock': 'Bắt đầu mỗi cuộc vây hãm với +25 gỗ mỗi bậc.',
-      'longSight': 'Tầm bắn mọi vũ khí +10% mỗi bậc.',
-      'rapidFire': 'Mọi vũ khí bắn nhanh hơn 8% mỗi bậc.',
-      'reinforced': 'Mọi khối nhận +8% HP mỗi bậc.',
-      'unlockSawmill': 'Mở khóa Xưởng cưa — sản xuất gỗ mỗi đợt.',
-      'quarryStock': 'Bắt đầu mỗi cuộc vây hãm với +18 đá mỗi bậc.',
-      'unlockMortar': 'Mở khóa Súng cối — sát thương diện rộng tầm xa.',
-      'heavyOrdnance': 'Bán kính diện rộng +15% mỗi bậc.',
-      'unlockTesla': 'Mở khóa Cuộn sét — tia sét nhảy giữa kẻ địch.',
-      'gateArmor': 'Cổng nhận +20% HP mỗi bậc.',
-      'unlockQuarry': 'Mở khóa Mỏ đá — sản xuất đá mỗi đợt.',
-      'richHauls': 'Phần thưởng đợt +12% mỗi bậc.',
-      'wideFoundation': 'Xây rộng thêm 2 cột mỗi bậc.',
-      'siegeShells': 'Mọi vũ khí gây +10% sát thương mỗi bậc.',
-      'unlockFrost': 'Mở khóa Tháp băng — làm chậm cả nhóm.',
-      'forkedBolts': 'Sét nhảy thêm 1 kẻ địch mỗi bậc.',
-      'ironPlating': 'Mọi khối nhận +2 giáp mỗi bậc.',
-      'unlockRepair': 'Mở khóa Xưởng sửa chữa — hồi máu khối liền kề mỗi đợt.',
-      'unlockMint': 'Mở khóa Mỏ vàng — sản xuất xu mỗi đợt.',
-      'looting': 'Kẻ địch rơi thêm 15% xu mỗi bậc.',
-      'overcharge': 'Mọi vũ khí bắn nhanh hơn 10% mỗi bậc.',
-      'masterwork': 'Mọi vũ khí gây +12% sát thương mỗi bậc.',
-      'fieldRepairs': 'Mỗi đợt chặn được, mỗi khối hồi 6% HP tối đa cho mỗi bậc.',
-      'greatFoundation': 'Xây rộng thêm 2 cột nữa mỗi bậc.',
-      'warChest': 'Phần thưởng đợt +15% mỗi bậc.',
-      'unlockSpikes': 'Mở khoá Tường gai — kẻ tấn công tự làm mình bị thương.',
-      'unlockBombard': 'Mở khoá Pháo cối — hoả lực cối tầm gần nhắm vào bộ binh.',
-      'sharpSpikes': 'Tường gai phản lại thêm +20% sát thương mỗi cấp.',
-      'cavalryDrill': 'Kỵ binh xuất trận với +14% HP và sát thương mỗi cấp.',
-      'artilleryDoctrine': 'Mọi vũ khí bắn xa thêm +9% mỗi cấp.'
+      'squad': 'Bắt đầu mỗi màn với nhiều người sống sót hơn.',
+      'power': 'Mỗi người gây nhiều sát thương hơn mỗi phát.',
+      'rate': 'Mỗi người bắn nhanh hơn.',
+      'scavenge': 'Kiếm nhiều xu hơn sau mỗi lượt.'
     }
-  },
-
-  'resources': {
-    'wood': 'gỗ',
-    'stone': 'đá',
-    'coins': 'xu'
-  },
-
-  'ads': {
-    'watch': 'Xem', 'revive': 'Hồi sinh', 'secondChance': 'Cơ hội thứ hai',
-    'doubleCoins': '2× xu', 'plusCoins': '+{n} xu'
-  },
-
-  'achievements': {
-    'title': 'Thành tựu', 'subtitle': 'Đạt các cột mốc tích lũy để nhận xu.',
-    'claim': 'Nhận', 'claimed': 'Đã nhận', 'progress': '{c} / {t}',
-    'items': {
-      'wave5': { 'name': 'Chống cự đầu tiên', 'desc': 'Trụ đến đợt 5.' },
-      'wave10': { 'name': 'Thành trì', 'desc': 'Trụ đến đợt 10.' },
-      'wave20': { 'name': 'Lũy vững', 'desc': 'Trụ đến đợt 20.' },
-      'wave30': { 'name': 'Bất khả phá', 'desc': 'Trụ đến đợt 30.' },
-      'waves50': { 'name': 'Đê chắn sóng', 'desc': 'Chặn tổng cộng 50 đợt.' },
-      'waves250': { 'name': 'Cựu binh công thành', 'desc': 'Chặn tổng cộng 250 đợt.' },
-      'kills500': { 'name': 'Người bảo vệ', 'desc': 'Tiêu diệt tổng cộng 500 kẻ địch.' },
-      'kills5k': { 'name': 'Sát thủ', 'desc': 'Tiêu diệt tổng cộng 5.000 kẻ địch.' },
-      'kills50k': { 'name': 'Huyền thoại', 'desc': 'Tiêu diệt tổng cộng 50.000 kẻ địch.' },
-      'height10': { 'name': 'Vươn trời', 'desc': 'Xây tháp cao 10 khối.' },
-      'height20': { 'name': 'Xuyên mây', 'desc': 'Xây tháp cao 20 khối.' },
-      'blocks250': { 'name': 'Thợ xây', 'desc': 'Đặt tổng cộng 250 khối.' },
-      'blocks2k': { 'name': 'Kiến trúc sư', 'desc': 'Đặt tổng cộng 2.000 khối.' },
-      'coins5k': { 'name': 'Nhà sưu tầm xu', 'desc': 'Kiếm tổng cộng 5.000 xu.' },
-      'coins50k': { 'name': 'Thủ quỹ', 'desc': 'Kiếm tổng cộng 50.000 xu.' },
-      'runs25': { 'name': 'Kiên trì', 'desc': 'Bắt đầu 25 cuộc vây hãm.' }
-    }
-  },
-
-  'missions': {
-    'title': 'Nhiệm vụ hằng ngày', 'subtitle': 'Hoàn thành mục tiêu mỗi ngày để nhận xu.',
-    'claim': 'Nhận', 'done': 'Đã nhận',
-    'types': {
-      'coins': 'Kiếm {n} xu hôm nay',
-      'waves': 'Trụ đến đợt {n} trong một cuộc vây hãm',
-      'kills': 'Tiêu diệt {n} kẻ địch hôm nay',
-      'blocks': 'Đặt {n} khối hôm nay'
-    }
-  },
-
-  'battlePass': {
-    'title': 'Battle Pass', 'progress': '{current} / {total}', 'daysLeft': 'Còn {n} ngày',
-    'maxed': 'ĐÃ HOÀN THÀNH BATTLE PASS', 'xpProgress': '{current} / {total} XP',
-    'howToEarn': 'Cách kiếm XP', 'perRun': 'mỗi cuộc vây hãm', 'perWave': 'mỗi đợt chặn được',
-    'unlockHint': 'Đạt {n} XP để mở phần thưởng tiếp theo — phần thưởng chưa nhận vẫn được giữ.'
-  },
-
-  'dailyRewards': {
-    'title': 'Phần thưởng hằng ngày', 'subtitle': 'Đăng nhập mỗi ngày để giữ chuỗi.',
-    'day': 'Ngày {n}', 'dayShort': 'N{n}'
   },
 
   'options': {
@@ -240,9 +72,9 @@ export default {
     'close': 'Lưu & Đóng',
     'difficulties': { 'easy': 'Dễ', 'medium': 'Trung bình', 'hard': 'Khó' },
     'difficultyHints': {
-      'easy': 'Đợt nhỏ hơn và kẻ địch yếu hơn.',
-      'medium': 'Cuộc vây hãm tiêu chuẩn, cân bằng.',
-      'hard': 'Đợt dày đặc hơn và kẻ địch cứng cáp hơn.'
+      'easy': 'Kẻ địch yếu hơn và rào chắn mỏng hơn.',
+      'medium': 'Lượt chơi tiêu chuẩn.',
+      'hard': 'Kẻ địch cứng hơn và rào chắn dày hơn.'
     }
   },
 

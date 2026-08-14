@@ -16,7 +16,7 @@
         div(:style="sizeStyle")
           img(
             :src="logoSrc"
-            alt="tower-siege"
+            alt="survivalist"
             class="w-full h-full object-contain"
             draggable="false"
           )

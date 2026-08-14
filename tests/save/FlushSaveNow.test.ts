@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // ─── flushSaveNow — immediate checkpoint flush (the CG "stage lost on reload"
 // regression) ──────────────────────────────────────────────────────────────
 //
-// On the CrazyGames cloud-only build, a cleared wave writes the new best wave into
+// On the CrazyGames cloud-only build, a cleared stage writes the new best stage into
 // `tower_state`, but the push to `sdk.data` only fires after the persist (~200ms)
 // + strategy-flush (~250ms) debounces, and the async cloud write then takes
-// time to land. A player who clears a wave and reloads a moment later beat that
-// pipeline → the reload restored the OLD wave.
+// time to land. A player who clears a stage and reloads a moment later beat that
+// pipeline → the reload restored the OLD stage.
 //
 // `flushSaveNow()` (called at every hard checkpoint) forces the whole pipeline to
 // drain synchronously-as-possible: write `tower_state` now → SaveManager proxy →
@@ -54,16 +54,16 @@ describe('flushSaveNow — immediate flush on a hard checkpoint', () => {
     const { setState } = await import('@/use/useTowerState')
     const { flushSaveNow } = await import('@/use/useSaveStatus')
 
-    // A cleared wave writes the new best into tower_state (still sitting on the
+    // A cleared stage writes the new best into tower_state (still sitting on the
     // debounce timers — nothing has reached the cloud yet).
-    setState('ts_best_wave', 2)
+    setState('ts_best_stage', 2)
     expect(data.store.get(STATE_KEY)).toBeUndefined()
 
     // The checkpoint flush drains everything immediately — no fake timers.
     await flushSaveNow()
 
     const cloudBlob = JSON.parse(data.store.get(STATE_KEY) || '{}')
-    expect(cloudBlob.ts_best_wave).toBe(2)
+    expect(cloudBlob.ts_best_stage).toBe(2)
   })
 
   it('also carries coexisting progress (coins) written in the same checkpoint', async () => {
@@ -74,11 +74,11 @@ describe('flushSaveNow — immediate flush on a hard checkpoint', () => {
     const { flushSaveNow } = await import('@/use/useSaveStatus')
 
     setState('ts_coins', 250)
-    setState('ts_best_wave', 3)
+    setState('ts_best_stage', 3)
     await flushSaveNow()
 
     const cloudBlob = JSON.parse(data.store.get(STATE_KEY) || '{}')
-    expect(cloudBlob.ts_best_wave).toBe(3)
+    expect(cloudBlob.ts_best_stage).toBe(3)
     expect(cloudBlob.ts_coins).toBe(250)
   })
 })
@@ -90,36 +90,39 @@ describe('flushSaveNow — immediate flush on a hard checkpoint', () => {
 const settle = () => new Promise((r) => setTimeout(r, 0))
 
 describe('discrete progression events flush to the backend immediately', () => {
-  it('buying a tech node flushes without waiting for the debounce', async () => {
+  it('buying an upgrade flushes without waiting for the debounce', async () => {
     const data = makeFakeData()
     await bootCloudOnly(data)
-    const { default: useTowerProgress } = await import('@/use/useTowerProgress')
+    const { applyUpgrade } = await import('@/use/useUpgrades')
     const { default: useTowerEconomy } = await import('@/use/useTowerEconomy')
-    const prog = useTowerProgress()
     useTowerEconomy().addCoins(10_000)
 
-    // `foundations` is the tree's root — no prerequisites, so it is buyable
-    // from a standing start.
-    expect(prog.buyTech('foundations')).toBe(true)
+    expect(applyUpgrade('power')).toBe(true)
     await settle()
 
     const blob = JSON.parse(data.store.get(STATE_KEY) || '{}')
-    expect(blob.ts_tech?.levels?.foundations).toBe(1)
+    expect(blob.ts_upgrades?.power).toBe(1)
   })
 
-  it('finishing a run flushes the new best wave immediately', async () => {
+  it('finishing a stage flushes the new best stage immediately', async () => {
     const data = makeFakeData()
     await bootCloudOnly(data)
-    const { default: useTowerProgress } = await import('@/use/useTowerProgress')
-    const prog = useTowerProgress()
+    const game = await import('@/use/useSurvivalGame')
 
-    prog.recordRunEnd({
-      wave: 7, kills: 120, wavesCleared: 7, height: 9, blocks: 22, blocksPlaced: 22
-    })
+    // Walk stage 3 to its end: start it, then run the clock until the boss is
+    // dead. Driving the real simulation (rather than poking the state blob)
+    // is the point — it proves the checkpoint fires from the code path a
+    // player actually takes.
+    game.startStage(3)
+    game.debugAddUnits(400)
+    game.debugAddDamage(400)
+    for (let i = 0; i < 4000 && game.phase.value !== 'clear'; i++) game.step(16)
+    expect(game.phase.value).toBe('clear')
     await settle()
 
     const blob = JSON.parse(data.store.get(STATE_KEY) || '{}')
-    expect(blob.ts_best_wave).toBe(7)
-    expect(blob.ts_total_kills).toBe(120)
+    expect(blob.ts_best_stage).toBe(3)
+    // And the NEXT stage is banked, so a reload resumes at 4 rather than 3.
+    expect(blob.ts_stage).toBe(4)
   })
 })

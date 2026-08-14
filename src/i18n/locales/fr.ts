@@ -1,5 +1,5 @@
 export default {
-  'gameName': 'Tower Siege',
+  'gameName': 'Survivalist',
   'cancel': 'Annuler',
   'close': 'Fermer',
   'ok': 'Ok',
@@ -11,226 +11,58 @@ export default {
   'crazyGamesOnly': 'Ce jeu est uniquement disponible sur',
 
   'hud': {
-    'wave': 'Vague', 'enemies': 'Ennemis', 'callWave': 'Appeler la vague', 'callBoss': 'Appeler le boss',
-    'speed': 'Vitesse {n}×',
-    'speedOffer': 'Vitesse ×2 contre une pub',
-    'speedFor': '{n} min', 'recenter': 'Recentrer la vue'
+    'stage': 'Niveau {n}',
+    'best': 'Record {n}',
+    'boss': 'Boss',
+    'miniboss': 'Mini-boss',
+    'fireRate': 'Rythme'
   },
 
-  'hints': {
-    'selectBlock': { 'touch': 'Touchez un bloc en bas pour le choisir', 'desktop': 'Cliquez sur un bloc en bas pour le choisir' },
-    'placeBlock': { 'touch': 'Touchez maintenant un emplacement lumineux', 'desktop': 'Cliquez maintenant sur un emplacement lumineux' },
-    'camera': { 'touch': 'Glissez pour déplacer · Pincez pour zoomer', 'desktop': 'Glissez pour déplacer · Molette pour zoomer' },
-    'callWave': { 'touch': 'Touchez « Appeler la vague » quand votre tour est prête', 'desktop': 'Espace pour lancer la vague en avance' },
-    'inspect': { 'touch': 'Maintenez un bloc pour l’inspecter', 'desktop': 'Cliquez sur un bloc pour l’inspecter' }
-  },
-
-  'blocks': {
-    'sell': 'Vendre',
-    'roofNote': 'Toituré — impossible de bâtir dessus.',
-    'enhancedNote': 'Renforcé — plus de PV et plus de dégâts.',
-    'enhancedHand': 'Main renforcée',
-    'reroll': 'Changer cette pièce',
-    'kinds': { 'core': 'Cœur', 'structure': 'Structure', 'weapon': 'Arme', 'economy': 'Économie', 'utility': 'Utilitaire' },
-    'stats': {
-      'hp': 'PV', 'armor': 'Armure', 'dmg': 'Dégâts', 'cooldown': 'Recharge', 'range': 'Portée',
-      'splash': 'Zone', 'yieldWood': 'Bois / vague', 'yieldStone': 'Pierre / vague', 'yieldCoins': 'Pièces / vague',
-      'repair': 'Réparation / vague', 'blast': 'Explosion',
-      'thorns': 'Épines'
-    },
-    'names': {
-      'gate': 'Porte', 'wood': 'Caisse en bois', 'brace': 'Caisse renforcée', 'stone': 'Bloc de pierre',
-      'archer': 'Tour d’archers', 'cannon': 'Canon', 'mortar': 'Mortier', 'tesla': 'Bobine électrique',
-      'frost': 'Flèche de givre', 'repair': 'Atelier',
-      'sawmill': 'Scierie', 'quarry': 'Carrière', 'mint': 'Mine d’or',
-      'spikes': 'Mur à pointes',
-      'bombard': 'Bombarde'
-    },
-    'descriptions': {
-      'gate': 'Le cœur de votre tour. Si elle tombe, le siège est fini.',
-      'wood': 'Remplissage bon marché. La colonne vertébrale de toute tour débutante.',
-      'brace': 'Deux fois plus de bois, bien plus de résistance.',
-      'stone': 'Lourd et blindé. Idéal pour la base.',
-      'archer': 'Flèches rapides sur une cible unique. Touche les volants.',
-      'cannon': 'Lent, gros dégâts de zone. Fait fondre les groupes serrés.',
-      'mortar': 'Obus en cloche à longue portée, mais incapable de toucher les volants.',
-      'tesla': 'Éclairs qui rebondissent entre les ennemis proches.',
-      'frost': 'Gèle tout un groupe et le ralentit fortement.',
-      'repair': 'Répare tous les blocs voisins entre les vagues.',
-      'sawmill': 'Produit du bois à la fin de chaque vague repoussée.',
-      'quarry': 'Produit de la pierre à la fin de chaque vague repoussée.',
-      'mint': 'Produit des pièces à la fin de chaque vague repoussée.',
-      'spikes': 'Les assaillants se blessent dessus à chaque coup.',
-      'bombard': 'Envoie un obus à la verticale. Petite explosion, cibles au sol uniquement.'
-    }
-  },
-
-  'enemies': {
-    'names': {
-      'grunt': 'Fantassin', 'runner': 'Coureur', 'slinger': 'Frondeur', 'brute': 'Brute',
-      'bomber': 'Bombardier', 'bat': 'Chauve-souris', 'bulwark': 'Rempart', 'golem': 'Golem de siège',
-      'wyvern': 'Vouivre',
-      'eel': 'Serpent de mer',
-      'kraken': 'Kraken',
-      'ram': 'Bélier',
-      'ballista': 'Baliste',
-      'catapult': 'Catapulte',
-      'siegeTower': 'Tour de siège',
-      'trebuchet': 'Trébuchet',
-      'ironRam': 'Bélier cuirassé',
-      'bombardier': 'Bombardier',
-      'firebug': 'Incendiaire'
-    }
-  },
-
-  // ─── First-stage tutorial ─────────────────────────────────────────────────
   'tutorial': {
-    'gate': 'Protège la Porte. Si elle tombe, la partie est finie.',
-    'pick': 'Choisis une pièce.',
-    'place': 'Pose-la à côté de la Porte.',
-    'call': 'Lance la vague quand tu es prêt.',
-    'next': 'Suivant',
-    'offer': 'Besoin d’un tutoriel ?',
-    'start': 'Démarrer',
-    'skip': 'Passer'
+    'touch': 'Glisse pour déplacer ton escouade',
+    'desktop': 'Bouge la souris pour diriger ton escouade'
   },
-
-  // ─── Allies ───────────────────────────────────────────────────────────────
-  'allies': {
-    'cavalry': 'Cavalerie'
+  'hints': {
+    'move': { 'touch': 'Touche pour te déplacer', 'desktop': 'Clique pour te déplacer' },
+    'gate': { 'touch': 'Continue de tirer sur la porte : +1 toutes les demi-secondes', 'desktop': 'Continue de tirer sur la porte : +1 toutes les demi-secondes' },
+    'trap': { 'touch': 'Les portes rouges RÉDUISENT ton escouade : prends l’autre !', 'desktop': 'Les portes rouges RÉDUISENT ton escouade : prends l’autre !' },
+    'divider': { 'touch': 'Ne touche jamais le pilier entre les portes', 'desktop': 'Ne touche jamais le pilier entre les portes' },
+    'crate': { 'touch': 'Caisses vertes : tous frappent plus fort', 'desktop': 'Caisses vertes : tous frappent plus fort' },
+    'rate': { 'touch': 'Caisses bleues : tous tirent plus vite', 'desktop': 'Caisses bleues : tous tirent plus vite' },
+    'boss': { 'touch': 'Reste hors du cercle rouge !', 'desktop': 'Reste hors du cercle rouge !' },
+    'guard': { 'touch': 'Bouclier levé — tes tirs ne font rien. BOUGE !', 'desktop': 'Bouclier levé — tes tirs ne font rien. BOUGE !' }
   },
 
   'result': {
-    'towerFell': 'La tour est tombée !',
-    'reachedWave': 'Vous avez tenu jusqu’à la vague {n}',
+    'stageClear': 'Niveau terminé !',
+    'wipedOut': 'Escouade anéantie',
+    'reachedStage': 'Niveau {n}',
     'newRecord': 'Nouveau record !',
-    'defeated': 'Vaincus',
-    'reward': 'Récompense',
-    'upgrade': 'Améliorer !',
-    'defendAgain': 'Défendre à nouveau',
-    'double': 'Doubler les pièces',
-    'firstRunDouble': '2× — premier siège du jour !',
-    'tripleWave': '3× pièces — {n}',
-    'waveCleared': 'Vague {n} repoussée !'
+    'rallied': 'Second souffle',
+    'peakSquad': 'Plus grande escouade',
+    'kills': 'Éliminations',
+    'nextStage': 'Niveau suivant',
+    'tryAgain': 'Réessayer',
+    'upgrade': 'Améliorer'
   },
 
-  'tech': {
-    'title': 'Arbre technologique',
-    'rank': 'Rang {current}/{total}',
-    'maxed': 'Au maximum',
-    'rankOpen': 'Rang {n}',
-    'owned': 'Débloqué',
-    'requires': 'Nécessite {n}',
-    'spotlight': 'Dépensez !',
+  'upgrades': {
+    'title': 'Améliorations',
+    'spotlight': 'Dépense !',
+    'level': 'Niv {n}',
+    'maxed': 'Max',
     'names': {
-      'foundations': 'Fondations', 'sharpBolts': 'Carreaux aiguisés', 'unlockBrace': 'Caisses renforcées',
-      'lumberStock': 'Réserve de bois', 'longSight': 'Longue vue', 'rapidFire': 'Tir rapide',
-      'reinforced': 'Poutres renforcées', 'unlockSawmill': 'Scierie', 'quarryStock': 'Réserve de pierre',
-      'unlockMortar': 'Mortier', 'heavyOrdnance': 'Artillerie lourde', 'unlockTesla': 'Bobine électrique',
-      'gateArmor': 'Blindage de la porte', 'unlockQuarry': 'Carrière', 'richHauls': 'Butin abondant',
-      'wideFoundation': 'Fondation large', 'siegeShells': 'Obus de siège', 'unlockFrost': 'Flèche de givre',
-      'forkedBolts': 'Éclairs ramifiés', 'ironPlating': 'Plaques de fer', 'unlockRepair': 'Atelier',
-      'unlockMint': 'Mine d’or', 'looting': 'Pillage', 'overcharge': 'Surcharge',
-      'masterwork': 'Chef-d’œuvre', 'fieldRepairs': 'Réparations de campagne', 'greatFoundation': 'Grande fondation',
-      'warChest': 'Trésor de guerre',
-      'unlockSpikes': 'Mur à pointes',
-      'unlockBombard': 'Bombarde',
-      'sharpSpikes': 'Pointes affûtées',
-      'cavalryDrill': 'Manœuvres de cavalerie',
-      'artilleryDoctrine': 'Doctrine d’artillerie'
+      'squad': 'Escouade',
+      'power': 'Puissance',
+      'rate': 'Cadence',
+      'scavenge': 'Récupération'
     },
     'descriptions': {
-      'foundations': 'Chaque bloc démarre avec +10 % de PV.',
-      'sharpBolts': 'Toutes les armes infligent +8 % de dégâts par rang.',
-      'unlockBrace': 'Débloque la caisse renforcée : deux fois les PV du bois.',
-      'lumberStock': 'Commencez chaque siège avec +25 de bois par rang.',
-      'longSight': 'Toutes les armes portent +10 % plus loin par rang.',
-      'rapidFire': 'Toutes les armes tirent 8 % plus vite par rang.',
-      'reinforced': 'Chaque bloc gagne +8 % de PV par rang.',
-      'unlockSawmill': 'Débloque la scierie : produit du bois à chaque vague.',
-      'quarryStock': 'Commencez chaque siège avec +18 de pierre par rang.',
-      'unlockMortar': 'Débloque le mortier : dégâts de zone à longue portée.',
-      'heavyOrdnance': 'Rayon de zone +15 % par rang.',
-      'unlockTesla': 'Débloque la bobine électrique : les éclairs rebondissent.',
-      'gateArmor': 'La porte gagne +20 % de PV par rang.',
-      'unlockQuarry': 'Débloque la carrière : produit de la pierre à chaque vague.',
-      'richHauls': 'Récompenses de vague +12 % par rang.',
-      'wideFoundation': 'Construisez 2 colonnes plus large par rang.',
-      'siegeShells': 'Toutes les armes infligent +10 % de dégâts par rang.',
-      'unlockFrost': 'Débloque la flèche de givre : ralentit des groupes entiers.',
-      'forkedBolts': 'L’éclair rebondit sur 1 ennemi de plus par rang.',
-      'ironPlating': 'Chaque bloc gagne +2 d’armure par rang.',
-      'unlockRepair': 'Débloque l’atelier : soigne les voisins à chaque vague.',
-      'unlockMint': 'Débloque la mine d’or : produit des pièces à chaque vague.',
-      'looting': 'Les ennemis lâchent +15 % de pièces en plus par rang.',
-      'overcharge': 'Toutes les armes tirent 10 % plus vite par rang.',
-      'masterwork': 'Toutes les armes infligent +12 % de dégâts par rang.',
-      'fieldRepairs': 'Chaque bloc récupère 6 % de ses PV max par vague repoussée et par rang.',
-      'greatFoundation': 'Construisez 2 colonnes de plus par rang.',
-      'warChest': 'Récompenses de vague +15 % par rang.',
-      'unlockSpikes': 'Débloque le Mur à pointes — les assaillants se blessent dessus.',
-      'unlockBombard': 'Débloque la Bombarde — tir de mortier à courte portée sur les troupes au sol.',
-      'sharpSpikes': 'Les murs à pointes renvoient +20 % de dégâts en plus par rang.',
-      'cavalryDrill': 'La cavalerie sort avec +14 % de PV et de dégâts par rang.',
-      'artilleryDoctrine': 'Toutes les armes portent +9 % plus loin par rang.'
+      'squad': 'Commence chaque niveau avec plus de survivants.',
+      'power': 'Chaque survivant inflige plus de dégâts par tir.',
+      'rate': 'Chaque survivant tire plus vite.',
+      'scavenge': 'Gagne plus de pièces à chaque partie.'
     }
-  },
-
-  'resources': {
-    'wood': 'bois',
-    'stone': 'pierre',
-    'coins': 'pièces'
-  },
-
-  'ads': {
-    'watch': 'Regarder', 'revive': 'Revivre', 'secondChance': 'Seconde chance',
-    'doubleCoins': '2× pièces', 'plusCoins': '+{n} pièces'
-  },
-
-  'achievements': {
-    'title': 'Succès', 'subtitle': 'Atteignez des paliers à vie pour gagner des pièces.',
-    'claim': 'Réclamer', 'claimed': 'Réclamé', 'progress': '{c} / {t}',
-    'items': {
-      'wave5': { 'name': 'Première résistance', 'desc': 'Tenez jusqu’à la vague 5.' },
-      'wave10': { 'name': 'Bastion', 'desc': 'Tenez jusqu’à la vague 10.' },
-      'wave20': { 'name': 'Rempart', 'desc': 'Tenez jusqu’à la vague 20.' },
-      'wave30': { 'name': 'Incassable', 'desc': 'Tenez jusqu’à la vague 30.' },
-      'waves50': { 'name': 'Brise-lames', 'desc': 'Repoussez 50 vagues au total.' },
-      'waves250': { 'name': 'Vétéran des sièges', 'desc': 'Repoussez 250 vagues au total.' },
-      'kills500': { 'name': 'Défenseur', 'desc': 'Vainquez 500 ennemis au total.' },
-      'kills5k': { 'name': 'Pourfendeur', 'desc': 'Vainquez 5 000 ennemis au total.' },
-      'kills50k': { 'name': 'Légende', 'desc': 'Vainquez 50 000 ennemis au total.' },
-      'height10': { 'name': 'Vers le ciel', 'desc': 'Construisez une tour de 10 blocs de haut.' },
-      'height20': { 'name': 'Perce-nuages', 'desc': 'Construisez une tour de 20 blocs de haut.' },
-      'blocks250': { 'name': 'Bâtisseur', 'desc': 'Placez 250 blocs au total.' },
-      'blocks2k': { 'name': 'Architecte', 'desc': 'Placez 2 000 blocs au total.' },
-      'coins5k': { 'name': 'Collectionneur', 'desc': 'Gagnez 5 000 pièces au total.' },
-      'coins50k': { 'name': 'Trésorier', 'desc': 'Gagnez 50 000 pièces au total.' },
-      'runs25': { 'name': 'Persévérant', 'desc': 'Lancez 25 sièges.' }
-    }
-  },
-
-  'missions': {
-    'title': 'Missions quotidiennes', 'subtitle': 'Accomplissez des objectifs chaque jour pour des pièces.',
-    'claim': 'Réclamer', 'done': 'Réclamé',
-    'types': {
-      'coins': 'Gagnez {n} pièces aujourd’hui',
-      'waves': 'Tenez jusqu’à la vague {n} en un siège',
-      'kills': 'Vainquez {n} ennemis aujourd’hui',
-      'blocks': 'Placez {n} blocs aujourd’hui'
-    }
-  },
-
-  'battlePass': {
-    'title': 'Passe de combat', 'progress': '{current} / {total}', 'daysLeft': '{n} j restants',
-    'maxed': 'PASSE DE COMBAT TERMINÉ', 'xpProgress': '{current} / {total} XP',
-    'howToEarn': 'Comment gagner de l’XP', 'perRun': 'par siège', 'perWave': 'par vague repoussée',
-    'unlockHint': 'Atteignez {n} XP pour débloquer la prochaine récompense — les récompenses non réclamées sont conservées.'
-  },
-
-  'dailyRewards': {
-    'title': 'Récompenses quotidiennes', 'subtitle': 'Connectez-vous chaque jour pour garder votre série.',
-    'day': 'Jour {n}', 'dayShort': 'J{n}'
   },
 
   'options': {
@@ -240,9 +72,9 @@ export default {
     'close': 'Enregistrer et fermer',
     'difficulties': { 'easy': 'Facile', 'medium': 'Moyen', 'hard': 'Difficile' },
     'difficultyHints': {
-      'easy': 'Vagues plus petites et ennemis plus faibles.',
-      'medium': 'Le siège standard et équilibré.',
-      'hard': 'Vagues plus denses et ennemis plus coriaces.'
+      'easy': 'Ennemis plus faibles et barricades plus fines.',
+      'medium': 'La partie standard.',
+      'hard': 'Ennemis plus coriaces et barricades plus solides.'
     }
   },
 

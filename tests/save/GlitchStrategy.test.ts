@@ -71,7 +71,7 @@ describe('GlitchStrategy (isGlitch guard)', () => {
   })
 
   it('hydrates local state from the Glitch save list', async () => {
-    const payload = { ts_coins: '99', ts_best_wave: '[1,2]' }
+    const payload = { ts_coins: '99', ts_best_stage: '[1,2]' }
     const fetchImpl = makeFetch({
       [`GET ${savesUrl}`]: () =>
         jsonResponse({
@@ -92,7 +92,7 @@ describe('GlitchStrategy (isGlitch guard)', () => {
     await manager.init()
 
     expect(window.localStorage.getItem('ts_coins')).toBe('99')
-    expect(window.localStorage.getItem('ts_best_wave')).toBe('[1,2]')
+    expect(window.localStorage.getItem('ts_best_stage')).toBe('[1,2]')
     expect(strategy.getBaseVersion()).toBe(5)
     expect(strategy.getSaveId()).toBe('save-uuid-1')
   })
@@ -297,7 +297,7 @@ describe('GlitchStrategy (isGlitch guard)', () => {
     // sanity guard doesn't engage (it only retries when local looks like
     // fresh defaults — see SaveManager.shouldRunSanityGuard). The point
     // of THIS test is the local-mirror fallback, not the retry behaviour.
-    window.localStorage.setItem('ts_best_wave', '5')
+    window.localStorage.setItem('ts_best_stage', '5')
     const fetchImpl = vi.fn(async () => new Response('boom', { status: 500 }))
     const strategy = makeStrategy({ fetchImpl })
     const manager = new SaveManager(strategy)
@@ -356,12 +356,12 @@ describe('GlitchStrategy (isGlitch guard)', () => {
 
     const a = await captureChecksum([
       ['ts_coins', '10'],
-      ['ts_best_wave', '4'],
+      ['ts_best_stage', '4'],
       ['ts_user_language', 'en']
     ])
     const b = await captureChecksum([
       ['ts_user_language', 'en'],
-      ['ts_best_wave', '4'],
+      ['ts_best_stage', '4'],
       ['ts_coins', '10']
     ])
 
@@ -375,7 +375,7 @@ describe('GlitchStrategy (isGlitch guard)', () => {
     const decoded = JSON.parse(atob(a.payload))
     expect(Object.keys(decoded)).toEqual([
       '__save_meta__',
-      'ts_best_wave',
+      'ts_best_stage',
       'ts_coins',
       'ts_user_language'
     ])

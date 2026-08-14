@@ -11,65 +11,81 @@
 
 // ─── Meta progression ───────────────────────────────────────────────────────
 
-/** Meta currency, banked at run end and spent in the tech tree. */
+/** Meta currency, banked at the end of every stage and spent on upgrades. */
 export const COINS_KEY = 'ts_coins'
-/** Tech-tree node levels: `{ levels: Record<nodeId, number> }`. */
-export const TECH_KEY = 'ts_tech'
-/** Highest wave the player has ever survived (the headline progress number). */
-export const BEST_WAVE_KEY = 'ts_best_wave'
-/** Tallest tower ever built, in rows. */
-export const BEST_HEIGHT_KEY = 'ts_best_height'
-/** Most blocks ever standing in one tower. */
-export const BEST_BLOCKS_KEY = 'ts_best_blocks'
-/** Lifetime enemies killed. */
-export const TOTAL_KILLS_KEY = 'ts_total_kills'
-/** Lifetime waves cleared (across all runs). */
-export const TOTAL_WAVES_KEY = 'ts_total_waves'
+/** Lifetime coins earned — never decremented by spending. */
+export const TOTAL_COINS_KEY = 'ts_total_coins'
+/** Permanent upgrade levels: `{ squad, power, rate, scavenge }`. */
+export const UPGRADES_KEY = 'ts_upgrades'
+/** Deepest stage ever cleared — the headline progress number. */
+export const BEST_STAGE_KEY = 'ts_best_stage'
+/** Largest squad ever assembled in one run. */
+export const BEST_SQUAD_KEY = 'ts_best_squad'
 /** Lifetime runs started. */
 export const RUNS_KEY = 'ts_runs'
-/** Lifetime blocks placed. */
-export const TOTAL_BLOCKS_KEY = 'ts_total_blocks'
-/** Lifetime coins earned (achievement metric, never decremented by spending). */
-export const TOTAL_COINS_KEY = 'ts_total_coins'
+/** Lifetime foes destroyed. */
+export const TOTAL_KILLS_KEY = 'ts_total_kills'
 
 // ─── The resumable run ──────────────────────────────────────────────────────
 
 /**
- * Snapshot of the in-progress siege, written at every build-phase entry:
- * `{ wave, wood, stone, runCoins, kills, killsByType, blocks: [[c,r,type,hp]] }`.
- * A reload (or a cross-device cloud hydrate) resumes the exact tower instead of
- * dumping the player back to a fresh foundation.
+ * The stage the player is currently on.
+ *
+ * A stage is short (~40 s) and its layout is regenerated deterministically from
+ * this number alone, so there is nothing else to store: a reload — or opening
+ * the game on another device after a cloud sync — drops the player at the START
+ * of the stage they were running, never back at stage 1.
  */
-export const RUN_KEY = 'ts_run'
+export const STAGE_KEY = 'ts_stage'
 
-// ─── Retention systems ──────────────────────────────────────────────────────
+/**
+ * Stages the player has already lost on, as `{ [stage]: failCount }`.
+ *
+ * Drives the one-shot difficulty relief (`RETRY_HP_RELIEF`): every enemy on a
+ * stage you have died to before has 20 % less health. It is deliberately
+ * persisted rather than session-only — being stuck is a cross-session problem,
+ * and a player who closes the app in frustration is exactly the one the relief
+ * exists for.
+ */
+export const FAILED_STAGES_KEY = 'ts_failed_stages'
 
-/** Daily missions: `{ day: 'YYYY-MM-DD', missions: Mission[] }` (regen per day). */
-export const MISSIONS_KEY = 'ts_missions'
-/** Achievements: `{ claimed: string[], stats: {...} }`. */
-export const ACHIEVEMENTS_KEY = 'ts_achievements'
-/** First-run-of-day 2× bonus bookkeeping: the local day it was last consumed. */
-export const DAILY_BONUS_DAY_KEY = 'ts_daily_bonus_day'
-/** Battle pass: `{ xp, claimed: number[], seasonStart }`. */
-export const BATTLE_PASS_KEY = 'ts_battle_pass'
-/** Daily login rewards: `{ streak, lastClaimDay }`. */
-export const DAILY_REWARDS_KEY = 'ts_daily_rewards'
-/** Idle treasure chest: `{ readyAt }`. */
-export const CHEST_KEY = 'ts_chest'
-/** Rewarded-ad button cooldown timestamp. */
-export const AD_COOLDOWN_KEY = 'ts_ad_cooldown'
+/**
+ * The autobalancer's handicap: how many stages the player has cleared in a row.
+ *
+ * Every clear makes the next stage a little harder; a single loss resets it to
+ * zero. It is the difference between a game that gets easier the better you
+ * get at it and one that keeps pace with you — and because it resets on a loss,
+ * it can never be the reason a player is stuck.
+ */
+export const CHALLENGE_KEY = 'ts_challenge'
 
 // ─── Onboarding / one-shot UI nudges ────────────────────────────────────────
 
-/** First-run onboarding consumed flag (true once the first run finishes). */
+/** First-run onboarding consumed flag — retires the control hints for good. */
 export const ONBOARDED_KEY = 'ts_onboarded'
-/** First-stage tutorial seen. Separate from ONBOARDED so the coach marks and
- *  the control hints can retire independently. */
-export const TUTORIAL_KEY = 'ts_tutorial'
-/** One-time "you can afford a tech node" spotlight on the Tech button. */
-export const TECH_SPOTLIGHT_KEY = 'ts_tech_spotlight_seen'
-/** Which control hints the player has already followed (bitmask-ish string[]). */
-export const HINTS_SEEN_KEY = 'ts_hints_seen'
+/**
+ * The very first thing a new player ever sees: the controls lightbox, held in
+ * front of stage 1 until they have actually steered the squad for a second.
+ *
+ * Its own key rather than a reuse of `ONBOARDED_KEY`, and the reason is what
+ * each one means. `ONBOARDED_KEY` retires the running control PRIMERS after a
+ * cleared stage; this retires a one-time gate that ran before the game did.
+ * Folding them together would show the lightbox again to every existing player
+ * whose save predates it — a gate in front of stage 1 for someone on stage 20.
+ */
+export const TUTORIAL_KEY = 'ts_tutorial_seen'
+/** One-time "you can afford an upgrade" spotlight on the shop button. */
+export const SHOP_SPOTLIGHT_KEY = 'ts_shop_spotlight_seen'
+/**
+ * One-time "the boss shielded and your fire stopped working" primer.
+ *
+ * Deliberately NOT covered by `ONBOARDED_KEY`. Onboarding retires after the
+ * first cleared stage, which is fine for the primers that teach the controls —
+ * but the boss guard is a rule that arrived after players already had saves,
+ * and every one of them is `onboarded`. Without its own flag the mechanic most
+ * likely to read as a bug is the one mechanic nobody is ever told about.
+ */
+export const GUARD_HINT_KEY = 'ts_guard_hint_seen'
 
 // ─── User settings ──────────────────────────────────────────────────────────
 

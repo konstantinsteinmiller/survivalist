@@ -9,14 +9,14 @@ import { SAVE_KEYS, isPayloadKey, META_KEY } from '@/utils/save/SaveMergePolicy'
 import { STATE_KEY } from '@/use/useTowerState'
 
 describe('SAVE_KEYS values are stable', () => {
-  it('BEST_WAVE key is the literal "ts_best_wave"', () => {
-    expect(SAVE_KEYS.BEST_WAVE).toBe('ts_best_wave')
+  it('BEST_STAGE key is the literal "ts_best_stage"', () => {
+    expect(SAVE_KEYS.BEST_STAGE).toBe('ts_best_stage')
   })
   it('COINS key is the literal "ts_coins"', () => {
     expect(SAVE_KEYS.COINS).toBe('ts_coins')
   })
-  it('TECH key is the literal "ts_tech"', () => {
-    expect(SAVE_KEYS.TECH).toBe('ts_tech')
+  it('UPGRADES key is the literal "ts_upgrades"', () => {
+    expect(SAVE_KEYS.UPGRADES).toBe('ts_upgrades')
   })
   it('RUNS key is the literal "ts_runs"', () => {
     expect(SAVE_KEYS.RUNS).toBe('ts_runs')

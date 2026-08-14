@@ -1,198 +1,184 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { isMobilePortrait } from '@/use/useUser'
+import { mobileCheck } from '@/utils/function'
 
 /**
- * First-run coach marks.
+ * The first thing a new player ever sees.
  *
- * Shown ONLY during the first stage, and only once ever. Four beats, each a
- * dimmed screen with a hole cut over the thing being talked about and one short
- * line of text.
+ * A crowd runner has exactly one control, and a player who does not find it in
+ * the first few seconds bounces. Every other primer in this game is a pill of
+ * text that appears while the road is already moving; this one holds the road
+ * still and asks for the gesture, because "move" is the only lesson that cannot
+ * be taught while the player is also being asked to survive.
  *
- * Design rules, in order of importance:
+ * Three rules it is built to:
  *
- *   1. **Never block the thing it is pointing at.** The cut-out is a real hole:
- *      pointer events pass through it, so the player can act on the step while
- *      it is on screen instead of dismissing a modal and then trying to
- *      remember what it said.
- *   2. **One line each.** A tutorial nobody reads is worse than no tutorial;
- *      four short lines get read, four paragraphs do not.
- *   3. **It advances on the ACTION, not on a button** wherever an action
- *      exists. Being told "tap a piece" and then having to tap "Next" first
- *      teaches the wrong reflex.
- *   4. It is skippable from the first frame.
+ *   1. IT IS NOT A PAGE. There is no OK button, no dialog, nothing to dismiss.
+ *      The player leaves it by doing the thing — see `steerOnly` and the
+ *      movement clock in `GameScene`. A tutorial you can click past is a
+ *      tutorial that teaches clicking past tutorials.
+ *   2. IT NEVER EATS THE GESTURE. `pointer-events: none` all the way down, so
+ *      the finger that is learning to steer is steering, not being intercepted
+ *      by the thing explaining steering.
+ *   3. IT SHOWS THE PLAYER'S OWN DEVICE. A finger that swipes on touch, a
+ *      pointer that glides on desktop. The wrong glyph reads as a game built
+ *      for somebody else.
+ *
+ * The squad stays lit underneath: the scrim is a ring, not a sheet, so the one
+ * thing the player is being asked to look at is the one thing not dimmed.
  */
 
-export type TutorialStep = 'gate' | 'pick' | 'place' | 'call'
-
 interface Props {
-  /** Which step is live, or null when the tutorial is finished/never started. */
-  step: TutorialStep | null
-  /** Screen-space rect to cut out of the dim layer. */
-  target: { x: number; y: number; w: number; h: number } | null
+  /** 0..1 — how much of the required second of movement has been done. Drives
+   *  the ring, which is the only feedback that the gesture is working. */
+  progress: number
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits<{ (e: 'next'): void; (e: 'skip'): void }>()
-
 const { t } = useI18n()
 
-/** Padding around the highlighted element, so the hole never crops it. */
-const PAD = 10
+const isTouch = computed(() => mobileCheck() || isMobilePortrait.value
+  || (typeof window !== 'undefined' && navigator.maxTouchPoints > 0))
 
-const hole = computed(() => {
-  const r = props.target
-  if (!r) return null
-  return {
-    x: Math.round(r.x - PAD),
-    y: Math.round(r.y - PAD),
-    w: Math.round(r.w + PAD * 2),
-    h: Math.round(r.h + PAD * 2)
-  }
-})
+const label = computed(() => t(`tutorial.${isTouch.value ? 'touch' : 'desktop'}`))
 
-/**
- * Which side of the hole the card sits on.
- *
- * Always the side with more room, so the card never lands on top of the thing
- * it is describing.
- */
-const cardStyle = computed(() => {
-  const h = hole.value
-  if (!h) return { top: '50%', left: '50%', translate: '-50% -50%' }
-  const below = window.innerHeight - (h.y + h.h)
-  if (below > 170) {
-    return { top: `${h.y + h.h + 14}px`, left: '50%', translate: '-50% 0' }
-  }
-  if (h.y > 170) {
-    return { top: `${h.y - 14}px`, left: '50%', translate: '-50% -100%' }
-  }
-  return { top: '50%', left: '50%', translate: '-50% -50%' }
-})
-
-/** The `gate` beat has nothing to tap, so it advances on its own. */
-const autoAdvance = computed(() => props.step === 'gate')
-let autoTimer: ReturnType<typeof setTimeout> | null = null
-
-watch(() => props.step, (s) => {
-  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null }
-  if (s && autoAdvance.value) autoTimer = setTimeout(() => emit('next'), 2600)
-}, { immediate: true })
-
-onUnmounted(() => { if (autoTimer) clearTimeout(autoTimer) })
-
-// Re-measure on resize: the overlay is positioned in screen space, so a rotate
-// or a keyboard opening would otherwise leave the hole somewhere arbitrary.
-const tick = ref(0)
-const onResize = (): void => { tick.value++ }
-onMounted(() => window.addEventListener('resize', onResize))
-onUnmounted(() => window.removeEventListener('resize', onResize))
+/** Ring geometry, as stroke-dashoffset over a 100-unit circumference. */
+const RING_LEN = 100
+const dash = computed(() => `${Math.max(0, Math.min(1, props.progress)) * RING_LEN} ${RING_LEN}`)
 </script>
 
 <template lang="pug">
   Transition(name="tut")
-    div.tutorial(v-if="step")
-      //- The dim layer is four rects around the hole rather than one rect with
-      //- a mask: it keeps the hole genuinely click-through on every browser,
-      //- which `mask-image` does not.
-      template(v-if="hole")
-        div.tutorial__dim(:style="{ left: 0, top: 0, width: '100%', height: hole.y + 'px' }")
-        div.tutorial__dim(:style="{ left: 0, top: (hole.y + hole.h) + 'px', width: '100%', bottom: 0 }")
-        div.tutorial__dim(:style="{ left: 0, top: hole.y + 'px', width: hole.x + 'px', height: hole.h + 'px' }")
-        div.tutorial__dim(:style="{ left: (hole.x + hole.w) + 'px', top: hole.y + 'px', right: 0, height: hole.h + 'px' }")
-        div.tutorial__ring(:style="{ left: hole.x + 'px', top: hole.y + 'px', width: hole.w + 'px', height: hole.h + 'px' }")
-      div.tutorial__dim.is-full(v-else)
+    div.tut(aria-live="polite")
+      //- The lightbox itself: a soft hole over the squad, dark everywhere else.
+      div.tut__scrim
 
-      div.tutorial__card(:style="cardStyle")
-        span.tutorial__text {{ t(`tutorial.${step}`) }}
-        div.tutorial__actions
-          button.tutorial__skip(type="button" @click="emit('skip')") {{ t('tutorial.skip') }}
-          button.tutorial__next(v-if="!autoAdvance" type="button" @click="emit('next')") {{ t('tutorial.next') }}
+      div.tut__stage
+        //- The gesture. One glyph, one axis, looping — a swipe on touch, a
+        //- gliding pointer on desktop.
+        div.tut__gesture
+          div.tut__trail
+          div.tut__hand(:class="isTouch ? 'tut__hand--touch' : 'tut__hand--mouse'")
+            svg(v-if="isTouch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true")
+              path(d="M9 11V6a2 2 0 1 1 4 0v5")
+              path(d="M13 8a2 2 0 1 1 4 0v6a6 6 0 0 1-6 6h-1a5 5 0 0 1-4.3-2.4L4 15a1.6 1.6 0 0 1 2.6-1.9L8 15")
+            svg(v-else viewBox="0 0 24 24" fill="currentColor" aria-hidden="true")
+              path(d="M5 3l14 7.5-6 1.6L10.6 19z")
+
+        span.tut__text {{ label }}
+
+        //- The clock. Fills only while the squad is actually moving, so it is
+        //- feedback rather than a countdown the player has to wait out.
+        svg.tut__ring(viewBox="0 0 36 36" aria-hidden="true")
+          circle.tut__ring-track(cx="18" cy="18" r="15.9155")
+          circle.tut__ring-fill(cx="18" cy="18" r="15.9155" :stroke-dasharray="dash")
 </template>
 
 <style scoped lang="sass">
-.tutorial
-  position: fixed
+.tut
+  position: absolute
   inset: 0
-  z-index: 40
-  // The layer itself is inert; only the card takes pointer events, so the
-  // highlighted control stays live through the hole.
+  // Rule 2: the gesture belongs to the game underneath, always.
   pointer-events: none
-
-.tutorial__dim
-  position: absolute
-  background-color: rgba(6, 10, 20, 0.72)
-  pointer-events: auto
-
-  &.is-full
-    inset: 0
-
-.tutorial__ring
-  position: absolute
-  border: 2px solid rgba(255, 214, 80, 0.9)
-  border-radius: clamp(0.5rem, 2.4vw, 0.9rem)
-  box-shadow: 0 0 0 3px rgba(255, 214, 80, 0.25), 0 0 22px rgba(255, 200, 60, 0.5)
-  animation: tut-pulse 1.5s ease-in-out infinite
-  pointer-events: none
-
-@keyframes tut-pulse
-  0%, 100%
-    box-shadow: 0 0 0 3px rgba(255, 214, 80, 0.2), 0 0 18px rgba(255, 200, 60, 0.35)
-  50%
-    box-shadow: 0 0 0 5px rgba(255, 214, 80, 0.35), 0 0 28px rgba(255, 200, 60, 0.65)
-
-.tutorial__card
-  position: absolute
   display: flex
   flex-direction: column
   align-items: center
-  gap: clamp(0.4rem, 2vw, 0.7rem)
-  width: max-content
-  max-width: min(88vw, 22rem)
-  padding: clamp(0.6rem, 3vw, 1rem) clamp(0.8rem, 4vw, 1.4rem)
-  border: 2px solid #ffd64a
-  border-radius: clamp(0.6rem, 3vw, 1rem)
-  background-image: linear-gradient(to bottom, rgba(30, 48, 88, 0.98), rgba(14, 24, 48, 0.98))
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6)
-  pointer-events: auto
+  justify-content: flex-end
+  z-index: 30
 
-.tutorial__text
+.tut__scrim
+  position: absolute
+  inset: 0
+  // A hole rather than a sheet: the squad sits at ~72 % down the screen (see
+  // `CROWD_SCREEN_Y`) and stays lit, everything else recedes.
+  background: radial-gradient(circle at 50% 72%, rgba(4, 8, 18, 0) 0%, rgba(4, 8, 18, 0.42) 26%, rgba(4, 8, 18, 0.82) 62%)
+
+.tut__stage
+  position: relative
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: clamp(0.5rem, 2.4vw, 0.9rem)
+  // Sits above the crowd, not on top of it — the player has to be able to see
+  // what their finger is doing to the squad.
+  margin-bottom: calc(38vh + env(safe-area-inset-bottom, 0px))
+  padding: 0 1rem
+
+.tut__gesture
+  position: relative
+  width: min(58vw, 15rem)
+  height: clamp(2.6rem, 11vw, 3.4rem)
+
+.tut__trail
+  position: absolute
+  left: 8%
+  right: 8%
+  top: 50%
+  height: 2px
+  translate: 0 -50%
+  border-radius: 999px
+  background: linear-gradient(90deg, rgba(255, 217, 60, 0) 0%, rgba(255, 217, 60, 0.55) 50%, rgba(255, 217, 60, 0) 100%)
+
+.tut__hand
+  position: absolute
+  top: 50%
+  left: 50%
+  width: clamp(1.7rem, 7.5vw, 2.4rem)
+  height: clamp(1.7rem, 7.5vw, 2.4rem)
+  color: #ffd93c
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.8))
+  animation: tut-swipe 2.2s ease-in-out infinite
+
+  svg
+    width: 100%
+    height: 100%
+
+.tut__text
+  max-width: min(88vw, 24rem)
   color: #fff
   font-weight: 900
   text-align: center
   line-height: 1.25
-  font-size: clamp(0.85rem, 4vw, 1.15rem)
-  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.7)
+  font-size: clamp(0.78rem, 3.6vw, 1.1rem)
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.9)
 
-.tutorial__actions
-  display: flex
-  align-items: center
-  gap: clamp(0.4rem, 2vw, 0.7rem)
+.tut__ring
+  width: clamp(1.5rem, 6vw, 2rem)
+  height: clamp(1.5rem, 6vw, 2rem)
+  rotate: -90deg
 
-.tutorial__skip, .tutorial__next
-  min-height: 2.25rem
-  padding: 0.3em 1em
-  border: 2px solid #0f1a30
-  border-radius: 999px
-  font-weight: 900
-  text-transform: uppercase
-  font-size: clamp(0.65rem, 3vw, 0.85rem)
-  cursor: pointer
-  touch-action: manipulation
-  -webkit-tap-highlight-color: transparent
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6)
+.tut__ring-track
+  fill: none
+  stroke: rgba(255, 255, 255, 0.22)
+  stroke-width: 3
 
-.tutorial__skip
-  background-image: linear-gradient(to bottom, #6b7690, #414c66)
-  color: #e6edf8
+.tut__ring-fill
+  fill: none
+  stroke: #ffd93c
+  stroke-width: 3
+  stroke-linecap: round
+  transition: stroke-dasharray 90ms linear
 
-.tutorial__next
-  background-image: linear-gradient(to bottom, #ffcd00, #f7a000)
-  color: #fff
+// The whole point of the glyph: one axis, back and forth, at a pace a hand can
+// copy. The pause at each end is what makes it read as a deliberate swipe
+// rather than as a slider animating.
+@keyframes tut-swipe
+  0%, 8%
+    translate: -140% -50%
+  46%, 54%
+    translate: 40% -50%
+  92%, 100%
+    translate: -140% -50%
 
 .tut-enter-active, .tut-leave-active
-  transition: opacity 180ms ease-out
+  transition: opacity 320ms ease-out
 
 .tut-enter-from, .tut-leave-to
   opacity: 0
+
+@media (prefers-reduced-motion: reduce)
+  .tut__hand
+    animation-duration: 4.4s
 </style>

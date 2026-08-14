@@ -7,8 +7,8 @@ import { nextTick } from 'vue'
 //   A returning player reloads. The platform SDK's cloud read is async. The
 //   Vue module graph evaluates first, every composable reads an empty blob and
 //   initialises to defaults, and the player is rendered as a brand-new install:
-//   wave 0, no coins, no tech. The next write then commits those defaults over
-//   the real cloud save and the loss becomes permanent.
+//   stage 1, no coins, no upgrades. The next write then commits those defaults
+//   over the real cloud save and the loss becomes permanent.
 //
 // The whole game state lives in ONE `tower_state` blob (an allowlisted payload
 // key), so the strategy mirrors it verbatim. `reloadTowerState()` is wired into
@@ -42,25 +42,21 @@ const seededCloud = async () => {
   const { META_KEY } = await import('@/utils/save/SaveMergePolicy')
   const cloudBlob = {
     ts_coins: 1250,
-    ts_best_wave: 14,
+    ts_best_stage: 14,
+    ts_best_squad: 210,
     ts_runs: 9,
     ts_total_kills: 4200,
-    ts_total_waves: 61,
-    ts_best_height: 12,
-    ts_tech: { levels: { foundations: 1, sharpBolts: 3, unlockBrace: 1, lumberStock: 2 } },
+    ts_upgrades: { squad: 1, power: 3, rate: 1, scavenge: 2 },
     ts_user_sound_volume: 0.4,
     ts_user_language: 'es',
-    ts_battle_pass: { xp: 40, unlockedStages: 3, claimedStages: [1, 2], seasonStartedAt: null },
-    ts_run: {
-      wave: 14, wood: 310, stone: 180, runCoins: 96, kills: 220, killsByType: { grunt: 180, brute: 40 },
-      blocks: [[0, 0, 'gate', 300], [1, 0, 'stone', 170], [1, 1, 'cannon', 60]],
-      offers: ['w2h', 'cannon1', 'wO', 'spikes1'],
-      startedAt: 1_700_000_000_000
-    }
+    // The stage the player was running when they closed the tab. A stage is
+    // short and its layout is regenerated from this number alone, so this
+    // single field IS the resumable run.
+    ts_stage: 14
   }
   const meta = {
     savedAt: '2026-05-19T00:00:00.000Z',
-    // bestWave 14 × 500 + 7 tech levels × 150 + 9 runs × 10
+    // bestStage 14 × 500 + 7 upgrade levels × 150 + 9 runs × 10
     progressScore: 14 * 500 + 7 * 150 + 9 * 10,
     schemaVersion: 1,
     maxStage: 14
@@ -95,7 +91,7 @@ describe('tower_state cloud hydrate → composable refresh', () => {
     await bootCloudOnly(data)
 
     const blob = JSON.parse(window.localStorage.getItem(STATE_KEY) || '{}')
-    expect(blob.ts_best_wave).toBe(14)
+    expect(blob.ts_best_stage).toBe(14)
     expect(blob.ts_coins).toBe(1250)
   })
 
@@ -107,19 +103,21 @@ describe('tower_state cloud hydrate → composable refresh', () => {
     expect(useTowerEconomy().coins.value).toBe(1250)
   })
 
-  it('refreshes tech levels and every lifetime counter', async () => {
+  it('refreshes the upgrade levels the player paid for', async () => {
     const data = await seededCloud()
     await bootCloudOnly(data)
 
-    const { default: useTowerProgress } = await import('@/use/useTowerProgress')
-    const p = useTowerProgress()
-    expect(p.bestWave.value).toBe(14)
-    expect(p.runs.value).toBe(9)
-    expect(p.totalKills.value).toBe(4200)
-    expect(p.levelOf('sharpBolts')).toBe(3)
-    // A tech-gated block must be unlocked by the hydrated levels, or the
-    // player's purchased content silently disappears on every reload.
-    expect(p.availableBlocks.value.has('brace')).toBe(true)
+    const { upgradeLevel, unitDamage, startSquad } = await import('@/use/useUpgrades')
+    expect(upgradeLevel('power')).toBe(3)
+    expect(upgradeLevel('scavenge')).toBe(2)
+    // And the derived run stats follow — otherwise the purchased content
+    // silently disappears on every reload even though the levels are there.
+    // Firepower is +0.4 a level on a base of 1 (a full point per level let the
+    // first purchase double the squad's damage), so three levels is 2.2.
+    const { UPGRADES } = await import('@/use/useUpgrades')
+    expect(unitDamage.value).toBeCloseTo(UPGRADES.power.valueAt(3), 5)
+    expect(unitDamage.value).toBeGreaterThan(UPGRADES.power.valueAt(0))
+    expect(startSquad.value).toBe(4)
   })
 
   it('refreshes user settings so the player keeps their language and volume', async () => {
@@ -132,28 +130,23 @@ describe('tower_state cloud hydrate → composable refresh', () => {
     expect(u.userSoundVolume.value).toBe(0.4)
   })
 
-  it('restores the in-progress siege rather than starting an empty tower', async () => {
+  it('resumes the saved stage rather than dropping the player back to stage 1', async () => {
     const data = await seededCloud()
     await bootCloudOnly(data)
 
-    const game = await import('@/use/useTowerGame')
-    expect(game.hasSavedRun()).toBe(true)
-    expect(game.resumeRun()).toBe(true)
-    expect(game.wave.value).toBe(14)
-    expect(game.wood.value).toBe(310)
-    expect(game.getBlocks().size).toBe(3)
-    expect(game.getBlocks().get('1,1')?.typeId).toBe('cannon')
-  })
+    const game = await import('@/use/useSurvivalGame')
+    game.startStage()
+    expect(game.stage.value).toBe(14)
+    // And the squad it opens with reflects the hydrated upgrade level, not the
+    // fresh-install default.
+    expect(game.squadCount.value).toBe(4)
 
-  it('restores the exact hand of build shapes', async () => {
-    // A reload must not reroll the offers — otherwise refreshing becomes a way
-    // to fish for a better hand.
-    const data = await seededCloud()
-    await bootCloudOnly(data)
-
-    const game = await import('@/use/useTowerGame')
-    expect(game.resumeRun()).toBe(true)
-    expect(game.offers.value).toEqual(['w2h', 'cannon1', 'wO', 'spikes1'])
+    // Drain this module instance's pending persist timer. `vi.resetModules()`
+    // gives the NEXT test fresh modules but cannot cancel a timer already
+    // scheduled by this one — and when it fired it would write this test's blob
+    // into the next test's store, which reads as a phantom hydrate.
+    const { flushPersist } = await import('@/use/useTowerState')
+    flushPersist()
   })
 
   it('keeps nothing but the two blobs in raw localStorage on a cloud-only build', async () => {
@@ -184,7 +177,7 @@ describe('hydrate failure modes', () => {
     await manager.flush()
 
     const cloudBlob = JSON.parse(data.store.get(STATE_KEY) || '{}')
-    expect(cloudBlob.ts_best_wave).toBe(14)
+    expect(cloudBlob.ts_best_stage).toBe(14)
     expect(cloudBlob.ts_coins).toBe(1250)
     expect(cloudBlob.ts_onboarded).toBe(true)
   })
@@ -215,7 +208,7 @@ describe('hydrate failure modes', () => {
 
       expect(manager.hydrateState).toBe('success-with-data')
       const blob = JSON.parse(window.localStorage.getItem(STATE_KEY) || '{}')
-      expect(blob.ts_best_wave).toBe(14)
+      expect(blob.ts_best_stage).toBe(14)
     } finally {
       vi.clearAllTimers()
       vi.useRealTimers()
@@ -226,13 +219,14 @@ describe('hydrate failure modes', () => {
     const data = makeFakeData()
     await bootCloudOnly(data)
 
-    const { default: useTowerProgress } = await import('@/use/useTowerProgress')
     const { default: useTowerEconomy } = await import('@/use/useTowerEconomy')
-    expect(useTowerProgress().bestWave.value).toBe(0)
+    const { upgradeLevel } = await import('@/use/useUpgrades')
     expect(useTowerEconomy().coins.value).toBe(0)
+    expect(upgradeLevel('power')).toBe(0)
 
-    const game = await import('@/use/useTowerGame')
-    expect(game.hasSavedRun()).toBe(false)
+    const game = await import('@/use/useSurvivalGame')
+    game.startStage()
+    expect(game.stage.value).toBe(1)
   })
 
   it('survives a corrupt cloud blob without wiping the player', async () => {
@@ -253,29 +247,36 @@ describe('hydrate failure modes', () => {
 })
 
 describe('reload round-trip', () => {
-  it('a wave cleared before the reload is still there after it', async () => {
-    // ── Session 1: play, then flush at the checkpoint. ──
+  it('a stage cleared before the reload is still there after it', async () => {
+    // ── Session 1: clear stage 5, then flush at the checkpoint. ──
     const data = makeFakeData()
     const m1 = await bootCloudOnly(data)
-    const { default: useTowerProgress } = await import('@/use/useTowerProgress')
     const { default: useTowerEconomy } = await import('@/use/useTowerEconomy')
+    const game = await import('@/use/useSurvivalGame')
 
     useTowerEconomy().addCoins(640)
-    useTowerProgress().recordRunEnd({
-      wave: 11, kills: 300, wavesCleared: 11, height: 8, blocks: 24, blocksPlaced: 24
-    })
+    game.startStage(5)
+    game.debugAddUnits(400)
+    game.debugAddDamage(400)
+    for (let i = 0; i < 4000 && game.phase.value !== 'clear'; i++) game.step(16)
+    expect(game.phase.value).toBe('clear')
     await m1.flush()
 
     // ── Session 2: a cold boot against the same cloud store. ──
+    // Drain session 1's pending persist timer first — see the note in the
+    // resume test; a late fire would write session 1's blob into session 2.
+    const { flushPersist } = await import('@/use/useTowerState')
+    flushPersist()
     vi.resetModules()
     localStorage.clear()
     const data2 = makeFakeData(Object.fromEntries(data.store))
     await bootCloudOnly(data2)
 
-    const { default: progress2 } = await import('@/use/useTowerProgress')
     const { default: economy2 } = await import('@/use/useTowerEconomy')
-    expect(progress2().bestWave.value).toBe(11)
-    expect(progress2().totalKills.value).toBe(300)
-    expect(economy2().coins.value).toBe(640)
+    const game2 = await import('@/use/useSurvivalGame')
+    expect(economy2().coins.value).toBeGreaterThanOrEqual(640)
+    game2.startStage()
+    // Stage 5 was cleared, so the resumed stage is the NEXT one.
+    expect(game2.stage.value).toBe(6)
   })
 })

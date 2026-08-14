@@ -1,5 +1,5 @@
 export default {
-  'gameName': 'Tower Siege',
+  'gameName': 'Survivalist',
   'cancel': 'Anuluj',
   'close': 'Zamknij',
   'ok': 'Ok',
@@ -11,226 +11,58 @@ export default {
   'crazyGamesOnly': 'Ta gra jest dostępna tylko na',
 
   'hud': {
-    'wave': 'Fala', 'enemies': 'Wrogowie', 'callWave': 'Wezwij falę', 'callBoss': 'Wezwij bossa',
-    'speed': 'Prędkość {n}×',
-    'speedOffer': 'Podwójna prędkość za reklamę',
-    'speedFor': '{n} min', 'recenter': 'Wyśrodkuj widok'
+    'stage': 'Etap {n}',
+    'best': 'Rekord {n}',
+    'boss': 'Boss',
+    'miniboss': 'Miniboss',
+    'fireRate': 'Tempo'
   },
 
-  'hints': {
-    'selectBlock': { 'touch': 'Dotknij bloku na dole, aby go wybrać', 'desktop': 'Kliknij blok na dole, aby go wybrać' },
-    'placeBlock': { 'touch': 'Teraz dotknij świecącego pola, aby zbudować', 'desktop': 'Teraz kliknij świecące pole, aby zbudować' },
-    'camera': { 'touch': 'Przeciągaj, aby przesuwać · Szczypnij, aby przybliżyć', 'desktop': 'Przeciągaj, aby przesuwać · Scrolluj, aby przybliżyć' },
-    'callWave': { 'touch': 'Dotknij „Wezwij falę”, gdy wieża jest gotowa', 'desktop': 'Naciśnij spację, aby wezwać falę wcześniej' },
-    'inspect': { 'touch': 'Przytrzymaj blok, aby go sprawdzić', 'desktop': 'Kliknij blok, aby go sprawdzić' }
-  },
-
-  'blocks': {
-    'sell': 'Sprzedaj',
-    'roofNote': 'Zadaszone — nic nie postawisz na wierzchu.',
-    'enhancedNote': 'Wzmocnione — więcej PŻ i obrażeń.',
-    'enhancedHand': 'Wzmocniona ręka',
-    'reroll': 'Wymień ten element',
-    'kinds': { 'core': 'Rdzeń', 'structure': 'Konstrukcja', 'weapon': 'Broń', 'economy': 'Ekonomia', 'utility': 'Wsparcie' },
-    'stats': {
-      'hp': 'PŻ', 'armor': 'Pancerz', 'dmg': 'Obrażenia', 'cooldown': 'Przeładowanie', 'range': 'Zasięg',
-      'splash': 'Obszar', 'yieldWood': 'Drewno / falę', 'yieldStone': 'Kamień / falę', 'yieldCoins': 'Monety / falę',
-      'repair': 'Naprawa / falę', 'blast': 'Wybuch',
-      'thorns': 'Kolce'
-    },
-    'names': {
-      'gate': 'Brama', 'wood': 'Drewniana skrzynia', 'brace': 'Wzmocniona skrzynia', 'stone': 'Kamienny blok',
-      'archer': 'Wieża łuczników', 'cannon': 'Armata', 'mortar': 'Moździerz', 'tesla': 'Cewka błyskawic',
-      'frost': 'Iglica mrozu', 'repair': 'Warsztat',
-      'sawmill': 'Tartak', 'quarry': 'Kamieniołom', 'mint': 'Kopalnia złota',
-      'spikes': 'Kolczasta ściana',
-      'bombard': 'Bombarda'
-    },
-    'descriptions': {
-      'gate': 'Serce twojej wieży. Gdy padnie, oblężenie się kończy.',
-      'wood': 'Tanie wypełnienie. Kręgosłup każdej wczesnej wieży.',
-      'brace': 'Dwa razy więcej drewna i ponad dwa razy większa wytrzymałość.',
-      'stone': 'Ciężki i opancerzony. Najlepszy u podstawy.',
-      'archer': 'Szybkie strzały w jeden cel. Trafia latających.',
-      'cannon': 'Powolna, silne obrażenia obszarowe. Topi zbite grupy.',
-      'mortar': 'Dalekosiężne strzały po łuku, ale nie trafia latających.',
-      'tesla': 'Błyskawice przeskakujące między pobliskimi wrogami.',
-      'frost': 'Mrozi całe grupy i mocno je spowalnia.',
-      'repair': 'Naprawia sąsiednie bloki między falami.',
-      'sawmill': 'Produkuje drewno po każdej odpartej fali.',
-      'quarry': 'Produkuje kamień po każdej odpartej fali.',
-      'mint': 'Produkuje monety po każdej odpartej fali.',
-      'spikes': 'Napastnicy ranią się na niej przy każdym ciosie.',
-      'bombard': 'Wystrzeliwuje pocisk stromo w górę. Mały wybuch, tylko cele naziemne.'
-    }
-  },
-
-  'enemies': {
-    'names': {
-      'grunt': 'Piechur', 'runner': 'Biegacz', 'slinger': 'Procarz', 'brute': 'Osiłek',
-      'bomber': 'Bombardier', 'bat': 'Nietoperz', 'bulwark': 'Tarczownik', 'golem': 'Golem oblężniczy',
-      'wyvern': 'Wiwerna',
-      'eel': 'Wąż morski',
-      'kraken': 'Kraken',
-      'ram': 'Taran',
-      'ballista': 'Balista',
-      'catapult': 'Katapulta',
-      'siegeTower': 'Wieża oblężnicza',
-      'trebuchet': 'Trebusz',
-      'ironRam': 'Opancerzony taran',
-      'bombardier': 'Bombardier',
-      'firebug': 'Podpalacz'
-    }
-  },
-
-  // ─── First-stage tutorial ─────────────────────────────────────────────────
   'tutorial': {
-    'gate': 'Broń Bramy. Gdy padnie, koniec gry.',
-    'pick': 'Wybierz element.',
-    'place': 'Postaw go obok Bramy.',
-    'call': 'Wezwij falę, gdy będziesz gotów.',
-    'next': 'Dalej',
-    'offer': 'Potrzebujesz samouczka?',
-    'start': 'Start',
-    'skip': 'Pomiń'
+    'touch': 'Przesuń palcem, by ruszyć oddziałem',
+    'desktop': 'Poruszaj myszą, by kierować oddziałem'
   },
-
-  // ─── Allies ───────────────────────────────────────────────────────────────
-  'allies': {
-    'cavalry': 'Kawaleria'
+  'hints': {
+    'move': { 'touch': 'Dotknij, aby się ruszyć', 'desktop': 'Kliknij, aby się ruszyć' },
+    'gate': { 'touch': 'Strzelaj w bramę: +1 co pół sekundy', 'desktop': 'Strzelaj w bramę: +1 co pół sekundy' },
+    'trap': { 'touch': 'Czerwone bramy ZMNIEJSZAJĄ oddział — wybierz drugą!', 'desktop': 'Czerwone bramy ZMNIEJSZAJĄ oddział — wybierz drugą!' },
+    'divider': { 'touch': 'Nigdy nie dotykaj filaru między bramami', 'desktop': 'Nigdy nie dotykaj filaru między bramami' },
+    'crate': { 'touch': 'Zielone skrzynie: każdy bije mocniej', 'desktop': 'Zielone skrzynie: każdy bije mocniej' },
+    'rate': { 'touch': 'Niebieskie skrzynie: każdy strzela szybciej', 'desktop': 'Niebieskie skrzynie: każdy strzela szybciej' },
+    'boss': { 'touch': 'Trzymaj się z dala od czerwonego kręgu!', 'desktop': 'Trzymaj się z dala od czerwonego kręgu!' },
+    'guard': { 'touch': 'Tarcza w górze — strzały nic nie robią. UCIEKAJ!', 'desktop': 'Tarcza w górze — strzały nic nie robią. UCIEKAJ!' }
   },
 
   'result': {
-    'towerFell': 'Wieża upadła!',
-    'reachedWave': 'Przetrwałeś do fali {n}',
+    'stageClear': 'Etap ukończony!',
+    'wipedOut': 'Oddział wybity',
+    'reachedStage': 'Etap {n}',
     'newRecord': 'Nowy rekord!',
-    'defeated': 'Pokonani',
-    'reward': 'Nagroda',
-    'upgrade': 'Ulepsz!',
-    'defendAgain': 'Broń ponownie',
-    'double': 'Podwój monety',
-    'firstRunDouble': '2× — pierwsze oblężenie dziś!',
-    'tripleWave': '3× monety — {n}',
-    'waveCleared': 'Fala {n} odparta!'
+    'rallied': 'Drugi oddech',
+    'peakSquad': 'Największy oddział',
+    'kills': 'Zabici',
+    'nextStage': 'Następny etap',
+    'tryAgain': 'Spróbuj ponownie',
+    'upgrade': 'Ulepsz'
   },
 
-  'tech': {
-    'title': 'Drzewko technologii',
-    'rank': 'Ranga {current}/{total}',
-    'maxed': 'Maksimum',
-    'rankOpen': 'Ranga {n}',
-    'owned': 'Odblokowane',
-    'requires': 'Wymaga: {n}',
+  'upgrades': {
+    'title': 'Ulepszenia',
     'spotlight': 'Wydaj!',
+    'level': 'Poz. {n}',
+    'maxed': 'Maks',
     'names': {
-      'foundations': 'Fundamenty', 'sharpBolts': 'Ostre bełty', 'unlockBrace': 'Wzmocnione skrzynie',
-      'lumberStock': 'Zapas drewna', 'longSight': 'Dalekowzroczność', 'rapidFire': 'Szybki ogień',
-      'reinforced': 'Wzmocnione belki', 'unlockSawmill': 'Tartak', 'quarryStock': 'Zapas kamienia',
-      'unlockMortar': 'Moździerz', 'heavyOrdnance': 'Ciężka artyleria', 'unlockTesla': 'Cewka błyskawic',
-      'gateArmor': 'Pancerz bramy', 'unlockQuarry': 'Kamieniołom', 'richHauls': 'Bogate łupy',
-      'wideFoundation': 'Szerokie fundamenty', 'siegeShells': 'Pociski oblężnicze', 'unlockFrost': 'Iglica mrozu',
-      'forkedBolts': 'Rozwidlone błyskawice', 'ironPlating': 'Żelazne płyty', 'unlockRepair': 'Warsztat',
-      'unlockMint': 'Kopalnia złota', 'looting': 'Grabież', 'overcharge': 'Przeciążenie',
-      'masterwork': 'Arcydzieło', 'fieldRepairs': 'Naprawy polowe', 'greatFoundation': 'Wielkie fundamenty',
-      'warChest': 'Skarbiec wojenny',
-      'unlockSpikes': 'Kolczasta ściana',
-      'unlockBombard': 'Bombarda',
-      'sharpSpikes': 'Naostrzone kolce',
-      'cavalryDrill': 'Musztra kawalerii',
-      'artilleryDoctrine': 'Doktryna artyleryjska'
+      'squad': 'Oddział',
+      'power': 'Siła ognia',
+      'rate': 'Szybkostrzelność',
+      'scavenge': 'Zbieractwo'
     },
     'descriptions': {
-      'foundations': 'Każdy blok zaczyna z +10 % PŻ.',
-      'sharpBolts': 'Wszystkie bronie zadają +8 % obrażeń na rangę.',
-      'unlockBrace': 'Odblokowuje wzmocnioną skrzynię — dwukrotność PŻ drewna.',
-      'lumberStock': 'Zaczynaj każde oblężenie z +25 drewna na rangę.',
-      'longSight': 'Wszystkie bronie sięgają +10 % dalej na rangę.',
-      'rapidFire': 'Wszystkie bronie strzelają 8 % szybciej na rangę.',
-      'reinforced': 'Każdy blok zyskuje +8 % PŻ na rangę.',
-      'unlockSawmill': 'Odblokowuje tartak — produkuje drewno co falę.',
-      'quarryStock': 'Zaczynaj każde oblężenie z +18 kamienia na rangę.',
-      'unlockMortar': 'Odblokowuje moździerz — obrażenia obszarowe z dużego dystansu.',
-      'heavyOrdnance': 'Promień obszaru +15 % na rangę.',
-      'unlockTesla': 'Odblokowuje cewkę błyskawic — pioruny przeskakują.',
-      'gateArmor': 'Brama zyskuje +20 % PŻ na rangę.',
-      'unlockQuarry': 'Odblokowuje kamieniołom — produkuje kamień co falę.',
-      'richHauls': 'Nagrody za falę +12 % na rangę.',
-      'wideFoundation': 'Buduj o 2 kolumny szerzej na rangę.',
-      'siegeShells': 'Wszystkie bronie zadają +10 % obrażeń na rangę.',
-      'unlockFrost': 'Odblokowuje iglicę mrozu — spowalnia całe grupy.',
-      'forkedBolts': 'Błyskawica przeskakuje na 1 wroga więcej na rangę.',
-      'ironPlating': 'Każdy blok zyskuje +2 pancerza na rangę.',
-      'unlockRepair': 'Odblokowuje warsztat — leczy sąsiadów co falę.',
-      'unlockMint': 'Odblokowuje kopalnię złota — produkuje monety co falę.',
-      'looting': 'Wrogowie upuszczają +15 % więcej monet na rangę.',
-      'overcharge': 'Wszystkie bronie strzelają 10 % szybciej na rangę.',
-      'masterwork': 'Wszystkie bronie zadają +12 % obrażeń na rangę.',
-      'fieldRepairs': 'Każdy blok odzyskuje 6 % maks. PŻ za odpartą falę, na rangę.',
-      'greatFoundation': 'Buduj o kolejne 2 kolumny szerzej na rangę.',
-      'warChest': 'Nagrody za falę +15 % na rangę.',
-      'unlockSpikes': 'Odblokowuje Kolczastą ścianę — napastnicy ranią się na niej.',
-      'unlockBombard': 'Odblokowuje Bombardę — ogień moździerzowy na krótkim dystansie przeciw piechocie.',
-      'sharpSpikes': 'Kolczaste ściany odbijają +20% więcej obrażeń na rangę.',
-      'cavalryDrill': 'Kawaleria wyrusza z +14% PŻ i obrażeń na rangę.',
-      'artilleryDoctrine': 'Wszystkie bronie sięgają +9% dalej na rangę.'
+      'squad': 'Zaczynaj każdy etap z większą liczbą ocalałych.',
+      'power': 'Każdy ocalały zadaje większe obrażenia na strzał.',
+      'rate': 'Każdy ocalały strzela szybciej.',
+      'scavenge': 'Zdobywaj więcej monet w każdej rundzie.'
     }
-  },
-
-  'resources': {
-    'wood': 'drewna',
-    'stone': 'kamienia',
-    'coins': 'monet'
-  },
-
-  'ads': {
-    'watch': 'Obejrzyj', 'revive': 'Wskrześ', 'secondChance': 'Druga szansa',
-    'doubleCoins': '2× monety', 'plusCoins': '+{n} monet'
-  },
-
-  'achievements': {
-    'title': 'Osiągnięcia', 'subtitle': 'Zdobywaj monety za kamienie milowe.',
-    'claim': 'Odbierz', 'claimed': 'Odebrano', 'progress': '{c} / {t}',
-    'items': {
-      'wave5': { 'name': 'Pierwsza obrona', 'desc': 'Przetrwaj do fali 5.' },
-      'wave10': { 'name': 'Twierdza', 'desc': 'Przetrwaj do fali 10.' },
-      'wave20': { 'name': 'Bastion', 'desc': 'Przetrwaj do fali 20.' },
-      'wave30': { 'name': 'Niezniszczalny', 'desc': 'Przetrwaj do fali 30.' },
-      'waves50': { 'name': 'Falochron', 'desc': 'Odeprzyj łącznie 50 fal.' },
-      'waves250': { 'name': 'Weteran oblężeń', 'desc': 'Odeprzyj łącznie 250 fal.' },
-      'kills500': { 'name': 'Obrońca', 'desc': 'Pokonaj łącznie 500 wrogów.' },
-      'kills5k': { 'name': 'Pogromca', 'desc': 'Pokonaj łącznie 5000 wrogów.' },
-      'kills50k': { 'name': 'Legenda', 'desc': 'Pokonaj łącznie 50 000 wrogów.' },
-      'height10': { 'name': 'Ku niebu', 'desc': 'Zbuduj wieżę o wysokości 10 bloków.' },
-      'height20': { 'name': 'Chmurołap', 'desc': 'Zbuduj wieżę o wysokości 20 bloków.' },
-      'blocks250': { 'name': 'Budowniczy', 'desc': 'Postaw łącznie 250 bloków.' },
-      'blocks2k': { 'name': 'Architekt', 'desc': 'Postaw łącznie 2000 bloków.' },
-      'coins5k': { 'name': 'Zbieracz monet', 'desc': 'Zdobądź łącznie 5000 monet.' },
-      'coins50k': { 'name': 'Skarbnik', 'desc': 'Zdobądź łącznie 50 000 monet.' },
-      'runs25': { 'name': 'Wytrwały', 'desc': 'Rozpocznij 25 oblężeń.' }
-    }
-  },
-
-  'missions': {
-    'title': 'Misje dzienne', 'subtitle': 'Wykonuj codzienne cele, aby zdobywać monety.',
-    'claim': 'Odbierz', 'done': 'Odebrano',
-    'types': {
-      'coins': 'Zdobądź dziś {n} monet',
-      'waves': 'Przetrwaj do fali {n} w jednym oblężeniu',
-      'kills': 'Pokonaj dziś {n} wrogów',
-      'blocks': 'Postaw dziś {n} bloków'
-    }
-  },
-
-  'battlePass': {
-    'title': 'Karnet bojowy', 'progress': '{current} / {total}', 'daysLeft': 'Pozostało {n} d',
-    'maxed': 'KARNET UKOŃCZONY', 'xpProgress': '{current} / {total} XP',
-    'howToEarn': 'Jak zdobywać XP', 'perRun': 'za oblężenie', 'perWave': 'za odpartą falę',
-    'unlockHint': 'Zdobądź {n} XP, aby odblokować kolejną nagrodę — nieodebrane nagrody czekają.'
-  },
-
-  'dailyRewards': {
-    'title': 'Nagrody dzienne', 'subtitle': 'Loguj się codziennie, aby utrzymać serię.',
-    'day': 'Dzień {n}', 'dayShort': 'D{n}'
   },
 
   'options': {
@@ -240,9 +72,9 @@ export default {
     'close': 'Zapisz i zamknij',
     'difficulties': { 'easy': 'Łatwy', 'medium': 'Średni', 'hard': 'Trudny' },
     'difficultyHints': {
-      'easy': 'Mniejsze fale i słabsi wrogowie.',
-      'medium': 'Standardowe, zrównoważone oblężenie.',
-      'hard': 'Gęstsze fale i twardsi wrogowie.'
+      'easy': 'Słabsi wrogowie i cieńsze barykady.',
+      'medium': 'Standardowa rozgrywka.',
+      'hard': 'Twardsi wrogowie i mocniejsze barykady.'
     }
   },
 

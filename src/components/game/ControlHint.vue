@@ -7,14 +7,27 @@ import { mobileCheck } from '@/utils/function'
 /**
  * The on-screen control primer.
  *
- * A build-and-defend game has a non-obvious first action ("tap a block, THEN
- * tap the ground"), and a player who doesn't discover it in the first ten
- * seconds bounces. So the hint is explicit, phrased for the input device the
- * player actually has, and it retires itself the moment the action is performed
- * — nagging a competent player is its own kind of failure.
+ * A crowd runner has exactly one control and three ideas, and a player who
+ * doesn't discover them in the first fifteen seconds bounces. So each hint is
+ * explicit, phrased for the input device the player actually has, and it
+ * retires itself the moment the action is performed — nagging a competent
+ * player is its own kind of failure.
+ *
+ *   move    — the only control there is
+ *   gate    — why you would ever stand still
+ *   crate   — why you would ever go out of your way
+ *   rate    — the second crate type, and the one nobody works out alone
+ *   trap    — the red gates take survivors away
+ *   divider — the pillar between two gates is lethal, and that is the whole
+ *             reason a gate bank is a decision
+ *   boss    — the one thing that can kill a big crowd instantly
+ *   guard   — the boss's phase shield, which is the one moment in the game
+ *             where the player's fire deliberately stops working. Without a
+ *             word for it, "my bullets do nothing" reads as a bug.
  */
 
-export type HintId = 'selectBlock' | 'placeBlock' | 'camera' | 'callWave' | 'inspect'
+export type HintId =
+  | 'move' | 'gate' | 'crate' | 'rate' | 'trap' | 'divider' | 'boss' | 'guard'
 
 interface Props {
   hint: HintId | null

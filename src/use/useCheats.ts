@@ -59,26 +59,26 @@ const useCheats = () => {
 
   const { addCoins } = useTowerEconomy()
 
-  // Dev shortcuts, retargeted to Tower Siege. Waves are simulated rather than
-  // jumped to (there is no "set wave" that produces a sensible tower), so the
-  // useful cheats are resource / coin injection and wave + speed control.
+  // Dev shortcuts, retargeted to Survivalist's runner: coins for the shop, and
+  // the three things a reviewer needs to reach a late stage in ten seconds —
+  // survivors, damage, and a stage skip.
   //
   // The simulation is reached through a DYNAMIC import, never a static one.
   // `useCheats` is called from `App.vue`, which is on the eager boot path — a
-  // static import would drag the whole game model (blocks, enemies, waves,
-  // renderer deps) into the entry chunk and delay first paint for every
-  // player, to serve a dev-only feature that 99.99% of them never trigger.
-  // Fetching it on the keypress costs a few ms exactly once, for the developer.
-  const withGame = (fn: (game: typeof import('@/use/useTowerGame')) => void): void => {
-    void import('@/use/useTowerGame').then(fn).catch((e) => {
+  // static import would drag the whole game model (track generator, foes,
+  // sprite bakers) into the entry chunk and delay first paint for every player,
+  // to serve a dev-only feature that 99.99% of them never trigger. Fetching it
+  // on the keypress costs a few ms exactly once, for the developer.
+  const withGame = (fn: (game: typeof import('@/use/useSurvivalGame')) => void): void => {
+    void import('@/use/useSurvivalGame').then(fn).catch((e) => {
       console.warn('[CHEAT] could not load the game module', e)
     })
   }
 
   /**
-   * Hand the live simulation to the console as `window.__tower`.
+   * Hand the live simulation to the console as `window.__run`.
    *
-   * Reaching the sim from devtools with a bare `import('@/use/useTowerGame')`
+   * Reaching the sim from devtools with a bare `import('@/use/useSurvivalGame')`
    * does NOT work during development: Vite serves an HMR-updated module under a
    * versioned URL, so the import resolves to a second, inert copy of the
    * singleton and every mutation lands on an object nothing is rendering. The
@@ -88,9 +88,9 @@ const useCheats = () => {
    */
   const publishDebugHandle = (): void => {
     if (typeof window === 'undefined') return
-    void import('@/use/useTowerGame').then((game) => {
-      ;(window as unknown as Record<string, unknown>).__tower = game
-      console.warn('[CHEAT] window.__tower is live (spawn / inspect the running sim).')
+    void import('@/use/useSurvivalGame').then((game) => {
+      ;(window as unknown as Record<string, unknown>).__run = game
+      console.warn('[CHEAT] window.__run is live (inspect / drive the running sim).')
     })
   }
   publishDebugHandle()
@@ -100,24 +100,25 @@ const useCheats = () => {
       addCoins(3000)
       console.warn('[CHEAT] +3000 coins.')
     },
-    'ctrl+shift+alt+b': () => withGame((game) => {
-      // Drop one of every late-game threat onto the field. Reaching wave 24 by
-      // hand to look at an ironclad ram is not a reasonable ask of a reviewer.
-      game.debugSpawn(['bombardier', 'firebug', 'ironRam', 'trebuchet', 'catapult'])
-      console.warn('[CHEAT] Spawned the late-game roster.')
+    'ctrl+shift+alt+g': () => withGame((game) => {
+      game.debugAddUnits(40)
+      console.warn('[CHEAT] +40 survivors.')
     }),
-    'ctrl+shift+alt+r': () => withGame((game) => {
-      game.wood.value += 500
-      game.stone.value += 500
-      console.warn('[CHEAT] +500 wood, +500 stone.')
-    }),
-    'ctrl+shift+alt+w': () => withGame((game) => {
-      game.callWave()
-      console.warn('[CHEAT] Wave called.')
+    'ctrl+shift+alt+d': () => withGame((game) => {
+      game.debugAddDamage(5)
+      console.warn('[CHEAT] +5 damage per survivor.')
     }),
     'ctrl+shift+alt+f': () => withGame((game) => {
-      game.toggleSpeed()
-      console.warn('[CHEAT] Battle speed toggled.')
+      game.debugAddFireRate(2)
+      console.warn('[CHEAT] +2 shots/s per survivor.')
+    }),
+    'ctrl+shift+alt+n': () => withGame((game) => {
+      game.advanceStage()
+      console.warn('[CHEAT] Skipped to the next stage.')
+    }),
+    'ctrl+shift+alt+r': () => withGame((game) => {
+      game.retryStage()
+      console.warn('[CHEAT] Stage restarted.')
     })
   }
 

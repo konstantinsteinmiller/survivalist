@@ -1,7 +1,7 @@
 {
-  "name": "Tower Siege",
-  "short_name": "Tower Siege",
-  "description": "Build a tower of cannons and crates, survive endless waves of siege, and rebuild it taller every run.",
+  "name": "Survivalist",
+  "short_name": "Survivalist",
+  "description": "Shoot the gates to grow them, run your crowd through, and turn three survivors into an army before the boss turns them into dust.",
   "display": "standalone",
   "display_override": [
     "fullscreen",

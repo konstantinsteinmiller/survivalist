@@ -1,5 +1,5 @@
 export default {
-  'gameName': 'Tower Siege',
+  'gameName': 'Survivalist',
   'cancel': 'Cancelar',
   'close': 'Cerrar',
   'ok': 'Ok',
@@ -11,226 +11,58 @@ export default {
   'crazyGamesOnly': 'Este juego solo está disponible en',
 
   'hud': {
-    'wave': 'Oleada', 'enemies': 'Enemigos', 'callWave': 'Llamar oleada', 'callBoss': 'Llamar jefe',
-    'speed': 'Velocidad {n}×',
-    'speedOffer': 'Doble velocidad por un anuncio',
-    'speedFor': '{n} min', 'recenter': 'Centrar la vista'
+    'stage': 'Nivel {n}',
+    'best': 'Récord {n}',
+    'boss': 'Jefe',
+    'miniboss': 'Minijefe',
+    'fireRate': 'Ritmo'
   },
 
-  'hints': {
-    'selectBlock': { 'touch': 'Toca un bloque de abajo para elegirlo', 'desktop': 'Haz clic en un bloque de abajo para elegirlo' },
-    'placeBlock': { 'touch': 'Ahora toca una casilla iluminada para construir', 'desktop': 'Ahora haz clic en una casilla iluminada para construir' },
-    'camera': { 'touch': 'Arrastra para mover · Pellizca para acercar', 'desktop': 'Arrastra para mover · Rueda para acercar' },
-    'callWave': { 'touch': 'Toca «Llamar oleada» cuando tu torre esté lista', 'desktop': 'Pulsa Espacio para adelantar la oleada' },
-    'inspect': { 'touch': 'Mantén pulsado un bloque para inspeccionarlo', 'desktop': 'Haz clic en un bloque para inspeccionarlo' }
-  },
-
-  'blocks': {
-    'sell': 'Vender',
-    'roofNote': 'Con tejado: no se puede construir encima.',
-    'enhancedNote': 'Reforzado: más PV y más daño.',
-    'enhancedHand': 'Mano reforzada',
-    'reroll': 'Cambiar esta pieza',
-    'kinds': { 'core': 'Núcleo', 'structure': 'Estructura', 'weapon': 'Arma', 'economy': 'Economía', 'utility': 'Utilidad' },
-    'stats': {
-      'hp': 'PV', 'armor': 'Armadura', 'dmg': 'Daño', 'cooldown': 'Recarga', 'range': 'Alcance',
-      'splash': 'Área', 'yieldWood': 'Madera / oleada', 'yieldStone': 'Piedra / oleada', 'yieldCoins': 'Monedas / oleada',
-      'repair': 'Reparación / oleada', 'blast': 'Explosión',
-      'thorns': 'Púas'
-    },
-    'names': {
-      'gate': 'Portón', 'wood': 'Caja de madera', 'brace': 'Caja reforzada', 'stone': 'Bloque de piedra',
-      'archer': 'Arquería', 'cannon': 'Cañón', 'mortar': 'Mortero', 'tesla': 'Bobina eléctrica',
-      'frost': 'Aguja de escarcha', 'repair': 'Taller',
-      'sawmill': 'Aserradero', 'quarry': 'Cantera', 'mint': 'Mina de oro',
-      'spikes': 'Muro de púas',
-      'bombard': 'Bombarda'
-    },
-    'descriptions': {
-      'gate': 'El corazón de tu torre. Si cae, el asedio termina.',
-      'wood': 'Relleno barato. La columna vertebral de toda torre inicial.',
-      'brace': 'El doble de madera y más del doble de resistencia.',
-      'stone': 'Pesado y blindado. Mejor en la base.',
-      'archer': 'Flechas rápidas a un objetivo. Alcanza a los voladores.',
-      'cannon': 'Lento, con daño en área. Derrite multitudes.',
-      'mortar': 'Proyectiles curvos de largo alcance, pero no alcanza a los voladores.',
-      'tesla': 'Rayos que saltan entre enemigos cercanos.',
-      'frost': 'Congela grupos enteros y los deja al ralentí.',
-      'repair': 'Repara los bloques vecinos entre oleadas.',
-      'sawmill': 'Produce madera al final de cada oleada superada.',
-      'quarry': 'Produce piedra al final de cada oleada superada.',
-      'mint': 'Produce monedas al final de cada oleada superada.',
-      'spikes': 'Los atacantes se hieren con él en cada golpe.',
-      'bombard': 'Lanza un proyectil casi vertical. Explosión pequeña, solo objetivos terrestres.'
-    }
-  },
-
-  'enemies': {
-    'names': {
-      'grunt': 'Recluta', 'runner': 'Corredor', 'slinger': 'Hondero', 'brute': 'Bruto',
-      'bomber': 'Bombardero', 'bat': 'Murciélago', 'bulwark': 'Baluarte', 'golem': 'Gólem de asedio',
-      'wyvern': 'Guiverno',
-      'eel': 'Serpiente marina',
-      'kraken': 'Kraken',
-      'ram': 'Ariete',
-      'ballista': 'Balista',
-      'catapult': 'Catapulta',
-      'siegeTower': 'Torre de asedio',
-      'trebuchet': 'Trabuquete',
-      'ironRam': 'Ariete acorazado',
-      'bombardier': 'Bombardero',
-      'firebug': 'Incendiario'
-    }
-  },
-
-  // ─── First-stage tutorial ─────────────────────────────────────────────────
   'tutorial': {
-    'gate': 'Protege la Puerta. Si cae, la partida termina.',
-    'pick': 'Elige una pieza.',
-    'place': 'Colócala junto a la Puerta.',
-    'call': 'Llama a la oleada cuando estés listo.',
-    'next': 'Siguiente',
-    'offer': '¿Necesitas un tutorial?',
-    'start': 'Empezar',
-    'skip': 'Saltar'
+    'touch': 'Desliza para mover tu escuadrón',
+    'desktop': 'Mueve el ratón para dirigir tu escuadrón'
   },
-
-  // ─── Allies ───────────────────────────────────────────────────────────────
-  'allies': {
-    'cavalry': 'Caballería'
+  'hints': {
+    'move': { 'touch': 'Toca para moverte', 'desktop': 'Haz clic para moverte' },
+    'gate': { 'touch': 'Sigue disparando a la puerta: +1 cada medio segundo', 'desktop': 'Sigue disparando a la puerta: +1 cada medio segundo' },
+    'trap': { 'touch': 'Las puertas rojas RESTAN gente: ¡ve por la otra!', 'desktop': 'Las puertas rojas RESTAN gente: ¡ve por la otra!' },
+    'divider': { 'touch': 'Nunca toques el pilar entre las puertas', 'desktop': 'Nunca toques el pilar entre las puertas' },
+    'crate': { 'touch': 'Cajas verdes: todos golpean más fuerte', 'desktop': 'Cajas verdes: todos golpean más fuerte' },
+    'rate': { 'touch': 'Cajas azules: todos disparan más rápido', 'desktop': 'Cajas azules: todos disparan más rápido' },
+    'boss': { 'touch': '¡Mantente fuera del círculo rojo!', 'desktop': '¡Mantente fuera del círculo rojo!' },
+    'guard': { 'touch': 'Escudo activo: tus disparos no hacen nada. ¡MUÉVETE!', 'desktop': 'Escudo activo: tus disparos no hacen nada. ¡MUÉVETE!' }
   },
 
   'result': {
-    'towerFell': '¡La torre ha caído!',
-    'reachedWave': 'Sobreviviste hasta la oleada {n}',
+    'stageClear': '¡Nivel superado!',
+    'wipedOut': 'Escuadrón aniquilado',
+    'reachedStage': 'Nivel {n}',
     'newRecord': '¡Nuevo récord!',
-    'defeated': 'Derrotados',
-    'reward': 'Recompensa',
-    'upgrade': '¡Mejorar!',
-    'defendAgain': 'Defender otra vez',
-    'double': 'Duplicar monedas',
-    'firstRunDouble': '2× — ¡primer asedio de hoy!',
-    'tripleWave': '3× monedas: {n}',
-    'waveCleared': '¡Oleada {n} resistida!'
+    'rallied': 'Segundo aire',
+    'peakSquad': 'Mayor escuadrón',
+    'kills': 'Bajas',
+    'nextStage': 'Siguiente nivel',
+    'tryAgain': 'Reintentar',
+    'upgrade': 'Mejorar'
   },
 
-  'tech': {
-    'title': 'Árbol tecnológico',
-    'rank': 'Rango {current}/{total}',
-    'maxed': 'Al máximo',
-    'rankOpen': 'Rango {n}',
-    'owned': 'Desbloqueado',
-    'requires': 'Requiere {n}',
+  'upgrades': {
+    'title': 'Mejoras',
     'spotlight': '¡Gasta!',
+    'level': 'Nv {n}',
+    'maxed': 'Máx',
     'names': {
-      'foundations': 'Cimientos', 'sharpBolts': 'Virotes afilados', 'unlockBrace': 'Cajas reforzadas',
-      'lumberStock': 'Reserva de madera', 'longSight': 'Vista larga', 'rapidFire': 'Fuego rápido',
-      'reinforced': 'Vigas reforzadas', 'unlockSawmill': 'Aserradero', 'quarryStock': 'Reserva de piedra',
-      'unlockMortar': 'Mortero', 'heavyOrdnance': 'Artillería pesada', 'unlockTesla': 'Bobina eléctrica',
-      'gateArmor': 'Blindaje del portón', 'unlockQuarry': 'Cantera', 'richHauls': 'Botín abundante',
-      'wideFoundation': 'Cimiento amplio', 'siegeShells': 'Proyectiles de asedio', 'unlockFrost': 'Aguja de escarcha',
-      'forkedBolts': 'Rayos bifurcados', 'ironPlating': 'Placas de hierro', 'unlockRepair': 'Taller',
-      'unlockMint': 'Mina de oro', 'looting': 'Saqueo', 'overcharge': 'Sobrecarga',
-      'masterwork': 'Obra maestra', 'fieldRepairs': 'Reparaciones de campo', 'greatFoundation': 'Gran cimiento',
-      'warChest': 'Cofre de guerra',
-      'unlockSpikes': 'Muro de púas',
-      'unlockBombard': 'Bombarda',
-      'sharpSpikes': 'Púas afiladas',
-      'cavalryDrill': 'Instrucción de caballería',
-      'artilleryDoctrine': 'Doctrina de artillería'
+      'squad': 'Escuadrón',
+      'power': 'Potencia',
+      'rate': 'Cadencia',
+      'scavenge': 'Carroñeo'
     },
     'descriptions': {
-      'foundations': 'Cada bloque empieza con +10 % de PV.',
-      'sharpBolts': 'Todas las armas hacen +8 % de daño por rango.',
-      'unlockBrace': 'Desbloquea la caja reforzada: el doble de PV que la madera.',
-      'lumberStock': 'Empieza cada asedio con +25 de madera por rango.',
-      'longSight': 'Todas las armas alcanzan un +10 % más por rango.',
-      'rapidFire': 'Todas las armas disparan un 8 % más rápido por rango.',
-      'reinforced': 'Cada bloque gana +8 % de PV por rango.',
-      'unlockSawmill': 'Desbloquea el aserradero: produce madera cada oleada.',
-      'quarryStock': 'Empieza cada asedio con +18 de piedra por rango.',
-      'unlockMortar': 'Desbloquea el mortero: daño en área a larga distancia.',
-      'heavyOrdnance': 'Radio de área +15 % por rango.',
-      'unlockTesla': 'Desbloquea la bobina eléctrica: los rayos saltan entre enemigos.',
-      'gateArmor': 'El portón gana +20 % de PV por rango.',
-      'unlockQuarry': 'Desbloquea la cantera: produce piedra cada oleada.',
-      'richHauls': 'Recompensas de oleada +12 % por rango.',
-      'wideFoundation': 'Construye 2 columnas más anchas por rango.',
-      'siegeShells': 'Todas las armas hacen +10 % de daño por rango.',
-      'unlockFrost': 'Desbloquea la aguja de escarcha: ralentiza grupos enteros.',
-      'forkedBolts': 'El rayo salta a 1 enemigo más por rango.',
-      'ironPlating': 'Cada bloque gana +2 de armadura por rango.',
-      'unlockRepair': 'Desbloquea el taller: cura a los vecinos cada oleada.',
-      'unlockMint': 'Desbloquea la mina de oro: produce monedas cada oleada.',
-      'looting': 'Los enemigos sueltan un +15 % más de monedas por rango.',
-      'overcharge': 'Todas las armas disparan un 10 % más rápido por rango.',
-      'masterwork': 'Todas las armas hacen +12 % de daño por rango.',
-      'fieldRepairs': 'Cada bloque cura un 6 % de sus PV máximos por oleada resistida y rango.',
-      'greatFoundation': 'Construye 2 columnas más anchas por rango.',
-      'warChest': 'Recompensas de oleada +15 % por rango.',
-      'unlockSpikes': 'Desbloquea el Muro de púas: los atacantes se hieren con él.',
-      'unlockBombard': 'Desbloquea la Bombarda: fuego de mortero a corta distancia contra tropas terrestres.',
-      'sharpSpikes': 'Los muros de púas reflejan un +20 % más de daño por rango.',
-      'cavalryDrill': 'La caballería sale con +14 % de PV y daño por rango.',
-      'artilleryDoctrine': 'Todas las armas alcanzan un +9 % más lejos por rango.'
+      'squad': 'Empieza cada nivel con más supervivientes.',
+      'power': 'Cada superviviente hace más daño por disparo.',
+      'rate': 'Cada superviviente dispara más rápido.',
+      'scavenge': 'Gana más monedas en cada partida.'
     }
-  },
-
-  'resources': {
-    'wood': 'madera',
-    'stone': 'piedra',
-    'coins': 'monedas'
-  },
-
-  'ads': {
-    'watch': 'Ver', 'revive': 'Revivir', 'secondChance': 'Segunda oportunidad',
-    'doubleCoins': '2× monedas', 'plusCoins': '+{n} monedas'
-  },
-
-  'achievements': {
-    'title': 'Logros', 'subtitle': 'Alcanza hitos históricos para ganar monedas.',
-    'claim': 'Reclamar', 'claimed': 'Reclamado', 'progress': '{c} / {t}',
-    'items': {
-      'wave5': { 'name': 'Primera defensa', 'desc': 'Sobrevive hasta la oleada 5.' },
-      'wave10': { 'name': 'Fortaleza', 'desc': 'Sobrevive hasta la oleada 10.' },
-      'wave20': { 'name': 'Baluarte', 'desc': 'Sobrevive hasta la oleada 20.' },
-      'wave30': { 'name': 'Inquebrantable', 'desc': 'Sobrevive hasta la oleada 30.' },
-      'waves50': { 'name': 'Rompeolas', 'desc': 'Resiste 50 oleadas en total.' },
-      'waves250': { 'name': 'Veterano de asedios', 'desc': 'Resiste 250 oleadas en total.' },
-      'kills500': { 'name': 'Defensor', 'desc': 'Derrota a 500 enemigos en total.' },
-      'kills5k': { 'name': 'Exterminador', 'desc': 'Derrota a 5.000 enemigos en total.' },
-      'kills50k': { 'name': 'Leyenda', 'desc': 'Derrota a 50.000 enemigos en total.' },
-      'height10': { 'name': 'Hacia el cielo', 'desc': 'Construye una torre de 10 bloques de alto.' },
-      'height20': { 'name': 'Rompenubes', 'desc': 'Construye una torre de 20 bloques de alto.' },
-      'blocks250': { 'name': 'Constructor', 'desc': 'Coloca 250 bloques en total.' },
-      'blocks2k': { 'name': 'Arquitecto', 'desc': 'Coloca 2.000 bloques en total.' },
-      'coins5k': { 'name': 'Coleccionista', 'desc': 'Gana 5.000 monedas en total.' },
-      'coins50k': { 'name': 'Tesorero', 'desc': 'Gana 50.000 monedas en total.' },
-      'runs25': { 'name': 'Persistente', 'desc': 'Comienza 25 asedios.' }
-    }
-  },
-
-  'missions': {
-    'title': 'Misiones diarias', 'subtitle': 'Cumple objetivos cada día para ganar monedas.',
-    'claim': 'Reclamar', 'done': 'Reclamado',
-    'types': {
-      'coins': 'Gana {n} monedas hoy',
-      'waves': 'Sobrevive hasta la oleada {n} en un asedio',
-      'kills': 'Derrota a {n} enemigos hoy',
-      'blocks': 'Coloca {n} bloques hoy'
-    }
-  },
-
-  'battlePass': {
-    'title': 'Pase de batalla', 'progress': '{current} / {total}', 'daysLeft': 'Quedan {n} d',
-    'maxed': 'PASE DE BATALLA COMPLETADO', 'xpProgress': '{current} / {total} XP',
-    'howToEarn': 'Cómo ganar XP', 'perRun': 'por asedio', 'perWave': 'por oleada resistida',
-    'unlockHint': 'Alcanza {n} XP para desbloquear la siguiente recompensa; las no reclamadas se conservan.'
-  },
-
-  'dailyRewards': {
-    'title': 'Recompensas diarias', 'subtitle': 'Entra cada día para mantener tu racha.',
-    'day': 'Día {n}', 'dayShort': 'D{n}'
   },
 
   'options': {
@@ -240,9 +72,9 @@ export default {
     'close': 'Guardar y cerrar',
     'difficulties': { 'easy': 'Fácil', 'medium': 'Media', 'hard': 'Difícil' },
     'difficultyHints': {
-      'easy': 'Oleadas más pequeñas y enemigos más débiles.',
-      'medium': 'El asedio estándar y equilibrado.',
-      'hard': 'Oleadas más densas y enemigos más duros.'
+      'easy': 'Enemigos más débiles y barricadas más finas.',
+      'medium': 'La partida estándar.',
+      'hard': 'Enemigos más duros y barricadas más resistentes.'
     }
   },
 

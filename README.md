@@ -1,13 +1,14 @@
-# Tower Siege
+# Survivalist
 
-A mobile-first 2D build-and-defend game. Stack blocks into a tower, bolt cannons
-and lightning coils onto it, and hold off waves of enemies marching in from both
-sides. Every block has HP. When one breaks, anything it was holding up
-**collapses**. The run ends when the Gate falls — then you spend what you earned
-in the tech tree and build a taller, meaner tower.
+A mobile-first 2D **crowd runner**. You steer one thing — a squad of survivors
+that runs up the lane on its own — and everything else follows from where you
+point it. Hold the crowd's fire on a `+1` gate and it climbs by one every half
+second; run everyone through and the squad explodes in size. Break supply crates
+so every survivor hits harder, thread the barricades, and kill the monsters
+coming down the lane before they eat anyone. At the end of every stage something
+much bigger is waiting.
 
-WIP: [playable demo](https://konstantinsteinmiller.github.io/tower-siege/)
-
+WIP: [playable demo](https://konstantinsteinmiller.github.io/survivalist/)
 
 Built with Vue 3 + TypeScript + Canvas 2D, shipping to CrazyGames, Playgama,
 GamePix, GameMonetize, GameDistribution, Glitch.fun, itch.io, Wavedash and
@@ -20,76 +21,70 @@ Yandex Games from one codebase.
 ```bash
 pnpm install
 pnpm dev          # http://localhost:5173
-pnpm test         # 376 unit + integration tests
+pnpm test         # 414 unit, integration + simulation tests
 pnpm type-check   # vue-tsc
 pnpm build        # type-check + production build
 ```
 
 ## Highlights
 
-* **No art payload.** Every block, enemy, projectile and background layer is
-  drawn procedurally — resolution-independent, crisp at any zoom, and the game
-  is interactive the moment the JS parses. Drop-in bitmap overrides are wired
-  up and documented in [`art-todo.md`](./art-todo.md).
-* **Synthesised combat audio.** Shots, impacts, explosions and collapses are
-  generated per event with randomised pitch and filter sweeps, so a 40-turret
-  tower never sounds like a loop. See [`sound-todo.md`](./sound-todo.md).
+* **No art payload.** The survivors and the 13-strong monster cast are
+  hand-inked vector art *baked to frame strips at runtime*; the lane, gates,
+  crates and effects are Canvas 2D. Nothing gameplay-related ships as a bitmap,
+  so the game is interactive the moment the JS parses. Drop-in overrides are
+  wired and documented in [`art-todo.md`](./art-todo.md).
+* **Synthesised combat audio.** ~46 shots a second would turn any sample into a
+  machine-gun jam, so shots, impacts, gate ticks and slams are generated per
+  event. The gate tick climbs a **pentatonic ladder** with the gate's value —
+  pumping a gate is audibly winding something up. See
+  [`sound-todo.md`](./sound-todo.md).
 * **One save object.** All persisted state lives in a single in-memory
   `tower_state` record written to exactly one localStorage key, which the
   platform save layer mirrors to the SDK cloud store as one object.
-* **Fully responsive.** 320×658 portrait through desktop fullscreen, with a
-  purpose-built landscape-phone layout and safe-area insets throughout. No
-  fixed pixel sizing in the UI — everything is `clamp()` / `vw` / `vh` / `%`.
+* **Fully responsive.** 320×658 portrait through desktop fullscreen, safe-area
+  insets throughout, no fixed pixel sizing in the UI.
 * **21 languages**, key-parity enforced by a test.
 
 ## How it plays
 
-| Phase | What happens |
+| Beat | What happens |
 |---|---|
-| **Build** | You are dealt four **Tetris-like shapes** — dominoes, L-bends, 2×2 squares, a cannon already mounted on its plinth. Tap one, tap a highlighted slot to drop it, and that slot rerolls. Some shapes come capped with a roof, which is cheap and sturdy but seals that column for good. A swap button on each tile trades one offer for a fresh draw, on a shared 10-second charge. The ground floor is capped at four cells either side of the Gate, so height has to come from actually building upward. A timer counts down to the wave — calling it early converts the unused seconds into a coin bonus (up to +40%). |
-| **Battle** | Enemies walk in from both sides, fly over the top, and — from wave 12 — swim in from the lake and breach to bite the base. From wave 11 **bombers** cruise above your crown and drop bombs and molotovs straight down, so building high stops being safety. From wave 14 they bring **siege engines**: rams that ignore your walls and drive at the Gate, ballistas and catapults that stand off and shell you, towers that unload troops three rows up, trebuchets parked 20 cells out — beyond every weapon you own — and an ironclad ram that arrows simply bounce off. The answer to the ones you cannot reach is **cavalry**, bought with gold mid-battle, who ride out at whichever side is worst. Weapon blocks fire automatically. You can keep building. 1×/2× speed toggle. |
-| **Wave clear** | Coins land in your wallet immediately, resources pay out, economy blocks yield, repair bays patch their neighbours, and you're back in Build. Anything still on fire keeps burning into the build phase. |
-| **Defeat** | The Gate falls. Bank the run's coins, spend them in the tech tree, build again. |
+| **Learn** | First run only: the road holds still behind a lightbox showing the one control there is — a swiping finger on touch, a gliding pointer on desktop. Nothing to dismiss; it lifts the moment you have actually steered the squad for a second, and never returns. |
+| **Steer** | The squad auto-runs forward. Tap where you want it, hold and drag to steer, or use `A`/`D` — `←`/`→`. That is the entire control scheme. |
+| **Pump** | Everyone shoots forward automatically. A `+N` gate gains **+1 per 500 ms of sustained fire** (part-charge is lost after 400 ms of silence), shown by the plate's punch, a rising chime and a charge meter. |
+| **Choose** | Gates arrive in banks of two — sometimes three — with a **lethal pillar** between each pair. **One bank, one door:** the door holding most of your crowd claims it and pays in full, and every other offer is destroyed in a shockwave cascade that travels outward from the door you took. The crowd squeezes to fit whichever door you aim at and spills out the far side. |
+| **Grow** | `+N` pays flat; `×2` / `×3` multiply only the survivors that came through; `÷2` / `÷5` are traps that cut them; **`−N` bills you a flat count**. And `−N` charges exactly like `+N` does — your crowd shoots forward whether you like it or not, so *the door you are aiming at is the door that grows*. Aim at the bill and you buy a bigger bill. |
+| **Choose badly** | Some banks have no right answer: **`÷2` beside `−9`**, one pillar between them. A division is cheap when your crowd is small and ruinous when it is big; a subtraction is the reverse. Which door is cheaper depends on the run you are actually having. |
+| **Upgrade** | Supply crates give **+1 damage to every survivor** for the rest of the stage. Total DPS is `squad × damage × fire rate`, so crates and gates compound. |
+| **Survive** | Barricades are numbered HP walls with a guaranteed gap — shoot them down for **2–4 coins** or steer around them; contact kills survivors. Five monster archetypes (creep, husk, hound, brute, flyer) are introduced across stages 1–7. Your fire passes **through** gates, so a doorway never stops you starting a fight — but it only reaches so far: **rounds stop short of the top of the screen**, so anything up there arrives whole and you have to choose what to spend the range on. |
+| **Stand** | One or two minibosses per stage **plant themselves and block the road** — and then **sweep it**. A third of a second of wind-up, an arc across the entire lane, and **a fifth of your squad is gone**. Every 1.5 seconds, alternating sides. There is no safe rail and nothing to dodge behind: either your guns kill it or you walk away from the fight with a quarter of the crowd you brought to it. |
+| **Boss** | One per stage, slamming **where your crowd is** on a one-second telegraph. A missed dodge costs nearly a third of the squad. At two-thirds and one-third health it **plants and shields**, so no amount of firepower skips the fight — and every swing it lands makes the next one arrive sooner and reach further. Arriving with too small a squad no longer means a slow win; it means losing. |
+| **Adapt** | The game keeps pace with you: every stage cleared in a row makes the next 13 % harder — tougher, denser, and costlier per bite — and a single loss resets that completely. A stage that keeps beating you comes back weaker each time: 80 % → 62 % enemy health, a 40 %-weaker slam, and a few extra survivors to start with. |
+| **Bank** | Stage cleared or squad wiped, coins are paid out (a wipe still pays, scaled by progress) and spent on four permanent tracks: Squad, Firepower, Fire Rate, Scavenging. |
 
-Controls: tap a tray tile then tap the field to place · hover (or long-press) a
-tile for its resource cost · long-press a placed block to inspect it · drag to
-pan · pinch or scroll to zoom · Space calls the wave · `1`–`4` arm an offer ·
-`F` toggles battle speed · `Esc` deselects.
-
-Four axes of threat, each punishing a different lazy tower: **ground** units
-chew the base, **air** goes for the crown — divers close to melee range from
-wave 9, bombers hold station above it and drop from wave 11 — **sea creatures**
-surface from the lake to strike your lowest blocks from wave 12 (while submerged
-they cannot be shot at all, and only the wake gives them away), and **siege
-engines** from wave 14 break the rules infantry follow, several of them from
-ranges no block can reach.
-
-Every threat has a specific answer, and one of them invalidates a whole weapon:
-arrows bounce off the ironclad ram, so a tower built entirely out of cheap
-Archery blocks has nothing for it. The tech tree has no level cap on any stat
-node, so a run can specialise all the way down one line if you can afford it.
+Full player-facing copy lives in [`description.md`](./description.md); the
+design rationale is in [`GDD.md`](./GDD.md).
 
 ## Architecture
 
 ```
 src/game/          pure, testable domain — no Vue, no DOM
-  types.ts         Block / Enemy / Projectile / WavePlan / RunSnapshot
-  blocks.ts        14-block catalogue with costs, HP, weapon specs
-  shapes.ts        polyomino build shapes + the 4-slot lane-locked offer deck
-  world.ts         shared world geometry (waterline, swim depth)
-  enemies.ts       11 enemy types across ground / air / sea
-  waves.ts         seeded, deterministic wave director
-  tech.ts          28-node tech DAG + effect accumulation
-  art.ts           palettes + drop-in bitmap probing
+  survival.ts      tunables + entity types (the rules, in one file)
+  track.ts         seeded stage generator — a pure fn of the stage number
+  foes.ts          5 enemy archetypes bound to the ink-art monster cast
+  heroSprites.ts   the survivor: authored, then baked to a 14-frame strip
+  inkArt.ts        shared hand-inked vocabulary (blobs, cel tones, ink, IK)
+  monsterKit.ts    shared character parts + locomotion maths
+  monsters.ts      the 13-design cast
+  monsterSprites.ts idle-time frame baker for that cast
 
 src/use/           reactive layer (module-level singletons)
+  useSurvivalGame  the simulation — one `step(dtMs)`, no rendering
+  useSurvivalArt   the renderer — 11 layers, plus the FX → juice table
+  useVfx           event bus + pooled particles / text / decals
+  useGameAudio     synth + sample cue router with per-cue throttling
+  useUpgrades      the four coin-bought meta tracks
   useTowerState    the single `tower_state` blob + debounced persistence
-  useTowerGame     the simulation — fixed 60 Hz accumulator
-  useTowerArt      the renderer — layered, sprite-cached, culled
-  useTowerVfx      pooled particles, floating text, decals, quality tiers
-  useTowerAudio    sample + synthesis cue router with per-cue throttling
-  useTowerCamera   spring-damped pan/zoom with auto-fit
-  useTowerProgress tech levels, lifetime stats, derived combat modifiers
   useTowerEconomy  coins
 
 src/platforms/     platform registry, CSP, capability gates, resolvers
@@ -97,12 +92,20 @@ src/utils/save/    SaveManager, BlobStorage, 8 cloud strategies
 src/components/    F-* design system + game HUD + modals
 ```
 
-**Performance contract:** the hot collections (`blocks`, `enemies`,
-`projectiles`) are plain non-reactive structures — Vue's proxy overhead on a few
-hundred entities mutated 60×/s is exactly what drops frames on a phone. Only
-HUD scalars are refs. Block bodies are cached into offscreen canvases per
-(type, damage stage, zoom bucket); particles live in typed arrays with a
+**Balance contract:** difficulty is measured, not guessed. `tests/sim/` drives
+the real simulation with scripted player policies (optimal / good / average /
+careless / coin-follower) and full 30-stage careers including upgrade spending,
+and reports clear rate, DPS at the boss, time-to-kill and cause-of-death per
+stage. `tests/sim/REPORT.md` carries the numbers; `balance.test.ts` locks the
+conclusions into the default suite.
+
+**Performance contract:** the hot collections (`units`, `bullets`, `foes`) are
+plain non-reactive arrays — Vue's proxy overhead on a few hundred entities
+mutated 60×/s is exactly what drops frames on a phone. Only HUD scalars are
+refs. Sprites are baked once and blitted; particles live in typed arrays with a
 free-list; quality auto-degrades across three tiers off a rolling FPS average.
+Measured 60 fps / 18 ms worst frame at 390×844 in Chrome with a 190-strong
+crowd.
 
 ## Save & cloud hydration
 
@@ -110,12 +113,11 @@ Everything persists inside one object:
 
 ```text
 tower_state = {
-  ts_coins, ts_tech, ts_best_wave, ts_runs, ts_total_kills, ...
-  ts_run: {                                    // resumable siege
-    wave, wood, stone,
-    blocks: [[c, r, type, hp, roof], ...],
-    offers: [shapeId x4]                       // so a reload can't reroll your hand
-  }
+  ts_coins, ts_total_coins, ts_upgrades,       // meta
+  ts_best_stage, ts_best_squad, ts_runs, ts_total_kills,
+  ts_stage,                                    // the resumable run: a stage's
+                                               // layout is regenerated from
+                                               // this number alone
   ts_user_language, ts_user_difficulty, ...    // settings
 }
 ```
@@ -130,8 +132,8 @@ rendered as a fresh install:
    composable's watcher re-reads the hydrated blob rather than the stale one.
 4. If hydrate didn't return data **and** local looks fresh, `SaveManager` retries
    3× at 1 s spacing before letting the app boot.
-5. Hard checkpoints (wave cleared, run ended, tech bought) call `flushSaveNow()`
-   to bypass both debounces.
+5. Hard checkpoints (stage cleared, run ended, upgrade bought) call
+   `flushSaveNow()` to bypass both debounces.
 
 `tests/save/TowerStateCloudHydrate.test.ts` covers all of it end to end,
 including transient-SDK-failure recovery, corrupt-blob degradation, and a
@@ -154,7 +156,17 @@ and emits a per-platform CSP.
 
 | File | Contents |
 |---|---|
-| [`game-implementation-plan.md`](./game-implementation-plan.md) | Full design + architecture decisions + execution checklist |
-| [`retention-roadmap.md`](./retention-roadmap.md) | 20 prioritised retention / conversion features |
+| [`GDD.md`](./GDD.md) | The design: loop, rules table, art direction, feel non-negotiables |
+| [`game-implementation-plan.md`](./game-implementation-plan.md) | Build state, architecture map, what's next, known trade-offs |
+| [`description.md`](./description.md) | Store copy: short/long description, how to play, controls |
+| [`retention-roadmap.md`](./retention-roadmap.md) | 18 prioritised retention / conversion features |
 | [`art-todo.md`](./art-todo.md) | Drop-in bitmap override manifest |
 | [`sound-todo.md`](./sound-todo.md) | Audio cue map + what's worth commissioning |
+
+## Dev tools
+
+* `/#/monsters` — the monster design bench (lazy; costs a player nothing).
+* Type `cmarc` anywhere to toggle debug mode.
+* `localStorage.cheat = 'true'` + reload publishes the live simulation as
+  `window.__run` and enables the cheat shortcuts (`ctrl+shift+alt` + `k` coins,
+  `g` survivors, `d` damage, `n` next stage, `r` restart).
