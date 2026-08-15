@@ -307,6 +307,19 @@ export const GATE_DEPTH = 0.34
 export const funnelRadius = (halfW: number): number =>
   Math.max(0.45, Math.min(CROWD_MAX_R, halfW - UNIT_R - 0.1))
 
+/**
+ * How much steering room the crowd keeps when it squeezes into a passage.
+ *
+ * Fitting the corridor EXACTLY is not fitting it: a corridor beside the rib is
+ * 3.65 wide, a full-size crowd is 3.3, and the 0.35 left over is a band the
+ * player has to hold to a fifth of a unit — against stone that kills the whole
+ * column, which is precisely the slack the lethal-contact work measured as
+ * unholdable. Squeezing 0.4 further turns it into a ±0.4 window, which is the
+ * same order of room a gate leaf gives, and it reads as the crowd bunching to
+ * get through a gap rather than as a crowd being shaved by one.
+ */
+export const PASSAGE_FIT_MARGIN = 0.4
+
 /** How far ahead of a bank the crowd starts squeezing. Long enough to read as
  *  anticipation, short enough that the crowd is only ever narrow when it needs
  *  to be. */
@@ -470,25 +483,21 @@ export const BARRICADE_H = 1.0
  */
 export const ROCK_W = 1.35
 export const ROCK_H = 1.15
-/**
- * Share of the squad a boulder takes per second of contact.
+/*
+ * A boulder used to bill a SHARE OF THE SQUAD PER SECOND of contact, and the
+ * number was fought over twice: 0.28 walled a competent player at stage 6 on
+ * every purchasing strategy, 0.12 was where the career study came to rest.
  *
- * BELOW a barricade's 0.22, and that is the opposite of where it started.
- *
- * The first pass reasoned that a boulder should hurt more than a wall, because
- * a wall is a mistake you could have shot your way out of. That reasoning
- * ignored the thing that makes a boulder different: it is PERMANENT. A wall
- * bills you once and then it is gone, and a rank of boulders bills you for as
- * long as you are threading it — twice, because the second rank's gap is
- * offset. At 0.28 the career study walled a competent player at stage 6, on
- * every purchasing strategy, from the first stage boulders appear on.
- *
- * 0.12 keeps the bite real (a hundred-strong crowd grinding one loses a dozen
- * survivors a second) while leaving the field a routing problem rather than a
- * toll. The difficulty of a boulder is supposed to be in the line you take
- * through it, not in the price of touching it.
+ * Both are gone, along with every other obstacle's rate. Contact is binary now
+ * — whoever touches a solid thing dies, and the rest of the swarm runs past it
+ * (`crushAgainst`). The reasoning that produced those numbers survives the
+ * change unaltered, because it was never really about the rate: a wall bills
+ * you once and is gone, and a rank of boulders bills you for as long as you are
+ * threading it, twice, because the second rank's gap is offset. Under the new
+ * rule that difference is expressed by GEOMETRY — two ranks means two chances
+ * to put part of the crowd on a stone — instead of by a hand-set per-second
+ * price, which is the honest place for it.
  */
-export const ROCK_CRUSH_FRACTION = 0.12
 
 /** Contact radius at which a foe starts eating survivors. */
 export const FOE_REACH = 0.72
@@ -607,6 +616,66 @@ export const ELITE_SWEEP_CD = 1.5
 export const endlessPressure = (stage: number): number =>
   1 + Math.min(1.2, ((Math.max(0, stage - 30) / 90) ** 2) * 2.6)
 
+/**
+ * ─── Every third swing is charged ───────────────────────────────────────────
+ *
+ * The boss's ordinary slam is a question about where you are standing, and a
+ * player who keeps moving answers it perfectly — measured, a perfect dodger
+ * takes **0 %** of them. That is the right shape for the ordinary swing and it
+ * leaves the boss with no answer to a good player at all: the fight becomes a
+ * DPS race it always loses.
+ *
+ * So every third one is different. The boss plants, winds up for almost twice
+ * as long, and throws an arc of **double the radius** at where the crowd is
+ * going rather than where it was. It is not undodgeable — the wind-up is the
+ * longest tell in the game and a committed run to the far rail still beats it —
+ * but it is the swing you have to actually respect, and standing still through
+ * it is no longer an option.
+ *
+ * ─── Why the radius and not the damage ──────────────────────────────────────
+ *
+ * A slam's toll is `squad × slamShare`, capped by `SLAM_FRACTION_MAX`, and it
+ * is counted off whoever is inside the ring — so the RADIUS decides whether the
+ * hit lands, and the share decides what it costs once it has. Doubling the
+ * radius therefore turns a swing the player was dodging into a swing that
+ * connects, at exactly the price the design already set for a slam that
+ * connects. Doubling the damage as well would be two knobs doing one job, and
+ * the second one is the one that turns a boss into a coin flip.
+ */
+export const CHARGED_EVERY = 3
+
+/** …and the arc it throws is twice the size. */
+export const CHARGED_RADIUS_MUL = 2
+
+/**
+ * The wind-up, as a multiple of the cycle it interrupts.
+ *
+ * The extra time is the whole fairness of the move: the ring is twice the size,
+ * so the ground it covers has to be readable for long enough that leaving it is
+ * a decision the player got to make. It also paces the fight — a charged swing
+ * arrives roughly every fourth cadence rather than every third, which keeps the
+ * boss's rhythm from becoming a metronome.
+ */
+export const CHARGED_WINDUP_MUL = 1.7
+
+/**
+ * How hard a charged swing leads the crowd's movement, against 0.35 for an
+ * ordinary one.
+ *
+ * An ordinary slam aims a little ahead of the crowd; this one aims where the
+ * crowd will BE. Together with the doubled radius that is what makes it "the
+ * one that gets you" — a player who keeps drifting the way they were drifting
+ * is caught by the lead, and a player who commits to a real change of direction
+ * is not.
+ */
+export const CHARGED_LEAD = 0.8
+
+/** Radius of the swing about to be thrown — the ONE definition, read by the
+ *  simulation that kills with it and by the telegraph that draws it. */
+export const slamRadiusFor = (slams: number, charged: boolean): number =>
+  Math.min(SLAM_RADIUS_MAX, SLAM_RADIUS + slams * SLAM_RADIUS_GROWTH)
+  * (charged ? CHARGED_RADIUS_MUL : 1)
+
 /** Ceilings on what one percentage attack may ever take. */
 export const SWEEP_FRACTION_MAX = 0.4
 export const SLAM_FRACTION_MAX = 0.5
@@ -654,19 +723,19 @@ export const ELITE_LUNGE = 0.55
 export const ELITE_HOLD_MAX = 4.5
 
 /**
- * ─── …and the body it leaves behind when the fight is lost ──────────────────
+ * ─── A monster is a body, and a body is solid ───────────────────────────────
  *
- * The leash above is what stops a lost fight becoming a death sentence, and it
- * created the problem this constant fixes: after `ELITE_HOLD_MAX` the elite
- * breaks off and walks back down the road THROUGH the crowd that failed to kill
- * it — and it walked through them literally. Survivors crossed the sprite and
- * came out the other side, which reads as a missing collision rather than as a
- * monster shouldering its way past.
+ * EVERY foe, not just the elite. A survivor that runs into a monster dies on
+ * the frame it touches, exactly as it would against a wall or a boulder, and
+ * the rest of the swarm streams past on both sides of it.
  *
- * Every other solid thing in the game already parts the crowd (`crushAgainst`
- * pushes what it does not kill). A miniboss is the largest solid thing on the
- * road and was the one exception, purely because foes are handled by the bite
- * loop rather than by the obstacle loop.
+ * This started as an elite-only rule, for the case that is impossible to miss:
+ * after `ELITE_HOLD_MAX` the miniboss breaks off and walks back down the road
+ * through the crowd that failed to kill it, and it used to walk through them
+ * *literally* — survivors crossing the sprite and coming out the far side. But
+ * the same thing was true of a creep the whole time; it was only harder to see
+ * at a fifth of the size. A pack that the crowd can walk through is not an
+ * enemy, it is a puddle.
  *
  * The numbers are the DRAWN footprint, not a hitbox invented for the physics:
  * `drawFoes` paints the body at `scale × 1.25` and its contact shadow at 0.38 of
@@ -676,14 +745,87 @@ export const ELITE_HOLD_MAX = 4.5
  * ellipse would still let a survivor walk through the monster's KNEES, which is
  * the same bug with a smaller radius.
  *
- * Ordinary foes are NOT solid, and that is a rule rather than an oversight. A
- * creep is a body the crowd is meant to absorb — making a pack of twelve solid
- * would turn every routine fight into a routing puzzle the road was never
- * authored for, and it costs an O(units) pass per foe per frame. Only the elite
- * is big enough to be walked through visibly, and there is at most one or two.
+ * A monster's body DISPLACES rather than kills, and that is the one place the
+ * solid-contact rule is deliberately not applied — see `partAround`. A wall
+ * stands still, so a lethal wall is a question about the line you took; a
+ * monster homes on the crowd, so a lethal monster is an undodgeable share of
+ * the squad, and the share is about HALF of it against a designed bite of
+ * 0.4–1.8 %. Measured: monsters killing on contact puts the benchmark player
+ * out at 10 % of stage 5 and breaks eight balance invariants; monsters
+ * displacing passes all twenty-one. The mouth takes what comes near, the body
+ * takes up space.
  */
-export const ELITE_BODY_HALF_W = 0.475
-export const ELITE_BODY_HALF_H = 0.3
+export const FOE_BODY_HALF_W = 0.475
+export const FOE_BODY_HALF_H = 0.3
+
+/**
+ * ─── Running into a monster ─────────────────────────────────────────────────
+ *
+ * Half the survivors that hit a monster's body die. Not all of them — that is
+ * the wall rule, and a wall stands still while a monster HOMES on the crowd, so
+ * an all-or-nothing body would be an undodgeable half of the squad with no line
+ * that avoids it (measured: the benchmark player out at 10 % of stage 5, eight
+ * balance invariants broken). Half is the compromise the collision needs to be
+ * a real cost without being a verdict.
+ *
+ * Every other one, deterministically, rather than a coin flip per body. A crowd
+ * losing exactly half of the bodies that touched reads as an impact; the same
+ * expected number arrived at by rolling dice reads as inconsistent, because the
+ * player sees the outcome and not the distribution.
+ */
+export const FOE_COLLIDE_KILL_EVERY = 2
+
+/**
+ * …and the survivors get ten frames of immunity, at 60 fps.
+ *
+ * WITHOUT this, contact is not a collision at all — it is a per-frame rate.
+ * A survivor standing in a monster would be offered up to the halving sixty
+ * times a second and last about three frames, which is the "mincer" the
+ * obstacle rules were written to avoid, wearing a monster costume.
+ *
+ * With it, one collision costs one coin-flip's worth of survivors and then the
+ * crowd is untouchable long enough to be pushed clear and steered away — so a
+ * PACK of monsters costs a pack's worth of collisions rather than the product
+ * of all of them, which is the whole point: the crowd can cross a pack without
+ * a single body being billed twice by two monsters standing side by side.
+ *
+ * Held in milliseconds, not frames, because `step(dtMs)` runs on whatever the
+ * device gives it: a 30 fps phone would otherwise grant twice the protection a
+ * 60 fps one does, and 10 frames on a long frame would be most of a second.
+ */
+export const FOE_COLLIDE_IFRAMES_MS = 10 * (1000 / 60)
+
+/**
+ * …and the monster needs a moment before it can knock another rank down.
+ *
+ * The i-frames above are per SURVIVOR, and on their own they are not enough,
+ * because the monster is moving: it walks down the road through the crowd's
+ * whole depth in about half a second, meeting a fresh rank of bodies — none of
+ * them protected — on every frame of the way. One monster would bill a column
+ * rather than a rank, which is the wall rule again by another route.
+ *
+ * This is the other half: one monster, one knock-down, then a beat. Together
+ * the two bounds say exactly what a collision should say — a body pays once per
+ * monster, and a monster collects once per pass.
+ */
+export const FOE_COLLIDE_CD = 0.6
+
+/**
+ * The share of a monster's body that KILLS, as against the share that pushes.
+ *
+ * The whole body is solid — nobody may stand inside the sprite — but only the
+ * middle 60 % of it knocks anyone down. Clip a flank and you are shoved aside;
+ * run into it squarely and half your leading rank is gone.
+ *
+ * Two reasons, one of feel and one measured. A monster's contact box is its
+ * drawn shadow plus a survivor's own radius, which for a creep is 0.69 against
+ * a crowd 1.65 in radius — over half the crowd's width — so "the edge of the
+ * shadow" is a very generous definition of running into something. And the
+ * career says the same: at the full body a competent player who never takes the
+ * ×3 walls at **stage 4** with 82 foe deaths; at 0.6 the same career runs, and
+ * every one of the twenty-one balance invariants holds.
+ */
+export const FOE_COLLIDE_CORE = 0.6
 
 /**
  * ─── Why a bite is also a FRACTION ──────────────────────────────────────────
@@ -1030,6 +1172,9 @@ export interface Rock {
   x: number
   y: number
   w: number
+  /** Part of a PASSAGE rib rather than a scattered field. The funnel reads it:
+   *  the crowd squeezes to fit the corridor it is aimed at. See `PASSAGE_LEN`. */
+  passage: boolean
   /** Fixed per-body tilt and silhouette seed, so a field of them does not read
    *  as one shape stamped four times. */
   spin: number
@@ -1061,6 +1206,10 @@ export interface Foe {
   /** Seconds of holding an elite has left before it breaks off and walks past.
    *  Non-elites never hold and leave this at 0. See `ELITE_HOLD_MAX`. */
   hold: number
+  /** Seconds until this monster's BODY can knock a rank down again. Stops one
+   *  monster billing the same pass twice as it sweeps through the crowd's
+   *  depth. See `FOE_COLLIDE_CD`. */
+  hitCd: number
   /** Wind-up → sweep cycle, seconds. Elites only; see `ELITE_TELEGRAPH`. */
   sweepCd: number
   /** The full length of the current cycle, so the telegraph can be drawn as a
@@ -1123,6 +1272,10 @@ export interface Boss {
    *  player can read it and move. */
   slamX: number
   slamY: number
+  /** Is the swing currently being wound up a CHARGED one? Set when the cycle
+   *  begins, so the telegraph and the kill can never disagree about which swing
+   *  they are describing. See `CHARGED_EVERY`. */
+  charging: boolean
   dead: boolean
   dying: number
 }
@@ -1150,6 +1303,8 @@ export interface Unit {
   flash: number
   /** Death animation, ms remaining. `> 0` means it is falling out. */
   dying: number
+  /** Monster-collision immunity, ms remaining. See `FOE_COLLIDE_IFRAMES_MS`. */
+  inv: number
 }
 
 export interface Bullet {

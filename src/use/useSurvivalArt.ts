@@ -1,7 +1,7 @@
 import {
   BARRICADE_H, BASE_FIRE_RATE, ROCK_H, CRATE_R, CROWD_MAX_R, CROWD_SQUASH, DIVIDER_H,
   DIVIDER_HALF_W, ELITE_SWEEP_REACH, ELITE_TELEGRAPH,
-  LANE_HALF, MAX_FIRE_RATE, SLAM_RADIUS, SLAM_RADIUS_GROWTH,
+  LANE_HALF, MAX_FIRE_RATE, SLAM_RADIUS, SLAM_RADIUS_GROWTH, slamRadiusFor,
   SLAM_RADIUS_MAX, VIEW_HEIGHT, UNIT_R,
   type Divider, type GateOp
 } from '@/game/survival'
@@ -2636,8 +2636,12 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
   // telegraph at all. Drawn UNDER everything else, and generous: 0.6 s of it —
   // deliberately a hair SHORTER than the sim's latch window, so the ring can
   // never spend a frame pointing at the PREVIOUS slam's coordinates.
-  if (!b.dead && b.slamCd < 0.6) {
-    const k = 1 - b.slamCd / 0.6
+  // A charged swing gets a longer look at it, because it covers twice the
+  // ground: the ring has to be readable for long enough that leaving it was a
+  // decision the player got to make, not a reflex they failed.
+  const windowS = b.charging ? 1.1 : 0.6
+  if (!b.dead && b.slamCd < windowS) {
+    const k = 1 - b.slamCd / windowS
     const rx = worldToScreenX(b.slamX)
     const ry = worldToScreenY(b.slamY)
     // Tracks the slam that is actually coming: the boss's reach GROWS with
@@ -2646,12 +2650,15 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
     // player only discovers by dying to it. Still drawn a little wider than the
     // kill radius — a dodge that was visually clean has to be clean.
     const raging = b.slams > 0 || b.guard > 0
-    const r = Math.min(SLAM_RADIUS_MAX, SLAM_RADIUS + b.slams * SLAM_RADIUS_GROWTH)
-      * scale * 1.28
+    // `slamRadiusFor` is the simulation's own definition, charged multiplier
+    // included — the telegraph is not allowed a second opinion about how big
+    // the hit is. Still drawn a little wider than the kill radius: a dodge that
+    // was visually clean has to be clean.
+    const r = slamRadiusFor(b.slams, b.charging) * scale * 1.28
     ctx.save()
     ctx.globalAlpha = 0.25 + k * 0.4
-    ctx.strokeStyle = raging ? '#ff3a2a' : '#ff5a4a'
-    ctx.lineWidth = Math.max(2, scale * 0.09)
+    ctx.strokeStyle = b.charging ? '#ffd23a' : raging ? '#ff3a2a' : '#ff5a4a'
+    ctx.lineWidth = Math.max(2, scale * (b.charging ? 0.15 : 0.09))
     ctx.beginPath()
     ctx.ellipse(rx, ry, r, r * 0.5, 0, 0, Math.PI * 2)
     ctx.stroke()
@@ -3491,7 +3498,7 @@ const applyFx = (e: FxEvent): void => {
 
     case 'bossSlam': {
       playFx('bossSlam')
-      triggerShake('strong')
+      triggerShake(e.charged ? 'big' : 'strong')
       // The debris ring is the slam's actual reach, so a raging boss visibly
       // throws a bigger hit rather than the same hit with a different number
       // behind it.

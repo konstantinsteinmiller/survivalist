@@ -35,6 +35,10 @@ const reachBoss = async (game: Game, units = 900, dmg = 400): Promise<FxEvent[]>
   game.debugAddUnits(units)
   game.debugAddDamage(dmg)
   game.debugAddFireRate(6)
+  // Straight to the arena. These are tests about the boss, and walking the
+  // road to reach it made them depend on every rule the road has — a crowd
+  // that never steers now dies on a passage rib long before the fight.
+  game.debugSkipToArena()
   drainFx()
   const seen: FxEvent[] = []
   for (let i = 0; i < 9000; i++) {
@@ -70,8 +74,9 @@ describe('the boss cannot be skipped', () => {
     game.debugAddUnits(1200)
     game.debugAddDamage(2000)
     game.debugAddFireRate(6)
+    game.debugSkipToArena()
 
-    // Walk to the boss, then watch the health bar. A single frame of a squad
+    // Straight to the boss, then watch the health bar. A single frame of a squad
     // this size is worth more than a whole phase, so if the clamp were missing
     // the bar would jump straight past 0.66 without ever resting on it.
     const restedOn: number[] = []
@@ -95,6 +100,7 @@ describe('the boss cannot be skipped', () => {
     game.debugAddUnits(900)
     game.debugAddDamage(400)
     game.debugAddFireRate(6)
+    game.debugSkipToArena()
 
     // Reach the guard, then hold fire on it for a while and confirm the health
     // bar does not move. A shield that leaks is a shield the player learns to
@@ -246,6 +252,7 @@ describe('a raging boss still aims at the player', () => {
     // Big crowd, no damage: the fight has to last long enough to rage.
     game.startStage(6)
     game.debugAddUnits(1400)
+    game.debugSkipToArena()
     for (let i = 0; i < 12000 && game.phase.value !== 'boss'; i++) game.step(STEP_MS)
     expect(game.phase.value, 'never reached the boss').toBe('boss')
     const boss = game.getBoss()!

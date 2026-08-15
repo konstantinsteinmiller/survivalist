@@ -11,6 +11,7 @@ import {
   GATE_MAX_VALUE, GATE_SUB_MAX,
   LANE_HALF,
   stageLength,
+  stageSpeed,
   UNIT_R,
   type CrateKind,
   type GateOp
@@ -91,8 +92,9 @@ export type TrackEvent =
    *  number is printed on the box. See `crateTierFor`. */
   | { kind: 'crates'; y: number; crates: Array<{ x: number; kind: CrateKind; hp: number }> }
   | { kind: 'barricade'; y: number; blocks: Array<{ x: number; w: number; hp: number }> }
-  /** Boulders. No `hp` — they cannot be shot, only steered around. */
-  | { kind: 'rocks'; y: number; blocks: Array<{ x: number; w: number }> }
+  /** Boulders. No `hp` — they cannot be shot, only steered around.
+   *  `passage` marks a rib walling one gate off from another; see `passage()`. */
+  | { kind: 'rocks'; y: number; blocks: Array<{ x: number; w: number }>; passage?: boolean }
   | { kind: 'foes'; y: number; typeId: string; count: number; spread: number }
   /** One elite body. `hpScale` multiplies the ARCHETYPE'S BASE HP (`foeDef().hp`)
    *  — it already carries the stage scaling, see `minibossHp()`. */
@@ -121,12 +123,21 @@ export interface Track {
  * A crowd at full size is `CROWD_MAX_R` across the radius and each survivor is
  * `UNIT_R` wide on top of that, so a gap of exactly twice the crowd radius
  * leaves ZERO clearance: a perfectly-aimed run still shaves survivors off both
- * edges, and the player has no way to see why. The extra half-unit is the
- * margin that makes "aim at the gap" an instruction the game can actually
- * honour. Barricade rows are repaired (blocks dropped) until they satisfy it;
- * see `ensureRunnable`.
+ * edges, and the player has no way to see why. The margin on top is what makes
+ * "aim at the gap" an instruction the game can actually honour. Barricade rows
+ * are repaired (blocks dropped) until they satisfy it; see `ensureRunnable`.
+ *
+ * The margin doubled, 0.5 → 1.0, when walls and boulders stopped grinding and
+ * started killing. Half a unit of clearance is ±0.25 of steering slack, which
+ * was ample while touching a wall cost a trickle and is not ample when it costs
+ * every survivor in the column: measured, the benchmark player could not hold
+ * that line and died on stage 4 with 42 barricade deaths at 16 % of the road.
+ * It stops at 1.0 because `ensureRunnable` buys clearance by DELETING blocks —
+ * at a 2.6 margin every barricade row in the game is one block wide and every
+ * boulder field is one boulder, and the obstacles stop existing. 1.0 keeps
+ * ~1.6–2.2 blocks a row against 2.19 before.
  */
-export const MIN_RUN_GAP = 2 * (CROWD_MAX_R + UNIT_R) + 0.5
+export const MIN_RUN_GAP = 2 * (CROWD_MAX_R + UNIT_R) + 1.0
 
 /**
  * How far off the straight line a supply crate sits.
@@ -759,6 +770,10 @@ interface Beat {
   /** Did the bank just emitted carry a multiplier? Two in a row is a free
    *  exponent for anyone who can aim twice — see `canMul`. */
   mulLast: boolean
+  /** Banks still to print before the next passage, and the y the last event
+   *  was written at — a rib may never reach back over it. See `passage()`. */
+  passageIn: number
+  lastY: number
   /** Should the next bank be a pure routing call (no pumpable leaf)? Toggled
    *  on every bank so a stage alternates its two question types. */
   routingNext: boolean
@@ -1037,6 +1052,88 @@ const legalise = (b: Beat, specs: readonly LeafSpec[]): LeafSpec[] => {
  * question the NEXT bank asks — is shared, because they are the same beat asked
  * at two different widths.
  */
+/**
+ * ─── Passages: the bank you cannot change your mind about ───────────────────
+ *
+ * A rib of unbreakable stone running back down the road from a bank's pillar,
+ * splitting the approach into two corridors — one per door.
+ *
+ * Every bank is already a commitment, but only at the last moment: the crowd
+ * can sit on the centre line reading both offers and slide to whichever door it
+ * likes with half a second to spare, which makes a bank a REACTION rather than
+ * a decision. A passage moves the commitment upstream. Both doors are in plain
+ * sight the whole way in — that is the point, and it is why the rib is short
+ * enough to fit on screen with the bank — but the moment the crowd enters a
+ * corridor the other offer is behind a wall it cannot shoot through.
+ *
+ * ─── The three numbers ──────────────────────────────────────────────────────
+ *
+ * LENGTH is a decision window, so it is expressed in seconds and converted at
+ * the stage's own speed: `PASSAGE_SECONDS` = 1.2, which at stage 6's 5.6 u/s is
+ * about seven units of road. Long enough that the choice is made before the
+ * bank rather than at it, short enough that the corridor mouth and the doors
+ * are on screen together — a wall that arrives before the offer it splits is
+ * not a decision, it is a guess.
+ *
+ * WIDTH is the pillar's own contact width and not a unit more. The pillar
+ * already reaches `DIVIDER_HALF_W + UNIT_R` = 0.55 into the lane, so a rib of
+ * the same width adds no new constraint to a crowd that was going to take a
+ * door cleanly: the safe aiming band is the same [2.20, 2.55] it always was.
+ * Wider stone would quietly turn every passage bank into a precision test,
+ * because unlike the pillar it grinds against, this rib KILLS what touches it.
+ *
+ * CADENCE is every third or fourth bank, rolled per passage so the player
+ * cannot count bars. Never the first bank of a stage — the opening bank is
+ * where a run's crowd is smallest and the shape is still being read — and never
+ * a three-leaf bank, whose two pillars would leave a centre corridor 1.2 units
+ * wide against a crowd 3.3 across.
+ */
+export const PASSAGE_SECONDS = 1.2
+export const PASSAGE_EVERY_MIN = 3
+export const PASSAGE_EVERY_MAX = 4
+
+/**
+ * First stage that may print one.
+ *
+ * Six, which is where boulders arrive anyway (`hazardWeights`), so the player
+ * has already been taught the one thing a passage assumes: that grey stone is
+ * not a wall you can shoot. Teaching "commit early" and "this cannot be broken"
+ * in the same beat is how a player concludes the game cheated.
+ */
+export const PASSAGE_STAGE = 6
+
+/** Half-width of the rib, matched to `DIVIDER_HALF_W` — see the note above. */
+export const PASSAGE_RIB_HALF_W = 0.25
+
+/**
+ * Lay the rib for the bank at `y`.
+ *
+ * `back` is how much clear road there is behind the bank; the rib is clipped to
+ * it so a passage can never reach back over the beat before it and turn some
+ * other row into a trap the player met at the wrong angle.
+ */
+const passage = (b: Beat, y: number, back: number): void => {
+  const len = Math.min(back, stageSpeed(b.stage) * PASSAGE_SECONDS)
+  // Under three units it reads as debris beside the pillar rather than as a
+  // wall, and it stops being a decision at all.
+  if (len < 3) return
+
+  // Stone every 0.9 against a body 1.15 deep, so the rib overlaps itself into
+  // one unbroken line rather than a dotted one a player might read as passable.
+  const step = 0.9
+  // Stops half a unit short of the doorway: the rib walls the APPROACH, and a
+  // stone flush against the gate plate would eat the crowd on the way through
+  // the door it just committed to.
+  for (let d = 0.6; d <= len; d += step) {
+    b.events.push({
+      kind: 'rocks',
+      y: r2(y - d),
+      blocks: [{ x: 0, w: PASSAGE_RIB_HALF_W * 2 }],
+      passage: true
+    })
+  }
+}
+
 const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
   // Belt and braces on `SUB_EARLIEST`: a bill early enough to zero the crowd is
   // not a hard bank, it is a run ending with no picture of why. Enforced HERE
@@ -1093,6 +1190,19 @@ const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
     leaves: offers.map((s, i) => ({ x: xs[i] ?? 0, halfW, op: s.op, value: s.value })),
     dividers: triple ? [-GATE3_DIVIDER_X, GATE3_DIVIDER_X] : [0]
   })
+
+  // ── Does this one get walled? ──
+  //
+  // Counted over every bank but only ever SPENT on a two-leaf one, so a stage
+  // full of triples does not quietly stop printing passages — the counter keeps
+  // running and the next two-leaf bank pays it.
+  b.passageIn--
+  if (!triple && b.stage >= PASSAGE_STAGE && b.passageIn <= 0 && y > b.arenaY * 0.18) {
+    passage(b, y, y - b.lastY)
+    b.passageIn = PASSAGE_EVERY_MIN
+      + Math.floor(b.rng() * (PASSAGE_EVERY_MAX - PASSAGE_EVERY_MIN + 1))
+  }
+  b.lastY = y
 }
 
 /**
@@ -2207,6 +2317,8 @@ export const buildTrack = (stage: number): Track => {
     dilemmaLeft: stage >= 4 ? 1 : 0,
     dilemmaLast: false,
     mulLast: false,
+    passageIn: PASSAGE_EVERY_MIN,
+    lastY: 0,
     routingNext: false,
     mulLeft: mulLeaves(stage),
     mulThreeLeft: mulThrees(stage),

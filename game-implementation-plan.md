@@ -389,7 +389,137 @@ worker/                     Cloudflare Worker + D1 behind the board. Its own
       elite in 7.5 s and never gets closer than 1.30. Without the fix that test
       catches a survivor standing at x = −0.19 inside a body centred on 0.00
       with a half-width of 1.13.
-- [x] 458 unit + simulation tests green, `vue-tsc --build` clean, production build clean.
+- [x] **Solid means solid: walls and boulders kill on contact.** Reported from
+      play: a crowd driven into a stone **wrapped around it** and kept going.
+      Contact was a rate-plus-shove — `squad × fraction` survivors a second,
+      everyone else pushed clear — so an obstacle the whole game calls lethal
+      cost two survivors and a swerve. It is now a guillotine: whoever touches
+      dies that frame, and the swarm streams past on both sides.
+      Three things fall out of it, all improvements. **The bill is the line you
+      ran, not the seconds you spent** — the old rate saturated at 8 % overlap,
+      so clipping an edge cost nearly as much as ploughing the crowd's middle
+      through, which is exactly backwards. **It scales itself**: a column
+      through the crowd is measured in the crowd's own bodies, so the
+      hand-tuned per-obstacle percentages are gone. **Nothing is carried between
+      frames**, which retires an accumulator that needed two bug-fixes to stop
+      punishing a player who corrected late four times harder than one who never
+      corrected at all.
+      What it gives up is `contactRelief`: there is no rate left for a stuck
+      player's discount to scale, so relief reaches obstacle deaths only through
+      the retry discounts that weaken the obstacles themselves.
+- [x] **…and the four things that are deliberately NOT lethal.** Measured, not
+      chosen. Making every solid thing a guillotine breaks the game: the
+      benchmark player dies on stage 4 at 16 % of the road with 42 barricade
+      deaths, and a zero-input run dies at 67 % of stage 1 — on the centre
+      pillar of the first bank, which is the documented onboarding floor.
+      * **Gate pillars and unbroken crates keep the grind** (`grindAgainst`).
+        A pillar is a blade standing between two doors the player is aiming AT,
+        with a safe band half a unit wide; a crate is a REWARD the player was
+        invited to chase, and punishing the attempt like a wall teaches them to
+        stop chasing rewards.
+      * **Monsters displace instead of killing** (`partAround`). A wall stands
+        still, so a lethal wall is a question about the line you took. A monster
+        HOMES on the crowd, so a lethal monster is not a question at all — it is
+        an undodgeable chord of about **half the squad**, against a designed
+        bite of 0.4–1.8 %. Measured both ways: monsters killing on contact puts
+        the benchmark player out at 10 % of stage 5 with 45 foe deaths and
+        breaks **8 of 21** balance invariants; monsters displacing passes all
+        21. What did change is that no survivor may ever stand inside a monster
+        sprite — the miniboss rule, now every foe's.
+- [x] **The road pays for the rule: `MIN_RUN_GAP` 4.4 → 5.4.** Half a unit of
+      clearance is ±0.25 of steering slack, which was ample when touching a wall
+      cost a trickle and is not ample when it costs the column. It stops at 1.0
+      of margin because `ensureRunnable` buys clearance by DELETING blocks: at a
+      2.6 margin every barricade row in the game is one block wide and every
+      boulder field is one boulder — measured — and the obstacles stop existing.
+      1.0 keeps ~1.6–2.2 blocks a row against 2.19 before.
+- [x] **The harness was measuring a different game — the policies could not see
+      boulders.** `View` carried gates, dividers, crates, barricades, foes and
+      pickups, and no rocks, so every scripted player routed as if the one
+      obstacle that CANNOT be shot did not exist. Invisible while contact was a
+      trickle; decisive the moment it was lethal — stage 6, where boulders first
+      appear, went to a 0/3 clear rate for both `good` and `optimal`, with 138
+      and 110 deaths on stone they were never shown. Adding `rocks` to the view
+      and to `hazardsAhead` took the suite from 13/21 to 20/21 on its own.
+- [x] **Monsters knock a rank down — the third contact rule.** A monster was
+      solid but harmless on contact; it now kills **every second survivor that
+      runs squarely into it**, and the survivors of that get **ten frames** of
+      immunity. Half rather than all, because a monster homes on the crowd: a
+      wall stands still so a lethal wall is a question about the line you took,
+      and an all-or-nothing monster body is an undodgeable chord of ~half the
+      squad against a designed bite of 0.4–1.8 %.
+      **Two bounds, and they bound different things.** The i-frames are per
+      SURVIVOR — a body pays once, so a pack standing shoulder to shoulder
+      cannot bill it six times in one instant. A per-MONSTER cooldown
+      (`FOE_COLLIDE_CD` = 0.6 s) is the other half, and without it the rule
+      collapses back into the wall rule: a monster crosses the crowd's whole
+      depth in about half a second, meeting a fresh unprotected rank on every
+      frame of the way, so one creep billed a column instead of a rank.
+      Measured, that difference is the whole feature — with unit i-frames alone
+      the suite failed 7 of 21; adding the monster cooldown took it to 20.
+      **Only the core kills.** The whole body still pushes (nobody stands inside
+      a sprite) but the middle 60 % does the damage: a creep's contact box is
+      0.69 against a crowd 1.65 in radius, so the shadow's edge is a generous
+      definition of "ran into it", and at the full body a competent player who
+      never takes the ×3 walls at **stage 4** with 82 foe deaths. At 0.6 all
+      twenty-one invariants hold.
+      The bite is untouched and does not double-bill: it reaches further than
+      the body, is metered by `biteCd`, and is an ATTACK rather than a
+      collision — so immunity does not cover it. The mouth takes what comes
+      near, the body takes half of what runs into it.
+- [x] **Passages: the bank you cannot change your mind about.** A rib of
+      unbreakable stone growing back down the road out of a bank's pillar,
+      splitting the approach into one corridor per door. Every bank was already
+      a commitment, but only at the last moment — the crowd could sit on the
+      centre line reading both offers and slide to whichever it liked with half
+      a second to spare, which makes a bank a REACTION rather than a decision.
+      Both doors stay in plain sight the whole way in (that is the split second
+      being sold, and it is why the rib is short enough to fit on screen with
+      the bank), but entering a corridor puts the other offer behind a wall.
+      **Three numbers, each with a reason.** LENGTH is a decision window, so it
+      is 1.2 SECONDS converted at the stage's own speed — about seven units at
+      stage 6 — not a fixed distance that would mean different things at
+      different speeds. WIDTH is the pillar's own contact width and not a unit
+      more: the pillar already reaches 0.55 into the lane, so a rib of the same
+      width takes nothing off the safe aiming band a two-leaf bank already had.
+      CADENCE is every third or fourth bank, rolled per passage so the player
+      cannot count bars, never on a three-leaf bank (two pillars would leave a
+      centre corridor 1.2 units wide against a crowd 3.3 across), and never
+      before stage 6 — which is where boulders arrive anyway, so "grey stone
+      cannot be shot" is already taught.
+      **The corridor squeezes.** The pillar GRINDS and the rib KILLS, and a
+      0.35-wide band is not one a player can hold when the price is the whole
+      column — the lethal-contact work measured exactly that. So a corridor gets
+      the same treatment a door gets: the crowd funnels to fit it and spills out
+      the far side, which restores a ±0.4 window without touching the road's
+      geometry or the bank's numbers.
+- [x] **…and the harness was steering through the wall.** `expectedLoss` prices
+      a POSITION and knows nothing about the PATH to it, so with a rib on the
+      centre line the far door scored zero — the crowd would not be touching
+      anything once it got there — and every policy cheerfully drove through the
+      stone to reach it. Measured: `good` clearing **0 of 3** on stage 7 with
+      139 deaths on rock, while `optimal` (which commits early enough to be on
+      the right side already) took none at all. `safestNear` now scans only the
+      corridor the crowd is committed to, which is what a human does without
+      being told. With that one change the whole balance suite went back to
+      21 of 21 — the road was right and the model of the player was not.
+- [x] **Every third boss swing is charged.** The ordinary slam is a question
+      about where you are standing, and a player who keeps moving answers it
+      perfectly — measured, a perfect dodger takes **0 %** of them, which leaves
+      the boss with no answer to a good player at all. Every third swing now
+      plants, winds up **1.7×** as long, and throws **double the radius** at
+      where the crowd is going (lead 0.8 against 0.35) rather than where it was.
+      **The radius and not the damage**, deliberately: a slam's toll is
+      `squad × slamShare` counted off whoever is inside the ring, so the radius
+      decides whether it lands and the share decides what it costs once it has.
+      Doubling both would be two knobs doing one job, and the second is the one
+      that turns a boss into a coin flip. Measured on a moving crowd: charged
+      swings connect on a majority of throws where ordinary ones are dodged.
+      One definition of the radius (`slamRadiusFor`), read by the simulation
+      that kills with it AND the telegraph that draws it — the telegraph is not
+      allowed a second opinion about how big the hit is — plus a longer, wider,
+      gold ring so the charge reads before it lands.
+- [x] 473 unit + simulation tests green, `vue-tsc --build` clean, production build clean.
 
 ## Verified in Chrome (390×844 and 320×658)
 

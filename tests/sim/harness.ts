@@ -325,6 +325,7 @@ export const playOne = (graph: Graph, o: RunOptions): RunResult => {
         dividers: game.getDividers(),
         crates: game.getCrates(),
         barricades: game.getBarricades(),
+        rocks: game.getRocks(),
         foes: game.getFoes(),
         pickups: game.getPickups(),
         boss: game.getBoss()
@@ -571,6 +572,7 @@ export const probe = async (o: ProbeOptions): Promise<ProbeResult> => {
         dividers: game.getDividers(),
         crates: game.getCrates(),
         barricades: game.getBarricades(),
+        rocks: game.getRocks(),
         foes: game.getFoes(),
         pickups: game.getPickups(),
         boss: game.getBoss()

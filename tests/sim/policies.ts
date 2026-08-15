@@ -43,19 +43,22 @@
  * number below is the CONTACT width, not the drawn one — which is exactly the
  * discrepancy the study is here to price.
  *
- * And since the crush pass (`crushAgainst`) landed, contact is a RATE rather
- * than a guillotine: touching an obstacle costs `squad × fraction` survivors
- * per second for as long as any of them is inside it, and the ones that survive
- * are shoved clear. So the interesting question a policy has to answer stopped
- * being "how much of the crowd overlaps" and became "do I touch this at all,
- * and for how long" — which is what `expectedLoss` below models.
+ * Contact is a GUILLOTINE, not a rate: whoever is inside a solid thing dies on
+ * the frame they touch it, and the rest of the swarm runs past. It was a rate
+ * with a shove for one round of tuning, and `expectedLoss` below carried the
+ * matching model — `squad × fraction × seconds-in-contact`, saturating at 8 %
+ * overlap so that a graze cost nearly as much as a plough. Both are gone.
+ *
+ * Under the current rule the question a policy answers goes back to the simple
+ * one: **how much of the crowd would this line put inside the thing** — because
+ * that share, exactly, is what it loses. `expectedLoss` is now that share times
+ * the squad, with no rate, no dwell time and no saturation ramp in it.
  */
 
 import {
   BULLET_R,
   BULLET_SPEED,
   CRATE_R,
-  CROWD_SQUASH,
   DIVIDER_H,
   DIVIDER_HALF_W,
   GATE_TICK_MS,
@@ -68,7 +71,8 @@ import {
   type Divider,
   type Foe,
   type Gate,
-  type Pickup
+  type Pickup,
+  type Rock
 } from '@/game/survival'
 
 // ─── The world, as a policy sees it ─────────────────────────────────────────
@@ -95,6 +99,9 @@ export interface View {
   dividers: readonly Divider[]
   crates: readonly Crate[]
   barricades: readonly Barricade[]
+  /** Boulders. Unshootable, so the ONLY answer is the line — which is exactly
+   *  why a policy that could not see them was measuring a different game. */
+  rocks: readonly Rock[]
   foes: readonly Foe[]
   pickups: readonly Pickup[]
   boss: Boss | null
@@ -123,15 +130,6 @@ export const CRATE_KILL_HALF = CRATE_R + UNIT_R // 0.92
 
 /** Half-width of the strip a barricade block reaches into — `stepBarricades`. */
 export const barricadeKillHalf = (w: number): number => w / 2 + UNIT_R
-
-/**
- * Survivors crushed per second, as a fraction of the squad, while the crowd is
- * in contact. Mirrors the `fraction` each `crushAgainst` call site passes.
- */
-export const CRUSH_FRACTION = { divider: 0.35, barricade: 0.22, crate: 0.12 } as const
-
-/** Half-depth of each obstacle's contact band, `y` axis. */
-const CRUSH_HALF_H = { divider: DIVIDER_H / 2, barricade: BARRICADE_H / 2, crate: CRATE_R } as const
 
 /**
  * The boss slam, mirrored from `useSurvivalGame.ts` — keep both in step.
@@ -274,6 +272,12 @@ export const lethalIntervals = (
   }
 
   if (barricades) {
+    for (const r of view.rocks) {
+      const dist = r.y - view.anchorY
+      if (dist < -1 || dist > horizon) continue
+      // No `killableBefore`: a boulder has no HP and never goes away.
+      add(r.x, r.w / 2 + UNIT_R, dist, 'barricade')
+    }
     for (const b of view.barricades) {
       if (b.dead) continue
       const dist = b.y - view.anchorY
@@ -287,37 +291,28 @@ export const lethalIntervals = (
 }
 
 /**
- * Roughly how long the crowd stays in contact with an obstacle it walks into.
- *
- * The crowd is `2 · r · CROWD_SQUASH` deep and the obstacle's band is
- * `2 · (halfH + UNIT_R)` tall, so the two overlap for the time it takes to
- * cover their combined depth. This is the multiplier that turns a crush RATE
- * into a number of survivors.
- */
-const contactSeconds = (view: View, kind: Hazard['kind']): number =>
-  (2 * (CRUSH_HALF_H[kind] + UNIT_R) + 2 * view.crowdR * CROWD_SQUASH) / Math.max(0.01, view.speed)
-
-/**
- * Fraction of the crowd that has to be inside a strip before the crush runs at
- * its full rate.
- *
- * `crushAgainst` spends a budget of `squad × fraction × dt` on whichever
- * survivors are overlapping and SHOVES the rest clear — and the formation
- * spring drags the shoved ones straight back in. So a crowd that grazes an
- * obstacle with a handful of bodies still bleeds at close to the full rate; the
- * ramp below only exists to give the scan a gradient near the boundary rather
- * than a cliff.
- */
-const OVERLAP_SATURATION = 0.08
-
-/**
  * Expected survivors lost if the crowd runs the line `x`.
  *
- * Priced in survivors for every hazard type, so "which line costs least" is a
- * comparison of like with like — and so a beat that CANNOT be run for free (a
- * gauntlet channel narrower than the crowd, a split crate pair closer together
- * than twice the crowd plus their contact strips) resolves to the cheapest line
- * instead of to an arbitrary one.
+ * One line of arithmetic, because the rule it mirrors is one sentence: every
+ * survivor whose path crosses a solid thing dies, so the cost of a line is the
+ * share of the crowd that line puts inside the strip. No rate, no dwell time,
+ * no per-obstacle price — a pillar, a crate and a boulder all cost exactly the
+ * bodies you drove into them, which is why `Hazard.kind` no longer appears
+ * here at all.
+ *
+ * The behavioural change from the old rate model is entirely in the SHALLOW
+ * end. Clipping a block's edge with 3 % of the crowd used to cost nearly the
+ * full per-second rate (the model saturated at 8 % overlap, matching a sim that
+ * shoved the survivors and let the formation spring drag them back in); it now
+ * costs 3 % of the crowd. So a policy will accept a graze it used to swerve
+ * for, and swerve harder from a line that would bury the crowd's middle in
+ * something — which is the ordering a player would recognise.
+ *
+ * Still priced in survivors for every hazard type, so "which line costs least"
+ * stays a comparison of like with like, and a beat that cannot be run for free
+ * (a gauntlet channel narrower than the crowd, a split crate pair closer
+ * together than twice the crowd plus their contact strips) still resolves to
+ * the cheapest line rather than an arbitrary one.
  */
 export const expectedLoss = (x: number, view: View, hazards: readonly Hazard[]): number => {
   let lost = 0
@@ -325,8 +320,7 @@ export const expectedLoss = (x: number, view: View, hazards: readonly Hazard[]):
   for (const h of hazards) {
     const overlap = crowdFractionIn(x, r, h.coreLo, h.coreHi)
     if (overlap <= 0) continue
-    const bite = Math.min(1, overlap / OVERLAP_SATURATION)
-    lost += view.squad * CRUSH_FRACTION[h.kind] * contactSeconds(view, h.kind) * bite
+    lost += view.squad * overlap
   }
   return lost
 }
@@ -339,11 +333,61 @@ export const expectedLoss = (x: number, view: View, hazards: readonly Hazard[]):
  * crate pair at full crowd size) and it is ~90 float ops, which is nothing next
  * to one simulation tick.
  */
+/**
+ * The corridor the crowd is already committed to, or `null` while it is still
+ * free to pick one.
+ *
+ * `expectedLoss` prices a POSITION and knows nothing about the PATH taken to
+ * reach it, which is fine for a scattered field and wrong for a passage: with a
+ * rib of stone on the centre line, the far door scores zero — the crowd would
+ * not be touching anything once it got there — so a policy cheerfully steered
+ * straight through the wall to reach it. Measured: `good` clearing 0 of 3 on
+ * stage 7 with 139 deaths on stone, while `optimal` (which commits early enough
+ * to be on the right side already) took none at all.
+ *
+ * A human does not need this spelled out: they see a corridor, and once they
+ * are in it they take the door it leads to. This is that, and nothing more —
+ * upstream of the mouth both doors are still on offer, which is exactly the
+ * split second the passage is designed to sell.
+ */
+const corridor = (view: View): { lo: number; hi: number } | null => {
+  let nearest = Number.POSITIVE_INFINITY
+  for (const r of view.rocks) {
+    if (!r.passage) continue
+    const ahead = r.y - view.anchorY
+    if (ahead < -1.4 || ahead > 14) continue
+    if (ahead < nearest) nearest = ahead
+  }
+  if (!Number.isFinite(nearest)) return null
+  // Still upstream of the mouth: the choice has not been taken away yet.
+  if (nearest > view.crowdR + 1.4) return null
+
+  let ribLo = Number.POSITIVE_INFINITY
+  let ribHi = Number.NEGATIVE_INFINITY
+  for (const r of view.rocks) {
+    if (!r.passage) continue
+    const ahead = r.y - view.anchorY
+    if (ahead < -1.4 || ahead > 14) continue
+    ribLo = Math.min(ribLo, r.x - r.w / 2 - UNIT_R)
+    ribHi = Math.max(ribHi, r.x + r.w / 2 + UNIT_R)
+  }
+  if (!Number.isFinite(ribLo)) return null
+  return view.anchorX >= (ribLo + ribHi) / 2
+    ? { lo: ribHi, hi: STEER_CLAMP }
+    : { lo: -STEER_CLAMP, hi: ribLo }
+}
+
 export const safestNear = (desired: number, view: View, hazards: readonly Hazard[]): number => {
-  if (hazards.length === 0) return clampLane(desired)
-  let bestX = clampLane(desired)
+  const lane = corridor(view)
+  if (hazards.length === 0) {
+    const free = clampLane(desired)
+    return lane ? Math.max(lane.lo, Math.min(lane.hi, free)) : free
+  }
+  const from = lane ? Math.max(-STEER_CLAMP, lane.lo) : -STEER_CLAMP
+  const to = lane ? Math.min(STEER_CLAMP, lane.hi) : STEER_CLAMP
+  let bestX = Math.max(from, Math.min(to, clampLane(desired)))
   let bestScore = Infinity
-  for (let x = -STEER_CLAMP; x <= STEER_CLAMP + 1e-6; x += 0.1) {
+  for (let x = from; x <= to + 1e-6; x += 0.1) {
     // The tie-break pulls toward the plan; it is deliberately worth less than
     // a single survivor so it can never argue a policy into a hazard.
     const score = expectedLoss(x, view, hazards) + Math.abs(x - desired) * 0.04

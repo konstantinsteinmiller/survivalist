@@ -86,7 +86,7 @@ export type FxEvent =
    */
   | { kind: 'bossRage'; x: number; y: number; stage: number }
   /** `radius` grows with every slam the boss has already thrown. */
-  | { kind: 'bossSlam'; x: number; y: number; radius: number }
+  | { kind: 'bossSlam'; x: number; y: number; radius: number; charged: boolean }
   | { kind: 'bossDie'; x: number; y: number }
   | { kind: 'stageClear'; x: number; y: number }
   | { kind: 'wipe'; x: number; y: number }

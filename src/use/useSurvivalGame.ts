@@ -1,19 +1,21 @@
 import { computed, ref } from 'vue'
 import {
   BARRICADE_COIN_MAX, BARRICADE_COIN_MIN,
-  BARRICADE_H, BASE_FIRE_RATE, ROCK_CRUSH_FRACTION, ROCK_H, BOSS_BASE_HP, BOSS_GUARD_GATES,
+  BARRICADE_H, BASE_FIRE_RATE, ROCK_H, BOSS_BASE_HP, BOSS_GUARD_GATES,
   BULLET_LIFE_MS, BULLET_R, BULLET_SPEED, effectiveBulletRange,
   CHALLENGE_MAX, CHALLENGE_STEP,
   COIN_MAGNET_BASE, COIN_PULL_LEAD, CRATE_DAMAGE_GAIN,
   FOE_COIN_DROP_ELITE, FOE_COIN_DROP_PER_BOUNTY,
   CRATE_R, CRATE_RATE_GAIN, CROWD_MAX_R, CROWD_SQUASH, DIVIDER_H, DIVIDER_HALF_W,
-  ELITE_BODY_HALF_H, ELITE_BODY_HALF_W,
+  FOE_BODY_HALF_H, FOE_BODY_HALF_W, FOE_COLLIDE_CD, FOE_COLLIDE_CORE, FOE_COLLIDE_IFRAMES_MS, FOE_COLLIDE_KILL_EVERY,
   ELITE_HOLD_AHEAD, ELITE_HOLD_MAX, ELITE_LUNGE, ELITE_SWEEP_CD,
   ELITE_SWEEP_FRACTION, ELITE_SWEEP_REACH, ELITE_TELEGRAPH, FOE_REACH, FUNNEL_LEAD,
+  PASSAGE_FIT_MARGIN,
   SLAM_FRACTION_MAX, SWEEP_FRACTION_MAX, endlessPressure,
   GATE_DEPTH, GATE_MAX_VALUE, GATE_SUB_MAX, GATE_TICK_MS, LANE_HALF, MAX_FIRE_RATE, MAX_SQUAD,
   SHOOTERS, SLAM_CD_BASE, SLAM_CD_DECAY, SLAM_CD_MIN, SLAM_RADIUS,
   SLAM_RADIUS_GROWTH, SLAM_RADIUS_MAX, STEER_SPRING, UNIT_R,
+  CHARGED_EVERY, CHARGED_LEAD, CHARGED_WINDUP_MUL, slamRadiusFor,
   DECLINE_MAX, biteShareFor, challengeBiteFactor, challengeFactor, challengePackFactor,
   rewardDeclineFactor,
   contactReliefFor,
@@ -229,8 +231,59 @@ const slotPos = (i: number, n: number, maxR: number): { x: number; y: number } =
  */
 let funnelR = CROWD_MAX_R
 
+/**
+ * ─── …and the same squeeze, for a passage ───────────────────────────────────
+ *
+ * A corridor is a door made of stone, so it gets the door's treatment: the
+ * crowd narrows to fit the one it is aimed at and spills back out the far side.
+ *
+ * It is not decoration. The rib is exactly as wide as the pillar it grows out
+ * of, so it takes nothing off the safe aiming band a two-leaf bank already
+ * had — but the pillar GRINDS and the rib KILLS, and a band 0.35 wide is one a
+ * player cannot hold when the price of missing it is the whole column (measured
+ * when walls first became lethal: 0.36 of slack put the benchmark player out on
+ * stage 4). Squeezing to fit the corridor turns that back into a ±0.4 window,
+ * without touching the road's geometry or the bank's own numbers.
+ *
+ * Only PASSAGE rocks, never scattered ones. Funnelling for every boulder in the
+ * game was tried and measured worse — a crowd that is permanently narrow is a
+ * crowd that has stopped being a crowd, and a boulder field is supposed to be
+ * threaded at full width or not at all.
+ */
+const passageFit = (): number => {
+  let nearest = Number.POSITIVE_INFINITY
+  for (const r of rocks) {
+    if (!r.passage) continue
+    const ahead = r.y - anchorY
+    // Behind the crowd's own centre is too late to squeeze for; past the lead
+    // reads as the crowd shrinking at nothing.
+    if (ahead < -1.2 || ahead > FUNNEL_LEAD) continue
+    if (ahead < nearest) nearest = ahead
+  }
+  if (!Number.isFinite(nearest)) return CROWD_MAX_R
+
+  // The rib is one line of stone on the centre, so the corridor is simply the
+  // side of it the player is steering at. Read from the rocks rather than
+  // assumed, so a future passage shape that is not centred still works.
+  let ribLo = Number.POSITIVE_INFINITY
+  let ribHi = Number.NEGATIVE_INFINITY
+  for (const r of rocks) {
+    if (!r.passage || Math.abs(r.y - anchorY - nearest) > 1.6) continue
+    ribLo = Math.min(ribLo, r.x - r.w / 2 - UNIT_R)
+    ribHi = Math.max(ribHi, r.x + r.w / 2 + UNIT_R)
+  }
+  if (!Number.isFinite(ribLo)) return CROWD_MAX_R
+
+  const half = targetX >= (ribLo + ribHi) / 2
+    ? (EDGE_X - ribHi) / 2
+    : (ribLo + EDGE_X) / 2
+  // Same shape as `funnelRadius`, plus the room to steer inside it — fitting
+  // the corridor exactly is not fitting it. See `PASSAGE_FIT_MARGIN`.
+  return Math.max(0.45, Math.min(CROWD_MAX_R, half - PASSAGE_FIT_MARGIN))
+}
+
 const updateFunnel = (dt: number): void => {
-  let target = CROWD_MAX_R
+  let target = Math.min(CROWD_MAX_R, passageFit())
   let nearest = Number.POSITIVE_INFINITY
 
   for (const g of gates) {
@@ -339,7 +392,8 @@ const spawnUnit = (x: number, y: number): void => {
     vy: 0,
     phase: Math.random(),
     flash: 0,
-    dying: 0
+    dying: 0,
+    inv: 0
   })
   squadCount.value++
   if (squadCount.value > peakSquad.value) peakSquad.value = squadCount.value
@@ -602,6 +656,7 @@ const streamTrack = (): void => {
         for (const r of e.blocks) {
           rocks.push({
             id: entityId++, x: r.x, y: e.y, w: r.w,
+            passage: e.passage === true,
             spin: (Math.random() - 0.5) * 0.5,
             seed: Math.floor(Math.random() * 1000)
           })
@@ -643,6 +698,7 @@ const streamTrack = (): void => {
             flying: def.flying,
             swayPhase: Math.random() * Math.PI * 2,
             hold: 0,
+            hitCd: 0,
             sweepCd: 0, sweepSpan: 0, sweepDir: 1,
             elite: false
           })
@@ -676,6 +732,7 @@ const streamTrack = (): void => {
           flying: false,
           swayPhase: 0,
           hold: ELITE_HOLD_MAX,
+          hitCd: 0,
           // First sweep on a full cycle, so the walk in is not also a wind-up:
           // the player gets the whole approach before anything is thrown.
           sweepCd: ELITE_SWEEP_CD,
@@ -832,10 +889,98 @@ const spawnBoss = (): void => {
     guard: 0,
     slamX: 0,
     slamY: 0,
+    charging: false,
     dead: false,
     dying: 0
   }
   bossHp01.value = 1
+}
+
+/**
+ * ─── Solid strips the formation may not aim into ────────────────────────────
+ *
+ * Rebuilt once a frame and read by every survivor, because the alternative is
+ * four entity scans per unit and the squad cap is four thousand.
+ *
+ * This exists because of what contact does now. Killing whoever touches a solid
+ * thing is the rule; DRAGGING somebody into one who never touched it is not,
+ * and the formation does exactly that if left alone. Slots are re-packed the
+ * moment anybody dies — that is what closes ranks — so the survivors of a stone
+ * are re-slotted across the gap the dead ones left, walked into the same stone,
+ * and killed by it in turn. Measured on one boulder rank: geometry says 60 of
+ * an 85-strong crowd stand in the column and die, and the sim killed all 85.
+ * The extra 25 are the bookkeeping, not the boulder.
+ *
+ * So a target is not allowed to land inside a solid — with one deliberate
+ * exception that is the whole difference between this and the shove it
+ * replaced: a survivor ALREADY inside the strip is left exactly where it is.
+ * It is touching the stone, so it dies this frame, and it must not be quietly
+ * routed around the thing that is killing it. Only survivors standing OUTSIDE
+ * are held outside, on the side they are already on.
+ *
+ * The result is the shape a crowd hitting a rock actually makes: the column
+ * that ran into it is deleted, and the two lobes either side of it stream past
+ * and close up behind. Nobody slides along the rock face.
+ */
+interface Solid {
+  x: number
+  y: number
+  /** Contact half-extents — the same `+ UNIT_R` the kill test uses. */
+  halfW: number
+  halfH: number
+}
+
+const solids: Solid[] = []
+
+const collectSolids = (): void => {
+  solids.length = 0
+  // Only what the crowd could reach this frame. `stepUnits` runs before the
+  // obstacle passes, so these are last frame's positions — a sub-centimetre
+  // stale at 60 fps, and the kill test that follows uses the live ones.
+  for (const b of barricades) {
+    if (b.dead || Math.abs(b.y - anchorY) > 6) continue
+    solids.push({ x: b.x, y: b.y, halfW: b.w / 2 + UNIT_R, halfH: BARRICADE_H / 2 + UNIT_R })
+  }
+  for (const r of rocks) {
+    if (Math.abs(r.y - anchorY) > 6) continue
+    solids.push({ x: r.x, y: r.y, halfW: r.w / 2 + UNIT_R, halfH: ROCK_H / 2 + UNIT_R })
+  }
+  for (const c of crates) {
+    if (c.dead || Math.abs(c.y - anchorY) > 6) continue
+    solids.push({ x: c.x, y: c.y, halfW: CRATE_R + UNIT_R, halfH: CRATE_R + UNIT_R })
+  }
+  for (const f of foes) {
+    if (f.dead || Math.abs(f.y - anchorY) > 6) continue
+    solids.push({
+      x: f.x, y: f.y,
+      halfW: f.scale * FOE_BODY_HALF_W + UNIT_R,
+      halfH: f.scale * FOE_BODY_HALF_H + UNIT_R
+    })
+  }
+  for (const d of dividers) {
+    // A claimed bank's pillars are scenery: `stepDividers` stops billing them,
+    // so routing around one would be a swerve for nothing.
+    if (d.dismissed || Math.abs(d.y - anchorY) > 6) continue
+    solids.push({ x: d.x, y: d.y, halfW: d.halfW + UNIT_R, halfH: DIVIDER_H / 2 + UNIT_R })
+  }
+}
+
+/**
+ * Keep a formation target out of any solid the survivor is not already inside.
+ *
+ * @param ux the survivor's CURRENT x — the side it is on decides which way out.
+ */
+const clearOfSolids = (tx: number, ty: number, ux: number): number => {
+  for (const s of solids) {
+    if (Math.abs(ty - s.y) > s.halfH) continue
+    if (Math.abs(tx - s.x) >= s.halfW) continue
+    const side = ux - s.x
+    // Already touching it — this survivor is dying to it this frame. Leave the
+    // target alone rather than teaching the corpse to dodge.
+    if (Math.abs(side) < s.halfW) continue
+    tx = s.x + Math.sign(side) * (s.halfW + 1e-3)
+  }
+  return tx
 }
 
 /**
@@ -848,6 +993,8 @@ const spawnBoss = (): void => {
  */
 const stepUnits = (dt: number): void => {
   updateFunnel(dt)
+  collectSolids()
+  let reach2 = 0
   const n = squadCount.value
   const maxR = funnelR
   let slot = 0
@@ -856,6 +1003,7 @@ const stepUnits = (dt: number): void => {
   for (let i = units.length - 1; i >= 0; i--) {
     const u = units[i]!
     if (u.flash > 0) u.flash = Math.max(0, u.flash - dt * 1000)
+    if (u.inv > 0) u.inv = Math.max(0, u.inv - dt * 1000)
 
     if (u.dying > 0) {
       u.dying -= dt * 1000
@@ -901,6 +1049,11 @@ const stepUnits = (dt: number): void => {
       ty += (u.i % 2 === 0 ? 1 : -1) * Math.min(1.3, over * 0.9)
     }
 
+    // AFTER the rail clamp, so a solid standing against a barrier cannot push a
+    // target back over the edge, and BEFORE the spring, because the target is
+    // the only thing this function is allowed to be authoritative about.
+    tx = Math.max(-EDGE_X, Math.min(EDGE_X, clearOfSolids(tx, ty, u.x)))
+
     const k = 1 - Math.exp(-14 * dt)
     u.x += (tx - u.x) * k
     u.y += (ty - u.y) * k
@@ -911,7 +1064,15 @@ const stepUnits = (dt: number): void => {
     // Gait phase advances with actual speed, so a halted crowd stops running on
     // the spot during the boss fight.
     u.phase += dt * (phase.value === 'run' ? 1.7 : 0.55)
+
+    // Free, because this loop is already here: the real bound every contact
+    // pass this frame will test against.
+    const rx = u.x - anchorX
+    const ry = u.y - anchorY
+    const d2 = rx * rx + ry * ry
+    if (d2 > reach2) reach2 = d2
   }
+  crowdReach = Math.sqrt(reach2)
 }
 
 /**
@@ -935,24 +1096,40 @@ export const deathBreakdown = (): Record<DeathCause, number> => ({ ...deaths })
 /**
  * ─── Solid-body contact ─────────────────────────────────────────────────────
  *
- * Everything that is not a gate is SOLID: it kills what it touches. But "kill
- * every overlapping survivor, every frame" is not the same rule, and the
- * difference is the whole feel of the game.
+ * Everything that is not a gate is SOLID, and solid means exactly one thing:
+ * **whoever touches it dies, and everybody else runs on.** No quota, no rate,
+ * no grace period — the survivors on the line that hit the stone are gone, the
+ * rest of the swarm flows past on both sides of it.
  *
- * The formation re-packs the moment anybody dies, so a naive per-frame cull
- * feeds the crowd into an obstacle like a mincer: the survivors behind the dead
- * ones slide into the exact spot that just killed them, and half a second of
- * contact deletes a two-hundred-strong squad. Tested, and it turned one sloppy
- * line into an instant loss with no readable warning.
+ * This replaced a rate-plus-shove model, and the reason is what a player saw:
+ * the shove meant a crowd driven into a boulder WRAPPED AROUND it and kept
+ * going, bodies sliding along the rock and closing up behind it while a trickle
+ * of them died to a per-second budget. Two survivors' worth of consequence for
+ * an obstacle the whole game calls lethal. "Solid" has to mean solid the first
+ * time it is touched, or the road stops teaching anything.
  *
- * So contact does two things instead:
+ * Three things follow from the change, and all three are improvements:
  *
- *   • it KILLS at a rate proportional to the crowd (with a floor), so brushing
- *     a pillar costs a slice and driving down the middle of one costs a lot —
- *     always a percentage the player can see, never everything;
- *   • it PUSHES the rest clear. The obstacle is solid, so the crowd parts
- *     around it. That is what stops the mincer, and it is also just what a
- *     crowd hitting a post looks like.
+ *   • THE COST IS THE LINE YOU RAN, not the seconds you spent. Clip the edge of
+ *     a block with a handful of bodies and lose that handful; drive the middle
+ *     of the crowd through it and lose the whole column. The old rate charged
+ *     nearly the full percentage for a graze, which is precisely backwards.
+ *   • THE COST SCALES BY ITSELF. A percentage had to be hand-tuned per obstacle
+ *     so it stayed meaningful from a four-strong squad to a four-thousand-strong
+ *     one; a column through the crowd is inherently proportional to the crowd,
+ *     because it is measured in the crowd's own bodies.
+ *   • NOTHING IS CARRIED BETWEEN FRAMES. The old budget banked fractional kills
+ *     per obstacle id, which took two bug-fixes to stop it punishing a player
+ *     who corrected late four times harder than one who never corrected at all.
+ *     A rule with no accumulator cannot have that class of bug.
+ *
+ * The thing this gives up is the old model's cushion for a stuck player:
+ * `contactRelief` scaled the rate, and there is no rate left to scale. Relief
+ * now reaches obstacle deaths only through the retry discounts that make the
+ * obstacles themselves weaker (`hpRelief`) and the squad bigger.
+ *
+ * Elites are the one solid thing that does NOT kill on contact — they own their
+ * damage through the bite loop, and displace instead (`partAround`).
  */
 interface Crush {
   x: number
@@ -960,59 +1137,66 @@ interface Crush {
   y: number
   halfH: number
   cause: DeathCause
-  /**
-   * Survivors killed per second, as `max(1, squad × fraction)`.
-   *
-   * PROPORTIONAL, with a floor of exactly one. An absolute rate is unfair at
-   * both ends of the range: a flat 8/s deletes a four-strong opening squad in
-   * half a second (measured — stage 3 ended before the first gate), and is
-   * beneath notice to a crowd of two hundred. A percentage costs every player
-   * the same fraction of what they built, which is the thing they actually
-   * feel, and the floor guarantees a mistake always costs at least one person.
-   */
-  fraction: number
 }
 
 /**
- * Fractional part of a kill carried between frames, per obstacle id, so a
- * 60 fps device and a 30 fps one cost the player the same.
+ * The furthest any living survivor actually stands from the anchor, measured
+ * once a frame in `stepUnits`.
  *
- * Two rules keep it honest, and both were bugs first:
- *
- *   • budget only accrues while something is ACTUALLY touching. It used to
- *     accrue for every obstacle within six units, so an obstacle approached
- *     from range banked ~2 s of kills and spent the lot on the first frame of
- *     contact;
- *   • the carry is capped at one kill, so the bank can never exceed what a
- *     single frame of contact is worth.
- *
- * Without them a player who noticed late and CORRECTED was punished four times
- * harder than one who never corrected at all (measured: grazing a pillar cost
- * 17 survivors when held on the line and 77 when cut into at the last moment,
- * for 60 % less contact time). That is the exact inverse of the lesson the
- * obstacle is supposed to teach.
+ * `crowdRadius()` is the formation's NOMINAL radius, and real bodies routinely
+ * sit outside it: the rail redistribution moves a target up to 1.3 down the
+ * lane, an obstacle shove moves one sideways, and the spring lags whenever the
+ * funnel narrows. Using the nominal number in `nearCrowd` therefore made every
+ * contact pass blind to exactly the survivors most likely to be in trouble —
+ * measured, a survivor stood INSIDE a monster for 18 consecutive frames (a
+ * third of a second, plainly visible) because both it and the foe sat outside a
+ * disc drawn around the crowd's average.
  */
-const crushDebt = new Map<number, number>()
+let crowdReach = 0
 
 /**
  * Is anything of the crowd near enough to `(x, y)` to be worth a full scan?
  *
- * The two hot loops in here — obstacle contact and foe bites — are O(units),
- * and the squad cap is 1 600. Both are almost always looking at something the
- * crowd is nowhere near, so one cheap test against the formation's bounding
- * disc turns "scan sixteen hundred bodies" into two subtractions and a compare.
- * It is the difference between the cap being a design choice and a frame cost.
+ * The hot loops in here — obstacle contact, monster bodies, foe bites — are
+ * O(units) and the squad cap is 4 000. Almost all of them are looking at
+ * something the crowd is nowhere near, so one cheap test against the crowd's
+ * bounding disc turns "scan four thousand bodies" into two subtractions and a
+ * compare. It is the difference between the cap being a design choice and a
+ * frame cost.
  */
 const nearCrowd = (x: number, y: number, pad: number): boolean => {
-  const r = crowdRadius() + pad
+  const r = Math.max(crowdRadius(), crowdReach) + pad
   const dx = x - anchorX
   const dy = y - anchorY
   return dx * dx + dy * dy <= r * r
 }
 
-/** @returns true when at least one survivor died on this obstacle this frame. */
-const crushAgainst = (id: number, c: Crush, dt: number): boolean => {
-  // Nothing of the crowd is in reach — do not touch the unit array at all.
+/**
+ * ─── …and the two solids that grind instead of killing ──────────────────────
+ *
+ * A gate pillar and an unbroken crate keep the older model: contact costs
+ * `squad × fraction` survivors per second and shoves the rest clear. They are
+ * deliberately the exception, because neither is a thing the player was told to
+ * go around:
+ *
+ *   • a PILLAR is a blade standing between two doors the player is aiming at.
+ *     The safe band beside it is half a unit wide, so a lethal pillar makes the
+ *     whole game a precision test — measured, it deletes a zero-input run at
+ *     67 % of stage 1, on the first bank, which is the documented onboarding
+ *     floor ("a player who never touches the screen still reaches the boss").
+ *   • a CRATE is a REWARD the player was invited to chase. Punishing the
+ *     attempt as hard as a wall teaches them to stop chasing rewards.
+ *
+ * `crushDebt` carries the fractional part of a kill between frames so a 60 fps
+ * device and a 30 fps one cost the player the same. Two rules keep it honest,
+ * and both were bugs first: budget accrues only while something is ACTUALLY
+ * touching (it used to bank ~2 s of kills on approach and spend the lot on the
+ * first frame of contact), and the carry is capped at one kill.
+ */
+const crushDebt = new Map<number, number>()
+
+/** @returns true when at least one survivor died on this grinder this frame. */
+const grindAgainst = (id: number, c: Crush, fraction: number, dt: number): boolean => {
   if (!nearCrowd(c.x, c.y, Math.max(c.halfW, c.halfH) + UNIT_R + 0.2)) {
     crushDebt.delete(id)
     return false
@@ -1023,36 +1207,28 @@ const crushAgainst = (id: number, c: Crush, dt: number): boolean => {
   for (const u of units) {
     if (u.dying > 0) continue
     const dx = u.x - c.x
-    const dy = u.y - c.y
     const overlapX = c.halfW + UNIT_R - Math.abs(dx)
     if (overlapX <= 0) continue
-    if (Math.abs(dy) > c.halfH + UNIT_R) continue
+    if (Math.abs(u.y - c.y) > c.halfH + UNIT_R) continue
 
-    // First unit touching this obstacle this frame: open the budget.
-    //
-    //   • a NEW contact opens at 1 — touching something solid always costs at
-    //     least one survivor, or a graze is free and the obstacle teaches
-    //     nothing;
-    //   • a CONTINUING contact carries its remainder (capped at one kill by the
-    //     store below) and accrues at the crowd-proportional rate, so ploughing
-    //     through costs many.
+    // A new contact opens at one kill — touching something solid always costs
+    // at least one survivor — and a continuing one accrues at the
+    // crowd-proportional rate, so ploughing through costs many.
     if (budget < 0) {
       const carried = crushDebt.get(id)
       budget = (carried === undefined ? 1 : carried)
-        + Math.max(1, squadCount.value * c.fraction * contactRelief) * dt
+        + Math.max(1, squadCount.value * fraction * contactRelief) * dt
     }
-
     if (budget >= 1) {
       budget -= 1
       killUnit(u, Math.sign(dx) || 1, c.cause)
       killed = true
       continue
     }
-    // Out of kills this frame: shove the survivor clear instead. Pushing the
-    // UNIT and never the anchor keeps the player's steering authoritative —
-    // the crowd deforms around the obstacle, the player is not nudged. The
-    // shove is clamped to the road, so an obstacle near a rail squeezes the
-    // crowd along the barrier rather than pushing survivors over it.
+    // Out of kills this frame: shove the survivor clear. Pushing the UNIT and
+    // never the anchor keeps the player's steering authoritative, and the shove
+    // is clamped to the road so a pillar near a rail squeezes the crowd along
+    // the barrier rather than pushing survivors over it.
     const dir = Math.sign(dx) || 1
     u.x = Math.max(-EDGE_X, Math.min(EDGE_X, u.x + dir * overlapX))
   }
@@ -1062,41 +1238,112 @@ const crushAgainst = (id: number, c: Crush, dt: number): boolean => {
   return killed
 }
 
+/** @returns true when at least one survivor died on this obstacle this frame. */
+const crushAgainst = (c: Crush): boolean => {
+  // Nothing of the crowd is in reach — do not touch the unit array at all.
+  if (!nearCrowd(c.x, c.y, Math.max(c.halfW, c.halfH) + UNIT_R + 0.2)) return false
+
+  let killed = false
+  for (const u of units) {
+    if (u.dying > 0) continue
+    const dx = u.x - c.x
+    if (Math.abs(dx) > c.halfW + UNIT_R) continue
+    if (Math.abs(u.y - c.y) > c.halfH + UNIT_R) continue
+
+    // Touched it. That is the whole rule — the body is flung away from the side
+    // it hit so the loss reads as an impact rather than a disappearance.
+    killUnit(u, Math.sign(dx) || 1, c.cause)
+    killed = true
+  }
+  return killed
+}
+
 /**
- * A body the crowd has to go AROUND, with no damage attached.
+ * ─── A monster's body: half of what hits it dies, the rest bounce off ───────
  *
- * The push half of `crushAgainst` on its own, for something that already owns
- * its own damage rule. The elite is the only user: its bite loop decides what
- * the contact costs, and adding a second killer to the same body would bill the
- * player twice for one monster. So this displaces and never kills.
+ * The third contact rule in the game, and it sits deliberately between the
+ * other two:
  *
- * Same three invariants as the obstacle push, for the same reasons:
+ *   • a WALL takes everyone who touches it (`crushAgainst`) — it stands still,
+ *     so the whole cost is the line the player chose;
+ *   • a PILLAR grinds at a per-second rate (`grindAgainst`) — the player is
+ *     aiming at the doors either side of it;
+ *   • a MONSTER takes HALF of what touches it, and the survivors of that get
+ *     ten frames where nothing else can hit them.
+ *
+ * A monster homes on the crowd, so unlike a wall it cannot be steered away
+ * from — all-or-nothing contact would be an undodgeable half of the squad, and
+ * the balance suite says so out loud (benchmark player dead at 10 % of stage 5,
+ * eight invariants broken). Halving keeps the collision a real, visible cost
+ * that a run absorbs rather than a verdict it cannot argue with.
+ *
+ * The i-frames are what make it a COLLISION rather than a rate. Without them a
+ * survivor inside a monster is offered to the halving on every one of the sixty
+ * frames a second and lasts about three of them; with them, one contact costs
+ * one halving and the crowd is untouchable long enough to be pushed clear and
+ * steered off. Crucially they are per-SURVIVOR and not per-monster, so walking
+ * a crowd through a pack of six costs six collisions rather than the product of
+ * them: two monsters standing shoulder to shoulder cannot bill the same body
+ * twice in the same instant.
+ *
+ * The BITE is untouched and does not respect the immunity, because it is not a
+ * collision — it is the monster's attack, metered by `biteCd` and capped at
+ * `want` survivors, and it reaches further than the body does. The mouth takes
+ * what comes near; the body takes half of what runs into it.
+ *
+ * Three invariants shared with the obstacle push:
  *
  *   • the UNIT moves and the anchor never does, so the player's steering stays
  *     authoritative — a monster shoves the crowd, it does not shove the thumb;
  *   • the shove is clamped to the road, so a body near a rail squeezes the
- *     crowd along the barrier instead of pushing survivors over it;
- *   • a survivor dead-centre breaks its tie on index parity rather than always
- *     going right, so a body sitting exactly on the crowd's centre line parts it
- *     into two lobes instead of sweeping everybody to one side.
+ *     crowd along the barrier rather than pushing survivors over it;
+ *   • a survivor dead-centre breaks its tie on index parity, so a body sitting
+ *     on the crowd's centre line parts it into two lobes instead of sweeping
+ *     everybody one way.
  */
-const partAround = (x: number, y: number, halfW: number, halfH: number): void => {
-  // Same bounding-disc guard as every other O(units) pass — an elite that is
+const collideFoe = (f: Foe, dt: number): void => {
+  if (f.hitCd > 0) f.hitCd = Math.max(0, f.hitCd - dt)
+  const halfW = f.scale * FOE_BODY_HALF_W
+  const halfH = f.scale * FOE_BODY_HALF_H
+  // Same bounding-disc guard as every other O(units) pass — a monster that is
   // still walking in never touches the unit array.
-  if (!nearCrowd(x, y, Math.max(halfW, halfH) + UNIT_R + 0.2)) return
+  if (!nearCrowd(f.x, f.y, Math.max(halfW, halfH) + UNIT_R + 0.2)) return
+
+  const cause: DeathCause = f.elite ? 'elite' : 'foe'
+  let hit = 0
+  let struck = false
 
   for (const u of units) {
     // The dying tumble out of the crowd on their own arc; shoving a corpse
     // sideways mid-fall reads as a body being kicked.
     if (u.dying > 0) continue
-    const dx = u.x - x
+    const dx = u.x - f.x
     const overlapX = halfW + UNIT_R - Math.abs(dx)
     if (overlapX <= 0) continue
-    if (Math.abs(u.y - y) > halfH + UNIT_R) continue
+    if (Math.abs(u.y - f.y) > halfH + UNIT_R) continue
+
+    // Immune survivors are still SOLID against the body — they are pushed clear
+    // like everyone else, they simply cannot be billed for it a second time.
+    // Squarely into it, not a clipped flank — see `FOE_COLLIDE_CORE`.
+    if (f.hitCd <= 0 && u.inv <= 0 && Math.abs(dx) <= halfW * FOE_COLLIDE_CORE + UNIT_R) {
+      struck = true
+      // Counted across the whole contact, so "every other one" means every
+      // other BODY that touched rather than every other body in the array.
+      if (hit % FOE_COLLIDE_KILL_EVERY === 0) {
+        hit++
+        killUnit(u, Math.sign(dx) || 1, cause)
+        continue
+      }
+      hit++
+      u.inv = FOE_COLLIDE_IFRAMES_MS
+    }
 
     const dir = Math.sign(dx) || (u.i % 2 === 0 ? 1 : -1)
     u.x = Math.max(-EDGE_X, Math.min(EDGE_X, u.x + dir * overlapX))
   }
+
+  // One knock-down per monster, then a beat — see `FOE_COLLIDE_CD`.
+  if (struck) f.hitCd = FOE_COLLIDE_CD
 }
 
 /** Kill a survivor: mark it dying, fling it, and tell the world. */
@@ -1249,6 +1496,14 @@ const resolveBullet = (b: Bullet): boolean => {
   // Gate dividers eat rounds. Sitting in the middle of the lane therefore
   // charges NOTHING — indecision costs the player the pump as well as the
   // survivors it will cost them a second later.
+  for (const f of foes) {
+    if (f.dead || Math.abs(f.y - anchorY) > 6) continue
+    solids.push({
+      x: f.x, y: f.y,
+      halfW: f.scale * FOE_BODY_HALF_W + UNIT_R,
+      halfH: f.scale * FOE_BODY_HALF_H + UNIT_R
+    })
+  }
   for (const d of dividers) {
     if (d.dismissed) continue
     const dy = d.y - b.y
@@ -1520,6 +1775,14 @@ const claimBank = (bankId: number): void => {
   // than deleted, so the renderer can topple them as part of the cascade. From
   // this instant they are scenery: `stepDividers` stops billing anyone who
   // touches one, because the decision they were enforcing has been made.
+  for (const f of foes) {
+    if (f.dead || Math.abs(f.y - anchorY) > 6) continue
+    solids.push({
+      x: f.x, y: f.y,
+      halfW: f.scale * FOE_BODY_HALF_W + UNIT_R,
+      halfH: f.scale * FOE_BODY_HALF_H + UNIT_R
+    })
+  }
   for (const d of dividers) {
     if (d.bankId === bankId) d.dismissed = true
   }
@@ -1623,10 +1886,13 @@ const stepDividers = (dt: number): void => {
     // The steepest crush rate in the game: a pillar is a narrow thing that the
     // player was told to avoid, and hitting one dead-centre should hurt more
     // than a wall you could not have gone around.
-    const hit = crushAgainst(d.id, {
+    // The steepest grind in the game: a pillar is a narrow thing the player was
+    // told to avoid, and hitting one dead-centre should hurt more than a wall
+    // they could not have gone around.
+    const hit = grindAgainst(d.id, {
       x: d.x, halfW: d.halfW, y: d.y, halfH: DIVIDER_H / 2,
-      cause: 'divider', fraction: 0.35
-    }, dt)
+      cause: 'divider'
+    }, 0.35, dt)
     if (hit) pushFx({ kind: 'divider', x: d.x, y: d.y })
   }
 }
@@ -1749,16 +2015,14 @@ const stepFoes = (dt: number): void => {
       }
     }
 
-    // ─── The elite is solid ───────────────────────────────────────────────
+    // ─── A monster is solid ───────────────────────────────────────────────
     //
-    // ABOVE the bite cooldown on purpose: being a body is not an attack. The
-    // crowd has to part around it on every frame it is alive, including the
-    // frames between bites and — the case this was written for — the walk back
-    // down the road after `ELITE_HOLD_MAX` breaks the hold, where a crowd that
-    // failed to kill it used to pass straight through the sprite.
-    if (f.elite && !f.dead) {
-      partAround(f.x, f.y, f.scale * ELITE_BODY_HALF_W, f.scale * ELITE_BODY_HALF_H)
-    }
+    // ABOVE the bite cooldown on purpose: being a body is not an attack, so it
+    // applies on every frame the monster is alive — including the frames
+    // between bites, and including the walk back down the road after
+    // `ELITE_HOLD_MAX` breaks an elite's hold, where a crowd that failed to
+    // kill it used to pass straight through the sprite.
+    if (!f.dead) collideFoe(f, dt)
 
     f.biteCd -= dt
     if (f.biteCd > 0) continue
@@ -1813,10 +2077,10 @@ const stepBarricades = (dt: number): void => {
     }
     if (bar.y > anchorY + 6) continue
 
-    crushAgainst(bar.id, {
+    crushAgainst({
       x: bar.x, halfW: bar.w / 2, y: bar.y, halfH: BARRICADE_H / 2,
-      cause: 'barricade', fraction: 0.22
-    }, dt)
+      cause: 'barricade'
+    })
   }
 }
 
@@ -1837,10 +2101,10 @@ const stepRocks = (dt: number): void => {
       continue
     }
     if (r.y > anchorY + 6) continue
-    crushAgainst(r.id, {
+    crushAgainst({
       x: r.x, halfW: r.w / 2, y: r.y, halfH: ROCK_H / 2,
-      cause: 'barricade', fraction: ROCK_CRUSH_FRACTION
-    }, dt)
+      cause: 'barricade'
+    })
   }
 }
 
@@ -1865,10 +2129,10 @@ const stepCrates = (dt: number): void => {
     // The gentlest of the three: a crate is a REWARD the player was invited to
     // chase, and one that punished the attempt as hard as a wall would simply
     // teach them to stop chasing rewards.
-    crushAgainst(c.id, {
+    grindAgainst(c.id, {
       x: c.x, halfW: CRATE_R, y: c.y, halfH: CRATE_R,
-      cause: 'crate', fraction: 0.12
-    }, dt)
+      cause: 'crate'
+    }, 0.12, dt)
   }
 }
 
@@ -2032,7 +2296,11 @@ const stepBoss = (dt: number): void => {
   // of the fight slamming the last place it aimed at.
   if (!b.aimed && b.slamCd <= SLAM_TELEGRAPH) {
     b.aimed = true
-    b.slamX = Math.max(-LANE_HALF + 1, Math.min(LANE_HALF - 1, anchorX + (targetX - anchorX) * 0.35))
+    // A charged swing aims where the crowd is GOING, not where it was — see
+    // `CHARGED_LEAD`. That, and the doubled arc, is what makes it the swing a
+    // player has to answer rather than drift out of.
+    const lead = b.charging ? CHARGED_LEAD : 0.35
+    b.slamX = Math.max(-LANE_HALF + 1, Math.min(LANE_HALF - 1, anchorX + (targetX - anchorX) * lead))
     b.slamY = anchorY
   }
 
@@ -2044,18 +2312,24 @@ const stepBoss = (dt: number): void => {
   // a fight that is actively getting worse, which is the difference between
   // "slow" and "losing". The guard swing itself is free — the boss does not get
   // to rage on a phase it was handed.
+  // The swing going out is the one that was wound up, so its size is read from
+  // the flag set when THAT cycle began — never recomputed here, where an
+  // off-by-one would make the boss throw a hit it never telegraphed.
+  const charged = b.charging
   b.slams++
   b.slamSpan = Math.max(SLAM_CD_MIN, SLAM_CD_BASE - b.slams * SLAM_CD_DECAY)
-  b.slamCd = b.slamSpan
+  // Every third swing, and the wind-up stretches to pay for the size of it.
+  b.charging = (b.slams + 1) % CHARGED_EVERY === 0
+  b.slamCd = b.slamSpan * (b.charging ? CHARGED_WINDUP_MUL : 1)
   // This swing is spent; the next one has to pick its own target. When rage has
   // pulled the cadence under the telegraph window this re-aims on the very next
   // frame, which is correct — a boss swinging faster than it can wind up is
   // simply always winding up.
   b.aimed = false
-  const radius = Math.min(SLAM_RADIUS_MAX, SLAM_RADIUS + b.slams * SLAM_RADIUS_GROWTH)
+  const radius = slamRadiusFor(b.slams, charged)
   b.guard = 0
 
-  pushFx({ kind: 'bossSlam', x: b.slamX, y: b.slamY, radius })
+  pushFx({ kind: 'bossSlam', x: b.slamX, y: b.slamY, radius, charged })
   // The retry relief scales the SLAM as well as enemy health. Health alone did
   // nothing measurable — 14 of 15 simulated retries moved the clear rate by
   // exactly zero — because 68–80 % of a failing run's losses are slams, which
@@ -2140,6 +2414,31 @@ export const debugAddUnits = (n: number): void => {
 }
 
 export const debugAddDamage = (n: number): void => { damage.value += n }
+
+/**
+ * Put the crowd at the arena mouth with the road behind it cleared.
+ *
+ * For tests about the BOSS. Walking the whole stage to reach it made those
+ * tests depend on every rule the road has — they broke the day passages
+ * landed, because a crowd that never steers now drives into a stone rib and
+ * dies at the third bank, which says nothing at all about guard phases.
+ *
+ * Everything still in flight is dropped rather than left behind the crowd: a
+ * live foe eight units back would walk into the boss fight and take survivors
+ * the test is counting.
+ */
+export const debugSkipToArena = (): void => {
+  anchorY = track.arenaY - 0.01
+  nextEvent = track.events.length
+  gates.length = 0
+  dividers.length = 0
+  crates.length = 0
+  barricades.length = 0
+  rocks.length = 0
+  foes.length = 0
+  pickups.length = 0
+  for (const u of units) u.y = anchorY
+}
 /**
  * Test/dev seam: set the Reach upgrade level directly.
  *

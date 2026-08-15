@@ -341,6 +341,88 @@ Where the whole batch landed, 20 seeds per cell:
 Against 100 / 95–100 / 80–100 before the batch: the ceiling is untouched, the
 mid-skill player is measurably squeezed, and the floor is where it always was.
 
+## Contact became a guillotine, and what it took
+
+Walls and boulders stopped grinding and started killing: whoever touches one
+dies that frame, and the rest of the swarm streams past. The rule is one
+sentence; making the road honour it took three measured corrections, and two of
+them were bugs in the *harness* rather than in the game.
+
+**Every scripted player was blind to boulders.** `View` carried gates, dividers,
+crates, barricades, foes and pickups — and no rocks. So every policy routed as
+though the one obstacle that cannot be shot did not exist. That was invisible
+while contact cost a trickle and decisive the moment it was lethal: stage 6,
+where boulders first appear, fell to a **0/3 clear rate for both `good` and
+`optimal`**, with 138 and 110 deaths on stone they were never shown. Adding
+`rocks` to the view and to `hazardsAhead` moved the suite from 13/21 to 20/21 by
+itself. Nothing else on this page changed as much for as little.
+
+**`expectedLoss` was modelling the old rule.** It priced a hazard as
+`squad × fraction × seconds-in-contact`, saturating at 8 % overlap — so a graze
+cost nearly as much as a plough. Under a guillotine the cost of a line is simply
+the share of the crowd that line puts inside the strip, which is what it now
+computes: no rate, no dwell time, no saturation ramp, and no per-obstacle
+weighting.
+
+**The road had 0.36 units of slack.** `MIN_RUN_GAP` guaranteed a channel that
+cleared a full-width crowd by that much — ±0.18 of steering — which was ample
+against a trickle and unholdable against a column. Widened to 1.0 of margin
+(4.4 → 5.4). It stops there because `ensureRunnable` buys clearance by deleting
+blocks:
+
+| margin | guaranteed channel | blocks per barricade row | boulders per rank |
+| --- | --- | --- | --- |
+| 0.5 (before) | 4.40 | 2.19 | 3.00 |
+| **1.0 (shipped)** | **5.40** | **1.61** | **2.00** |
+| 2.6 | 6.50 | 1.00 | 1.00 |
+
+At 2.6 the campaign's invariants come back and the obstacles stop existing —
+every wall one block, every boulder field one boulder. That is the trade the
+rule is bounded by.
+
+### What may NOT be a guillotine
+
+Three exceptions, each measured rather than argued:
+
+| solid | rule | why |
+| --- | --- | --- |
+| gate pillar | grinds, 0.35/s | a blade between two doors the player is aiming AT. Lethal, it deletes a zero-input run at 67 % of stage 1 — on the first bank — which is the documented onboarding floor |
+| unbroken crate | grinds, 0.12/s | a REWARD the player was invited to chase; punishing the attempt like a wall teaches them to stop chasing rewards |
+| monster | displaces, never kills | a wall stands still, so a lethal wall is a question about your line. A monster HOMES on the crowd, so a lethal monster is an undodgeable chord of ~half the squad against a designed bite of 0.4–1.8 % |
+
+The monster case is the one that looked most plausible and measured worst:
+with monsters killing on contact the benchmark player dies at **10 % of stage 5
+with 45 foe deaths** and **8 of 21** invariants break. With monsters displacing
+— still solid, still impossible to walk through — all 21 pass.
+
+### …and then monsters got a collision
+
+A monster's body went from harmless to **killing every second survivor that runs
+squarely into it**. Two bounds were needed to make it a collision rather than a
+rate, and the sweep shows why each one is there:
+
+| configuration | invariants passing |
+| --- | --- |
+| body kills everyone who touches (wall rule) | 13 / 21 |
+| every 2nd dies, 10 unit i-frames | 14 / 21 |
+| every 2nd dies, 600 ms unit i-frames | 18 / 21 |
+| every 2nd dies, 10 i-frames + 0.6 s per-monster cooldown | 20 / 21 |
+| **…and the kill zone narrowed to the body's middle 60 %** | **21 / 21** |
+
+The second row is the interesting one: the ten-frame immunity the design called
+for does almost nothing on its own, because the monster is MOVING. It crosses
+the crowd's depth in about half a second and meets a fresh, unprotected rank on
+every frame of the way — so one creep billed a column, which is the wall rule
+wearing a monster costume. Lengthening the immunity to 600 ms hides the problem
+by making the unit immune for the whole pass; the per-monster cooldown fixes it,
+and lets the immunity go back to the ten frames it was supposed to be.
+
+The last row is a chord problem. A creep's contact box is 0.69 wide against a
+crowd 1.65 in radius, so "touching the edge of the shadow" is over half the
+crowd's width. Killing on the middle 60 % of the body keeps the flank a shove
+and the centre a knock-down — and it is the difference between a competent
+no-ads career walling at **stage 4** with 82 foe deaths and running clean.
+
 ## Still open
 
 * **`good` and `average` take 9–17 s over a boss on stages 2–5.** Survivable,

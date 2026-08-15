@@ -44,27 +44,41 @@ weaker.
    it down or go around it. **Every crate prints its health, and they are not
    all the same** — a heavy one takes more than a small squad can spare, so some
    boxes are things you walk past today and come back for once you are stronger.
-7. **Everything solid kills.** Barricades, crates and pillars all kill whoever
-   runs into them. Every barricade row has a gap; finding it is the point — but
-   a wall you shoot down **drops coins**, so removing one is a real choice
-   rather than a chore.
+7. **Everything solid kills.** Run into a wall or a stone and the survivors who
+   hit it are **gone on the spot** — the rest of the crowd streams past on
+   either side and closes up behind. Nobody bounces off. Every barricade row
+   has a gap and finding it is the whole point; a wall you shoot down first
+   **drops coins**, so removing one is a real choice rather than a chore.
+   Pillars and unbroken crates are gentler: they grind at your crowd while you
+   are stuck on them instead of taking the whole line at once.
 8. **Some things cannot be shot at all.** **Boulders** eat your rounds and
    shrug. They come in two ranks with the gaps offset, so you commit to a line
    and then have to change it a second later. There is no firepower answer to a
-   boulder field — only steering.
-9. **Your fire goes through gates.** A doorway is not armour: shoot through it
+   boulder field — only steering, and the stone takes everyone you steer into
+   it.
+9. **Some banks are walled.** Every third or fourth one arrives with a rib of
+   stone splitting the road in two — one corridor per door. You can see both
+   offers the whole way in; you just have to pick your side *before* you get
+   there. Once you are in a corridor the other door is behind a wall, and the
+   wall is stone, so shooting it is not a plan.
+10. **Your fire goes through gates.** A doorway is not armour: shoot through it
    at whatever is waiting on the other side, and the gate still climbs while
    you do. But your guns only reach so far up the road — whatever is still near
    the top of the screen arrives whole, so range is something you spend.
-10. **Not every door pays.** `−9` doors bill you a flat count of survivors, and
+11. **Not every door pays.** `−9` doors bill you a flat count of survivors, and
     they charge up exactly the way `+N` doors do: your crowd fires forward
     automatically, so **the door you are aiming at is the door that grows**.
     Point at the bill on the way in and you buy a bigger bill. Sometimes both
     doors are bad — `÷2` on one side, `−9` on the other, one lethal pillar
     between them — and the only question left is which mistake is cheaper for
     the crowd you happen to have.
-11. **Monsters eat your crowd on contact.** Kill them before they arrive — the
-    hounds and the fliers punish tunnel vision. **They also pay**: a monster you
+12. **Monsters eat your crowd, and running into one hurts.** Kill them before
+    they arrive — the hounds and the fliers punish tunnel vision. You cannot
+    walk through a monster: hit one squarely and **half the survivors who ran
+    into it go down**, while the rest are shoved aside and get a moment where
+    nothing can touch them — so crossing a whole pack costs a pack's worth of
+    knocks, not everything you own. Its teeth take whoever comes close on top
+    of that. **They also pay**: a monster you
     kill drops loose coins where it fell, and you have to drive over them, so
     the pack in your lane is worth something and the one you swerved around is
     not. Each stage also has one or two **minibosses**, and they do not walk
@@ -73,25 +87,28 @@ weaker.
     whole lane, and **a fifth of your squad is gone** — every 1.5 seconds, until
     one of you is dead. There is no safe side. Kill it fast or leave with a
     quarter of what you brought.
-12. **Coins do not come to you.** Your crowd picks up what it runs over, so the
+13. **Coins do not come to you.** Your crowd picks up what it runs over, so the
     curved coin trails are a route worth taking. Upgrade **Scavenging** and the
     magnet reaches further, until you can sweep a whole trail in one pass.
-13. **The boss is the climax of every stage.** It slams the ground where your
+14. **The boss is the climax of every stage.** It slams the ground where your
     crowd is standing, telegraphed by a closing red ring. Keep moving, keep
-    firing. Twice a fight — at two-thirds and one-third of its health — it
+    firing — but **every third swing is charged**: it winds up much longer, the
+    ring is twice the size, and it aims where your crowd is *going* rather than
+    where it is. You can drift out of an ordinary slam. That one you have to
+    answer. Twice a fight — at two-thirds and one-third of its health — it
     **plants and shields**: your fire stops landing, and the swing that follows
     is unavoidable unless you move. And the longer the fight runs, the faster
     and wider it hits. Bring a big enough crowd and it never gets that far.
-14. **Coins buy permanent upgrades** between runs: squad size, firepower, fire
+15. **Coins buy permanent upgrades** between runs: squad size, firepower, fire
     rate, **reach** and coin gain. Reach is the quiet one — a longer gun means
     every gate, crate and wall comes into range sooner, so you get more seconds
     of fire on each of them. Three of the five tracks **never max out**. A wiped
     run still pays out, and a stage that keeps beating you comes back weaker
     each time — so no attempt is ever wasted.
-15. **The game keeps pace with you.** Every stage you clear in a row makes the
+16. **The game keeps pace with you.** Every stage you clear in a row makes the
     next one a little harder; the moment you lose, that pressure resets
     completely. The streak is the flame on your HUD.
-16. **There is no last stage.** The road keeps generating, and it keeps getting
+17. **There is no last stage.** The road keeps generating, and it keeps getting
     harder in every direction at once — bigger doors, denser packs, beats
     arriving closer together. How deep you got is the score, and every run posts
     your best to a **global board**.
