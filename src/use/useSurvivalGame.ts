@@ -11,7 +11,7 @@ import {
   ELITE_HOLD_AHEAD, ELITE_HOLD_MAX, ELITE_LUNGE, ELITE_SWEEP_CD,
   ELITE_SWEEP_FRACTION, ELITE_SWEEP_REACH, ELITE_TELEGRAPH, FOE_REACH, FUNNEL_LEAD,
   PASSAGE_FIT_MARGIN,
-  SLAM_FRACTION_MAX, SWEEP_FRACTION_MAX, endlessPressure,
+  BOSS_MIN_KILL, SLAM_FRACTION_MAX, SLAM_MAX_FRACTION, SWEEP_FRACTION_MAX, endlessPressure,
   GATE_DEPTH, GATE_MAX_VALUE, GATE_SUB_MAX, GATE_TICK_MS, LANE_HALF, MAX_FIRE_RATE, MAX_SQUAD,
   SHOOTERS, SLAM_CD_BASE, SLAM_CD_DECAY, SLAM_CD_MIN, SLAM_RADIUS,
   SLAM_RADIUS_GROWTH, SLAM_RADIUS_MAX, STEER_SPRING, UNIT_R,
@@ -232,6 +232,25 @@ const slotPos = (i: number, n: number, maxR: number): { x: number; y: number } =
 let funnelR = CROWD_MAX_R
 
 /**
+ * Which corridor of the rib the crowd is committed to: -1 left, 1 right, 0 for
+ * "no rib engaged".
+ *
+ * A latch, and a load-bearing one in both directions.
+ *
+ * It is what makes the cut happen ONCE. After it, every survivor left alive is
+ * in one corridor but the anchor may still be in the other, so the spring
+ * immediately starts walking them back into the stone; re-cutting on the next
+ * frame would find a minority of one, take it, find another, and grind the
+ * crowd away a body at a time — precisely the "the rib ate everybody" failure
+ * the cut replaced.
+ *
+ * It is also what makes the rib a WALL rather than a shove — see
+ * `holdCorridor`. It clears the moment no rib is near the crowd any more, so
+ * the next passage is a fresh decision.
+ */
+let passageSide: -1 | 1 | 0 = 0
+
+/**
  * ─── …and the same squeeze, for a passage ───────────────────────────────────
  *
  * A corridor is a door made of stone, so it gets the door's treatment: the
@@ -239,8 +258,8 @@ let funnelR = CROWD_MAX_R
  *
  * It is not decoration. The rib is exactly as wide as the pillar it grows out
  * of, so it takes nothing off the safe aiming band a two-leaf bank already
- * had — but the pillar GRINDS and the rib KILLS, and a band 0.35 wide is one a
- * player cannot hold when the price of missing it is the whole column (measured
+ * had — but the pillar GRINDS and the rib CUTS, and a band 0.35 wide is one a
+ * player cannot hold when the price of missing it is half the crowd (measured
  * when walls first became lethal: 0.36 of slack put the benchmark player out on
  * stage 4). Squeezing to fit the corridor turns that back into a ±0.4 window,
  * without touching the road's geometry or the bank's own numbers.
@@ -372,6 +391,7 @@ const resetWorld = (): void => {
   timeScaleTarget = 1
   slowHoldMs = 0
   firingAtGate = false
+  passageSide = 0
   crushDebt.clear()
   // The run's own clock and id space. `clock` drives the crowd's idle wobble
   // and the flyers' sway, so carrying it across stages made the same seed
@@ -1999,7 +2019,12 @@ const stepFoes = (dt: number): void => {
           SWEEP_FRACTION_MAX,
           ELITE_SWEEP_FRACTION * endlessPressure(stage.value)
         )
-        let budget = Math.max(1, Math.ceil(squadCount.value * sweepShare * slamRelief))
+        // …with `BOSS_MIN_KILL` under it, so a sweep still reads as a sweep
+        // against the small crowd a share of which rounds to one body.
+        let budget = Math.max(
+          BOSS_MIN_KILL,
+          Math.ceil(squadCount.value * sweepShare * slamRelief)
+        )
         const reachable: Unit[] = []
         for (const u of units) {
           if (u.dying > 0) continue
@@ -2040,7 +2065,15 @@ const stepFoes = (dt: number): void => {
     // walking through the same monster unharmed. Only the SHARE eases for a
     // player who is stuck — the archetype's own bite is the game's identity and
     // does not get quietly turned down.
-    const want = Math.max(f.bite, Math.ceil(squadCount.value * f.biteShare * contactRelief))
+    // A miniboss carries `BOSS_MIN_KILL` under both of them: the archetypes it
+    // is grown from bite one or two, and a thing with a health bar and a name
+    // must not take less than a husk-and-a-half. Ordinary foes keep their own
+    // number — see the note on the constant.
+    const want = Math.max(
+      f.elite ? BOSS_MIN_KILL : 0,
+      f.bite,
+      Math.ceil(squadCount.value * f.biteShare * contactRelief)
+    )
     let eaten = 0
     let bit = false
     for (const u of units) {
@@ -2092,8 +2125,51 @@ const stepBarricades = (dt: number): void => {
  * a second rule. What it does NOT have is a branch that can delete it. It rolls
  * off the bottom of the road when the crowd is past it and that is the only way
  * it ever leaves.
+ *
+ * ─── …except a passage rib, which DIVIDES the crowd ─────────────────────────
+ *
+ * A passage (see `passage()` in the track) is a rib of stone running back down
+ * the road from a bank's pillar, splitting the approach into one corridor per
+ * door. In the world it is a dozen separate boulders, and billing them one at a
+ * time — each of them a wall that kills everything it touches — made the rib a
+ * MINCER rather than a divider: measured on stage 8, a crowd that entered the
+ * mouth on the centre line went 203 → 0 in a quarter of a second, because every
+ * survivor the spring dragged back toward the anchor met the next stone in the
+ * line. "Choose a corridor" is a fair thing to ask; "choose a corridor or the
+ * run is over, with no frame in which you could see it coming" is not.
+ *
+ * So the rib is resolved as ONE object, once, and it does what its shape says:
+ *
+ *   **the crowd is cut on the stone, the side carrying more survivors runs on
+ *   down its corridor, and the side carrying fewer is erased.**
+ *
+ * Three things follow, and all three are why this is the right shape:
+ *
+ *   • THE WORST CASE IS HALF. Dead-centre is the most a rib can ever take, and
+ *     it is exactly the case the old rule took everything for. Clip the mouth
+ *     with a tenth of the crowd and lose a tenth — the cost is the line that was
+ *     run, which is what every other solid on the road already charges for.
+ *   • THE RUN CONTINUES. Whatever the player was steering at, they come out of
+ *     the mouth with a crowd inside a corridor, pointed at a door. A passage is
+ *     supposed to move the commitment upstream, not end the stage.
+ *   • IT SCALES BY ITSELF, being measured in the crowd's own bodies — nothing to
+ *     re-tune from a four-strong squad to a four-thousand-strong one.
+ *
+ * Scattered boulders are untouched. A field is threaded at full width or not at
+ * all, and a rock the player was told to go around should keep killing whoever
+ * runs into it.
  */
 const stepRocks = (dt: number): void => {
+  // The rib is measured on the way past and resolved after the loop. It has to
+  // be ONE object in both of its jobs — the cut is one decision, and the wall is
+  // one unbroken barrier — and neither can be done stone by stone.
+  let lo = Number.POSITIVE_INFINITY
+  let hi = Number.NEGATIVE_INFINITY
+  let wallLo = Number.POSITIVE_INFINITY
+  let wallHi = Number.NEGATIVE_INFINITY
+  let nearestY = 0
+  let ribs = 0
+
   for (let i = rocks.length - 1; i >= 0; i--) {
     const r = rocks[i]!
     if (r.y < anchorY - 6) {
@@ -2101,10 +2177,131 @@ const stepRocks = (dt: number): void => {
       continue
     }
     if (r.y > anchorY + 6) continue
-    crushAgainst({
-      x: r.x, halfW: r.w / 2, y: r.y, halfH: ROCK_H / 2,
-      cause: 'barricade'
-    })
+
+    if (!r.passage) {
+      crushAgainst({
+        x: r.x, halfW: r.w / 2, y: r.y, halfH: ROCK_H / 2,
+        cause: 'barricade'
+      })
+      continue
+    }
+
+    // The rib's OUTER faces and the length of road it spans, in one pass. Read
+    // from the stones rather than assumed, exactly as `passageFit` reads the
+    // corridor it funnels the crowd into — so the wall and the funnel can never
+    // disagree about where the corridor is.
+    wallLo = Math.min(wallLo, r.x - r.w / 2 - UNIT_R)
+    wallHi = Math.max(wallHi, r.x + r.w / 2 + UNIT_R)
+    lo = Math.min(lo, r.y - ROCK_H / 2 - UNIT_R)
+    hi = Math.max(hi, r.y + ROCK_H / 2 + UNIT_R)
+    // Where the cut reads from: the stone the crowd is standing at, not the
+    // middle of a rib that runs off the top of the screen.
+    if (ribs === 0 || Math.abs(r.y - anchorY) < Math.abs(nearestY - anchorY)) nearestY = r.y
+    ribs++
+  }
+
+  // Clear of the rib entirely: the next passage is a fresh decision.
+  if (ribs === 0) {
+    passageSide = 0
+    return
+  }
+
+  const ribX = (wallLo + wallHi) / 2
+  // Has the crowd actually reached the stone? The rib is laid along the road, so
+  // the question is whether anybody's DEPTH is inside its span — a crowd still
+  // walking up to the mouth is choosing, and must not be committed early.
+  let reached = false
+  for (const u of units) {
+    if (u.dying > 0) continue
+    if (u.y >= lo && u.y <= hi) { reached = true; break }
+  }
+  if (!reached) return
+
+  if (passageSide === 0) passageSide = enterPassage(ribX, nearestY)
+  holdCorridor(passageSide, wallLo, wallHi, lo, hi)
+}
+
+/**
+ * The crowd has just reached a rib. Decide which corridor it is in — cutting it
+ * on the stone if it is in both — and return the side it now owns.
+ *
+ * The sides are counted over the WHOLE crowd rather than over the bodies in
+ * contact with a stone: a crowd is at most `CROWD_MAX_R` across however many
+ * thousand are in it, so "which corridor is the crowd in" is a fair question to
+ * ask of all of them, and asking it of the handful currently touching stone
+ * would make the answer a coin toss decided by the spring's jitter.
+ *
+ * @returns -1 for the left corridor, 1 for the right. Never 0.
+ */
+const enterPassage = (ribX: number, ribY: number): -1 | 1 => {
+  let left = 0
+  let right = 0
+  for (const u of units) {
+    if (u.dying > 0) continue
+    if (u.x < ribX) left++
+    else right++
+  }
+
+  // Ties break toward the corridor the thumb is pointing at — the same one
+  // `passageFit` has already been squeezing the formation into.
+  const keepLeft = left === right ? targetX < ribX : left > right
+
+  // Came in down ONE corridor: nothing to cut, and committing early is free.
+  // That is the entire reward the passage is teaching.
+  if (left === 0 || right === 0) return keepLeft ? -1 : 1
+
+  for (const u of units) {
+    if (u.dying > 0) continue
+    const onLeft = u.x < ribX
+    if (onLeft === keepLeft) continue
+    // Flung AWAY from the stone, so the loss reads as the crowd being split on
+    // it rather than as a column quietly going missing.
+    killUnit(u, onLeft ? -1 : 1, 'barricade')
+  }
+  // Borrowed from the gate pillar, which is the same event with a different
+  // shape: a solid, non-enemy thing just took survivors, and the player has one
+  // frame to understand that.
+  pushFx({ kind: 'divider', x: ribX, y: ribY })
+  return keepLeft ? -1 : 1
+}
+
+/**
+ * Hold every survivor inside the corridor the crowd committed to.
+ *
+ * A HARD CLAMP against the rib's outer face, for the whole length of road the
+ * rib spans, and it has to be a clamp rather than the impulse every other solid
+ * in the game uses. The impulse pushes a body out of the stone it is inside, to
+ * the side of that stone it is currently on — which is a barrier only while
+ * nothing moves far enough in one frame to appear on the far side. A hard swipe
+ * moves the anchor ~0.7 of a unit per frame against a rib 1.2 wide, so a body
+ * routinely crossed the centre line between two frames and was then helpfully
+ * ejected into the corridor it had just been cut out of: measured, twenty-five
+ * survivors changed sides four frames after a swerve. The stone stopped being a
+ * commitment and the whole passage stopped limiting anything.
+ *
+ * The clamp cannot be tunnelled because it never asks where the body came from.
+ * The side is decided ONCE, when the crowd reaches the rib (`enterPassage`), and
+ * every survivor inside the rib's span is held on it until the rib is past.
+ *
+ * The UNIT moves and the anchor never does, so the player's steering stays
+ * authoritative — steer into the far corridor and the crowd squeezes along the
+ * wall for as long as the wall lasts, which is precisely the decision window the
+ * passage exists to charge for.
+ */
+const holdCorridor = (
+  side: -1 | 1 | 0, wallLo: number, wallHi: number, lo: number, hi: number
+): void => {
+  if (side === 0) return
+  const face = side < 0 ? wallLo : wallHi
+  for (const u of units) {
+    // The dying tumble out of the crowd on their own arc; a corpse held against
+    // a wall reads as a body stuck in the scenery.
+    if (u.dying > 0) continue
+    if (u.y < lo || u.y > hi) continue
+    if (side < 0 ? u.x <= face : u.x >= face) continue
+    // Clamped to the road as well, so a rib near a rail squeezes the crowd along
+    // the barrier rather than pushing survivors over it.
+    u.x = Math.max(-EDGE_X, Math.min(EDGE_X, face))
   }
 }
 
@@ -2242,19 +2439,6 @@ export const SLAM_TELEGRAPH = 1.0
  * telegraph ring has to be drawn from the same value the kill is measured
  * against — see `SLAM_RADIUS_GROWTH`.
  */
-/**
- * And a hard ceiling on top of the geometry: one slam may never take more than
- * this fraction of the squad. A small crowd is entirely inside ANY radius, so
- * without the cap the boss one-shots exactly the players who most need the
- * fight to last long enough to learn it.
- *
- * The history: 0.35 first, which wiped a squad in three hits and made the fight
- * a coin flip; then 0.22, which measured as taking "only ~1/5 of all units".
- * 0.31 is that number 40 % higher — a missed dodge now costs most of a third of
- * the crowd. The telegraph is a full second long, so the cost lands squarely on
- * the player who did not read it rather than on the one who could not.
- */
-const SLAM_MAX_FRACTION = 0.31
 /** How far ahead of the crowd the boss plants itself. Close enough that its
  *  slam reaches, far enough that its body never covers the crowd. */
 const BOSS_HOLD_AHEAD = 3.8
@@ -2338,7 +2522,10 @@ const stepBoss = (dt: number): void => {
     SLAM_FRACTION_MAX,
     SLAM_MAX_FRACTION * endlessPressure(stage.value)
   ) * slamRelief
-  let budget = Math.max(1, Math.ceil(squadCount.value * slamShare))
+  // `BOSS_MIN_KILL` is the floor: the swing the whole stage builds up to may not
+  // land on a thinned-out crowd and tip over a single survivor. It is still
+  // bounded by the ring — nothing outside the arc is billed for being small.
+  let budget = Math.max(BOSS_MIN_KILL, Math.ceil(squadCount.value * slamShare))
   for (const u of units) {
     if (budget <= 0) break
     if (u.dying > 0) continue

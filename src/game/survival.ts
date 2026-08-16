@@ -680,6 +680,52 @@ export const slamRadiusFor = (slams: number, charged: boolean): number =>
 export const SWEEP_FRACTION_MAX = 0.4
 export const SLAM_FRACTION_MAX = 0.5
 
+/**
+ * What one slam is priced at before the endless road's pressure and the retry
+ * relief are applied, and before `SLAM_FRACTION_MAX` caps the result.
+ *
+ * A small crowd is entirely inside ANY radius, so the share is the only thing
+ * standing between the boss and one-shotting exactly the players who most need
+ * the fight to last long enough to learn it.
+ *
+ * The history: 0.35 first, which wiped a squad in three hits and made the fight
+ * a coin flip; then 0.22, which measured as taking "only ~1/5 of all units".
+ * 0.31 is that number 40 % higher — a missed dodge now costs most of a third of
+ * the crowd. The telegraph is a full second long, so the cost lands squarely on
+ * the player who did not read it rather than on the one who could not.
+ */
+export const SLAM_MAX_FRACTION = 0.31
+
+/**
+ * ─── …and the floor under one, for a boss or a miniboss only ────────────────
+ *
+ * Every big attack in the game is priced as a SHARE of the crowd — a slam takes
+ * `squad × slamShare`, a sweep `squad × sweepShare` — which is the right shape
+ * at three hundred survivors and a rounding error at ten. A share of a small
+ * crowd rounds to one body, and one body is not a hit: the ring lands, the
+ * screen shakes, a single survivor tips over, and the player learns that the
+ * thing with the health bar and the wind-up is survivable by standing still.
+ *
+ * So a boss or a miniboss takes at least this many per swing. It is a floor and
+ * not a bonus — the share still owns every case where it is bigger, which is
+ * every case where the crowd is big enough for a percentage to mean anything —
+ * and it is capped by reality: an attack can only ever take survivors that are
+ * actually inside its ring or its arc, so three is what it INTENDS to take, not
+ * a debt collected from bodies that were never in reach.
+ *
+ * Deliberately NOT applied to:
+ *
+ *   • ORDINARY FOES, whose bite is the archetype's identity — a husk taking one
+ *     survivor a second is the difference between a husk and a brute, and
+ *     flattening the small end of that scale would make the whole roster one
+ *     monster at four sizes.
+ *   • A MONSTER'S BODY (`collideFoe`), which is a collision and not an attack.
+ *     It already has its own rule (half of what runs into it) and its own
+ *     i-frames, and a floor there would bill a crowd three survivors for every
+ *     brush against a sprite it is walking past.
+ */
+export const BOSS_MIN_KILL = 3
+
 export const ELITE_SWEEP_FRACTION = 0.2
 /**
  * How far down the road the arc reaches, from the elite's own feet. It spans
@@ -1172,8 +1218,13 @@ export interface Rock {
   x: number
   y: number
   w: number
-  /** Part of a PASSAGE rib rather than a scattered field. The funnel reads it:
-   *  the crowd squeezes to fit the corridor it is aimed at. See `PASSAGE_LEN`. */
+  /**
+   * Part of a PASSAGE rib rather than a scattered field, which changes two
+   * rules: the funnel reads it, so the crowd squeezes to fit the corridor it is
+   * aimed at (`passageFit`); and the whole rib bills ONCE, as a cut that takes
+   * the smaller of the two corridors rather than as a dozen boulders that each
+   * kill what they touch (`stepRocks`). See `PASSAGE_SECONDS`.
+   */
   passage: boolean
   /** Fixed per-body tilt and silhouette seed, so a field of them does not read
    *  as one shape stamped four times. */

@@ -51,6 +51,7 @@ import OptionsModal from '@/components/organisms/OptionsModal.vue'
 import UpgradeModal from '@/components/organisms/UpgradeModal.vue'
 import LeaderboardModal from '@/components/organisms/LeaderboardModal.vue'
 import IconCoin from '@/components/icons/IconCoin.vue'
+import IconTrophy from '@/components/icons/IconTrophy.vue'
 
 /**
  * ─── The scene ──────────────────────────────────────────────────────────────
@@ -858,11 +859,28 @@ onUnmounted(() => {
           div.result__stat
             span.result__stat-value {{ summary.kills }}
             span.result__stat-label {{ t('result.kills') }}
-          //- The whole cell disappears when the rank is unknown — an empty
-          //- third column is a question the screen cannot answer.
-          div.result__stat(v-if="resultRank")
-            span.result__stat-value.is-rank {{ resultRank }}
-            span.result__stat-label {{ playerTotal > 0 ? t('result.rankOf', { n: playerTotal }) : t('result.rankLabel') }}
+
+        //- ── The rank is about OTHER PEOPLE, so it says so ──────────────────
+        //-
+        //- It used to be the third cell of the row above — a gold `#2` over the
+        //- words "of 2", between the squad and the kill count. Read cold, that
+        //- is three run statistics in a line, and the third one is a number the
+        //- run did not produce: nothing on the screen said "board", so `#2 of 2`
+        //- landed as a fact about the stage rather than a placing among players.
+        //-
+        //- Its own row, with the trophy in front of it and the board NAMED, is
+        //- what fixes that — and it is the only layout in which the word fits at
+        //- 320 px, which is why the cell moved rather than just gaining a label.
+        //-
+        //- The whole row disappears when the rank is unknown: an empty plaque is
+        //- a question the screen cannot answer.
+        div.result__rank(v-if="resultRank")
+          IconTrophy.result__rank-icon
+          span.result__rank-label {{ t('leaderboard.title') }}
+          span.result__rank-value {{ resultRank }}
+          //- Before the player count lands there is no "of N" to print, so the
+          //- generic word holds the slot rather than the number jumping later.
+          span.result__rank-of {{ playerTotal > 0 ? t('result.rankOf', { n: playerTotal }) : t('result.rankLabel') }}
 
         div.result__coins(ref="rewardCoinRef")
           IconCoin(class="result__coin-icon")
@@ -1065,12 +1083,56 @@ onUnmounted(() => {
   font-size: clamp(1rem, 5vw, 1.6rem)
   text-shadow: 2px 2px 0 #000
 
-  // The rank is the one stat that is about other people, so it wears the board's
-  // gold rather than the run's blue.
-  &.is-rank
-    color: #ffd93c
-
 .result__stat-label
+  color: #b9cbe8
+  text-transform: uppercase
+  font-size: clamp(0.5rem, 2.4vw, 0.7rem)
+
+// ─── The leaderboard plaque ──────────────────────────────────────────────────
+//
+// Read as a PLAQUE and not as a third statistic: a boxed strip with a rule
+// around it, the trophy leading, the board named on the left and the placing
+// on the right. Everything on it wears the board's gold rather than the run's
+// blue, because none of it is a fact the run produced.
+.result__rank
+  display: flex
+  align-items: center
+  gap: 0.45rem
+  width: 100%
+  max-width: 16rem
+  padding: 0.3rem 0.7rem
+  border: 2px solid rgba(255, 217, 60, 0.45)
+  border-radius: 0.5rem
+  background: rgba(255, 217, 60, 0.09)
+
+.result__rank-icon
+  flex: none
+  width: clamp(0.85rem, 4vw, 1.15rem)
+  height: clamp(0.85rem, 4vw, 1.15rem)
+  color: #ffd93c
+
+.result__rank-label
+  // Takes the slack, so the placing is pinned to the right edge whatever the
+  // translation's length — "Bestenliste" and "排行榜" are the same layout here.
+  flex: 1 1 auto
+  min-width: 0
+  color: #ffd93c
+  font-weight: 900
+  text-transform: uppercase
+  font-size: clamp(0.5rem, 2.4vw, 0.7rem)
+  white-space: nowrap
+  overflow: hidden
+  text-overflow: ellipsis
+
+.result__rank-value
+  flex: none
+  color: #ffd93c
+  font-weight: 900
+  font-size: clamp(0.85rem, 4vw, 1.25rem)
+  text-shadow: 2px 2px 0 #000
+
+.result__rank-of
+  flex: none
   color: #b9cbe8
   text-transform: uppercase
   font-size: clamp(0.5rem, 2.4vw, 0.7rem)

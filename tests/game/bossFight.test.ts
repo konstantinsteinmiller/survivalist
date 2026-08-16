@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  BOSS_GUARD_GATES, SLAM_CD_BASE, SLAM_CD_MIN, SLAM_RADIUS, SLAM_RADIUS_MAX, biteShareFor
+  BOSS_GUARD_GATES, BOSS_MIN_KILL, ELITE_HOLD_AHEAD, ELITE_HOLD_MAX,
+  ELITE_SWEEP_FRACTION, SLAM_CD_BASE, SLAM_CD_MIN, SLAM_MAX_FRACTION, SLAM_RADIUS,
+  SLAM_RADIUS_MAX, biteShareFor
 } from '@/game/survival'
 import { drainFx, type FxEvent } from '@/use/useVfx'
 
@@ -22,6 +24,9 @@ const importGame = () => import('@/use/useSurvivalGame')
 type Game = Awaited<ReturnType<typeof importGame>>
 
 const STEP_MS = 16
+
+const settled = (game: Game): boolean =>
+  game.phase.value === 'clear' || game.phase.value === 'wipe'
 
 beforeEach(async () => {
   localStorage.clear()
@@ -292,5 +297,125 @@ describe('a raging boss still aims at the player', () => {
     const distinct = new Set(raged.map((s) => s.slamX.toFixed(3)))
     expect(distinct.size, `the raging boss froze on one spot: ${raged.map((s) => s.slamX.toFixed(2)).join(', ')}`)
       .toBeGreaterThan(1)
+  })
+})
+
+describe('a boss swing is never a scratch', () => {
+  // Every big attack in the game is priced as a SHARE of the crowd, which is
+  // the right shape at three hundred survivors and a rounding error at ten. A
+  // share of a small crowd rounds to ONE body — the ring lands, the screen
+  // shakes, a single survivor tips over, and the player learns that the thing
+  // with the health bar and the wind-up is survivable by standing still. So
+  // both of them carry `BOSS_MIN_KILL` under the share.
+  //
+  // The floor is an INTENT, not a debt: it is still bounded by the ring and the
+  // arc, so nothing outside the attack is ever billed for the crowd being
+  // small. Both tests below therefore park the crowd squarely inside the hit.
+
+  it('takes at least BOSS_MIN_KILL from a small crowd, per slam', async () => {
+    const game = await importGame()
+    game.startStage(6)
+    // Six: small enough that `ceil(squad × slamShare)` is two — under the floor,
+    // which is the only case that measures it — and big enough that the floor is
+    // not simply "the whole squad" either.
+    const CROWD = 6
+    expect(Math.ceil(CROWD * SLAM_MAX_FRACTION), 'the premise: the share alone rounds under the floor')
+      .toBeLessThan(BOSS_MIN_KILL)
+    game.debugAddUnits(CROWD)
+    game.debugSkipToArena()
+    for (let i = 0; i < 12000 && game.phase.value !== 'boss'; i++) game.step(STEP_MS)
+    expect(game.phase.value, 'never reached the boss').toBe('boss')
+    const boss = game.getBoss()!
+
+    const swings: number[] = []
+    let taken = game.deathBreakdown().slam
+    for (let i = 0; i < 6000; i++) {
+      // Immortal boss, and the squad topped back up between swings: this is a
+      // question about ONE slam, and a crowd this small cannot answer it twice
+      // without being refilled.
+      boss.hp = boss.maxHp
+      boss.guarded = BOSS_GUARD_GATES.length
+      if (game.squadCount.value < CROWD) game.debugAddUnits(CROWD - game.squadCount.value)
+      // Stand still, in the open, and eat it — the aim leads the crowd's own
+      // movement, so not moving is what guarantees the ring lands on it.
+      game.steerTo(0)
+      game.step(STEP_MS)
+      const now = game.deathBreakdown().slam
+      if (now > taken) {
+        swings.push(now - taken)
+        taken = now
+      }
+      if (swings.length >= 4) break
+      if (game.phase.value !== 'boss') break
+    }
+
+    expect(swings.length, 'the boss never landed a slam on a stationary crowd')
+      .toBeGreaterThanOrEqual(2)
+    for (const s of swings) expect(s).toBeGreaterThanOrEqual(BOSS_MIN_KILL)
+  })
+
+  it('takes at least BOSS_MIN_KILL from a small crowd, per miniboss sweep', async () => {
+    const game = await importGame()
+    game.startStage(4)
+    // Big enough to survive the walk in — the crowd is thinned to the sizes this
+    // test is about by the fight itself, which is the only lever the sim gives.
+    game.debugAddUnits(150)
+
+    /** Walk to the first miniboss, keeping it unkillable from the moment it
+     *  streams in: the sweep is under test, not the time-to-kill. */
+    const pin = (): void => {
+      const e = game.getFoes().find((f) => f.elite)
+      if (!e) return
+      e.hp = 1e9
+      e.maxHp = 1e9
+      e.dead = false
+      e.hold = ELITE_HOLD_MAX
+    }
+
+    let met = false
+    for (let i = 0; i < 6000; i++) {
+      game.steerTo(0)
+      pin()
+      game.step(STEP_MS)
+      const e = game.getFoes().find((f) => f.elite)
+      if (e && e.y - game.anchor().y <= ELITE_HOLD_AHEAD + 0.4) { met = true; break }
+      if (settled(game)) break
+    }
+    expect(met, 'stage 4 streamed no miniboss the crowd reached').toBe(true)
+
+    // Stand in the arc and let it eat. The crowd shrinks as it does, which is
+    // exactly how the small-crowd case gets exercised: a share of 150 is thirty
+    // survivors, a share of eight rounds to two, and the floor owns the tail.
+    const sweeps: Array<{ squad: number; took: number }> = []
+    for (let i = 0; i < 6000; i++) {
+      pin()
+      game.steerTo(0)
+      const squad = game.squadCount.value
+      const before = game.deathBreakdown().elite
+      drainFx()
+      game.step(STEP_MS)
+      // Only the frames the ARC actually went out — the bite runs on its own
+      // cooldown and would otherwise be counted as part of a sweep.
+      const swept = drainFx().some((e) => e.kind === 'eliteSweep')
+      const took = game.deathBreakdown().elite - before
+      if (swept && took > 0) sweeps.push({ squad, took })
+      if (settled(game)) break
+    }
+
+    expect(sweeps.length, 'the miniboss never swept a crowd standing in front of it')
+      .toBeGreaterThanOrEqual(3)
+    // The premise: the fight really did reach the sizes where a percentage
+    // rounds to less than the floor. Without this the assertion below passes on
+    // the share alone and measures nothing.
+    const tail = sweeps.filter((s) => Math.ceil(s.squad * ELITE_SWEEP_FRACTION) < BOSS_MIN_KILL)
+    expect(tail.length, 'the crowd never got small enough for the floor to matter')
+      .toBeGreaterThan(0)
+
+    for (const s of sweeps) {
+      // The floor, or the whole crowd when there is less of it than the floor —
+      // an attack may only ever take survivors that were actually in the arc.
+      expect(s.took, `a sweep took ${s.took} from a crowd of ${s.squad}`)
+        .toBeGreaterThanOrEqual(Math.min(BOSS_MIN_KILL, s.squad))
+    }
   })
 })

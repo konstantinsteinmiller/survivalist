@@ -1079,8 +1079,14 @@ const legalise = (b: Beat, specs: readonly LeafSpec[]): LeafSpec[] => {
  * already reaches `DIVIDER_HALF_W + UNIT_R` = 0.55 into the lane, so a rib of
  * the same width adds no new constraint to a crowd that was going to take a
  * door cleanly: the safe aiming band is the same [2.20, 2.55] it always was.
- * Wider stone would quietly turn every passage bank into a precision test,
- * because unlike the pillar it grinds against, this rib KILLS what touches it.
+ * Wider stone would quietly turn every passage bank into a precision test.
+ *
+ * WHAT IT COSTS is a cut, not a kill. A crowd that enters the mouth straddling
+ * the rib is divided on it — the corridor holding more survivors keeps them all,
+ * the other loses all of its — and the rib is inert afterwards. It is one
+ * decision for the whole rib rather than a dozen separate lethal boulders, and
+ * `stepRocks` carries the measurement of why: billed stone by stone, a rib took
+ * a 203-strong crowd to zero in a quarter of a second.
  *
  * CADENCE is every third or fourth bank, rolled per passage so the player
  * cannot count bars. Never the first bank of a stage — the opening bank is

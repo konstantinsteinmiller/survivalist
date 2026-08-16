@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   BARRICADE_COIN_MAX, BARRICADE_COIN_MIN, COIN_MAGNET_BASE,
   ELITE_HOLD_AHEAD, ELITE_HOLD_MAX, ELITE_SWEEP_FRACTION, ELITE_SWEEP_REACH,
-  ELITE_TELEGRAPH, LANE_HALF
+  ELITE_TELEGRAPH, LANE_HALF, ROCK_H, UNIT_R
 } from '@/game/survival'
 import { buildTrack } from '@/game/track'
 import { drainFx, type FxEvent } from '@/use/useVfx'
@@ -439,5 +439,195 @@ describe('a shot-down barricade pays', () => {
       }
       if (settled(game)) break
     }
+  })
+})
+
+describe('a passage rib divides the crowd instead of eating it', () => {
+  // The rib (see `passage()` in the track) is the one solid on the road the
+  // crowd is expected to MEET rather than route around: it runs down the centre
+  // line the player is already on, and its whole job is to make them pick a
+  // corridor before the doors arrive.
+  //
+  // Billed the way every other solid is — a dozen separate boulders, each of
+  // them killing whatever touches it — that job came out as an execution. A
+  // 200-strong crowd that entered the mouth on the centre line went to ZERO in
+  // a quarter of a second, because the spring dragged every survivor it shoved
+  // clear straight into the next stone in the line. So the rib is now one
+  // object that bills once: the corridor holding more survivors keeps all of
+  // them, the other loses all of its, and half is the WORST case.
+  it('cuts a centre-line crowd rather than wiping it, and lets the bigger side run on', async () => {
+    const game = await importGame()
+    // Stage 8: past `PASSAGE_STAGE`, and far enough in that the generator has
+    // printed a rib well before the arena.
+    game.startStage(8)
+    game.debugAddUnits(200)
+
+    // Everything else the road can bill for is cleared out of the way, so what
+    // the assertions below measure is the RIB and nothing else. Scattered rocks
+    // and barricades share the `barricade` death cause, which is the whole
+    // reason they have to GO rather than just be ignored.
+    const isolate = (): void => {
+      const rs = game.getRocks()
+      for (let k = rs.length - 1; k >= 0; k--) if (!rs[k]!.passage) rs.splice(k, 1)
+      game.getBarricades().length = 0
+      for (const f of game.getFoes()) f.dead = true
+    }
+
+    let before = 0
+    let after = -1
+    let billed = 0
+
+    for (let i = 0; i < 4000; i++) {
+      // Straight down the middle — the line the rib exists to charge for.
+      game.steerTo(0)
+      isolate()
+      const squad = game.squadCount.value
+      const deaths = game.deathBreakdown().barricade
+      game.step(STEP_MS)
+      // The frame the rib billed. Measured HERE rather than either side of the
+      // corridor so the numbers are the cut itself, exactly.
+      const took = game.deathBreakdown().barricade - deaths
+      if (took > 0) {
+        before = squad
+        after = game.squadCount.value
+        billed = took
+        break
+      }
+      if (settled(game)) break
+    }
+
+    expect(before, 'stage 8 never printed a passage the crowd ran into')
+      .toBeGreaterThan(50)
+    // The regression itself: the rib used to leave nothing at all.
+    expect(after, 'the rib wiped the crowd').toBeGreaterThan(0)
+    // It is a divider, so it did take a side…
+    expect(billed, 'the rib billed nothing at all').toBeGreaterThan(0)
+    // …and only the smaller one: whatever the crowd was split into, the side
+    // that runs on is the bigger half of it.
+    expect(after).toBeGreaterThanOrEqual(billed)
+    expect(after + billed).toBe(before)
+
+    // One cut, not a dozen. The rib is a dozen boulders in the world and the
+    // whole failure was billing them one at a time, so the rest of the corridor
+    // has to cost nothing at all — including the frames where the spring is
+    // dragging the survivors back into the stone.
+    const settledDeaths = game.deathBreakdown().barricade
+    for (let i = 0; i < 600; i++) {
+      game.steerTo(0)
+      isolate()
+      game.step(STEP_MS)
+      if (!game.getRocks().some((r) => r.passage)) break
+      if (settled(game)) break
+    }
+    expect(game.deathBreakdown().barricade, 'the rib went on billing down the corridor')
+      .toBe(settledDeaths)
+  })
+
+  it('costs nothing at all to a crowd that committed to a corridor', async () => {
+    const game = await importGame()
+    game.startStage(8)
+    game.debugAddUnits(200)
+
+    let met = false
+    let billed = 0
+
+    for (let i = 0; i < 4000; i++) {
+      const rib = game.getRocks().find((r) => r.passage)
+      // Hard over into one corridor the moment a rib is on the road — which is
+      // the play the passage is teaching, and it has to be free.
+      game.steerTo(rib ? rib.x + LANE_HALF / 2 : 0)
+      const rs = game.getRocks()
+      for (let k = rs.length - 1; k >= 0; k--) if (!rs[k]!.passage) rs.splice(k, 1)
+      game.getBarricades().length = 0
+      for (const f of game.getFoes()) f.dead = true
+
+      const deathsBefore = game.deathBreakdown().barricade
+      game.step(STEP_MS)
+      if (rib) {
+        met = true
+        billed += game.deathBreakdown().barricade - deathsBefore
+      }
+      if (met && !game.getRocks().some((r) => r.passage)) break
+      if (settled(game)) break
+    }
+
+    expect(met, 'stage 8 never printed a passage').toBe(true)
+    expect(billed, 'a committed crowd was billed by the rib').toBe(0)
+  })
+
+  it('will not let the crowd be steered through the stone once it is inside', async () => {
+    // ─── The bug this locks ───────────────────────────────────────────────
+    //
+    // The rib held the crowd with the impulse every other solid in the game
+    // uses: a body inside a stone is pushed out to the side of that stone it is
+    // CURRENTLY on. That is a barrier only while nothing moves far enough in
+    // one frame to appear on the far side — and a hard swipe moves the anchor
+    // about 0.7 of a unit per frame against a rib 1.2 wide. Measured, twenty-
+    // five survivors changed corridors four frames after a swerve, and were
+    // helpfully ejected into the one they had just been cut out of.
+    //
+    // A passage exists to make the player commit BEFORE the doors are in reach.
+    // A wall that can be walked through the moment you are past its mouth costs
+    // the player nothing and limits nothing.
+    const game = await importGame()
+    game.startStage(8)
+    game.debugAddUnits(200)
+
+    const ribsNow = () => game.getRocks().filter((r) => r.passage)
+    const isolate = (): void => {
+      const rs = game.getRocks()
+      for (let k = rs.length - 1; k >= 0; k--) if (!rs[k]!.passage) rs.splice(k, 1)
+      game.getBarricades().length = 0
+      for (const f of game.getFoes()) f.dead = true
+    }
+
+    // Commit hard LEFT and walk in until the crowd is properly inside — the
+    // rearmost stone behind it, so "past the entrance" is not in question.
+    let inside = false
+    for (let i = 0; i < 4000; i++) {
+      const rib = ribsNow()[0]
+      game.steerTo(rib ? rib.x - 2.4 : 0)
+      isolate()
+      game.step(STEP_MS)
+      const rs = ribsNow()
+      if (rs.length > 1 && Math.min(...rs.map((r) => r.y)) < game.anchor().y - 1) {
+        inside = true
+        break
+      }
+      if (settled(game)) break
+    }
+    expect(inside, 'the crowd never got inside a corridor on stage 8').toBe(true)
+
+    // …then swerve the whole way across the lane, and keep swerving.
+    let held = 0
+    for (let i = 0; i < 300; i++) {
+      const rs = ribsNow()
+      if (rs.length === 0) break
+      const wallLo = Math.min(...rs.map((r) => r.x - r.w / 2))
+      // The span of road the rib actually walls. Outside it there is no wall and
+      // crossing is not just legal, it is the point — the corridor has ended.
+      const lo = Math.min(...rs.map((r) => r.y)) - ROCK_H / 2 - UNIT_R
+      const hi = Math.max(...rs.map((r) => r.y)) + ROCK_H / 2 + UNIT_R
+
+      game.steerTo(LANE_HALF)
+      isolate()
+      game.step(STEP_MS)
+
+      for (const u of game.getUnits()) {
+        if (u.dying > 0) continue
+        if (u.y < lo || u.y > hi) continue
+        expect(u.x, `a survivor walked through the rib at y=${u.y.toFixed(2)}`)
+          .toBeLessThanOrEqual(wallLo)
+      }
+      held++
+      if (settled(game)) break
+    }
+
+    // The steering really did fight the wall for a meaningful stretch of road,
+    // rather than the rib quietly ending on the first frame.
+    expect(held, 'the rib was gone before the swerve could test it')
+      .toBeGreaterThan(30)
+    expect(game.anchor().x, 'the crowd never actually tried to cross')
+      .toBeGreaterThan(1)
   })
 })
