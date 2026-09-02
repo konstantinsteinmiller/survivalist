@@ -499,7 +499,7 @@ const isBenignAdError = (err: any): boolean => {
  * Always resolves `false` (and is a no-op) when the SDK is not active, so
  * callers can use it unconditionally without guard checks.
  */
-export const showRewardedAd = (): Promise<boolean> => {
+export const showRewardedAd = (onImpression?: () => void): Promise<boolean> => {
   return new Promise((resolve) => {
     if (!sdk || !isSdkActive.value) {
       resolve(false)
@@ -522,6 +522,7 @@ export const showRewardedAd = (): Promise<boolean> => {
         adStarted: () => {
           wasGameplayActive = gameplayActive
           stopGameplay()
+          try { onImpression?.() } catch { /* never let a callback break the ad */ }
         },
         adFinished: () => {
           resumeAfterAd()
@@ -553,7 +554,7 @@ export const showRewardedAd = (): Promise<boolean> => {
  *
  * No-op (and resolves immediately) when the SDK is not active.
  */
-export const showMidgameAd = (): Promise<void> => {
+export const showMidgameAd = (onImpression?: () => void): Promise<void> => {
   return new Promise((resolve) => {
     if (!sdk || !isSdkActive.value) {
       resolve()
@@ -574,6 +575,10 @@ export const showMidgameAd = (): Promise<void> => {
         adStarted: () => {
           wasGameplayActive = gameplayActive
           stopGameplay()
+          // The ad genuinely opened. `useAds` uses this to tell "the SDK is
+          // showing a 30 s video" apart from "the request went nowhere", so a
+          // real ad is never cut short by the stuck-request cap.
+          try { onImpression?.() } catch { /* never let a callback break the ad */ }
         },
         adFinished: () => {
           resumeAfterAd()

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import GameIcon from '@/components/icons/GameIcon.vue'
 
 interface Option {
   value: string | number
@@ -70,12 +71,11 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
         span.f-select__value(class="text relative block tracking-wide text-white uppercase truncate mr-2") {{ selectedLabel }}
 
         //- Arrow Icon
-        span(
+        span.f-select__caret-wrap(
           class="relative transition-transform duration-200"
           :class="{ 'rotate-180': isOpen }"
         )
-          svg(width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" class="text-white drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]")
-            path(d="m6 9 6 6 6-6")
+          GameIcon.f-select__caret(name="down")
 
     //- The Dropdown Menu
     transition(name="pop")
@@ -109,6 +109,21 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
   min-height: 2.75rem
   min-width: clamp(6rem, 40vw, 9rem)
   padding: clamp(0.4rem, 1.8vw, 0.75rem) clamp(0.6rem, 3vw, 1.1rem)
+
+// The caret is the shared `down` chevron now — solid like the rest of the set,
+// rather than the last stroked glyph left in the UI. Sized here because
+// `GameIcon` deliberately fills whatever box the caller gives it.
+// Nested to outrank `GameIcon`'s own `.game-icon` rule, which carries the same
+// specificity a flat class selector would — on a tie the winner is whichever
+// stylesheet the bundler emitted last.
+.f-select__caret-wrap
+  flex: 0 0 auto
+  color: #fff
+
+  .f-select__caret
+    width: 1.25rem
+    height: 1.25rem
+    filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 1))
 
 .f-select__value
   font-size: clamp(0.7rem, 3vw, 1.05rem)

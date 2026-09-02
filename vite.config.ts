@@ -137,6 +137,32 @@ export default defineConfig(({ mode, command }) => {
   // The third parameter '' loads all env vars regardless of VITE_ prefix.
   const env = loadEnv(mode, process.cwd(), '')
 
+  // ─── Exactly ONE platform flag per build ──────────────────────────────
+  // Vite MERGES `.env` with `.env.<mode>`, so any platform flag set in the
+  // base `.env` stays true for every mode that does not explicitly clear it.
+  // That is not cosmetic: `resolveSaveStrategy` and `resolveAdProvider` both
+  // take the FIRST matching arm, so an inherited flag silently HIJACKS the
+  // build — the portal's own strategy/provider never loads, and on a
+  // CrazyGames leak `persistToRaw=false` (CG cloud-only mode) additionally
+  // scrubs local state on every boot. Nothing in the build output hints at it.
+  // Fail loudly at config time instead: the fix is to set the other flags to
+  // `false` in that mode's env file (see `.env.yandex.local` / `.env.poki.local`
+  // for the pattern) or to clear them in the base `.env` before building.
+  const PLATFORM_FLAGS = [
+    'VITE_APP_CRAZY_WEB', 'VITE_APP_WAVEDASH', 'VITE_APP_ITCH', 'VITE_APP_GLITCH',
+    'VITE_APP_GAME_DISTRIBUTION', 'VITE_APP_PLAYGAMA', 'VITE_APP_GAMEPIX',
+    'VITE_APP_GAME_MONETIZE', 'VITE_APP_YANDEX', 'VITE_APP_POKI'
+  ] as const
+  const activePlatformFlags = PLATFORM_FLAGS.filter((f) => env[f] === 'true')
+  if (activePlatformFlags.length > 1) {
+    throw new Error(
+      `[vite] ${activePlatformFlags.join(', ')} are ALL true in mode "${mode}". `
+      + 'Exactly one platform flag may be set per build — the save strategy and '
+      + 'ad provider both take the first matching arm, so the extra flag would '
+      + 'hijack this build. Set the others to false in the mode env file.'
+    )
+  }
+
   // Only obfuscate during a real production build — never during dev,
   // where the obfuscator rewrites dynamic import strings into lookups
   // Vite can no longer transform, breaking module specifiers at runtime.
@@ -239,7 +265,21 @@ export default defineConfig(({ mode, command }) => {
           // of the bundle. The file is intentionally tiny so excluding it
           // doesn't meaningfully reduce obfuscation coverage of App.vue (which
           // still gets obfuscated normally and just imports from this helper).
-          /platforms[\\/]plattformText\.ts$/
+          /platforms[\\/]plattformText\.ts$/,
+          // useCheats lazy-loads `@/use/useSurvivalGame` to publish
+          // `window.__run` and to drive the stage / damage shortcuts. Without
+          // this exclude the stringArray rewrite mangles the literal and the
+          // BUILT bundle throws `Failed to resolve module specifier
+          // '@/use/useSurvivalGame'` the moment cheats are enabled — which is
+          // exactly when someone is trying to debug a built bundle. Found while
+          // verifying the CG pre-release build. The cheats self-gate on
+          // `localStorage.cheat`, so leaving this file readable grants nothing
+          // devtools would not.
+          /use[\\/]useCheats\.ts$/,
+          // usePlayerIdentity lazy-loads `@/use/useCrazyGames` to read the
+          // portal's player name for the leaderboard. Same failure mode, but on
+          // a PLAYER-facing path rather than a dev-only one.
+          /use[\\/]usePlayerIdentity\.ts$/
         ],
         // ─── Obfuscation profile (tuned 2026-04-30) ─────────────────────
         // The previous profile enabled every aggressive transform the
@@ -312,7 +352,18 @@ export default defineConfig(({ mode, command }) => {
   // Skipping our meta tag on the GamePix build lets GamePix's environment own
   // the policy — same exception we already make for Yandex.
   const isGamepixBuild = env.VITE_APP_GAMEPIX === 'true'
-  const skipCspMeta = isYandexBuild || isGamepixBuild
+  // POKI: same exception, stronger reason — and this is the single most
+  // important line of the Poki integration. Poki applies a PER-GAME allowlist
+  // server-side (P4D -> Settings -> CSP) and its core SDK injects an entire ad
+  // stack INTO OUR IFRAME: Google Publisher Tag, IMA, Amazon TAM and a prebid
+  // waterfall (securepubads.g.doubleclick.net, imasdk.googleapis.com,
+  // prebid.adnxs.com, aax.amazon-adsystem.com, onetag-sys.com, ...). Our own
+  // meta tag would block the whole waterfall and report NOTHING: the game runs,
+  // `commercialBreak()` resolves, and no ad ever plays. Whitelisting those hosts
+  // is the wrong fix too — the list rotates with Poki's ad partners. Emit no
+  // meta tag and let P4D own the policy.
+  const isPokiBuild = env.VITE_APP_POKI === 'true'
+  const skipCspMeta = isYandexBuild || isGamepixBuild || isPokiBuild
   const cspValue = buildCsp(env)
 
   plugins.push({
@@ -370,6 +421,25 @@ export default defineConfig(({ mode, command }) => {
       transformIndexHtml(html: string) {
         return html.replace(
           /<!-- Load the SDK before your game code -->\s*<script[^>]*integration\.gamepix\.com[^>]*><\/script>\s*/,
+          ''
+        )
+      }
+    })
+  }
+
+  // Strip the Poki SDK <script> tag from non-Poki builds. Same reason as the
+  // Playgama / GamePix strips — no extra DNS lookup to game-cdn.poki.com on
+  // other portals, and (unlike those two) a foreign SDK URL left in index.html
+  // is exactly what Yandex moderation rejects as "Service storage URL detected".
+  // The plugin re-injects the tag at runtime if a QA wrapper serves its own
+  // index.html, so stripping it here is safe.
+  const isPoki = env.VITE_APP_POKI === 'true'
+  if (!isPoki) {
+    plugins.push({
+      name: 'strip-poki-sdk',
+      transformIndexHtml(html: string) {
+        return html.replace(
+          /<!-- Poki SDK[^>]*-->\s*<script[^>]*game-cdn\.poki\.com[^>]*><\/script>\s*/,
           ''
         )
       }
@@ -501,6 +571,26 @@ export default defineConfig(({ mode, command }) => {
         }),
         ...(env.VITE_APP_GAME_MONETIZE === 'true' ? {} : {
           '@/use/ads/GameMonetizeProvider': fileURLToPath(new URL('./src/use/ads/GameMonetizeProvider.stub.ts', import.meta.url))
+        }),
+        ...(env.VITE_APP_YANDEX === 'true' ? {} : {
+          // YandexProvider statically imports `@/utils/yandexPlugin`, which
+          // hardcodes `an.yandex.ru` / `yandex.ru` ad-system URLs — and
+          // `resolveAdProvider` statically imports the provider, so those hosts
+          // were landing in EVERY other platform's bundle (found in the Poki
+          // entry chunk). Same stub-swap fix as the four providers above.
+          '@/use/ads/YandexProvider': fileURLToPath(new URL('./src/use/ads/YandexProvider.stub.ts', import.meta.url))
+        }),
+        ...(env.VITE_APP_POKI === 'true' ? {} : {
+          '@/use/ads/PokiProvider': fileURLToPath(new URL('./src/use/ads/PokiProvider.stub.ts', import.meta.url)),
+          // pokiPlugin is STATICALLY imported by `useGameplayLifecycle.ts` (which
+          // GameScene depends on) and re-exported by the `platforms/poki` barrel,
+          // so it lands in every build's module graph. The real module hardcodes
+          // the PokiSDK URL, and the env-literal `if` at the call site is NOT
+          // enough to keep it out: the obfuscator's stringArray pass hoists
+          // string literals into its indirection table BEFORE esbuild folds the
+          // env comparison, so the URL survives DCE. Same mechanism, and the same
+          // reason, as the gamepixPlugin alias above.
+          '@/utils/pokiPlugin': fileURLToPath(new URL('./src/utils/pokiPlugin.stub.ts', import.meta.url))
         }),
         '@': fileURLToPath(new URL('./src', import.meta.url)),
         '@/': fileURLToPath(new URL('./src/', import.meta.url)),

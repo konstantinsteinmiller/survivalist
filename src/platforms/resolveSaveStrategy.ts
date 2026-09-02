@@ -81,6 +81,17 @@ export const resolveSaveStrategy = async (_flags: PlatformFlags): Promise<SaveSt
     const { YandexStrategy } = await import('@/utils/save/YandexStrategy')
     return new YandexStrategy()
   }
+  if (import.meta.env.VITE_APP_POKI === 'true') {
+    // Poki has NO cloud-save API. Its wrapper mirrors the iframe's whole
+    // localStorage + IndexedDB across devices for logged-in players, with no
+    // game code involved — so the strategy is local-only. Its own class (not
+    // LocalStorageStrategy) so `SaveManager.strategyName` reports `poki`.
+    // Constraints that live in SaveManager, not here: < 1 MB gzipped or cloud
+    // sync silently switches off; never a `poki_` key prefix (SDK-reserved);
+    // try/catch every access (incognito restricts localStorage — hard req).
+    const { PokiStrategy } = await import('@/utils/save/PokiStrategy')
+    return new PokiStrategy()
+  }
   const { LocalStorageStrategy } = await import('@/utils/save/LocalStorageStrategy')
   return new LocalStorageStrategy()
 }

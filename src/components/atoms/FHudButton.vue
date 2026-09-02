@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { computed, useSlots } from 'vue'
+import { useI18n } from 'vue-i18n'
+import GameIcon from '@/components/icons/GameIcon.vue'
+import { resolveIconLabel } from '@/components/icons/iconLabels'
+import type { GameIconName } from '@/components/icons/iconNames'
+
 /**
  * The standard HUD chip used by every meta button in the bottom rows
  * (Daily Rewards, Missions, Achievements, Battle Pass, Ad Reward, Settings,
@@ -12,7 +18,9 @@
  * hard 2.5rem floor, so the row is compact on a 320px phone, comfortable on a
  * tablet, and never collapses.
  *
- * Slots: default = the glyph (SVG / icon component); `badge` = the corner
+ * The glyph normally comes from the shared set via the `icon` prop; the default
+ * slot stays for the handful of marks that are art rather than UI (a bitmap
+ * prop, a component with its own fallback logic). `badge` = the corner
  * indicator (claim count, reward pill, timer).
  */
 
@@ -22,28 +30,40 @@ interface Props {
   /** Soft glow pulse — used when the button has an unclaimed reward. */
   attention?: boolean
   isDisabled?: boolean
+  /** A glyph from the shared set. Ignored when the default slot is filled. */
+  icon?: GameIconName
   ariaLabel?: string
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   tone: 'gold',
   attention: false,
   isDisabled: false
 })
 
 defineEmits(['click'])
+
+const slots = useSlots()
+const { t, te } = useI18n()
+
+/** The caller's label, or the shared floor under a glyph that arrived without
+ *  one — see `iconLabels.ts`. */
+const resolvedAriaLabel = computed<string | undefined>(
+  () => resolveIconLabel(props.ariaLabel, props.icon, t, te)
+)
 </script>
 
 <template lang="pug">
   button.f-hud-button(
     type="button"
     :class="[`tone-${tone}`, { 'is-attention': attention, 'is-disabled': isDisabled }]"
-    :aria-label="ariaLabel"
+    :aria-label="resolvedAriaLabel"
     :disabled="isDisabled"
     @click="!isDisabled && $emit('click')"
   )
     span.f-hud-button__shadow(aria-hidden="true")
     span.f-hud-button__body
+      GameIcon.f-hud-button__glyph(v-if="icon && !slots.default" :name="icon")
       slot
     span.f-hud-button__badge(v-if="$slots.badge")
       slot(name="badge")
@@ -99,7 +119,13 @@ defineEmits(['click'])
   color: #fff
 
   // The glyph fills a consistent fraction of the chip regardless of chip size,
-  // so a row of mixed icons reads as one set.
+  // so a row of mixed icons reads as one set. A bitmap needs the larger box to
+  // read as the same optical size — its art carries its own margin, a vector
+  // glyph does not.
+  .f-hud-button__glyph
+    width: 54%
+    height: 54%
+
   :slotted(svg), :slotted(img)
     width: 62%
     height: 62%

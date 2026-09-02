@@ -10,6 +10,19 @@ export default {
   'tip': 'Кеңес',
   'crazyGamesOnly': 'Бұл ойын тек мына жерде қолжетімді:',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': 'Келесі',
+    'replay': 'Қайта',
+    'back': 'Артқа',
+    'play': 'Ойнау',
+    'pause': 'Кідіріс',
+    'menu': 'Мәзір',
+    'home': 'Басты бет',
+    'info': 'Ақпарат'
+  },
+
   'hud': {
     'stage': '{n}-кезең',
     'best': 'Рекорд {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': 'Келесі кезең',
     'tryAgain': 'Қайта көру',
     'upgrade': 'Жақсарту',
-    'rankLabel': 'Орын',
     'rankOf': '{n} ішінде'
   },
 

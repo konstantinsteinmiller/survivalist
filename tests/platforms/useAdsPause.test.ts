@@ -137,6 +137,81 @@ describe('useAds — pauses audio + gameplay around ads (all providers)', () => 
     infoSpy.mockRestore()
   })
 
+  // ─── The stuck-ad cap ─────────────────────────────────────────────────────
+  //
+  // Shipped bug, reported on Edge 132 (Tracking Prevention is on by default and
+  // blocks ad hosts mid-flight): the SDK accepted the request and then never
+  // called `adFinished` OR `adError`, so the provider promise never settled.
+  // `GameScene.presentResult()` awaits the interstitial BEFORE revealing the
+  // win/lose overlay — deliberately, so the ad can't land on top of the result
+  // screen — which meant the end screen never appeared at all, on death and on
+  // a boss kill alike.
+  //
+  // A promise that never settles cannot be caught, so the try/catch above was no
+  // protection. Only a cap is.
+  describe('an SDK that never answers', () => {
+    it('releases the interstitial wait instead of stranding the caller', async () => {
+      const { ads, gate } = await importAll()
+      vi.useFakeTimers()
+      // Never resolves, never rejects — exactly what a blocked ad request does.
+      mockProvider.showMidgameAd.mockReturnValue(new Promise<void>(() => {}))
+
+      let done = false
+      const run = ads.showMidgameAd().then(() => { done = true })
+
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(done).toBe(false)
+      expect(gate.isAdShowing.value).toBe(true)
+
+      // Past the "never opened" cap the game must be handed back.
+      await vi.advanceTimersByTimeAsync(7000)
+      await run
+      expect(done).toBe(true)
+      expect(gate.isAdShowing.value).toBe(false)
+      vi.useRealTimers()
+    })
+
+    it('does NOT cut short an ad that really opened', async () => {
+      const { ads } = await importAll()
+      vi.useFakeTimers()
+      // Opens immediately, then runs long — a real 30 s video.
+      const d = defer<void>()
+      mockProvider.showMidgameAd.mockImplementation((onImpression?: () => void) => {
+        onImpression?.()
+        return d.promise
+      })
+
+      let done = false
+      const run = ads.showMidgameAd().then(() => { done = true })
+
+      // Well past the short cap: because the ad reported opening, the wait holds.
+      await vi.advanceTimersByTimeAsync(20000)
+      expect(done).toBe(false)
+
+      d.resolve()
+      await run
+      expect(done).toBe(true)
+      vi.useRealTimers()
+    })
+
+    it('releases a rewarded that never answers, granting nothing', async () => {
+      const { ads, gate } = await importAll()
+      vi.useFakeTimers()
+      mockProvider.showRewardedAd.mockReturnValue(new Promise<boolean>(() => {}))
+
+      let granted: boolean | null = null
+      const run = ads.showRewardedAd().then((v: boolean) => { granted = v })
+
+      await vi.advanceTimersByTimeAsync(8000)
+      await run
+
+      // No answer is not a reward.
+      expect(granted).toBe(false)
+      expect(gate.isAdShowing.value).toBe(false)
+      vi.useRealTimers()
+    })
+  })
+
   it('logs an ERROR line on the cut-off path', async () => {
     const { ads } = await importAll()
     mockProvider.showMidgameAd.mockRejectedValue(new Error('sdk boom'))

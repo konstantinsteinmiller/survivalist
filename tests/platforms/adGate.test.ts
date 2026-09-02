@@ -69,14 +69,20 @@ describe('reward gating', () => {
     }
   })
 
-  it('grants for free on a CrazyGames build that is not the full release', async () => {
-    // The pre-release QA build has no ad inventory, so a gate there would make
-    // every perk untestable AND unusable.
+  it('offers nothing at all on a CrazyGames build that is not the full release', async () => {
+    // The pre-release build is what CG's reviewers play, and it has NO ad
+    // inventory: `requestAd` resolves without showing a video. A gate there
+    // would render a film-frame button that plays nothing; NO gate — which is
+    // what `isRewardGated` resolves to — would hand the +3x payout over for a
+    // button press. So the offer is simply not made: no button, no free grant.
     const gate = await loadGate({ crazy: true, fullRelease: false })
     const grant = vi.fn()
-    expect(gate.isRewardGated).toBe(false)
-    await gate.claimReward(grant)
-    expect(grant).toHaveBeenCalledTimes(1)
+
+    expect(gate.canOfferReward.value).toBe(false)
+
+    // And it is unreachable by any other route, not merely unrendered.
+    await expect(gate.claimReward(grant)).resolves.toBe(false)
+    expect(grant).not.toHaveBeenCalled()
     expect(gate.showRewardedAd).not.toHaveBeenCalled()
   })
 
@@ -128,8 +134,14 @@ describe('reward gating', () => {
     expect(gate.canOfferReward.value).toBe(false)
   })
 
-  it('always offers the perk on an ungated build, ad inventory or not', async () => {
+  it('always offers the perk on an ungated NON-CrazyGames build, ad inventory or not', async () => {
     const gate = await loadGate({ crazy: false, fullRelease: false, rewardedReady: false })
+    expect(gate.canOfferReward.value).toBe(true)
+  })
+
+  it('still offers on the CrazyGames FULL release when an ad is ready', async () => {
+    // The pre-release rule must not leak into the released build.
+    const gate = await loadGate({ crazy: true, fullRelease: true, rewardedReady: true })
     expect(gate.canOfferReward.value).toBe(true)
   })
 })

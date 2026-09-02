@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RunPhase } from '@/use/useSurvivalGame'
+import GameIcon from '@/components/icons/GameIcon.vue'
 
 /**
  * The run readout.
@@ -81,12 +82,10 @@ const damageLabel = computed(() => {
 
       div.run-hud__stats
         div.run-hud__chip.is-squad
-          svg.run-hud__icon(viewBox="0 0 24 24" fill="currentColor" aria-hidden="true")
-            path(d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 19c0-3 2.7-5 6-5s6 2 6 5v1H2v-1Zm12.6-4.6c2.6.5 4.4 2.3 4.4 4.6v1h-3v-1c0-1.6-.5-3-1.4-4.1Z")
+          GameIcon.run-hud__icon(name="squad")
           span.run-hud__value {{ squadLabel }}
         div.run-hud__chip.is-damage
-          svg.run-hud__icon(viewBox="0 0 24 24" fill="currentColor" aria-hidden="true")
-            path(d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z")
+          GameIcon.run-hud__icon(name="bolt")
           span.run-hud__value {{ damageLabel }}
         //- Fire rate is the stat a run has to EARN, so it gets equal billing
         //- with the two it multiplies.
@@ -95,19 +94,16 @@ const damageLabel = computed(() => {
         //- a thing worth being proud of, so it is shown as a reward rather than
         //- as a warning. Appears only once it is actually doing something.
         div.run-hud__chip.is-streak(v-if="challenge > 0")
-          svg.run-hud__icon(viewBox="0 0 24 24" fill="currentColor" aria-hidden="true")
-            path(d="M12 2c1.5 3.5.5 5.5-1 7-1.7 1.7-3 3.2-3 5.5A5.5 5.5 0 0 0 13.5 20 5.5 5.5 0 0 0 19 14.5c0-3.5-2.5-5-3.5-7.5-.6 1-1.3 1.6-2 2 .3-2.4-.6-4.9-1.5-7Z")
+          GameIcon.run-hud__icon(name="flame")
           span.run-hud__value {{ challenge }}
         div.run-hud__chip.is-rate
-          svg.run-hud__icon(viewBox="0 0 24 24" fill="currentColor" aria-hidden="true")
-            path(d="M12 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-7-7V3Zm1 3v6l4 2 .9-1.8L14 10.8V6h-1Z")
+          GameIcon.run-hud__icon(name="rate")
           span.run-hud__value {{ rateLabel }}
 
     div.run-hud__rail(:class="{ 'is-boss': isBoss }")
       div.run-hud__rail-fill(:style="{ width: railPct + '%' }")
       span.run-hud__rail-text(v-if="isBoss") {{ t('hud.boss') }}
-      svg.run-hud__rail-icon(v-else viewBox="0 0 24 24" fill="currentColor" aria-hidden="true")
-        path(d="M12 2a7 7 0 0 0-7 7c0 2.4 1.2 4.5 3 5.7V18a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-3.3c1.8-1.2 3-3.3 3-5.7a7 7 0 0 0-7-7Zm-3 8.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3ZM9 20h6v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1Z")
+      GameIcon.run-hud__rail-icon(v-else name="skull")
 
     //- Miniboss bar. Sits UNDER the stage rail rather than replacing it: the
     //- player still needs to know how far through the stage they are while
@@ -180,7 +176,12 @@ const damageLabel = computed(() => {
     color: #ff9a4a
     border-color: rgba(255, 154, 74, 0.55)
 
-.run-hud__icon
+// Nested rather than written flat, and that is load-bearing: `GameIcon`'s own
+// scoped rule is `.game-icon[data-v-…]` — one class plus one attribute, exactly
+// the same specificity a flat `.run-hud__icon[data-v-…]` would have. On a tie the
+// winner is whichever stylesheet the bundler happened to emit last. Nesting
+// adds the ancestor class and settles it.
+.run-hud__chip .run-hud__icon
   width: clamp(0.75rem, 3.4vw, 1rem)
   height: clamp(0.75rem, 3.4vw, 1rem)
   flex: 0 0 auto
@@ -220,7 +221,8 @@ const damageLabel = computed(() => {
     background-image: linear-gradient(to right, #ff5a4a, #ffb03a)
     transition: width 90ms linear
 
-.run-hud__rail-icon
+// Nested for the same specificity reason as `.run-hud__icon` above.
+.run-hud__rail .run-hud__rail-icon
   position: absolute
   right: 0.1rem
   top: 50%

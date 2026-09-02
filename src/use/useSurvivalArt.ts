@@ -2619,6 +2619,27 @@ const drawEliteMarker = (ctx: CanvasRenderingContext2D, w: number): void => {
   ctx.restore()
 }
 
+/** The boss guard barrier's outline, as a closed hexagon centred on `cy`.
+ *  Point-up (a -90° start) so a flat edge faces the player rather than a corner.
+ *
+ *  Shared by the fill and the stroke: they used to disagree — an ellipse fill
+ *  inside a hexagonal outline — which read as a circle with an unrelated diamond
+ *  border rather than as one shield. Module scope, not a closure inside the draw
+ *  call, to keep the frame allocation-free. */
+const guardHexPath = (
+  ctx: CanvasRenderingContext2D, cy: number, rx: number, ry: number
+): void => {
+  ctx.beginPath()
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2
+    const px = Math.cos(a) * rx
+    const py = cy + Math.sin(a) * ry
+    if (i === 0) ctx.moveTo(px, py)
+    else ctx.lineTo(px, py)
+  }
+  ctx.closePath()
+}
+
 const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
   const b = getBoss()
   if (!b) return
@@ -2705,32 +2726,35 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
   ctx.ellipse(0, 0, size * 0.42, size * 0.12, 0, 0, Math.PI * 2)
   ctx.fill()
 
-  // The guard phase, drawn UNDER the body: a hexagonal barrier that pulses hard
-  // and fast. The player is going to keep shooting into it — the sim spends
-  // their rounds on it deliberately — so it has to be unmistakably a shield and
-  // not a hitbox that stopped working. Two arcs and a fill; no gradient, no
-  // shadow, because this runs every frame of the busiest moment in the game.
-  if (b.guard > 0 && !b.dead) {
-    const pulse = 0.55 + Math.sin(t / 70) * 0.25
-    const rr = size * 0.95
+  // The guard phase: a hexagonal barrier that pulses hard and fast. The player
+  // is going to keep shooting into it — the sim spends their rounds on it
+  // deliberately — so it has to be unmistakably a shield and not a hitbox that
+  // stopped working. Flat fills and strokes; no gradient, no shadow, because
+  // this runs every frame of the busiest moment in the game.
+  //
+  // It is drawn in TWO passes around the body. The barrier itself goes UNDER the
+  // sprite so the boss stands inside it; the crest goes OVER the sprite, because
+  // the emblem sits at the barrier's centre and the boss would otherwise cover
+  // the one element that says "shield" in as many words.
+  //
+  // The barrier fill and its outline share ONE hexagon path (`guardHexPath`).
+  const guarding = b.guard > 0 && !b.dead
+  const gPulse = 0.55 + Math.sin(t / 70) * 0.25
+  const gR = size * 0.95
+  const gCy = -size * 0.55
+  const gRy = gR * 1.15
+
+  if (guarding) {
     ctx.save()
     ctx.globalCompositeOperation = 'lighter'
-    ctx.globalAlpha = 0.16 + pulse * 0.14
+    ctx.globalAlpha = 0.16 + gPulse * 0.14
     ctx.fillStyle = '#ff6a3a'
-    ctx.beginPath()
-    ctx.ellipse(0, -size * 0.55, rr, rr * 1.15, 0, 0, Math.PI * 2)
+    guardHexPath(ctx, gCy, gR, gRy)
     ctx.fill()
-    ctx.globalAlpha = 0.5 + pulse * 0.4
+    ctx.globalAlpha = 0.5 + gPulse * 0.4
     ctx.strokeStyle = '#ffd08a'
     ctx.lineWidth = Math.max(1.5, scale * 0.05)
-    ctx.beginPath()
-    for (let i = 0; i <= 6; i++) {
-      const a = (i / 6) * Math.PI * 2 - Math.PI / 2
-      const px = Math.cos(a) * rr
-      const py = -size * 0.55 + Math.sin(a) * rr * 1.15
-      if (i === 0) ctx.moveTo(px, py)
-      else ctx.lineTo(px, py)
-    }
+    guardHexPath(ctx, gCy, gR, gRy)
     ctx.stroke()
     ctx.restore()
   }
@@ -2759,6 +2783,60 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
     ctx.ellipse(0, -size * 0.5, size * 0.4, size * 0.6, 0, 0, Math.PI * 2)
     ctx.fill()
   }
+
+  // ── The guard crest, drawn OVER the sprite ──
+  //
+  // A heater-shield emblem at the barrier's centre. It is the second half of the
+  // guard read: the hexagon says "something is in the way", the crest says what.
+  // Drawn after the body on purpose — it sits where the boss stands, so under
+  // the sprite it would be invisible for the whole one-second phase that the
+  // player most needs to understand.
+  //
+  // Normal compositing (not `lighter`) and a dark rim: additive on top of an
+  // already-bright orange barrier washes out to a pale blob, and the rim is what
+  // holds the silhouette against both the barrier and the boss behind it.
+  if (guarding) {
+    // Sized to read as an emblem ON the barrier rather than a lid over the
+    // fight: much larger and it simply erases the boss, which is the thing the
+    // player is being told to stop shooting.
+    const cw = gR * 0.44
+    const ch = gRy * 0.5
+    const rim = Math.max(3, scale * 0.11)
+
+    ctx.save()
+    ctx.globalAlpha = 0.82 + gPulse * 0.18
+
+    // Heater shield: flat top, straight shoulders, tapering to a rounded point.
+    ctx.beginPath()
+    ctx.moveTo(-cw, gCy - ch)
+    ctx.lineTo(cw, gCy - ch)
+    ctx.lineTo(cw, gCy - ch * 0.05)
+    ctx.quadraticCurveTo(cw, gCy + ch * 0.62, 0, gCy + ch)
+    ctx.quadraticCurveTo(-cw, gCy + ch * 0.62, -cw, gCy - ch * 0.05)
+    ctx.closePath()
+    ctx.fillStyle = '#ffc46a'
+    ctx.fill()
+    // A HEAVY dark rim, not a hairline. Several bosses are pale tan, so a thin
+    // outline let the crest melt into the body it is drawn over — the rim is
+    // what holds the silhouette against both the boss and the orange barrier.
+    ctx.lineWidth = rim
+    ctx.strokeStyle = '#2a0f05'
+    ctx.stroke()
+
+    // Chief band + centre rib — two strokes that turn a plain blob into a
+    // heraldic shield at a glance, and survive being 30 px tall on a phone.
+    ctx.strokeStyle = 'rgba(42,15,5,0.9)'
+    ctx.lineWidth = Math.max(1.5, scale * 0.05)
+    ctx.beginPath()
+    ctx.moveTo(-cw * 0.78, gCy - ch * 0.46)
+    ctx.lineTo(cw * 0.78, gCy - ch * 0.46)
+    ctx.moveTo(0, gCy - ch * 0.46)
+    ctx.lineTo(0, gCy + ch * 0.66)
+    ctx.stroke()
+
+    ctx.restore()
+  }
+
   ctx.restore()
 }
 

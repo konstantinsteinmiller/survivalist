@@ -96,9 +96,31 @@ const bakeFrame = (def: MonsterDef, i: number): HTMLCanvasElement => {
  * deadline. The 12 ms floor is the cost of the most expensive single frame in
  * the cast, so we never START one we cannot finish inside the slice.
  */
+/** Wall-clock budget for one bake slice, in ms. */
+const SLICE_MS = 8
+
+const nowMs = (): number =>
+  (typeof performance !== 'undefined' && typeof performance.now === 'function')
+    ? performance.now()
+    : Date.now()
+
+/**
+ * Same fix as `heroSprites.pump`, and the same bug: `while
+ * (deadline.timeRemaining() > 12)` bakes exactly ONE frame whenever the idle
+ * callback fired because its timeout expired, because a timed-out callback
+ * reports zero time remaining. On a phone with no idle slices that was one
+ * frame per 2 s, so a boss could reach the arena before its strip existed and
+ * draw as the fallback ellipse.
+ *
+ * Only ONE frame is guaranteed per slice here, unlike the survivors: a single
+ * monster frame costs up to ~12 ms, so forcing several would drop a frame of
+ * gameplay. The throughput comes from the much shorter callback timeout below.
+ */
 const pump = (deadline?: IdleTime): void => {
   scheduled = false
-  do {
+  const started = nowMs()
+
+  for (;;) {
     if (!building) {
       const id = queue.shift()
       if (!id) return
@@ -111,7 +133,12 @@ const pump = (deadline?: IdleTime): void => {
       CACHE.set(building.id, building.frames)
       building = null
     }
-  } while ((deadline?.timeRemaining() ?? 0) > 12)
+
+    if (queue.length === 0 && !building) break
+    if ((deadline?.timeRemaining() ?? 0) > 12) continue
+    if (nowMs() - started < SLICE_MS) continue
+    break
+  }
   schedule()
 }
 
@@ -122,8 +149,61 @@ const schedule = (): void => {
     .requestIdleCallback
   // Without idle scheduling, fall back to one frame per macrotask — slower to
   // finish, but it still never lands inside a paint.
-  if (typeof ric === 'function') ric(pump, { timeout: 2000 })
+  // Short timeout: on a thread with no idle slices this cadence IS the bake
+  // rate, and 2000 ms meant a boss could out-run its own sprite strip.
+  if (typeof ric === 'function') ric(pump, { timeout: 400 })
   else setTimeout(() => pump(), 0)
+}
+
+/**
+ * Bake synchronously for up to `budgetMs`, then hand control back.
+ *
+ * For the LOADING SCREEN only. While the splash is up nothing else is animating,
+ * so a fat slice is invisible — and it removes the bake's dependency on
+ * `requestIdleCallback` cadence entirely, which is what makes the wait bounded by
+ * CPU rather than by however rarely the browser hands out idle slots. Without it
+ * a device that never goes idle bakes at the callback timeout's rate, and the
+ * loader would sit on its cap instead of finishing.
+ *
+ * Do NOT call this once gameplay is running: that is what the sliced, idle-driven
+ * `pump` is for.
+ */
+export const bakeMonsterSlice = (budgetMs = 10): void => {
+  const started = nowMs()
+  while (queue.length > 0 || building) {
+    if (!building) {
+      const id = queue.shift()
+      if (!id) return
+      const def = DEFS.get(id)
+      if (!def) continue
+      building = { id, def, frames: [] }
+    }
+    building.frames.push(bakeFrame(building.def, building.frames.length))
+    if (building.frames.length >= FRAMES) {
+      CACHE.set(building.id, building.frames)
+      building = null
+    }
+    if (nowMs() - started >= budgetMs) return
+  }
+}
+
+/** True once every requested design has a full strip — i.e. `monsterFrame` can
+ *  no longer return null for them and no foe will draw as its fallback ellipse.
+ *  Unknown ids are ignored so a caller can pass the whole cast safely. */
+export const monstersReady = (ids: readonly string[]): boolean =>
+  ids.every((id) => !DEFS.has(id) || CACHE.has(id))
+
+/** 0..1 across the requested designs, for the loading bar. */
+export const monsterBakeProgress01 = (ids: readonly string[]): number => {
+  const known = ids.filter((id) => DEFS.has(id))
+  const total = known.length * FRAMES
+  if (total === 0) return 1
+  let done = 0
+  for (const id of known) {
+    done += CACHE.get(id)?.length ?? 0
+    if (building?.id === id) done += building.frames.length
+  }
+  return Math.min(1, done / total)
 }
 
 /**

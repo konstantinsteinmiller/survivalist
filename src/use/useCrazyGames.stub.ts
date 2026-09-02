@@ -68,8 +68,8 @@ export const setCrazyMuted = (_muted: boolean): void => {}
 
 // Ad show wrappers — never called on non-CG builds (resolveAdProvider gates
 // to a different provider), but return contract-correct defaults defensively.
-export const showRewardedAd = async (): Promise<boolean> => false
-export const showMidgameAd = async (): Promise<void> => {}
+export const showRewardedAd = async (_onImpression?: () => void): Promise<boolean> => false
+export const showMidgameAd = async (_onImpression?: () => void): Promise<void> => {}
 
 const useCrazyGames = () => ({
   initCrazyGames,

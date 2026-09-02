@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import GameIcon from '@/components/icons/GameIcon.vue'
+import { resolveIconLabel } from '@/components/icons/iconLabels'
+import type { GameIconName } from '@/components/icons/iconNames'
 
 /**
  * The primary CTA button.
@@ -18,7 +22,7 @@ import { computed } from 'vue'
 
 interface Props {
   label?: string
-  type?: 'primary' | 'secondary' | 'danger' | 'success'
+  type?: 'primary' | 'secondary' | 'danger' | 'success' | 'warning'
   variant?: 'default' | 'brawl'
   isDisabled?: boolean
   colorFrom?: string
@@ -29,6 +33,32 @@ interface Props {
   /** Stretch to the container's width. Off by default so a button in a row
    *  sizes to its content instead of fighting its siblings. */
   block?: boolean
+  /** A glyph from the shared set, drawn beside the label. */
+  icon?: GameIconName
+  /** Which side the glyph sits on. Right by default: the label is what the eye
+   *  reads first, the glyph confirms the action. */
+  iconPosition?: 'left' | 'right'
+  /**
+   * Drop the label and draw only the glyph, in a square button.
+   *
+   * This is what lets a row of actions cost one line instead of two. An
+   * icon-only button has no accessible name of its own, so the caller MUST
+   * pass an `aria-label`.
+   */
+  iconOnly?: boolean
+  /** Required whenever the button has no visible text. */
+  ariaLabel?: string
+  /**
+   * Grow the whole control by this factor - the "this is the one that ends the
+   * screen" mark for a row of otherwise identical glyph buttons.
+   *
+   * Multiplies INSIDE the clamp terms rather than applying a `transform:
+   * scale()`, so the layout box grows with the paint and the row gutters
+   * correctly around it. A transform would leave the neighbours' gaps wrong and
+   * the hit target drifting off the painted pixels - which is the bug this
+   * component was rewritten to kill in the first place.
+   */
+  emphasis?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -37,10 +67,27 @@ const props = withDefaults(defineProps<Props>(), {
   variant: 'default',
   size: 'md',
   attention: false,
-  block: false
+  block: false,
+  iconPosition: 'right',
+  iconOnly: false,
+  emphasis: 1
 })
 
 defineEmits(['click'])
+
+const { t, te } = useI18n()
+
+/**
+ * An icon-only button has no text to be announced, so it needs a name from
+ * somewhere. The caller's `ariaLabel` is the right answer and normally present;
+ * the shared map in `iconLabels.ts` is the floor under the call site that
+ * forgets. A button that still has its caption needs neither — its own text is
+ * its name, and an `aria-label` there would silently override it.
+ */
+const resolvedAriaLabel = computed<string | undefined>(() => {
+  if (props.ariaLabel) return props.ariaLabel
+  return props.iconOnly ? resolveIconLabel(undefined, props.icon, t, te) : undefined
+})
 
 const theme = computed(() => {
   switch (props.type) {
@@ -61,6 +108,15 @@ const theme = computed(() => {
         from: props.colorFrom ?? '#67e08a',
         to: props.colorTo ?? '#1f9d4d',
         shadow: props.shadowColor ?? '#0e5c2c'
+      }
+    // The rewarded-video gold, named rather than respelled. It is the one
+    // button in the game that earns money, so it is the one whose colour is
+    // least allowed to drift between screens.
+    case 'warning':
+      return {
+        from: props.colorFrom ?? '#ffcd00',
+        to: props.colorTo ?? '#f7a000',
+        shadow: props.shadowColor ?? '#7a5a12'
       }
     default:
       return {
@@ -118,12 +174,27 @@ const sizeVars = computed<Record<string, string>>(() => {
   }
 })
 
-const styleVars = computed(() => ({
-  ...sizeVars.value,
-  '--fbtn-from': theme.value.from,
-  '--fbtn-to': theme.value.to,
-  '--fbtn-shadow': theme.value.shadow
-}))
+/**
+ * Emphasis multiplies every fluid metric, so a 1.2x button is a genuinely
+ * larger BOX: `calc(clamp(...) * 1.2)` clamps first and scales after, which
+ * keeps the floors meaningful. The border width and the depth plate offset are
+ * deliberately left alone - they read as the material the buttons are cut
+ * from, and scaling them makes the emphasised one look like a different set.
+ */
+const scaled = (v: string, e: number): string => (e === 1 ? v : `calc(${v} * ${e})`)
+
+const styleVars = computed(() => {
+  const e = Number.isFinite(props.emphasis) && props.emphasis > 0 ? props.emphasis : 1
+  const vars = Object.fromEntries(
+    Object.entries(sizeVars.value).map(([key, value]) => [key, scaled(value, e)])
+  )
+  return {
+    ...vars,
+    '--fbtn-from': theme.value.from,
+    '--fbtn-to': theme.value.to,
+    '--fbtn-shadow': theme.value.shadow
+  }
+})
 </script>
 
 <template lang="pug">
@@ -134,8 +205,10 @@ const styleVars = computed(() => ({
       variant === 'brawl' ? 'is-brawl' : '',\
       block ? 'is-block' : '',\
       attention ? 'attention-bounce' : '',\
-      isDisabled ? 'is-disabled' : ''\
+      isDisabled ? 'is-disabled' : '',\
+      iconOnly ? 'is-icon-only' : ''\
     ]"
+    :aria-label="resolvedAriaLabel"
     :disabled="isDisabled"
     @click="!isDisabled && $emit('click')"
   )
@@ -144,8 +217,15 @@ const styleVars = computed(() => ({
     span.f-button__body
       //- Classic top shine.
       span.f-button__shine(aria-hidden="true")
-      span.f-button__text
-        slot {{ label }}
+      //- Glyph-only. A separate `v-if` rather than a `v-else` on the label, so
+      //- an icon-only button that was passed no icon still renders its slot
+      //- instead of an empty box.
+      GameIcon.f-button__glyph.is-solo(v-if="iconOnly && icon" :name="icon")
+      template(v-else)
+        GameIcon.f-button__glyph(v-if="icon && iconPosition === 'left'" :name="icon")
+        span.f-button__text
+          slot {{ label }}
+        GameIcon.f-button__glyph(v-if="icon && iconPosition === 'right'" :name="icon")
 </template>
 
 <style scoped lang="sass">
@@ -181,6 +261,17 @@ const styleVars = computed(() => ({
     filter: grayscale(1)
     cursor: not-allowed
 
+  // Glyph-only: a square button, not a pill with a lonely icon adrift in it.
+  // The width floor becomes the height floor, so the control is as tall as it
+  // is wide at every size and emphasis - and dropping the caption cannot
+  // collapse it, because the caption was never what held it open.
+  &.is-icon-only
+    min-width: var(--fbtn-min-h)
+
+    .f-button__body
+      min-width: var(--fbtn-min-h)
+      padding-inline: var(--fbtn-py)
+
   &.is-brawl
     transform: skewX(-10deg)
 
@@ -204,6 +295,11 @@ const styleVars = computed(() => ({
   display: flex
   align-items: center
   justify-content: center
+  gap: 0.4em
+  // The body owns the type scale so the glyph can size itself in `em` off it -
+  // one metric for label and icon, which is what keeps them optically matched
+  // at every size and emphasis.
+  font-size: var(--fbtn-font)
   width: 100%
   min-height: var(--fbtn-min-h)
   padding: var(--fbtn-py) var(--fbtn-px)
@@ -220,6 +316,27 @@ const styleVars = computed(() => ({
   background-color: rgba(255, 255, 255, 0.25)
   border-radius: var(--fbtn-radius) var(--fbtn-radius) 0 0
   pointer-events: none
+
+// Nested rather than written flat, and that is load-bearing: `GameIcon`'s own
+// scoped rule is `.game-icon[data-v-…]` — one class plus one attribute, exactly
+// the same specificity a flat `.f-button__glyph[data-v-…]` would have. On a tie the
+// winner is whichever stylesheet the bundler happened to emit last. Nesting
+// adds the ancestor class and settles it.
+.f-button__body .f-button__glyph
+  position: relative
+  flex: 0 0 auto
+  // Sized in `em` off the body's font size, so one metric drives the label and
+  // the glyph together at every size and emphasis factor.
+  width: 1.25em
+  height: 1.25em
+  // The same hard black offset the captions wear, so a glyph button and a text
+  // button read as the same material.
+  filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.85))
+
+  // Alone in the button it IS the control, not an ornament beside a word.
+  &.is-solo
+    width: 1.6em
+    height: 1.6em
 
 .f-button__text
   position: relative

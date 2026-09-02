@@ -10,6 +10,19 @@ export default {
   'tip': '提示',
   'crazyGamesOnly': '本游戏仅在以下平台提供：',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': '下一个',
+    'replay': '重玩',
+    'back': '返回',
+    'play': '开始',
+    'pause': '暂停',
+    'menu': '菜单',
+    'home': '主页',
+    'info': '信息'
+  },
+
   'hud': {
     'stage': '第 {n} 关',
     'best': '最佳 {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': '下一关',
     'tryAgain': '再试一次',
     'upgrade': '升级',
-    'rankLabel': '排名',
     'rankOf': '共 {n} 人'
   },
 

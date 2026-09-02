@@ -14,7 +14,6 @@
   <meta name="apple-mobile-web-app-title" content="Survivalist">
   <meta name="description" content="Shoot the gates to grow them, run your crowd through, and turn three survivors into an army before the boss turns them into dust.">
   <link rel="manifest" href="/manifest.json">
-  <link rel="preload" as="image" href="/images/logo/logo_256x256.webp" type="image/webp">
   <title>Survivalist</title>
   <style>
       /* The splash paints before any JS runs, so its colours are inlined here
@@ -88,6 +87,8 @@
 <script src="https://bridge.playgama.com/v1/stable/playgama-bridge.js"></script>
 <!-- Load the SDK before your game code -->
 <script src="https://integration.gamepix.com/sdk/v3/gamepix.sdk.js"></script>
+<!-- Poki SDK - stripped for non-Poki builds by vite.config.ts -->
+<script src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js"></script>
 <div id="app"></div>
 <script type="module" src="/src/main.ts"></script>
 </body>

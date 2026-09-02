@@ -13,6 +13,22 @@ import { buildCsp } from '@/platforms/csp'
 const baseEnv = (): Record<string, string> => ({})
 
 describe('buildCsp', () => {
+  // Poki is the ONE platform that contributes nothing here, on purpose. Its
+  // build emits no CSP meta tag at all (`skipCspMeta` in vite.config.ts),
+  // because Poki applies a per-game allowlist server-side and injects its own
+  // ad stack into our iframe — a self-imposed policy would silently kill every
+  // ad. Adding `game-cdn.poki.com` to BASE_HOSTS would therefore do nothing
+  // except leak a foreign host string into every OTHER platform's bundle, which
+  // is exactly what Yandex moderation rejects as "Service storage URL detected".
+  describe('poki', () => {
+    it('contributes no Poki hosts to any build', () => {
+      expect(buildCsp({ VITE_APP_POKI: 'true' })).not.toContain('poki')
+      expect(buildCsp(baseEnv())).not.toContain('poki')
+      expect(buildCsp({ VITE_APP_CRAZY_WEB: 'true' })).not.toContain('poki')
+      expect(buildCsp({ VITE_APP_YANDEX: 'true' })).not.toContain('poki')
+    })
+  })
+
   describe('default web (no platform flag)', () => {
     it('contains base host whitelist', () => {
       const csp = buildCsp(baseEnv())

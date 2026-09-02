@@ -19,7 +19,7 @@
 // GameDistribution because the SDK script is dynamically injected and we
 // don't want to pay that latency on the boot critical path.
 import { computed, ref } from 'vue'
-import { isCrazyWeb, isWaveDash, isItch, isGlitch, isGameDistribution, isPlaygama, isGamepix, isGameMonetize, isYandex, isNative, showMediatorAds } from '@/use/useUser'
+import { isCrazyWeb, isWaveDash, isItch, isGlitch, isGameDistribution, isPlaygama, isGamepix, isGameMonetize, isYandex, isPoki, isNative, showMediatorAds } from '@/use/useUser'
 import type { AdProvider } from './ads/types'
 import { resolveAdProvider } from '@/platforms/resolveAdProvider'
 import { isRewardedThrottled, recordRewardedGranted } from '@/use/useRewardedThrottle'
@@ -30,7 +30,7 @@ import { isDebug } from '@/use/useMatch'
 import { forceStopMusic } from '@/use/useSound'
 
 const provider: AdProvider = resolveAdProvider({
-  flags: { isCrazyWeb, isWaveDash, isItch, isGlitch, isGameDistribution, isPlaygama, isGamepix, isGameMonetize, isYandex },
+  flags: { isCrazyWeb, isWaveDash, isItch, isGlitch, isGameDistribution, isPlaygama, isGamepix, isGameMonetize, isYandex, isPoki },
   showMediatorAds,
   isNative
 })
@@ -125,6 +125,76 @@ export const initAds = (): Promise<void> => provider.init()
  */
 const AUDIO_DRAIN_MS = 200
 
+// ─── The stuck-ad cap ───────────────────────────────────────────────────────
+//
+// Every provider here resolves its promise from SDK CALLBACKS — CrazyGames from
+// `adFinished` / `adError`, Poki from `commercialBreak`, and so on. A callback
+// that never fires is therefore a promise that never settles, and `await`ing it
+// strands the caller forever.
+//
+// That is not hypothetical. It shipped: on Edge 132, whose Tracking Prevention
+// is ON by default and blocks ad hosts mid-flight, the SDK accepted the request
+// and then reported nothing. `GameScene.presentResult()` awaits the interstitial
+// BEFORE revealing the win/lose overlay (deliberately — the ad must not land on
+// top of the result screen), so the end screen simply never appeared, on death
+// and on a boss kill alike. The game was not frozen; it was waiting on an ad
+// that would never answer.
+//
+// Two caps, because "no answer" and "a real 30 s video" have to be told apart:
+//
+//   • AD_OPEN_MS  — the ad never reported OPENING. Treat as a no-fill and move
+//     on. Providers signal the open edge through the `onImpression` callback.
+//   • AD_MAX_MS   — it opened, but never reported finishing. A generous ceiling
+//     that no legitimate interstitial reaches.
+//
+// Hitting either cap only releases the WAIT. The provider's own promise is left
+// alone to settle whenever it likes; `isAdShowing` is dropped in the `finally`
+// below either way, so audio and the loop always come back.
+const AD_OPEN_MS = 6000
+const AD_MAX_MS = 60000
+
+/**
+ * Resolve when `call` settles, or when the caps above expire — whichever comes
+ * first.
+ *
+ * A provider REJECTION is re-thrown rather than swallowed, so the caller's
+ * existing catch still logs the cut-off path: an SDK that reports an error is
+ * behaving correctly and that stays visible in the console. Only the CAPS
+ * resolve quietly — they exist for the SDK that reports nothing at all.
+ */
+const awaitAdBounded = (call: Promise<unknown>, hasOpened: () => boolean): Promise<void> =>
+  new Promise<void>((resolve, reject) => {
+    let settled = false
+    let openTimer: ReturnType<typeof setTimeout> | undefined
+    let maxTimer: ReturnType<typeof setTimeout> | undefined
+
+    const clear = (): void => {
+      clearTimeout(openTimer)
+      clearTimeout(maxTimer)
+    }
+
+    const finish = (reason: string): void => {
+      if (settled) return
+      settled = true
+      clear()
+      if (reason !== 'settled') {
+        console.warn(`${TAG} ad wait released by cap (${reason}) — the SDK never answered`)
+      }
+      resolve()
+    }
+
+    const fail = (e: unknown): void => {
+      if (settled) return
+      settled = true
+      clear()
+      reject(e)
+    }
+
+    call.then(() => finish('settled'), fail)
+    openTimer = setTimeout(() => { if (!hasOpened()) finish('never opened') }, AD_OPEN_MS)
+    maxTimer = setTimeout(() => finish('never finished'), AD_MAX_MS)
+  })
+
 export const showRewardedAd = async (): Promise<boolean> => {
   // Throttle gate: refuse the SDK call once the player has burned
   // their 10-min budget. Returning `false` here matches the
@@ -154,7 +224,14 @@ export const showRewardedAd = async (): Promise<boolean> => {
     // player who claims the ×3 on a stage-clear jingle would hear the tail cut
     // into the ad exactly as they would have on a midgame.
     await new Promise((r) => setTimeout(r, AUDIO_DRAIN_MS))
-    const granted = await provider.showRewardedAd()
+    // Bounded like the interstitial below — a rewarded that never answers would
+    // otherwise hold `adInFlight` forever, leaving the button dead and the game
+    // paused behind a video that never plays.
+    let opened = false
+    let granted = false
+    const call = provider.showRewardedAd(() => { opened = true })
+    call.then((ok) => { granted = ok }, () => { granted = false })
+    await awaitAdBounded(call, () => opened)
     if (granted) {
       recordRewardedGranted()
     } else if (provider.isAdsBlocked.value && !provider.ownsAdBlockUi) {
@@ -191,6 +268,9 @@ export const showMidgameAd = async (): Promise<void> => {
     killOneShotSfx()
     isAdShowing.value = true
   }
+  // Set from the provider's impression callback: the ad genuinely opened, so the
+  // short "never opened" cap must not fire on a real video.
+  let opened = false
   try {
     if (provider.managesMidgameAudio) {
       // Provider mutes audio only when the ad ACTUALLY opens — it invokes
@@ -203,7 +283,10 @@ export const showMidgameAd = async (): Promise<void> => {
       killAudioForAd()
       await new Promise<void>((resolve) => setTimeout(resolve, AUDIO_DRAIN_MS))
       dlog(`${TAG} ▶ interstitial START (provider=${provider.name}, mute-on-open)`)
-      await provider.showMidgameAd(killAudioForAd)
+      await awaitAdBounded(
+        provider.showMidgameAd(() => { opened = true; killAudioForAd() }),
+        () => opened
+      )
     } else {
       // Default: kill audio BEFORE the SDK shows. GamePix-style SDKs resolve
       // `interstitialAd()` before the ad visually closes, so up front is the
@@ -213,7 +296,10 @@ export const showMidgameAd = async (): Promise<void> => {
       killAudioForAd()
       await new Promise<void>((resolve) => setTimeout(resolve, AUDIO_DRAIN_MS))
       dlog(`${TAG} ▶ interstitial START (provider=${provider.name})`)
-      await provider.showMidgameAd()
+      await awaitAdBounded(
+        provider.showMidgameAd(() => { opened = true }),
+        () => opened
+      )
     }
     dlog(`${TAG} ⏹ interstitial END (provider=${provider.name})`)
   } catch (e) {

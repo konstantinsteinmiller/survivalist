@@ -10,6 +10,19 @@ export default {
   'tip': 'Tips',
   'crazyGamesOnly': 'Gim ini hanya tersedia di',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': 'Lanjut',
+    'replay': 'Ulangi',
+    'back': 'Kembali',
+    'play': 'Main',
+    'pause': 'Jeda',
+    'menu': 'Menu',
+    'home': 'Beranda',
+    'info': 'Info'
+  },
+
   'hud': {
     'stage': 'Tahap {n}',
     'best': 'Rekor {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': 'Tahap berikutnya',
     'tryAgain': 'Coba lagi',
     'upgrade': 'Tingkatkan',
-    'rankLabel': 'Peringkat',
     'rankOf': 'dari {n}'
   },
 

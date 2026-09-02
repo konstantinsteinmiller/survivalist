@@ -12,7 +12,7 @@ import {
 import { LANGUAGES } from '@/utils/enums'
 import { initAds } from '@/use/useAds'
 import { installGamePauseAudio } from '@/use/useGamePauseAudio'
-import useUser, { isCrazyWeb, isWaveDash, isItch, isGlitch, isGameDistribution, isPlaygama, isGamepix, isGameMonetize, isYandex } from '@/use/useUser'
+import useUser, { isCrazyWeb, isWaveDash, isItch, isGlitch, isGameDistribution, isPlaygama, isGamepix, isGameMonetize, isYandex, isPoki } from '@/use/useUser'
 import { isDebug } from '@/use/useMatch.ts'
 import { hasState, reloadTowerState } from '@/use/useTowerState'
 import { LANGUAGE_KEY } from '@/keys'
@@ -111,6 +111,7 @@ const bootstrap = async () => {
   // re-import useCrazyGames.
   let cgLocale: string | null = null
   let yaLocale: string | null = null
+  let pkLocale: string | null = null
   if (isCrazyWeb) {
     const cg = await import('@/use/useCrazyGames')
     await cg.initCrazyGames()
@@ -160,6 +161,25 @@ const bootstrap = async () => {
     const { yandexPlugin, yandexLocale } = await import('@/utils/yandexPlugin')
     await yandexPlugin()
     yaLocale = yandexLocale.value
+  } else if (isPoki) {
+    // **Parallel** init — deliberately NOT awaited, unlike the GamePix / Yandex
+    // arms above. Poki has NO cloud-save API (its wrapper mirrors the iframe's
+    // localStorage + IndexedDB itself), so nothing in `PokiStrategy.hydrate()`
+    // waits on the SDK; and `getLanguage()` is implemented in the 5.5 KB loader
+    // shim, so the locale is readable synchronously, long before the ~325 KB
+    // core lands. Not awaiting is the point, not an optimisation: Poki measures
+    // conversion-to-play on the first `gameplayStart()`, so boot latency is
+    // revenue — and the Web Fit Test gate is 65 % C2P.
+    const { pokiPlugin, readPokiLanguage, pokiCaptureError } = await import('@/utils/pokiPlugin')
+    pkLocale = readPokiLanguage()
+    void pokiPlugin()
+
+    // P4D's 24-hour Error Scanner. Registered here so the window-level handlers
+    // cover the whole boot path; the Vue-level one is attached at createApp
+    // below, because Vue swallows render / lifecycle errors before they ever
+    // reach `window.onerror`.
+    window.addEventListener('error', (e) => pokiCaptureError(e.error ?? e.message))
+    window.addEventListener('unhandledrejection', (e) => pokiCaptureError(e.reason))
   }
 
   // Pick the save strategy by build flag. `SaveManager.init()` hydrates
@@ -172,7 +192,7 @@ const bootstrap = async () => {
   // unit-testable in isolation. Adding a platform = add an arm there,
   // not edit this file.
   const strategy = await resolveSaveStrategy({
-    isCrazyWeb, isWaveDash, isItch, isGlitch, isGameDistribution, isPlaygama, isGamepix, isGameMonetize, isYandex
+    isCrazyWeb, isWaveDash, isItch, isGlitch, isGameDistribution, isPlaygama, isGamepix, isGameMonetize, isYandex, isPoki
   })
 
   // CrazyGames cloud-only mode: gameplay state and our save bookkeeping
@@ -328,7 +348,7 @@ const bootstrap = async () => {
   // `cgLocale` / `yaLocale` were captured up in their init arms; null on
   // other builds. Yandex returns ISO-639-1 (`en`, `ru`, `tr`, etc.);
   // anything we don't ship maps to the resolver's fallback chain.
-  const portalLocaleHint = cgLocale ?? yaLocale
+  const portalLocaleHint = cgLocale ?? yaLocale ?? pkLocale
   const portalLocale = portalLocaleHint && LANGUAGES.includes(portalLocaleHint) ? portalLocaleHint : null
 
   const { default: App } = await import('@/App.vue')
@@ -378,7 +398,7 @@ const bootstrap = async () => {
         // strategy resolves out-of-band in some flows, etc.). Idempotent.
         reloadTowerState()
         const hasStoredLanguage = hasState(LANGUAGE_KEY)
-        const portalSeed = cgLocale ?? yaLocale
+        const portalSeed = cgLocale ?? yaLocale ?? pkLocale
         if (!hasStoredLanguage && portalSeed && LANGUAGES.includes(portalSeed)) {
           setSettingValue('language', portalSeed)
         }
@@ -400,6 +420,15 @@ const bootstrap = async () => {
   ;(window as any).__i18n = i18n
 
   const app = createApp(App)
+
+  // Poki's Error Scanner (P4D, 24-hour rolling report). The window-level
+  // handlers registered in the init arm above miss Vue render / lifecycle
+  // errors, which Vue catches before they reach `window.onerror` — so both
+  // registrations are needed. Env-literal gate so Rollup drops it elsewhere.
+  if (import.meta.env.VITE_APP_POKI === 'true') {
+    const { pokiCaptureError } = await import('@/utils/pokiPlugin')
+    app.config.errorHandler = (err) => pokiCaptureError(err)
+  }
 
   app.use(router)
   app.use(i18n)

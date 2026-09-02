@@ -14,6 +14,30 @@ export default {
   'tip': 'Tip',
   'crazyGamesOnly': 'This game is only available on',
 
+  // ─── Shared UI labels ─────────────────────────────────────────────────────
+  //
+  // NOT DEAD KEYS. The icon pass replaced button captions with glyphs
+  // (skip-forward, replay, the shop cart), and a glyph has no accessible name
+  // of its own — so these survive as the `aria-label` on icon-only controls.
+  // They are read aloud, not seen, which is exactly why nothing on screen will
+  // tell you when one goes missing.
+  //
+  // Only the generic names with no existing home live here. A control whose
+  // action the game already names uses THAT key instead — the settings cog is
+  // `options.title`, the cart is `upgrades.title`, the trophy is
+  // `leaderboard.title` — so no word is translated twice. See the fallback map
+  // in `FHudButton.vue`.
+  'ui': {
+    'next': 'Next',
+    'replay': 'Replay',
+    'back': 'Back',
+    'play': 'Play',
+    'pause': 'Pause',
+    'menu': 'Menu',
+    'home': 'Home',
+    'info': 'Info'
+  },
+
   // ─── HUD ──────────────────────────────────────────────────────────────────
   'hud': {
     'stage': 'Stage {n}',
@@ -100,10 +124,6 @@ export default {
     'nextStage': 'Next stage',
     'tryAgain': 'Try again',
     'upgrade': 'Upgrade',
-    // The global-rank cell. `rankLabel` is the fallback label used before the
-    // player count is known; once it is, `rankOf` replaces it — "of 4 812"
-    // under a "#61" says more in the same space than "Rank" does.
-    'rankLabel': 'Rank',
     'rankOf': 'of {n}'
   },
 

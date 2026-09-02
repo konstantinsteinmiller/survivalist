@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import FModal from '@/components/molecules/FModal.vue'
 import IconCoin from '@/components/icons/IconCoin.vue'
+import GameIcon from '@/components/icons/GameIcon.vue'
+import type { GameIconName } from '@/components/icons/iconNames'
 import useSounds from '@/use/useSound'
 import useTowerEconomy from '@/use/useTowerEconomy'
 import {
@@ -27,6 +29,20 @@ const model = defineModel<boolean>({ required: true })
 const { t } = useI18n()
 const { coins, spendCoins } = useTowerEconomy()
 const { playSound } = useSounds()
+
+/**
+ * Which glyph fronts each track. The names come from the shared set, and four
+ * of the five are the SAME glyph the run HUD shows for that stat — the shop is
+ * where you buy the number you spent the last stage watching, so it must not be
+ * a second drawing of it. Scavenging has no HUD chip, so it falls back to the
+ * generic `star`.
+ */
+const TRACK_ICONS: Partial<Record<UpgradeId, GameIconName>> = {
+  squad: 'squad',
+  power: 'bolt',
+  rate: 'rate',
+  range: 'range'
+}
 
 /** Bumped on every purchase so the computed rows re-read the level refs. */
 const version = ref(0)
@@ -92,20 +108,10 @@ const suffix = (id: UpgradeId): string => (id === 'scavenge' || id === 'range' ?
           @click="buy(row)"
         )
           div.upgrade__icon(:class="`is-${row.id}`")
-            svg(v-if="row.id === 'squad'" viewBox="0 0 24 24" fill="currentColor")
-              path(d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 19c0-3 2.7-5 6-5s6 2 6 5v1H2v-1Zm12.6-4.6c2.6.5 4.4 2.3 4.4 4.6v1h-3v-1c0-1.6-.5-3-1.4-4.1Z")
-            svg(v-else-if="row.id === 'power'" viewBox="0 0 24 24" fill="currentColor")
-              path(d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z")
-            svg(v-else-if="row.id === 'rate'" viewBox="0 0 24 24" fill="currentColor")
-              path(d="M12 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-7-7V3Zm1 3v6l4 2 .9-1.8L14 10.8V6h-1Z")
-            //- Reach: an arrow flying up the lane between two rails, which is
-            //- literally what the track buys — the shot gets further up the
-            //- screen. A crosshair would read as accuracy, which this is not.
-            svg(v-else-if="row.id === 'range'" viewBox="0 0 24 24" fill="currentColor")
-              path(d="M4 3h1.6v18H4zm14.4 0H20v18h-1.6z")
-              path(d="M12 2.6 8.4 7.2h2.4v9.1H9l3 4.6 3-4.6h-1.8V7.2h2.4L12 2.6Z")
-            svg(v-else viewBox="0 0 24 24" fill="currentColor")
-              path(d="M12 2 9.6 8.6 3 9.8l4.8 4.5L6.5 21 12 17.6 17.5 21l-1.3-6.7L21 9.8l-6.6-1.2L12 2Z")
+            //- Every one of these is the glyph the HUD already draws for the
+            //- same stat during a run — the shop is where you buy the number
+            //- you have been watching, so it must not be a second drawing of it.
+            GameIcon(:name="TRACK_ICONS[row.id] ?? 'star'")
 
           div.upgrade__body
             span.upgrade__name {{ t(`upgrades.names.${row.id}`) }}

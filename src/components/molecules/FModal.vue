@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import FTabs, { type TabOption } from '@/components/atoms/FTabs.vue'
+import GameIcon from '@/components/icons/GameIcon.vue'
 import useSounds from '@/use/useSound'
 import { acquireModalOpen } from '@/use/useModalState'
+
+const { t } = useI18n()
 
 interface Props {
   modelValue: boolean | any
@@ -137,13 +141,12 @@ const handleTabChange = (val: string | number): void => emit('update:activeTab',
               button.f-modal__close(
                 v-if="isClosable"
                 type="button"
-                aria-label="Close"
+                :aria-label="t('close')"
                 @click="close"
               )
                 span.f-modal__close-shadow(aria-hidden="true")
                 span.f-modal__close-body
-                  svg(xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor")
-                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M6 18L18 6M6 6l12 12")
+                  GameIcon.f-modal__close-icon(name="close")
 
               //- Scrollable content. Top padding is the MEASURED header
               //- overhang plus a gap — never a guess.
@@ -318,7 +321,9 @@ const handleTabChange = (val: string | number): void => emit('update:activeTab',
   background-color: #ff3e3e
   color: #fff
 
-  svg
+  // Nested to outrank `GameIcon`'s own `.game-icon` rule, which has the same
+  // specificity a flat class selector would.
+  .f-modal__close-icon
     width: 45%
     height: 45%
 

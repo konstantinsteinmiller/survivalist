@@ -17,6 +17,7 @@
     "build:gamepix": "vite build --mode gamepix --base=./ && cd dist && tar -a -cf ../survivalist-gamepix.zip * && cd .. && move survivalist-gamepix.zip dist\\",
     "build:gamemonetize": "vite build --mode gamemonetize --base=./ && cd dist && tar -a -cf ../survivalist-gamemonetize.zip * && cd .. && move survivalist-gamemonetize.zip dist\\",
     "build:yandex": "vite build --mode yandex --base=./ && cd dist && tar -a -cf ../survivalist-yandex.zip * && cd .. && move survivalist-yandex.zip dist\\",
+    "build:poki": "vite build --mode poki --base=./ && cd dist && tar -a -cf ../survivalist-poki.zip * && cd .. && move survivalist-poki.zip dist\\",
     "build-github-main": "vite build --base=/survivalist/ --outDir=dist",
     "build-github-develop": "vite build --base=/survivalist/develop/ --outDir=dist/develop",
     "deploy": "vite build && surge dist/ --domain survivalist.surge.sh",

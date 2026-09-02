@@ -10,6 +10,19 @@ export default {
   'tip': 'Mẹo',
   'crazyGamesOnly': 'Trò chơi này chỉ có trên',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': 'Tiếp',
+    'replay': 'Chơi lại',
+    'back': 'Quay lại',
+    'play': 'Chơi',
+    'pause': 'Tạm dừng',
+    'menu': 'Menu',
+    'home': 'Trang chính',
+    'info': 'Thông tin'
+  },
+
   'hud': {
     'stage': 'Màn {n}',
     'best': 'Kỷ lục {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': 'Màn tiếp theo',
     'tryAgain': 'Thử lại',
     'upgrade': 'Nâng cấp',
-    'rankLabel': 'Hạng',
     'rankOf': 'trên {n}'
   },
 

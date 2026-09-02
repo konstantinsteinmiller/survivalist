@@ -30,8 +30,10 @@ import { isInterstitialReady, showMidgameAd } from '@/use/useAds'
 import {
   canShowInterstitial, markInterstitialShown, adInFlight, canOfferReward, claimReward, isRewardGated
 } from '@/use/useAdGate'
-import { signalGameplayLoaded, syncGameplayLifecycle, triggerHappytime } from '@/use/useCrazyGames'
+import { signalGameplayLoaded, triggerHappytime } from '@/use/useCrazyGames'
+import { syncGameplayLifecycle } from '@/use/useGameplayLifecycle'
 import { isAnyModalOpen } from '@/use/useModalState'
+import { isMobileLandscape, isShortViewport } from '@/use/useUser'
 import { playFirstStartInterstitial } from '@/use/useFirstStartInterstitial'
 import {
   OUTSIDE_BOARD, boardSize, leaderboardEnabled, leaderboardFailed, playerTotal, rankFor, reportRun
@@ -51,7 +53,7 @@ import OptionsModal from '@/components/organisms/OptionsModal.vue'
 import UpgradeModal from '@/components/organisms/UpgradeModal.vue'
 import LeaderboardModal from '@/components/organisms/LeaderboardModal.vue'
 import IconCoin from '@/components/icons/IconCoin.vue'
-import IconTrophy from '@/components/icons/IconTrophy.vue'
+import GameIcon from '@/components/icons/GameIcon.vue'
 
 /**
  * ─── The scene ──────────────────────────────────────────────────────────────
@@ -414,6 +416,17 @@ watch(bossGuarding, (now, before) => {
 
 // ─── Result flow ────────────────────────────────────────────────────────────
 
+/**
+ * The result screen's short-viewport tier — a landscape phone, or any embed
+ * under 500px tall.
+ *
+ * It exists because the two BUTTON rows cannot be sized in CSS from here: their
+ * metrics arrive as inline custom properties from `FButton`, which a stylesheet
+ * rule cannot outrank. Everything else on this screen is sized in `vmin` and
+ * needs no flag at all.
+ */
+const resultCompact = computed(() => isMobileLandscape.value || isShortViewport.value)
+
 const showResult = ref(false)
 const showOptions = ref(false)
 const showUpgrades = ref(false)
@@ -655,11 +668,14 @@ const openUpgrades = (): void => {
   }
 }
 
-// ─── CrazyGames gameplay lifecycle ──────────────────────────────────────────
+// ─── Portal gameplay lifecycle ──────────────────────────────────────────────
 //
-// The scene only reports whether play is live; `useCrazyGames` decides which
-// events that becomes, because WHICH events to send is a platform contract and
-// not a view concern.
+// The scene only reports whether play is live; `useGameplayLifecycle` decides
+// which events that becomes per platform, because WHICH events to send is a
+// platform contract and not a view concern. CrazyGames gets gameplayStart/Stop;
+// Poki gets the same pair through a guard that keeps consecutive events at
+// least 120 ms apart (its SDK disables monetization after 10 pairs closer than
+// 50 ms — see `pokiPlugin.ts`).
 const isLiveGameplay = computed(() =>
   (phase.value === 'run' || phase.value === 'boss')
   && !showResult.value
@@ -791,8 +807,9 @@ onUnmounted(() => {
         div.scene__wallet
           CoinBadge(ref="coinBadgeRef")
 
-      //- Control primer, centred under the top bar.
-      div.scene__hint
+      //- Control primer, centred under the top bar — except the guard primer,
+      //- which drops to mid-screen so it doesn't sit on the boss's shield.
+      div.scene__hint(:class="{ 'scene__hint--low': activeHint === 'guard' }")
         ControlHint(:hint="activeHint")
 
       //- First-run controls lightbox. Sits inside the HUD layer, which is
@@ -809,30 +826,30 @@ onUnmounted(() => {
           FHudButton(
             v-if="leaderboardEnabled"
             tone="slate"
+            icon="leaderboard"
             :aria-label="t('leaderboard.title')"
             @click="showLeaderboard = true"
           )
-            svg(viewBox="0 0 24 24" fill="currentColor")
-              path(d="M6 3h12v2h3v3a4 4 0 0 1-3.6 4A6 6 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1A6 6 0 0 1 6.6 12 4 4 0 0 1 3 8V5h3V3Zm0 4H5v1a2 2 0 0 0 1 1.7V7Zm12 2.7A2 2 0 0 0 19 8V7h-1v2.7Z")
           FHudButton(
             tone="slate"
+            icon="settings"
             :aria-label="t('options.title')"
             @click="showOptions = true"
           )
-            svg(viewBox="0 0 24 24" fill="currentColor")
-              path(d="M12 4 a1 1 0 0 1 1 1 v1.6 a6 6 0 0 1 1.8 0.7 l1.1 -1.1 a1 1 0 0 1 1.4 1.4 l -1.1 1.1 a6 6 0 0 1 0.7 1.8 H18 a1 1 0 1 1 0 2 h-1.6 a6 6 0 0 1 -0.7 1.8 l1.1 1.1 a1 1 0 0 1 -1.4 1.4 l-1.1 -1.1 a6 6 0 0 1 -1.8 0.7 V18 a1 1 0 1 1 -2 0 v -1.6 a6 6 0 0 1 -1.8 -0.7 l-1.1 1.1 a1 1 0 0 1 -1.4 -1.4 l1.1 -1.1 a6 6 0 0 1 -0.7 -1.8 H6 a1 1 0 1 1 0 -2 h1.6 a6 6 0 0 1 0.7 -1.8 L7.2 7.6 a1 1 0 0 1 1.4 -1.4 l1.1 1.1 a6 6 0 0 1 1.8 -0.7 V5 a1 1 0 0 1 1 -1 Z M12 9 a3 3 0 1 0 0 6 a3 3 0 0 0 0 -6 Z")
 
         div.scene__shop
           span.scene__spotlight(v-if="showShopSpotlight") {{ t('upgrades.spotlight') }}
+          //- The cart, not the old plus-with-sparkles. The result screen's
+          //- upgrade button is now a glyph too, and both open the same modal —
+          //- so they have to be the SAME glyph, or the second one has to be
+          //- learned all over again.
           FHudButton(
             tone="green"
+            icon="shop"
             :attention="showShopSpotlight"
             :aria-label="t('upgrades.title')"
             @click="openUpgrades"
           )
-            svg(viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round")
-              path(d="M12 3v18M3 12h18")
-              path(d="M6 6l1.5 1.5M18 6l-1.5 1.5M6 18l1.5-1.5M18 18l-1.5-1.5")
             template(#badge)
               FHudBadge(v-if="affordable > 0" tone="red") {{ affordable }}
 
@@ -852,35 +869,40 @@ onUnmounted(() => {
           //- game went easy on them takes the win away from them.
           span.result__relief(v-else-if="summary.relieved") {{ t('result.rallied') }}
 
-        div.result__stats
-          div.result__stat
-            span.result__stat-value {{ summary.peakSquad }}
-            span.result__stat-label {{ t('result.peakSquad') }}
-          div.result__stat
-            span.result__stat-value {{ summary.kills }}
-            span.result__stat-label {{ t('result.kills') }}
-
-        //- ── The rank is about OTHER PEOPLE, so it says so ──────────────────
+        //- ── Three chips on ONE line ───────────────────────────────────────
         //-
-        //- It used to be the third cell of the row above — a gold `#2` over the
-        //- words "of 2", between the squad and the kill count. Read cold, that
-        //- is three run statistics in a line, and the third one is a number the
-        //- run did not produce: nothing on the screen said "board", so `#2 of 2`
-        //- landed as a fact about the stage rather than a placing among players.
+        //- This was three stacked blocks — a two-cell stats row with the words
+        //- "Biggest squad" and "Kills" under the numbers, then a full-width
+        //- leaderboard plaque with the board NAMED on it. Together they cost
+        //- three rows and about a third of a landscape phone, and the German
+        //- caption ("GRÖSSTER TRUPP") was the widest thing on the screen.
         //-
-        //- Its own row, with the trophy in front of it and the board NAMED, is
-        //- what fixes that — and it is the only layout in which the word fits at
-        //- 320 px, which is why the cell moved rather than just gaining a label.
+        //- The glyphs carry it instead: a crowd, a skull and a trophy, which is
+        //- the same vocabulary the HUD strip already uses during the run — the
+        //- squad chip is literally the same glyph the player watched all stage.
+        //- The gold on the rank chip is what still says "this one is about other
+        //- people, not about your run"; the captions survive as screen-reader
+        //- text, which is the only place they were ever load-bearing.
         //-
-        //- The whole row disappears when the rank is unknown: an empty plaque is
+        //- The rank chip disappears when the rank is unknown: an empty plaque is
         //- a question the screen cannot answer.
-        div.result__rank(v-if="resultRank")
-          IconTrophy.result__rank-icon
-          span.result__rank-label {{ t('leaderboard.title') }}
-          span.result__rank-value {{ resultRank }}
-          //- Before the player count lands there is no "of N" to print, so the
-          //- generic word holds the slot rather than the number jumping later.
-          span.result__rank-of {{ playerTotal > 0 ? t('result.rankOf', { n: playerTotal }) : t('result.rankLabel') }}
+        div.result__chips
+          div.result__chip.is-squad
+            GameIcon.result__chip-icon(name="squad")
+            span.sr-only {{ t('result.peakSquad') }}
+            span.result__chip-value {{ summary.peakSquad }}
+          div.result__chip.is-kills
+            GameIcon.result__chip-icon(name="skull")
+            span.sr-only {{ t('result.kills') }}
+            span.result__chip-value {{ summary.kills }}
+          div.result__chip.is-rank(v-if="resultRank")
+            GameIcon.result__chip-icon(name="trophy")
+            span.sr-only {{ t('leaderboard.title') }}
+            span.result__chip-value {{ resultRank }}
+            //- Only once the player count has landed. Before that there is no
+            //- "of N" to print, and the word that used to hold the slot is now
+            //- said by the trophy.
+            span.result__chip-of(v-if="playerTotal > 0") {{ t('result.rankOf', { n: playerTotal }) }}
 
         div.result__coins(ref="rewardCoinRef")
           IconCoin(class="result__coin-icon")
@@ -890,7 +912,7 @@ onUnmounted(() => {
         //- it is the primary income of the game, not a footnote on the way out.
         FButton.result__reward(
           v-if="showRewardButton"
-          size="md"
+          :size="resultCompact ? 'sm' : 'md'"
           type="warning"
           :is-disabled="adInFlight"
           @click="onClaimReward"
@@ -908,14 +930,43 @@ onUnmounted(() => {
           IconCoin(class="result__claimed-icon")
           span {{ t('result.tripleClaimed') }}
 
+        //- ── Two glyphs where two captions used to be ──────────────────────
+        //-
+        //- "Nächstes Level" and "Upgrade" side by side were the widest row on
+        //- the screen and the first thing to wrap — a caption's width swings 2-3x
+        //- across the 21 locales this game ships, so the row had to be laid out
+        //- for the worst of them and was wrong in all the others. Two glyphs are
+        //- width-invariant: one layout, correct in every language.
+        //-
+        //- Both actions are conventional (a cart, and a skip/replay), both sit in
+        //- a cluster, and a wrong tap costs one tap to undo — which is the whole
+        //- test for whether a caption may become a glyph. The rewarded button
+        //- above keeps its words for the opposite reason: it carries a number.
+        //-
+        //- Forward action LAST and 25% larger, because once the captions are gone
+        //- the row is visually uniform and the one button that ends the screen
+        //- needs another way to be found. `emphasis` grows the real layout box,
+        //- so the row still gutters correctly around it.
         div.result__actions
           FButton(
-            size="md"
-            type="success"
+            icon-only
+            icon="shop"
+            :size="resultCompact ? 'sm' : 'md'"
+            type="secondary"
             :is-disabled="adInFlight"
+            :aria-label="t('result.upgrade')"
+            @click="onUpgradeFromResult"
+          )
+          FButton(
+            icon-only
+            :icon="summary.cleared ? 'skip-forward' : 'replay'"
+            :size="resultCompact ? 'sm' : 'md'"
+            type="success"
+            :emphasis="1.25"
+            :is-disabled="adInFlight"
+            :aria-label="summary.cleared ? t('result.nextStage') : t('result.tryAgain')"
             @click="summary.cleared ? onNext() : onRetry()"
-          ) {{ summary.cleared ? t('result.nextStage') : t('result.tryAgain') }}
-          FButton(size="md" type="secondary" :is-disabled="adInFlight" @click="onUpgradeFromResult") {{ t('result.upgrade') }}
+          )
 
     OptionsModal(:is-open="showOptions" @close="showOptions = false")
     UpgradeModal(v-model="showUpgrades")
@@ -967,6 +1018,20 @@ onUnmounted(() => {
   justify-content: center
   margin-top: clamp(0.35rem, 2vw, 0.7rem)
   padding-inline: 0.5rem
+
+// The guard primer is the one hint that fires while the boss is on screen, and
+// the boss's barrier — with its shield crest — is drawn exactly where this row
+// normally sits, so the toast landed on top of the crest at the single moment
+// both most need to be read.
+//
+// `margin-top: auto` against the `.scene__bottom` auto margin below splits the
+// free space evenly, parking the hint mid-screen: under the barrier, above the
+// crowd. Deliberately not a `vh` offset — the barrier's screen position moves
+// with the camera and the viewport, and a fixed nudge would only be correct on
+// the aspect ratio it was measured on. Doubled class so it also outranks the
+// landscape-phone `.scene__hint` override further down this file.
+.scene__hint.scene__hint--low
+  margin-top: auto
 
 // ─── Bottom bar ─────────────────────────────────────────────────────────────
 
@@ -1023,20 +1088,27 @@ onUnmounted(() => {
 
 // ─── Result screen ──────────────────────────────────────────────────────────
 
+// The ribbon caption is TYPED BY THE RIBBON, not by this screen: `FReward`
+// sizes it against the banner art's own width so it can never outgrow the
+// parchment. All this class does now is mark the slot content.
 .scene__ribbon
-  color: #fff
-  font-weight: 900
-  font-style: italic
-  text-transform: uppercase
-  font-size: clamp(0.8rem, 3.6vw, 1.4rem)
+  display: block
 
 .result
   display: flex
   flex-direction: column
   align-items: center
-  gap: clamp(0.4rem, 2vw, 0.9rem)
+  // Gaps measured in vh as well as vw: the axis this screen runs out of is the
+  // vertical one, and a gap ladder keyed only on width stays fat on a short
+  // landscape phone — which is exactly where it must not.
+  gap: clamp(0.3rem, 1.6vh, 0.85rem)
   width: 100%
   max-width: 26rem
+  // Room for the 3px depth plate under the bottom button row. A transformed
+  // descendant counts toward its ancestor's SCROLLABLE overflow, so without
+  // this the overlay's scroll container found itself 3px short of its own
+  // content and grew a scrollbar around a screen that fits perfectly.
+  padding-bottom: 3px
 
 .result__headline
   display: flex
@@ -1044,19 +1116,26 @@ onUnmounted(() => {
   align-items: center
   gap: 0.15rem
 
+// ─── Everything on this screen is typed in `vmin` ───────────────────────────
+//
+// `vw` was wrong here in one specific, common case: a landscape phone is ~667px
+// WIDE and 375px tall, so every `vw` term picked its maximum on the axis that
+// had room to spare while the axis that did not was the one deciding whether
+// the screen fitted. `vmin` keys the type to the short axis, which is the axis
+// this screen actually runs out of, in both orientations.
 .result__stage
   color: #fff
   font-weight: 900
   text-transform: uppercase
   text-align: center
-  font-size: clamp(1rem, 5vw, 1.9rem)
+  font-size: clamp(1rem, 5vmin, 1.9rem)
   text-shadow: 3px 3px 0 #000
 
 .result__record
   color: #ffd93c
   font-weight: 900
   text-transform: uppercase
-  font-size: clamp(0.65rem, 3vw, 0.95rem)
+  font-size: clamp(0.65rem, 3vmin, 0.95rem)
   text-shadow: 2px 2px 0 #000
   animation: spotlight-pulse 1.1s ease-in-out infinite
 
@@ -1064,78 +1143,65 @@ onUnmounted(() => {
   color: #8fd6ff
   font-weight: 900
   text-transform: uppercase
-  font-size: clamp(0.55rem, 2.6vw, 0.8rem)
+  font-size: clamp(0.55rem, 2.6vmin, 0.8rem)
   text-shadow: 2px 2px 0 #000
 
-.result__stats
-  display: flex
-  align-items: center
-  gap: clamp(0.8rem, 5vw, 1.8rem)
-
-.result__stat
-  display: flex
-  flex-direction: column
-  align-items: center
-
-.result__stat-value
-  color: #8fd6ff
-  font-weight: 900
-  font-size: clamp(1rem, 5vw, 1.6rem)
-  text-shadow: 2px 2px 0 #000
-
-.result__stat-label
-  color: #b9cbe8
-  text-transform: uppercase
-  font-size: clamp(0.5rem, 2.4vw, 0.7rem)
-
-// ─── The leaderboard plaque ──────────────────────────────────────────────────
+// ─── The stat chips ─────────────────────────────────────────────────────────
 //
-// Read as a PLAQUE and not as a third statistic: a boxed strip with a rule
-// around it, the trophy leading, the board named on the left and the placing
-// on the right. Everything on it wears the board's gold rather than the run's
-// blue, because none of it is a fact the run produced.
-.result__rank
+// Deliberately the same pill the run HUD wears — dark plate, hairline black
+// rule, glyph then number — so the numbers the player watched climb during the
+// stage are recognisably the same numbers when the stage ends.
+.result__chips
   display: flex
+  flex-wrap: wrap
   align-items: center
-  gap: 0.45rem
-  width: 100%
-  max-width: 16rem
-  padding: 0.3rem 0.7rem
-  border: 2px solid rgba(255, 217, 60, 0.45)
-  border-radius: 0.5rem
-  background: rgba(255, 217, 60, 0.09)
+  justify-content: center
+  gap: clamp(0.3rem, 1.6vmin, 0.55rem)
 
-.result__rank-icon
-  flex: none
-  width: clamp(0.85rem, 4vw, 1.15rem)
-  height: clamp(0.85rem, 4vw, 1.15rem)
-  color: #ffd93c
+.result__chip
+  display: inline-flex
+  align-items: baseline
+  gap: 0.3em
+  padding: clamp(0.15rem, 0.9vmin, 0.3rem) clamp(0.4rem, 2vmin, 0.7rem)
+  border: 2px solid rgba(0, 0, 0, 0.55)
+  border-radius: 999px
+  background-color: rgba(10, 16, 30, 0.72)
 
-.result__rank-label
-  // Takes the slack, so the placing is pinned to the right edge whatever the
-  // translation's length — "Bestenliste" and "排行榜" are the same layout here.
-  flex: 1 1 auto
-  min-width: 0
-  color: #ffd93c
+  &.is-squad
+    color: #8fd6ff
+  &.is-kills
+    color: #ff9a8f
+  // Gold, and a gold rule, because a placing is the one number on this screen
+  // that is not about the run — it is about the other players.
+  &.is-rank
+    color: #ffd93c
+    border-color: rgba(255, 217, 60, 0.45)
+    background-color: rgba(255, 217, 60, 0.1)
+
+// Nested rather than written flat, and that is load-bearing: `GameIcon`'s own
+// scoped rule is `.game-icon[data-v-…]` — one class plus one attribute, exactly
+// the same specificity a flat `.result__chip-icon[data-v-…]` would have. On a tie the
+// winner is whichever stylesheet the bundler happened to emit last. Nesting
+// adds the ancestor class and settles it.
+.result__chip .result__chip-icon
+  // `align-self` rather than `align-items: center` on the row: the numbers set
+  // the baseline, and a glyph hung off it sits where a capital letter would.
+  align-self: center
+  flex: 0 0 auto
+  width: clamp(0.85rem, 4vmin, 1.2rem)
+  height: clamp(0.85rem, 4vmin, 1.2rem)
+
+.result__chip-value
+  color: #fff
   font-weight: 900
-  text-transform: uppercase
-  font-size: clamp(0.5rem, 2.4vw, 0.7rem)
-  white-space: nowrap
-  overflow: hidden
-  text-overflow: ellipsis
-
-.result__rank-value
-  flex: none
-  color: #ffd93c
-  font-weight: 900
-  font-size: clamp(0.85rem, 4vw, 1.25rem)
+  font-size: clamp(0.85rem, 4.2vmin, 1.3rem)
+  line-height: 1
   text-shadow: 2px 2px 0 #000
 
-.result__rank-of
-  flex: none
+.result__chip-of
   color: #b9cbe8
   text-transform: uppercase
-  font-size: clamp(0.5rem, 2.4vw, 0.7rem)
+  font-size: clamp(0.5rem, 2.4vmin, 0.7rem)
 
 .result__coins
   display: flex
@@ -1177,12 +1243,12 @@ onUnmounted(() => {
   gap: 0.4rem
   color: #8fe9a6
   font-weight: 900
-  font-size: clamp(0.72rem, 3.2vw, 1rem)
+  font-size: clamp(0.72rem, 3.2vmin, 1rem)
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.75)
 
 .result__claimed-icon
-  width: clamp(1rem, 4.6vw, 1.4rem)
-  height: clamp(1rem, 4.6vw, 1.4rem)
+  width: clamp(1rem, 4.6vmin, 1.4rem)
+  height: clamp(1rem, 4.6vmin, 1.4rem)
   color: #ffd93c
 
 @keyframes reward-breathe
@@ -1192,22 +1258,25 @@ onUnmounted(() => {
     scale: 1.045
 
 .result__coin-icon
-  width: clamp(1.3rem, 6vw, 2rem)
-  height: clamp(1.3rem, 6vw, 2rem)
+  width: clamp(1.2rem, 5vmin, 1.8rem)
+  height: clamp(1.2rem, 5vmin, 1.8rem)
   color: #ffd93c
 
 .result__coin-value
   color: #ffd93c
   font-weight: 900
-  font-size: clamp(1.2rem, 6vw, 2.2rem)
+  font-size: clamp(1.1rem, 5vmin, 2rem)
+  line-height: 1.1
   text-shadow: 3px 3px 0 #000
 
 .result__actions
   display: flex
-  flex-wrap: wrap
+  // No `flex-wrap`. Two square glyph buttons cannot outgrow a 320px phone, so
+  // wrapping can only ever be a symptom now — and a wrapped action row is the
+  // exact failure this pass exists to remove.
   align-items: center
   justify-content: center
-  gap: clamp(0.35rem, 2vw, 0.75rem)
+  gap: clamp(0.5rem, 3vmin, 1rem)
   width: 100%
 
 // ─── Landscape phone ────────────────────────────────────────────────────────
@@ -1217,4 +1286,21 @@ onUnmounted(() => {
 @media (orientation: landscape) and (max-height: 30rem)
   .scene__hint
     margin-top: clamp(0.2rem, 1vw, 0.4rem)
+
+// ─── Short viewport: the result screen gives up its ornament ────────────────
+//
+// Everything that is decoration rather than information gets smaller or leaves.
+// The stage line and the coin total stay full size: they are the two things the
+// player actually came to this screen to read.
+@media (max-height: 34rem)
+  .result
+    gap: clamp(0.25rem, 1.2vh, 0.5rem)
+
+  .result__record, .result__relief
+    font-size: clamp(0.55rem, 2.4vmin, 0.72rem)
+
+  .result__reward
+    // The breathe is a 4.5% scale on a control that is now one row above the
+    // action buttons. On a short screen that is close enough to touch them.
+    animation: none
 </style>

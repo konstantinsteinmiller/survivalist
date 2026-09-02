@@ -10,6 +10,19 @@ export default {
   'tip': 'सुझाव',
   'crazyGamesOnly': 'यह गेम केवल यहाँ उपलब्ध है:',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': 'आगे',
+    'replay': 'दोबारा',
+    'back': 'पीछे',
+    'play': 'खेलें',
+    'pause': 'रोकें',
+    'menu': 'मेन्यू',
+    'home': 'होम',
+    'info': 'जानकारी'
+  },
+
   'hud': {
     'stage': 'चरण {n}',
     'best': 'सर्वश्रेष्ठ {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': 'अगला चरण',
     'tryAgain': 'फिर कोशिश करें',
     'upgrade': 'अपग्रेड',
-    'rankLabel': 'रैंक',
     'rankOf': '{n} में से'
   },
 

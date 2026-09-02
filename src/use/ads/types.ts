@@ -84,7 +84,14 @@ export interface AdProvider {
    */
   readonly managesMidgameAudio?: boolean
   init: () => Promise<void>
-  showRewardedAd: () => Promise<boolean>
+  /**
+   * Show a rewarded video. Resolves `true` only if it played all the way
+   * through. `onImpression` is invoked the moment the ad actually OPENS —
+   * `useAds` uses it to tell a real video apart from a request that went
+   * nowhere, so its stuck-ad cap can release the game without cutting a
+   * legitimate ad short. Providers with no open signal may ignore it.
+   */
+  showRewardedAd: (onImpression?: () => void) => Promise<boolean>
   /**
    * Show a midgame interstitial. Resolves when it finished / errored; never
    * rejects. `onImpression` is invoked the moment the ad actually opens —

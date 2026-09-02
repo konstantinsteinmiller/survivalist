@@ -10,6 +10,19 @@ export default {
   'tip': '팁',
   'crazyGamesOnly': '이 게임은 다음에서만 이용할 수 있습니다:',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': '다음',
+    'replay': '다시하기',
+    'back': '뒤로',
+    'play': '플레이',
+    'pause': '일시정지',
+    'menu': '메뉴',
+    'home': '홈',
+    'info': '정보'
+  },
+
   'hud': {
     'stage': '스테이지 {n}',
     'best': '최고 {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': '다음 스테이지',
     'tryAgain': '다시 시도',
     'upgrade': '업그레이드',
-    'rankLabel': '순위',
     'rankOf': '{n}명 중'
   },
 

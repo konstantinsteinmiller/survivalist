@@ -238,20 +238,58 @@ const bakeFrame = (o: Outfit, i: number): HTMLCanvasElement => {
   return c
 }
 
+/** Wall-clock budget for one bake slice, in ms. */
+const SLICE_MS = 6
+/**
+ * Frames baked per slice even when the budget is already spent.
+ *
+ * This constant is the whole fix for a real bug. The loop used to run
+ * `while ((deadline?.timeRemaining() ?? 0) > 8)`, which looks like a sensible
+ * idle-time budget and is a trap: when `requestIdleCallback` fires because its
+ * TIMEOUT expired — which is what happens on a busy main thread, i.e. a
+ * mid-range phone running this game — the spec says `timeRemaining()` returns
+ * ZERO. So the loop baked exactly one frame per callback and re-armed. At
+ * 3 outfits x 14 frames that is 42 timeouts: the crowd rendered as fallback
+ * capsules for the better part of a minute, and only on devices that never get
+ * idle slices. Desktop Chrome has idle time between frames, bakes the whole set
+ * in one or two callbacks, and shows nothing wrong.
+ *
+ * So the slice is measured on the wall clock, and a minimum number of frames is
+ * baked unconditionally — a timed-out callback must still make real progress.
+ */
+const MIN_PER_SLICE = 4
+
+const nowMs = (): number =>
+  (typeof performance !== 'undefined' && typeof performance.now === 'function')
+    ? performance.now()
+    : Date.now()
+
 const pump = (deadline?: IdleTime): void => {
   scheduled = false
-  do {
+  const started = nowMs()
+  let baked = 0
+
+  for (;;) {
     if (!building) {
       const next = queue.shift()
       if (!next) return
       building = { o: next, frames: [] }
     }
     building.frames.push(bakeFrame(building.o, building.frames.length))
+    baked++
     if (building.frames.length >= FRAMES) {
       CACHE.set(building.o.id, building.frames)
       building = null
     }
-  } while ((deadline?.timeRemaining() ?? 0) > 8)
+
+    if (queue.length === 0 && !building) break
+    // Always bake the minimum, then keep going only while there is genuine idle
+    // time OR the wall-clock slice still has room.
+    if (baked < MIN_PER_SLICE) continue
+    if ((deadline?.timeRemaining() ?? 0) > 8) continue
+    if (nowMs() - started < SLICE_MS) continue
+    break
+  }
   schedule()
 }
 
@@ -260,7 +298,9 @@ const schedule = (): void => {
   scheduled = true
   const ric = (globalThis as { requestIdleCallback?: (cb: (d: IdleTime) => void, o?: { timeout: number }) => void })
     .requestIdleCallback
-  if (typeof ric === 'function') ric(pump, { timeout: 1200 })
+  // A SHORT timeout on purpose: on a main thread with no idle slices this is
+  // the only cadence the bake gets, so it sets the worst-case finish time.
+  if (typeof ric === 'function') ric(pump, { timeout: 300 })
   else setTimeout(() => pump(), 0)
 }
 
@@ -271,6 +311,51 @@ export const primeSurvivors = (): void => {
     queue.push(o)
   }
   schedule()
+}
+
+/**
+ * Bake synchronously for up to `budgetMs`, then hand control back.
+ *
+ * For the LOADING SCREEN only. While the splash is up nothing else is animating,
+ * so a fat slice is invisible — and it removes the bake's dependency on
+ * `requestIdleCallback` cadence entirely, which is what makes the wait bounded by
+ * CPU rather than by however rarely the browser hands out idle slots. Without it
+ * a device that never goes idle bakes at the callback timeout's rate, and the
+ * loader would sit on its cap instead of finishing.
+ *
+ * Do NOT call this once gameplay is running: that is what the sliced, idle-driven
+ * `pump` is for.
+ */
+export const bakeSurvivorSlice = (budgetMs = 8): void => {
+  const started = nowMs()
+  while (queue.length > 0 || building) {
+    if (!building) {
+      const next = queue.shift()
+      if (!next) return
+      building = { o: next, frames: [] }
+    }
+    building.frames.push(bakeFrame(building.o, building.frames.length))
+    if (building.frames.length >= FRAMES) {
+      CACHE.set(building.o.id, building.frames)
+      building = null
+    }
+    if (nowMs() - started >= budgetMs) return
+  }
+}
+
+/** True once every outfit's strip is baked — i.e. `survivorFrame` can no longer
+ *  return null for a live unit and the crowd will never draw as capsules. The
+ *  splash waits on this: the survivors are the only art on screen at t=0. */
+export const survivorsReady = (): boolean => OUTFITS.every((o) => CACHE.has(o.id))
+
+/** 0..1 across every outfit's strip, for the loading bar. */
+export const survivorBakeProgress01 = (): number => {
+  const total = OUTFITS.length * FRAMES
+  if (total === 0) return 1
+  let done = 0
+  for (const o of OUTFITS) done += CACHE.get(o.id)?.length ?? 0
+  if (building) done += building.frames.length
+  return Math.min(1, done / total)
 }
 
 /** The frame for an outfit at a normalised stride position, or `null` while it

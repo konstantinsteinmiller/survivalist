@@ -2,44 +2,35 @@
   Transition(name="splash-fade")
     div.splash-backdrop.no-os-ui(v-if="!backdropHidden")
 
-  //- Logo only renders during the loading sequence. Once `done` flips
-  //- true (progress = 100% OR the 4s fallback fires), the logo fades out
-  //- and unmounts — it deliberately does NOT shrink to the top-left
-  //- corner like the previous splash flow.
-  Transition(name="logo-fade")
+  //- The loading read-out only renders during the loading sequence. Once `done`
+  //- flips true (progress = 100% OR the 4s fallback fires) it fades out and
+  //- unmounts — it deliberately does NOT shrink to the top-left corner like the
+  //- previous splash flow.
+  //-
+  //- There is no logo here. The one that used to sit above the percentage was
+  //- Tower Siege's, carried over with the splash flow; a wrong wordmark is worse
+  //- branding than none, and dropping it also takes a decoded bitmap off the
+  //- boot critical path.
+  Transition(name="loader-fade")
     div.no-os-ui(
       v-if="!done"
-      ref="logoRef"
       class="fixed z-[200] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
     )
-      div(class="relative flex flex-col items-center")
-        div(:style="sizeStyle")
-          img(
-            :src="logoSrc"
-            alt="survivalist"
-            class="w-full h-full object-contain"
-            draggable="false"
-          )
-
-        //- Loading Text
-        div.absolute.-bottom-8(class="mt-0 flex flex-col items-center gap-1")
-          span(class="percentage-text text-shadow text-amber-500") {{ Math.round(progress) }}%
+      div(class="relative flex flex-col items-center gap-2")
+        span(class="percentage-text text-shadow text-amber-500") {{ Math.round(progress) }}%
 
         Transition(name="hint-fade")
-          div.stuck-hint.mt-4(v-if="showStuckHint") {{ t('loading.tooLong') }}
+          div.stuck-hint(v-if="showStuckHint") {{ t('loading.tooLong') }}
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import useAssets from '@/use/useAssets'
-import { prependBaseUrl } from '@/utils/function'
 import { stopLoading } from '@/use/useCrazyGames'
 import { armFirstLoadInterstitial, notifySplashGone } from '@/use/useFirstLoadInterstitial'
 
 const { t } = useI18n()
-
-const logoSrc = prependBaseUrl('images/logo/logo_256x256.webp')
 
 const { loadingProgress, preloadAssets } = useAssets()
 const progress = computed(() => loadingProgress.value)
@@ -64,44 +55,35 @@ const backdropHidden = ref(false)
 const showStuckHint = ref(false)
 let stuckHintId: number | null = null
 
-const viewportSize = ref(Math.min(window.innerWidth, window.innerHeight))
-const logoRef = ref<HTMLElement | null>(null)
-
-const onResize = () => {
-  viewportSize.value = Math.min(window.innerWidth, window.innerHeight)
-}
-
 let settleFallbackId: number | null = null
 
 onMounted(() => {
-  window.addEventListener('resize', onResize)
-
   const staticSplash = document.getElementById('static-splash')
   if (staticSplash) {
     staticSplash.classList.add('hidden')
     setTimeout(() => staticSplash.remove(), 500)
   }
 
-  // Hard fallback so the splash always clears, even if the asset loader
-  // never reports 100% (offline / blocked images / dropped requests).
+  // Hard fallback so the splash always clears, even if the asset loader never
+  // reports 100% (offline / blocked images / dropped requests).
+  //
+  // Raised from 4 s: the loader now also waits for the survivor sprite strips to
+  // bake (see `useAssets.preloadAssets`), and on the low-idle devices that wait
+  // exists for, 4 s could fire FIRST — dropping the splash right back into the
+  // capsule crowd it is there to prevent. `useAssets` bounds its own wait at
+  // 6 s, so this sits past that and is a true last resort rather than the normal
+  // exit. The hint moves earlier so a slow load says something before then.
   settleFallbackId = window.setTimeout(() => {
     if (!done.value) done.value = true
-  }, 4000)
+  }, 8000)
   stuckHintId = window.setTimeout(() => {
     if (!done.value) showStuckHint.value = true
-  }, 10000)
+  }, 5000)
 })
 onUnmounted(() => {
-  window.removeEventListener('resize', onResize)
   if (settleFallbackId !== null) clearTimeout(settleFallbackId)
   if (stuckHintId !== null) clearTimeout(stuckHintId)
 })
-
-const centeredSize = computed(() => Math.floor(viewportSize.value * 0.4))
-const sizeStyle = computed(() => ({
-  width: `${centeredSize.value}px`,
-  height: `${centeredSize.value}px`
-}))
 
 // `immediate: true` fires the handler with the current value the moment
 // the watcher is set up. Without it, an asset loader that already reports
@@ -167,6 +149,26 @@ const signalGameReadyToGamepix = () => {
 // internally so re-triggering is harmless. Same `import.meta.env` literal
 // pattern as the platform branches above so non-Yandex builds DCE the
 // dynamic-import entirely.
+// Poki's `gameLoadingFinished()` is the ONE strictly-required SDK call — fire it
+// on the same splash-resolved edge as CG / Playgama / GamePix / Yandex. There is
+// no progress counterpart to pair it with: `gameLoadingStart()` and
+// `gameLoadingProgress()` are both `() => {}` in the shipped v2 core, so the
+// loading bar above is ours alone to drive. The plugin guards the call
+// internally so re-triggering is harmless. Same `import.meta.env` literal
+// pattern as the branches above so non-Poki builds DCE the dynamic import (this
+// component IS in the obfuscator's exclude list, which is what makes a dynamic
+// `'@/…'` specifier safe here).
+let pokiLoadSignaled = false
+const signalGameReadyToPoki = () => {
+  if (pokiLoadSignaled) return
+  if (import.meta.env.VITE_APP_POKI !== 'true') return
+  pokiLoadSignaled = true
+  void import('@/utils/pokiPlugin').then(({ pokiGameLoadingFinished }) => {
+    try { pokiGameLoadingFinished() }
+    catch (e) { console.warn('[FLogoProgress] Poki gameLoadingFinished failed', e) }
+  })
+}
+
 let yandexLoadSignaled = false
 const signalGameReadyToYandex = () => {
   if (yandexLoadSignaled) return
@@ -186,6 +188,7 @@ watch(done, (isDone) => {
       signalGameReadyToPlaygama()
       signalGameReadyToGamepix()
       signalGameReadyToYandex()
+      signalGameReadyToPoki()
       // Triggers the GamePix first-load interstitial (no-op on other builds
       // — the orchestrator was never armed). GD / GameMonetize used to share
       // this fire but were removed above; their first-load ad is gone, the
@@ -229,11 +232,11 @@ watch(done, (isDone) => {
 .splash-fade-leave-to
   opacity: 0
 
-.logo-fade-leave-active
+.loader-fade-leave-active
   transition: opacity 0.35s ease-out, transform 0.35s ease-out
   pointer-events: none
 
-.logo-fade-leave-to
+.loader-fade-leave-to
   opacity: 0
   transform: translate(-50%, -50%) scale(0.85)
 

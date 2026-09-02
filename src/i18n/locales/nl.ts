@@ -10,6 +10,19 @@ export default {
   'tip': 'Tip',
   'crazyGamesOnly': 'Dit spel is alleen beschikbaar op',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': 'Volgende',
+    'replay': 'Opnieuw',
+    'back': 'Terug',
+    'play': 'Spelen',
+    'pause': 'Pauze',
+    'menu': 'Menu',
+    'home': 'Start',
+    'info': 'Info'
+  },
+
   'hud': {
     'stage': 'Level {n}',
     'best': 'Record {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': 'Volgend level',
     'tryAgain': 'Opnieuw',
     'upgrade': 'Upgraden',
-    'rankLabel': 'Plaats',
     'rankOf': 'van {n}'
   },
 

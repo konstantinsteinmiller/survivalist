@@ -1,5 +1,12 @@
 import { ref } from 'vue'
 import { prependBaseUrl } from '@/utils/function'
+import {
+  primeSurvivors, survivorsReady, survivorBakeProgress01, bakeSurvivorSlice
+} from '@/game/heroSprites'
+import {
+  primeMonsterSprites, monstersReady, monsterBakeProgress01, bakeMonsterSlice
+} from '@/game/monsterSprites'
+import { allFoeDesigns } from '@/game/foes'
 
 // Survivalist draws all gameplay art programmatically (Canvas 2D) and uses
 // inline SVG for HUD icons, so the preloader only has to decode two pieces of
@@ -207,13 +214,33 @@ export const loadAudioBuffer = async (src: string): Promise<AudioBuffer | null> 
   return promise
 }
 
+/**
+ * How long the splash may wait on the survivor strips before giving up and
+ * letting the player in anyway.
+ *
+ * A ceiling, not a target: with the bake-slice fix in `heroSprites.ts` the whole
+ * set lands in well under a second even on a thread with no idle time. But a
+ * loading screen that can hang forever is a worse bug than a crowd of capsules,
+ * so the wait is bounded — and the fallback path is exactly the old behaviour.
+ */
+const SPRITE_BAKE_TIMEOUT_MS = 6000
+
+/** Share of the loading bar given to image decodes; the rest is the sprite
+ *  bake. The images are one file and the bake is hundreds of canvases, so the
+ *  bar spends most of its life where the time actually goes. */
+const IMAGE_SHARE = 0.1
+/** Of the bake, the share given to the survivor strips. The foe cast is far
+ *  bigger (13 designs x 16 frames against 3 x 14) and its frames are dearer, so
+ *  it owns most of the bar. */
+const SURVIVOR_SHARE = 0.25
+
 // ─── Critical image preload ────────────────────────────────────────────
 // The only bitmaps on the critical path are UI chrome. Gameplay art is
 // procedural, so there is nothing else to block first paint on.
 const CRITICAL_IMAGE_SRCS: ReadonlyArray<string> = [
-  // Splash logo — decoded before the splash mounts so FLogoProgress never
-  // paints a blank box on the first frame.
-  '/images/logo/logo_256x256.webp',
+  // The splash logo used to be decoded here so FLogoProgress never painted a
+  // blank box. That logo was Tower Siege's and has been removed, so the splash
+  // is now text-only and there is nothing to pre-decode for it.
   // Result-screen ribbon. Small, and needed the moment a siege ends.
   '/images/bg/parchment-ribbon_553x188.webp'
 ]
@@ -259,8 +286,8 @@ export default () => {
   const preloadAssets = async (): Promise<void> => {
     // ── HOT PATH ──
     // Survivalist has NO gameplay bitmaps: blocks, enemies, projectiles and the
-    // whole background are drawn from code. The only critical images are the
-    // splash logo and the result-screen ribbon, and the renderer chunk itself.
+    // whole background are drawn from code. The only critical image left is the
+    // result-screen ribbon (the splash is text-only now), plus the renderer chunk.
     //
     // So the "loading" phase is effectively just the JS parse, which is exactly
     // the fast-start behaviour portals grade on. Everything else (SFX decode,
@@ -268,17 +295,38 @@ export default () => {
     loadingProgress.value = 0
     areAllAssetsLoaded.value = false
 
+    // ── Step 1: the critical bitmaps ──
     const tasks = CRITICAL_IMAGE_SRCS.map(decodeImage)
     let done = 0
     for (const task of tasks) {
       task.then(() => {
         done += 1
-        loadingProgress.value = Math.round((done / tasks.length) * 100)
+        loadingProgress.value = Math.round((done / tasks.length) * IMAGE_SHARE * 100)
       })
     }
     // `allSettled` swallows individual failures so a 404 on one bitmap can
     // never strand the splash screen.
     await Promise.allSettled(tasks)
+    loadingProgress.value = Math.round(IMAGE_SHARE * 100)
+
+    // ── Step 2: the survivor sprite strips ──
+    //
+    // These are ESSENTIAL, and they are the reason this step exists. They are
+    // procedural — baked into offscreen canvases at runtime, not downloaded —
+    // so nothing in the network waterfall covers them, and `drawUnits` falls
+    // back to plain coloured capsules for any unit whose strip is not ready yet.
+    // The splash used to clear the moment two bitmaps had decoded, which on a
+    // device with no idle time meant the player watched capsules run the lane
+    // for the first stage. Now the loading screen owns the wait.
+    //
+    // `primeSurvivors()` is called HERE rather than only from the draw loop
+    // (`useSurvivalArt`) on purpose: the draw loop does not run until the scene
+    // mounts, so gating the splash on a bake that only the scene kicks off would
+    // deadlock the loading screen.
+    primeSurvivors()
+    primeMonsterSprites(foeDesigns())
+    await waitForSpriteStrips()
+
     loadingProgress.value = 100
     areAllAssetsLoaded.value = true
     scheduleBackgroundWarmup()
@@ -290,6 +338,63 @@ export default () => {
     preloadAssets,
     resourceCache
   }
+}
+
+/** The foe + boss designs the renderer will ask for. Cached: the list is static
+ *  and `allFoeDesigns()` allocates a Set and an array on every call. */
+let foeDesignCache: string[] | null = null
+const foeDesigns = (): string[] => (foeDesignCache ??= allFoeDesigns())
+
+/**
+ * Wait for the sprite strips to bake, feeding the loading bar as they go.
+ *
+ * BOTH casts are waited on, and both for the same reason. A survivor whose strip
+ * is missing draws as a coloured capsule and a foe draws as a dark red ellipse —
+ * the two fallbacks players reported. They are procedural, baked into offscreen
+ * canvases at runtime, so no network waterfall covers them and nothing else in
+ * this function would ever have waited for them.
+ *
+ * Resolves early when everything is already cached (a second run), and always
+ * resolves within `SPRITE_BAKE_TIMEOUT_MS` — a loading screen that can hang
+ * forever is a worse bug than a fallback shape.
+ *
+ * Polls rather than subscribing: the bake is driven by `requestIdleCallback`
+ * slices with no completion event to hang a listener on, and a 60 ms poll over
+ * roughly a second is cheaper than the machinery to avoid it.
+ */
+const waitForSpriteStrips = async (): Promise<void> => {
+  const ids = foeDesigns()
+  const ready = (): boolean => survivorsReady() && monstersReady(ids)
+  if (ready()) return
+
+  const deadline = Date.now() + SPRITE_BAKE_TIMEOUT_MS
+  while (!ready() && Date.now() < deadline) {
+    // Drive the bake directly rather than waiting on idle slots. The splash is
+    // up, so nothing else is animating and these slices cost nothing visible —
+    // and it is what stops a device that never goes idle from sitting here until
+    // the cap expires. The idle-driven pump keeps ownership after this returns.
+    bakeSurvivorSlice(6)
+    bakeMonsterSlice(10)
+    const baked = SURVIVOR_SHARE * survivorBakeProgress01()
+      + (1 - SURVIVOR_SHARE) * monsterBakeProgress01(ids)
+    loadingProgress.value = Math.round((IMAGE_SHARE + (1 - IMAGE_SHARE) * baked) * 100)
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  }
+}
+
+// Dev-only probe, same pattern as `__audioDebug` / `__testInterstitial` in
+// `useAds`. Lets a cross-browser harness assert that the survivor strips really
+// baked in THAT engine, rather than inferring it from a screenshot. Gated on
+// `import.meta.env.DEV`, so it is dead-code-eliminated from every platform build.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  ;(window as unknown as Record<string, unknown>).__assetDebug = () => ({
+    loadingProgress: loadingProgress.value,
+    areAllAssetsLoaded: areAllAssetsLoaded.value,
+    survivorsReady: survivorsReady(),
+    survivorBake01: survivorBakeProgress01(),
+    monstersReady: monstersReady(foeDesigns()),
+    monsterBake01: monsterBakeProgress01(foeDesigns())
+  })
 }
 
 /** Schedule the off-hot-path warm-up on the first idle slot (rIC), falling back

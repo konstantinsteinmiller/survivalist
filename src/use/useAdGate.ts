@@ -20,13 +20,33 @@ import { adProviderName, isRewardedReady, showRewardedAd } from '@/use/useAds'
  * The rule is now the honest one: is a real provider resolved?
  *
  *   • any real provider  → gated, the video plays.
- *   • CG PRE-release     → NOT gated. It is a QA artefact with no inventory,
- *                          so a gate there is untestable by construction.
+ *   • CG PRE-release     → NOT gated, and nothing is OFFERED either. See
+ *                          `isCrazyPreRelease` below.
  *   • noop (local dev,
  *     plain web, itch…)  → not gated, perks are free.
  */
 export const isRewardGated =
   adProviderName !== 'noop' && (!isCrazyWeb || isCrazyGamesFullRelease)
+
+/**
+ * The CrazyGames PRE-release build — `VITE_APP_CRAZY_WEB=true` with
+ * `VITE_APP_CRAZY_GAMES_FULL_RELEASE=false`. This is the build CG's reviewers
+ * play before approval, and it has NO ad inventory: `requestAd` resolves without
+ * ever showing a video.
+ *
+ * That leaves a rewarded surface with two possible behaviours, and both are QA
+ * findings. Gated, the player taps a button marked with a film-frame icon and no
+ * video plays. Ungated — which is what `isRewardGated` above resolves to here —
+ * the ×3 pays out for free, so the reviewer sees the game hand over its entire
+ * run income for a button press.
+ *
+ * So on this build the offer is not made at all: `canOfferReward` is false, the
+ * result screen never renders the button, `rewardWasOffered` stays false (so
+ * leaving the screen is not recorded as a decline — the player declined
+ * nothing), and `claimReward` refuses outright. Build-time constants, so Rollup
+ * folds the whole branch away on every other build.
+ */
+const isCrazyPreRelease = isCrazyWeb && !isCrazyGamesFullRelease
 
 // ─── Rewarded rate limit ────────────────────────────────────────────────────
 //
@@ -97,6 +117,9 @@ export const __resetRewardWindow = (): void => {
  * is not a limit.
  */
 export const claimReward = async (grant: () => void): Promise<boolean> => {
+  // Belt and braces: the button is not rendered on a CG pre-release build, but a
+  // free ×3 must not be reachable by any other route either.
+  if (isCrazyPreRelease) return false
   if (!isRewardGated) {
     grant()
     return true
@@ -120,6 +143,7 @@ export const adInFlight = ref(false)
 /**
  * Can this perk be offered right now?
  *
+ * On a CG pre-release build: never — there is no inventory to offer against.
  * On an ungated build: always. On a gated build: only when the provider
  * actually has a rewarded ad ready AND the player has rewarded allowance left
  * in the current window. Offering a button that then fails reads as the game
@@ -127,7 +151,7 @@ export const adInFlight = ref(false)
  * no-fill.
  */
 export const canOfferReward = computed(
-  () => !isRewardGated || (isRewardedReady.value && !isRewardRateLimited())
+  () => !isCrazyPreRelease && (!isRewardGated || (isRewardedReady.value && !isRewardRateLimited()))
 )
 
 // ─── Interstitial pacing ────────────────────────────────────────────────────

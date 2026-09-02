@@ -10,6 +10,19 @@ export default {
   'tip': 'Consejo',
   'crazyGamesOnly': 'Este juego solo está disponible en',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': 'Siguiente',
+    'replay': 'Repetir',
+    'back': 'Atrás',
+    'play': 'Jugar',
+    'pause': 'Pausa',
+    'menu': 'Menú',
+    'home': 'Inicio',
+    'info': 'Info'
+  },
+
   'hud': {
     'stage': 'Nivel {n}',
     'best': 'Récord {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': 'Siguiente nivel',
     'tryAgain': 'Reintentar',
     'upgrade': 'Mejorar',
-    'rankLabel': 'Puesto',
     'rankOf': 'de {n}'
   },
 

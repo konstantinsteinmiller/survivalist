@@ -10,6 +10,19 @@ export default {
   'tip': 'เคล็ดลับ',
   'crazyGamesOnly': 'เกมนี้เล่นได้เฉพาะบน',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': 'ถัดไป',
+    'replay': 'เล่นใหม่',
+    'back': 'ย้อนกลับ',
+    'play': 'เล่น',
+    'pause': 'หยุดชั่วคราว',
+    'menu': 'เมนู',
+    'home': 'หน้าหลัก',
+    'info': 'ข้อมูล'
+  },
+
   'hud': {
     'stage': 'ด่าน {n}',
     'best': 'สถิติ {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': 'ด่านถัดไป',
     'tryAgain': 'ลองอีกครั้ง',
     'upgrade': 'อัปเกรด',
-    'rankLabel': 'อันดับ',
     'rankOf': 'จาก {n}'
   },
 

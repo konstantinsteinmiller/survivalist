@@ -10,6 +10,19 @@ export default {
   'tip': 'İpucu',
   'crazyGamesOnly': 'Bu oyun yalnızca şurada mevcut:',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': 'İleri',
+    'replay': 'Tekrar',
+    'back': 'Geri',
+    'play': 'Oyna',
+    'pause': 'Duraklat',
+    'menu': 'Menü',
+    'home': 'Ana ekran',
+    'info': 'Bilgi'
+  },
+
   'hud': {
     'stage': 'Bölüm {n}',
     'best': 'Rekor {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': 'Sonraki bölüm',
     'tryAgain': 'Tekrar dene',
     'upgrade': 'Geliştir',
-    'rankLabel': 'Sıra',
     'rankOf': '{n} içinde'
   },
 

@@ -10,6 +10,19 @@ export default {
   'tip': 'Maslahat',
   'crazyGamesOnly': 'Bu o‘yin faqat quyidagi joyda mavjud:',
 
+  // Shared UI labels. NOT dead keys: they are the `aria-label` on the game's
+  // icon-only buttons, read aloud rather than shown. See `en.ts`.
+  'ui': {
+    'next': 'Keyingi',
+    'replay': 'Qayta',
+    'back': 'Orqaga',
+    'play': 'Oʻynash',
+    'pause': 'Pauza',
+    'menu': 'Menyu',
+    'home': 'Bosh sahifa',
+    'info': 'Maʼlumot'
+  },
+
   'hud': {
     'stage': '{n}-bosqich',
     'best': 'Rekord {n}',
@@ -47,7 +60,6 @@ export default {
     'nextStage': 'Keyingi bosqich',
     'tryAgain': 'Qayta urinish',
     'upgrade': 'Yaxshilash',
-    'rankLabel': 'O‘rin',
     'rankOf': '{n} dan'
   },
 
