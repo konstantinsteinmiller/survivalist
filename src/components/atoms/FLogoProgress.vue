@@ -1,6 +1,10 @@
 <template lang="pug">
   Transition(name="splash-fade")
     div.splash-backdrop.no-os-ui(v-if="!backdropHidden")
+      //- The panning tile — the same layer the static splash draws, on the
+      //- same clock (see `adoptAnimationClock`), so it keeps drifting through
+      //- the handover instead of jumping back to where it started.
+      div.backdrop-tiles(ref="tilesEl" :style="tileStyle" aria-hidden="true")
 
   //- The loading read-out only renders during the loading sequence. Once `done`
   //- flips true (progress = 100% OR the 8s fallback fires) it fades out and
@@ -104,6 +108,18 @@ const LAUGH_MS = 3200
 
 const wispEl = ref<HTMLElement | null>(null)
 const stripEl = ref<HTMLElement | null>(null)
+const tilesEl = ref<HTMLElement | null>(null)
+
+/**
+ * The backdrop tile, by URL rather than as a bundled import.
+ *
+ * It lives in `public/` because the static splash in `index.html` names it
+ * too, and by the time this component mounts the browser has already fetched
+ * and decoded it for that layer — so the layer taking over here is drawn from
+ * the cache in its first frame. Generated from the game's own paintings by
+ * `pnpm art:bg-tile`.
+ */
+const tileStyle = { backgroundImage: `url(${prependBaseUrl('images/bg/bg-tile_800x800.webp')})` }
 
 /**
  * Hand the static splash's ghost animations over to this one, mid-stride.
@@ -207,6 +223,9 @@ onMounted(() => {
     // window's float and the strip's frame cycle.
     adoptAnimationClock(staticSplash.querySelector('.splash-wisp'), wispEl.value)
     adoptAnimationClock(staticSplash.querySelector('.splash-wisp img'), stripEl.value)
+    // The tile, too: a layer starting its drift from zero would show the
+    // pattern doubled and sliding against itself through the crossfade.
+    adoptAnimationClock(staticSplash.querySelector('.splash-tiles'), tilesEl.value)
     staticSplash.classList.add('hidden')
     setTimeout(() => staticSplash.remove(), 500)
   }
@@ -621,14 +640,50 @@ $greet-w: clamp(200px, 58vmin, 340px)
     to
       opacity: 1
 
+// --- The backdrop -----------------------------------------------------------
+//
+// The same ground, tile and drift as the inline splash in index.html — read
+// the long comment on `.splash-tiles` there. Change one, change both
+// (`tests/ui/splashTiles.test.ts` holds them to it).
+
+$tile: 400px
+
 .splash-backdrop
   position: fixed
   inset: 0
   z-index: 150
+  // The tile layer is one tile bigger than the screen; without this it would
+  // hand the page a scrollbar.
+  overflow: hidden
   // Matches the inline splash in index.html AND the scene's sky, so the
   // handover from static HTML → Vue splash → canvas is one continuous colour
   // with no flash between the three.
   background: radial-gradient(circle at 50% 38%, #1b2b52 0%, #0a1224 70%)
+
+.backdrop-tiles
+  position: absolute
+  top: -$tile
+  left: -$tile
+  right: 0
+  bottom: 0
+  background-position: 0 0
+  background-size: $tile $tile
+  background-repeat: repeat
+  opacity: 0.16
+  will-change: transform
+  animation: backdrop-tiles-in 0.6s ease-out both, backdrop-tiles-pan 40s linear infinite
+
+@keyframes backdrop-tiles-in
+  from
+    opacity: 0
+
+@keyframes backdrop-tiles-pan
+  to
+    transform: translate3d($tile, $tile, 0)
+
+@media (prefers-reduced-motion: reduce)
+  .backdrop-tiles
+    animation: none
 
 .splash-fade-leave-active
   transition: opacity 0.4s ease-out

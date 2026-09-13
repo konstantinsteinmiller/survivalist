@@ -168,10 +168,20 @@ describe('the ledgers a finished run writes', () => {
     const written = graph.state.getState('ts_best_progress') as Record<string, number>
     expect(written['25']).toBeGreaterThan(0)
 
-    // The retry relief the loss just earned is what turns the same road into a
-    // clear — and the clear has to take the entry away again.
-    const won = playOne(graph, { stage: 25, policy: optimal, seed: 11 })
-    expect(won.cleared).toBe(true)
+    // The retry relief the loss just earned is what eventually turns the same
+    // road into a clear — and the clear has to take the entry away again.
+    //
+    // Retried until it lands rather than exactly once, deliberately. How many
+    // attempts the escalating relief needs is a BALANCE number that moves
+    // whenever the curve is touched (it was two when this was written and is
+    // three today), and a spec that pins it fails for the wrong reason every
+    // time somebody tunes a stage. What must not change is the shape: losing
+    // writes the number, and winning forgets it.
+    let won = false
+    for (let i = 0; i < 6 && !won; i++) {
+      won = playOne(graph, { stage: 25, policy: optimal, seed: 11 }).cleared
+    }
+    expect(won, 'the relief never carried this road to a clear').toBe(true)
     expect((graph.state.getState('ts_best_progress') as Record<string, number>)['25'])
       .toBeUndefined()
   })

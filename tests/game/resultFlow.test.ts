@@ -15,7 +15,7 @@
 // here, which is the same reason the countdown's rule lived in this module.
 
 import { describe, expect, it } from 'vitest'
-import { RESULT_BOUNCE_DELAY_MS, shouldBounceGo } from '@/game/resultFlow'
+import { cardPayout, RESULT_BOUNCE_DELAY_MS, shouldBounceGo } from '@/game/resultFlow'
 import { squadMusicRate, MUSIC_RATE_RANGE, MUSIC_RATE_FULL_SQUAD } from '@/use/useSound'
 
 const at = (onScreenMs: number, sawInput = false): boolean =>
@@ -87,5 +87,54 @@ describe('the score follows the crowd', () => {
     // It is driven from a live ref every tick; a bad value must never warp audio.
     expect(squadMusicRate(-20)).toBe(1)
     expect(squadMusicRate(Number.NaN)).toBe(1)
+  })
+})
+
+describe('one payout gets exactly one picture', () => {
+  // The screen can end up with three different things all wanting to draw the
+  // same coins — the crowd cashing out on the road, the card's own coin line,
+  // and the ×3's bonus. Two of them firing reads as being paid twice; none of
+  // them firing on a claim reads as a video that did not work.
+
+  it('throws the burst straight away on an ordinary screen', () => {
+    expect(cardPayout(120, { rewardOfferLive: false, squadCashed: false }))
+      .toEqual({ now: 120, owed: 0 })
+  })
+
+  it('HOLDS the burst while a ×3 is on offer, so the claim throws one number', () => {
+    // The thing the button is selling is the TOTAL. Throwing the run's own
+    // coins as the screen opens and the bonus three seconds later is two
+    // bursts at the same badge for one transaction, and the second one is the
+    // smaller of the two — exactly backwards.
+    expect(cardPayout(120, { rewardOfferLive: true, squadCashed: false }))
+      .toEqual({ now: 0, owed: 120 })
+  })
+
+  it('draws nothing at all once the crowd has already flown', () => {
+    // `cashOutSquad` turned every survivor into a coin on the road two seconds
+    // ago and the player watched them land. A card burst for the same coins is
+    // the payout happening twice.
+    expect(cardPayout(120, { rewardOfferLive: false, squadCashed: true }))
+      .toEqual({ now: 0, owed: 0 })
+  })
+
+  it('owes NOTHING to a claim when the crowd already flew — only the bonus is new', () => {
+    // The trap in the middle: both true at once. Holding the run's coins here
+    // would make a successful ×3 throw them a second time, on top of its own
+    // bonus, and the player would be watching the stage's payout twice.
+    expect(cardPayout(120, { rewardOfferLive: true, squadCashed: true }))
+      .toEqual({ now: 0, owed: 0 })
+  })
+
+  it('draws nothing for a payout of nothing', () => {
+    // A wipe on stage 1 with the relief active can bank a single coin, and a
+    // dev skip can bank none. A burst of zero coins is a burst that renders as
+    // a sound with no picture.
+    for (const live of [true, false]) {
+      for (const cashed of [true, false]) {
+        expect(cardPayout(0, { rewardOfferLive: live, squadCashed: cashed }))
+          .toEqual({ now: 0, owed: 0 })
+      }
+    }
   })
 })

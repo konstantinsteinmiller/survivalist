@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'ボス撃破！',
+    'wasted': '撃沈',
+    'cause': {
+      'foe': 'モンスターに押し切られた',
+      'elite': 'ミニボスに崩された',
+      'barricade': 'バリケードに激突',
+      'crate': '木箱に激突',
+      'divider': '仕切りに接触',
+      'trap': 'トラップにかかった',
+      'slam': 'ボスに押し潰された'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'マイルストーン！',
     'rallied': '巻き返し',

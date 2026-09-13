@@ -18,21 +18,6 @@
         //- the row was rendering EMPTY there — a badge that showed a name and
         //- then nothing, which reads as a thing still loading.
         span.wtag__note(v-else-if="mode === 'gift'") {{ t('hud.weaponFree') }}
-        //- What the weapon is actually worth, as a bare multiplier.
-        //- Deliberately a NUMBER rather than a word: it is the one thing the
-        //- player wants to know at the moment of pickup, it answers "was that
-        //- detour worth it", and it needs no translating in any of the
-        //- twenty-one languages this ships in.
-        span.wtag__note(v-else) ×{{ mult }}
-      //- The second gun — stage 2's overlay (`sideWeapon`): a glyph and its own
-      //- multiplier after a plus, because two weapons firing at once is a SUM
-      //- and the badge should read like one. Before the box is broken the same
-      //- slot promises it: the gift ahead, FREE, since it now adds rather
-      //- than replaces.
-      template(v-if="second")
-        span.wtag__plus(aria-hidden="true") +
-        GameIcon.wtag__icon.wtag__icon--second(:name="second.icon" :class="{ 'is-gift': second.gift }")
-        span.wtag__note.wtag__note--second(:class="{ 'is-gift': second.gift }") {{ second.note }}
 </template>
 
 <script setup lang="ts">
@@ -41,7 +26,6 @@ import { useI18n } from 'vue-i18n'
 import GameIcon from '@/components/icons/GameIcon.vue'
 import type { GameIconName } from '@/components/icons/iconNames'
 import type { WeaponId } from '@/game/weapons'
-import { weaponTotalMul } from '@/use/useUpgrades'
 
 /**
  * ─── The weapon tag ─────────────────────────────────────────────────────────
@@ -110,46 +94,47 @@ const WEAPON_ICONS: Record<WeaponId, GameIconName> = {
  * been cleared yet — and in that frame the truthful thing to show is the weapon
  * in the player's hands, not the puzzle they have just finished.
  */
-const mode = computed<'active' | 'gift' | 'puzzle' | null>(() =>
-  props.active ? 'active' : props.puzzle ? (props.gift ? 'gift' : 'puzzle') : null
+/**
+ * ─── Why 'active' is gone ───────────────────────────────────────────────────
+ *
+ * The badge used to stay up for the rest of the stage naming the weapon in the
+ * player's hands — "GATLING GUN ×3.3". It does not any more, and the argument
+ * is that the ROUNDS say it: the gatling fires a hot red tracer that no other
+ * gun in the game fires, and a launcher throws a rocket with a wake on it. A
+ * player who is looking at the road already knows what they are holding, and a
+ * player who is not looking at the road is not reading a badge either.
+ *
+ * What survives is the two states the rounds CANNOT say, because both are about
+ * something that is still out on the road rather than in your hands:
+ *
+ *   PUZZLE  — two levers to shoot and a pip each, a live to-do list;
+ *   GIFT    — an open box ahead, and the word FREE.
+ *
+ * Both stop the moment the thing they describe is taken, which is exactly when
+ * the rounds take over.
+ */
+const mode = computed<'gift' | 'puzzle' | null>(() =>
+  props.puzzle ? (props.gift ? 'gift' : 'puzzle') : null
 )
 
-const weapon = computed<WeaponId | null>(() => props.active ?? props.puzzle)
+const weapon = computed<WeaponId | null>(() => props.puzzle)
 const icon = computed<GameIconName>(() =>
   weapon.value ? WEAPON_ICONS[weapon.value] : 'star'
 )
 const name = computed(() => (weapon.value ? t(`weapons.${weapon.value}`) : ''))
 
-/** The weapon's total damage multiplier over the squad's own gun, shop levels
- *  included — see `weaponTotalMul`. */
-const mult = computed(() =>
-  props.active ? Math.round(weaponTotalMul(props.active) * props.power * 10) / 10 : 0
-)
-
 /**
- * The second slot: the gun firing alongside, or — while a weapon is held and a
- * gift box of a different one is still ahead — that gift, which will ADD to it.
+ * The accessible name says which of the two states this is — a screen reader
+ * gets no help at all from a dimmed glyph and a row of dots.
+ *
+ * `active` / `side` / `power` / `sidePower` are still ACCEPTED and deliberately
+ * unread: the badge no longer says anything about a weapon already in the
+ * player's hands (see `mode`), and the scene passes them because putting the
+ * readout back — behind a setting, say — should not also mean re-plumbing four
+ * props through the HUD.
  */
-const second = computed<{ icon: GameIconName; note: string; gift: boolean } | null>(() => {
-  if (!props.active) return null
-  if (props.side) {
-    const m = Math.round(weaponTotalMul(props.side) * props.sidePower * 10) / 10
-    return { icon: WEAPON_ICONS[props.side], note: `×${m}`, gift: false }
-  }
-  if (props.puzzle && props.gift && props.puzzle !== props.active) {
-    return { icon: WEAPON_ICONS[props.puzzle], note: t('hud.weaponFree'), gift: true }
-  }
-  return null
-})
-
-/** The accessible name says which of the two states this is — a screen reader
- *  gets no help at all from a dimmed glyph and a row of dots. */
 const label = computed(() => {
   if (!weapon.value) return ''
-  if (props.active && props.side) {
-    return t('hud.weaponsActive', { a: name.value, b: t(`weapons.${props.side}`) })
-  }
-  if (props.active) return t('hud.weaponActive', { name: name.value })
   // A gift has no levers, so the locked wording's "{n} of {total}" would read
   // "0 of 0" to a screen reader — which is worse than silence, because it
   // describes a lock that is not there.

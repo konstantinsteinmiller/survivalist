@@ -109,7 +109,19 @@ const text = computed(() => {
 </script>
 
 <template lang="pug">
-  Transition(name="hint")
+  //- `type="transition"` is LOAD-BEARING, not tidiness. `.control-hint` carries
+  //- `animation: hint-breathe … infinite`, and Vue times a leave off whichever
+  //- of transition-duration and animation-duration is longer — so it picked the
+  //- 2.4 s animation and then waited for an `animationend` that an infinite
+  //- animation never fires. The pill was removed from the render tree and left
+  //- in the DOM FOREVER, breathing at full opacity.
+  //-
+  //- Measured in a browser during the grenade lesson: the component reported
+  //- `suppressed: true, shown: false` while the element was still on screen over
+  //- the lightbox. Nothing here caught it because `@vue/test-utils` stubs
+  //- `Transition` by default and renders the children straight through — see
+  //- `tests/game/controlHintSuppressed.test.ts`, which now pins the attribute.
+  Transition(name="hint" type="transition")
     div.control-hint(v-if="shown")
       svg.control-hint__icon(viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true")
         //- A pointing hand — universally readable as "do this".
@@ -151,6 +163,10 @@ const text = computed(() => {
 
 .hint-enter-active, .hint-leave-active
   transition: opacity 260ms ease-out, translate 260ms ease-out
+  // The breathing stops while the pill is arriving or leaving. It is an
+  // opacity loop and the transition is an opacity ramp; run together, the fade
+  // reads as a flicker rather than as the pill going away.
+  animation: none
 
 .hint-enter-from, .hint-leave-to
   opacity: 0

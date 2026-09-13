@@ -34,8 +34,8 @@ import {
 import { CLAW_CORE_FRACTION, HEAL_FRACTION } from '@/game/threats'
 import {
   DOWN_FALL_SIDE, HERO_CYCLE_MS, HERO_FOOT_R, HERO_FRAME_ASPECT, HERO_HEIGHT_R,
-  outfitIndex, outfitTone, primeSurvivors, SURVIVOR_FALL_MS, survivorDownFrame,
-  survivorFallStep, survivorFrame
+  FALL_REST_P, outfitIndex, outfitTone, primeSurvivors, SURVIVOR_FALL_MS,
+  survivorDownFrame, survivorFallStep, survivorFrame
 } from '@/game/heroSprites'
 import {
   MONSTER_FRAME_ASPECT, SPRITE_FOOT_R, SPRITE_HEIGHT_R, bakeMonsterSlice, deathFallSide,
@@ -62,6 +62,7 @@ import { haptic } from '@/use/useHaptics'
 import { getCachedImage } from '@/use/useAssets'
 import { clearRamps, getRamp, putRamp } from '@/use/useGradientRamps'
 import { clearLabelWidths, measureLabel } from '@/use/useTextMetrics'
+import { bossOwnsCast, type CastKind } from '@/game/bossTells'
 
 // ─── The frame's quality tier ───────────────────────────────────────────────
 //
@@ -129,6 +130,11 @@ const LANE_MARGIN = 1.1
 /** Remembered so the off-screen miniboss marker can sit UNDER the HUD instead
  *  of behind it — the one screen-space overlay the renderer owns. */
 let topInsetPx = 0
+
+/** How far past the HUD strip the top scrim keeps fading, CSS px. Long enough
+ *  that the ramp is a lighting change rather than a visible edge across the
+ *  road — see the scrim itself in `drawGrades`. */
+const HUD_SCRIM_FADE_PX = 46
 
 export const setViewport = (w: number, h: number, topInset = 0, bottomInset = 0): void => {
   viewW = w
@@ -1651,10 +1657,23 @@ export const paintGrenadeBody = (
  * rate and are built ONCE per pass — a template literal inside the bullet loop
  * would be an allocation per bullet per frame.
  */
-export const tracerStyle = (heat: number, scale: number): {
+export const tracerStyle = (heat: number, scale: number, hot = false): {
   outer: string; coreW: number; outerW: number; len: number
 } => ({
-  outer: `rgba(255,${Math.round(214 + heat * 30)},${Math.round(120 + heat * 90)},${0.35 + heat * 0.3})`,
+  // ── The gatling fires a different COLOUR, not a brighter one ──
+  //
+  // `heat` alone used to carry this: the gatling pushed the same gold tracer
+  // further up its own curve, which makes it whiter and does not make it
+  // recognisable. A playtest tester asked to be told what weapon he was
+  // holding; the answer is that he should be able to see it in the air, and a
+  // hotter gold against gold is not something anyone sees mid-run.
+  //
+  // So a gatling round is RED — the hue swings down toward the ember the game
+  // uses for fire, while the alpha and the geometry stay exactly where they
+  // were, because the round has not changed size or brightness, only identity.
+  outer: hot
+    ? `rgba(255,${Math.round(96 + heat * 46)},${Math.round(54 + heat * 26)},${0.4 + heat * 0.3})`
+    : `rgba(255,${Math.round(214 + heat * 30)},${Math.round(120 + heat * 90)},${0.35 + heat * 0.3})`,
   coreW: Math.max(1, scale * (0.045 + heat * 0.02)),
   outerW: Math.max(2, scale * (0.1 + heat * 0.03)),
   len: scale * 0.55
@@ -3542,7 +3561,7 @@ interface Cast {
    * rolling down the road for a second and a half, and it is painted straight
    * from the world by `drawRollers` rather than from an event.
    */
-  kind: 'meteor' | 'slice' | 'bomb' | 'bolt' | 'charge' | 'shock' | 'ward'
+  kind: CastKind
   x: number
   y: number
   /** Ground footprint for a meteor, a bomb or a ward; arc reach for a slice; the
@@ -7343,6 +7362,36 @@ const emberFrame = (src: HTMLCanvasElement): HTMLCanvasElement | null => {
 }
 
 /**
+ * The gatling's round, recoloured once per painted source.
+ *
+ * Same shape as `emberFrame` and for the same reasons: keyed on the source
+ * canvas by identity, so a re-bake or an art override simply stops hitting and
+ * is tinted again, and `source-in` keeps the streak's silhouette exactly, which
+ * is what lets it stay composited with `lighter` without a halo.
+ */
+const redTracers = new WeakMap<CanvasImageSource, HTMLCanvasElement>()
+const GATLING_TINT = '#ff5436'
+
+const redTracer = (src: CanvasImageSource): HTMLCanvasElement | null => {
+  const hit = redTracers.get(src)
+  if (hit) return hit
+  const w = (src as HTMLCanvasElement).width
+  const h = (src as HTMLCanvasElement).height
+  if (!w || !h) return null
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const t = c.getContext('2d')
+  if (!t) return null
+  t.drawImage(src, 0, 0)
+  t.globalCompositeOperation = 'source-in'
+  t.fillStyle = GATLING_TINT
+  t.fillRect(0, 0, w, h)
+  redTracers.set(src, c)
+  return c
+}
+
+/**
  * ─── The gaze: an eye over the boss, and the beam it fires ──────────────────
  *
  * Drawn from the WORLD rather than from the cast events, for the reason
@@ -7853,6 +7902,66 @@ const seeOffSurvivors = (spots: ReadonlyArray<{ x: number; y: number }>): void =
   }
 }
 
+/**
+ * ─── A dead boss stops promising things ─────────────────────────────────
+ *
+ * Every tell in this game is a PROMISE: a ring that says something lands here, a
+ * band that says leave this column, three furrows that say stand in the gaps.
+ * The boss can no longer keep any of them the instant it dies, so they have to
+ * come off the road in the same frame the kill does.
+ *
+ * The simulation was already clean about this — `bossIsCharging`,
+ * `bossIsVarying`, `bossGazeOpening` and the slam ring all gate on `!b.dead`,
+ * and `killBoss` takes the ward and the eye down explicitly. What survived were
+ * the RENDERER's own transients: a cast, a rake or a heal tell emitted a beat
+ * before the kill goes on running its own clock afterwards, because nothing in
+ * that pool knows the thing that armed it is gone. Measured on the wipe hold,
+ * where the world stops: a charge's band sat frozen across the road as the
+ * brightest thing on a screen whose subject was supposed to be the bodies.
+ *
+ * ─── Why ALL of it, including the parts that already landed ───────────────
+ *
+ * The first version of this kept anything past its own life — a `done` cast or
+ * rake playing the flash of an impact that really did land — on the argument
+ * that deleting it would rewind a hit. That argument is wrong here, and the
+ * browser said so: the struck furrows were still sitting across the road a full
+ * second after the kill, unchanged.
+ *
+ * THE CLOCK STOPS WITH THE BOSS. These pools are stepped by `tellDtMs`, which is
+ * how far the SIMULATION advanced (see the two-clocks note in `drawScene`) — and
+ * the kill flips `phase` to `'clear'`, on which `step` returns immediately. So
+ * from the death frame onward `simDtMs` is zero, `CAST_AFTER_S` and
+ * `RAKE_AFTER_S` never elapse, and every leftover is FROZEN on screen for the
+ * whole two-second celebration and the result screen behind it. A quarter-second
+ * flash becomes a permanent mark.
+ *
+ * So the pools are emptied. The cost is the last frames of one impact flash on
+ * the frame the boss died; the thing it buys is that nothing the boss was
+ * holding out is still on the road while the player is being shown the body.
+ *
+ * WHAT IS STILL NOT CLEARED: boss bolts in flight. A round already fired is an
+ * object in the world rather than a promise about one, it is stepped and drawn
+ * as such, and it is the same rule the freeze skill follows.
+ */
+
+/** Take down every promise the boss can no longer keep. Called on `bossDie`.
+ *  Which casts are the boss's is `bossOwnsCast`, out in `game/bossTells.ts` —
+ *  pure, total over the union, and pinned without a canvas. */
+const clearBossTells = (): void => {
+  // The meteor's ring, the charge's band, the shock's annulus. A miniboss's
+  // fuse or line stays: the whole world is frozen for the celebration, so a
+  // frozen miniboss with a frozen wind-up is coherent — a frozen tell over a
+  // visible corpse is not.
+  for (let i = casts.length - 1; i >= 0; i--) {
+    if (bossOwnsCast(casts[i]!.kind)) casts.splice(i, 1)
+  }
+  // The claw's furrows, the healer's gather, and the eye's beam. All three are
+  // the boss's alone, so all three go whole.
+  rakes.length = 0
+  healTells.length = 0
+  gazeBeams.length = 0
+}
+
 const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
   const b = getBoss()
   if (!b) return
@@ -8170,13 +8279,47 @@ const drawUnits = (ctx: CanvasRenderingContext2D): void => {
   // solid.
   //
   // It also makes the sort cheaper: ~190 entries rather than all of `n`.
+  //
+  // ── The living and the fallen are budgeted SEPARATELY ──
+  //
+  // Bodies used to leave the array a few hundred milliseconds after they died.
+  // They now lie on the road until the camera carries them off it, which means
+  // `units` can hold a hundred corpses behind a crowd of forty — and a single
+  // shared sample would spend most of the budget on the dead and thin the
+  // living crowd at exactly the moment the player is losing it. The whole point
+  // of the uniform sample is that the crowd reads as its true size; corpses
+  // paid for out of the same purse would undo it.
+  //
+  // So the living are sampled against the budget as before, and the fallen get
+  // their own smaller cap on top. Going over it drops corpses, never survivors.
   const budget = minFx ? 70 : tier === 'low' ? 110 : tier === 'medium' ? 150 : 190
+  const restBudget = minFx ? 20 : tier === 'low' ? 35 : 60
+  //
+  // ── …and a CASHED body is neither ──
+  //
+  // After a boss falls, every survivor turns into a coin and flies to the wallet
+  // (`cashOutSquad`). They stay in `units` — the handover reads them to decide
+  // where the next road opens — but they are no longer on the road, so they are
+  // excluded from the living sample rather than drawn transparent or moved: the
+  // player watched them leave.
   let drawn = 0
-  if (n <= budget) {
-    for (let i = 0; i < n; i++) order[drawn++] = i
+  let living = 0
+  for (let i = 0; i < n; i++) { const u = units[i]!; if (u.dying <= 0 && !u.cashed) living++ }
+  if (living <= budget) {
+    for (let i = 0; i < n; i++) {
+      const u = units[i]!
+      if (u.dying <= 0 && !u.cashed) order[drawn++] = i
+    }
   } else {
-    const keep = budget / n
-    for (let i = 0; i < n; i++) if (units[i]!.seed < keep) order[drawn++] = i
+    const keep = budget / living
+    for (let i = 0; i < n; i++) {
+      const u = units[i]!
+      if (u.dying <= 0 && !u.cashed && u.seed < keep) order[drawn++] = i
+    }
+  }
+  let rest = 0
+  for (let i = 0; i < n && rest < restBudget; i++) {
+    if (units[i]!.dying > 0) { order[drawn++] = i; rest++ }
   }
   if (order.length !== drawn) order.length = drawn
 
@@ -8314,9 +8457,16 @@ const drawUnits = (ctx: CanvasRenderingContext2D): void => {
     // a crate or a divider stays crumpled against the thing that stopped it
     // instead of going on over onto the road (`CRASH_CAUSES`, in the sim,
     // because the sim is what knows what a barricade is).
-    const fall = u.dying > 0
-      ? survivorFallStep(1 - u.dying / SURVIVOR_FALL_MS, u.seed, u.cause)
-      : null
+    //
+    // A body that has finished falling is held at `FALL_REST_P` — the last
+    // frame before the old fade began — for as long as it is on the road. The
+    // fade is gone: a corpse is not disposed of by going transparent any more,
+    // it is disposed of by being left behind (`FALLEN_CULL_BEHIND`).
+    const fall = u.down
+      ? survivorFallStep(FALL_REST_P, u.seed, u.cause)
+      : u.dying > 0
+        ? survivorFallStep(1 - u.dying / SURVIVOR_FALL_MS, u.seed, u.cause)
+        : null
 
     // Feed the bubble's bounding box. Dying bodies are excluded: they fall
     // outward, and a shield that swelled to cover the casualties would grow
@@ -8476,14 +8626,19 @@ const drawBullets = (ctx: CanvasRenderingContext2D): void => {
   // ONCE for the whole pass — see `tracerStyle`. A template literal inside the
   // loop would be an allocation per bullet per frame.
   const heat = Math.min(1, rateHeat + (hot ? 0.55 : 0))
-  const st = tracerStyle(heat, scale)
+  const st = tracerStyle(heat, scale, hot)
   const len = st.len
 
   // A painted round is blitted per bullet into the `len`-square box the
   // reference streak fills (`paintTracerRef`), pointing down the screen from
   // the round's own position exactly as the stroked line does. Rockets are not
   // tracers and stay drawn below either way.
-  const painted = spriteFor('round', 'tracer')
+  // The painted round gets the same treatment, through the same one-line
+  // `source-in` swap the ember frames use — otherwise a build with art
+  // overrides on would blit the identical gold streak for both guns and the
+  // whole distinction would exist only in the procedural fallback.
+  const paintedBase = spriteFor('round', 'tracer')
+  const painted = hot && paintedBase ? (redTracer(paintedBase) ?? paintedBase) : paintedBase
   if (painted) {
     for (const b of bullets) {
       if (b.weapon === 'rocket') continue
@@ -8641,6 +8796,35 @@ const drawGrades = (ctx: CanvasRenderingContext2D, w: number, h: number): void =
   // It survives at `min` too, where almost nothing else full-screen does.
   // Without it the road reads flat and washed out toward the horizon, and the
   // fill it costs at that tier is over a canvas of 0.24 Mpx.
+  // ── The HUD's own band, kept clear of the road's numbers ──
+  //
+  // Finding 4 of Playtest 02, filed as a rendering glitch by one tester and
+  // visible in three others' frames: barricades carry bold white HP numbers and
+  // enter from the TOP of the road — which is exactly where the squad chip sits,
+  // carrying a bold white number of its own. Two numbers of the same weight
+  // crossing each other, one of which is the only readout left on the HUD and
+  // the one the whole game is about.
+  //
+  // A scrim rather than a lower stream line, because the props are not the
+  // problem: a prop arriving at the horizon is meant to be seen arriving, and
+  // starting the road further down would cost the player the warning. What has
+  // to change is the CONTRAST in that one band, so the thing entering reads as
+  // distant and the thing pinned over it reads as near. Drawn under the
+  // vignette, so the two grades compose rather than fight.
+  const scrimH = topInsetPx + HUD_SCRIM_FADE_PX
+  if (scrimH > 12) {
+    const sKey = `hudScrim|${w}|${Math.round(scrimH)}`
+    let sc = getRamp(sKey)
+    if (!sc) {
+      sc = putRamp(sKey, ctx.createLinearGradient(0, 0, 0, scrimH))
+      sc.addColorStop(0, 'rgba(5, 8, 18, 0.6)')
+      sc.addColorStop(0.6, 'rgba(5, 8, 18, 0.34)')
+      sc.addColorStop(1, 'rgba(5, 8, 18, 0)')
+    }
+    ctx.fillStyle = sc
+    ctx.fillRect(0, 0, w, scrimH)
+  }
+
   const vKey = `vignette|${w}|${h}`
   let v = getRamp(vKey)
   if (!v) {
@@ -10089,6 +10273,10 @@ const applyFx = (e: FxEvent): void => {
     }
 
     case 'bossDie':
+      // FIRST, before the flash and the shake: every telegraph the boss was
+      // still holding out comes off the road on the frame it dies. See
+      // `clearBossTells`.
+      clearBossTells()
       playFx('bossDie')
       triggerShake('big')
       screenFlash = 0.7

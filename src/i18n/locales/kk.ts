@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Босс құлады!',
+    'wasted': 'Құрыды',
+    'cause': {
+      'foe': 'Құбыжықтар басып қалды',
+      'elite': 'Шағын босс күйретті',
+      'barricade': 'Бөгеттерге соғылдың',
+      'crate': 'Жәшіктерге соғылдың',
+      'divider': 'Бөлгіштерге ілікті',
+      'trap': 'Қақпанға түсті',
+      'slam': 'Босс жаныштап тастады'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Белес!',
     'rallied': 'Екінші тыныс',

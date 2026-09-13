@@ -621,11 +621,13 @@ Two traps worth keeping:
 
 ---
 
-## Not on the original list, built anyway (2026-09-12)
+## Not on the original list, built anyway (2026-09-12 – 2026-09-13)
 
-Two of these came out of reading the eighteen against the code rather than out
-of the list itself. Both are small, and both are about the two screens where a
-session actually ends.
+The first two came out of reading the eighteen against the code rather than out
+of the list itself. Everything from #21 came out of putting the build in front
+of ten first-time players over two days, which is the better source and is why
+four of the six are about the same thing: the game knew something the player
+did not, and never said it.
 
 ### 19. The result screen closes itself when there is nothing to buy — **BUILT, then DELETED (2026-09-13)**
 **Moves:** APT, put-down resistance · **Effort:** 1 h · **Risk:** low
@@ -695,6 +697,216 @@ then the boss's health as the last fifth — so taking a boss to a sliver reads
 further than arriving at it, which is the distinction the whole readout exists
 to make.
 
+### 21. Three seconds on the road, before the loss screen — **SHIPPED (2026-09-13)**
+**Moves:** pick-up, put-down resistance · **Effort:** 3 h · **Risk:** low
+
+The oldest open finding in the project, filed twice in a row by two separate
+five-tester playtests, in the same words: *nothing says what killed you*. Four
+of five testers could not name what had ended a run they had just finished.
+
+The data was never missing. `deathBreakdown()` has counted every loss by cause
+for months and #17's `wipe` event has been billing whole runs to `dominantCause`
+since it shipped. What was missing was a reason for the player to connect the
+answer to anything: the last survivor fell and a result card was on screen
+before the body was.
+
+So a wipe keeps the road for three seconds (`WASTED_HOLD_MS`). Nothing had to be
+paused to do it — `step` already returns on `'wipe'`, so the world is frozen on
+the frame the squad died on — but three things had to be added on top of that
+frame: every faller is put straight on the ground in `finishRun` (a body caught
+mid-fall would be frozen mid-fall, and on the *last* death that is a survivor
+standing bolt upright on an empty road for three seconds), the camera leans in
+on the bodies, and the light goes out of the frame from the edges in while a red
+**WASTED** lands.
+
+Then the card, carrying a four-word info box: *The boss flattened you*. Amber
+rule, warning glyph, one line — the owner's constraint was that **players hate
+to read**, so every `result.cause.*` string in all 21 locales is three or four
+words and names one noun. `RunSummary.cause` is billed to `dominantCause` (the
+system that took the most, not the one that landed last) and is `null` on a
+clear, because a win has nothing to explain.
+
+⚠ **The lean is a CSS transform on the canvas, not a change to the renderer's
+own scale.** `getScale()` is shared with the coin VFX, the crowd-cash anchor and
+the "Boss felled!" label; moving it mid-hold would put all four in different
+places.
+
+### 22. The squad turns into the money — **SHIPPED (2026-09-13)**
+**Moves:** pick-up, put-down resistance · **Effort:** 3 h · **Risk:** low
+
+Both playtests rated the handover's reading Major: *"Squad 101 → 3"*. A hundred
+people the player spent forty seconds collecting vanish between one road and the
+next — and they were **paid for**, because `stageReward(stage, peakSquad)` prices
+the clear off exactly that crowd. The transaction was never wrong; it was
+invisible.
+
+The first fix paid the coins where the player was looking, as one burst from the
+formation's centre. Playtest 02 read it as a loss anyway, which is fair: one
+puff of gold off one point is a dropped purse, not a hundred people cashing out.
+
+Every survivor now becomes a coin **on the tile it is standing on**, and the
+crowd empties from the back of the formation forward as the coins fly to the
+wallet (`cashOutSquad` + `spawnCoinTrail`). It fires on the boss kill, inside
+the two seconds of "Boss felled!" that were already dead air.
+
+Three things it deliberately does not do, each of which would put the misreading
+back:
+
+* it does not splice the bodies out of `units` — `entryFrom` reads the crowd
+  that won the stage to decide where the next road opens under it;
+* it does not touch `squadCount`, so the HUD keeps printing the number the
+  payout was priced against for the whole flight. A chip falling to zero while
+  the coins are in the air says *lost* at the exact moment the coins say *sold*;
+* it does not pay. `bankCoins` already did.
+
+One payout now gets exactly one picture, and that rule is pure and pinned:
+`cardPayout(total, { rewardOfferLive, squadCashed })` in `game/resultFlow.ts`.
+The card's own burst stands down when the crowd has already flown, and is
+**held** for the ×3 when one is on offer so a successful claim throws the run's
+coins and the bonus as one number — which is the number the button was selling.
+
+### 23. The grenade lesson — **SHIPPED (2026-09-13), feature-flagged**
+**Moves:** pick-up, difficulty fairness · **Effort:** 5 h · **Risk:** medium
+
+Two playtests found the same hole: nobody works out that the four buttons under
+the road are buttons. One tester discovered it at stage 5 from a cooldown number
+("*I've been ignoring active abilities this whole run*"); another tapped around
+them all session; a third never worked out what the locked slots were for. The
+shield is the answer to the boss that walled the best player in the group, and
+the players who most needed it were the least likely to have found it.
+
+A pill saying "these are buttons" is one more thing nobody reads. So the game
+**stops** instead — once, ever — at the first moment a skill is genuinely the
+right answer: the world crawls for three seconds as the first miniboss walks in,
+then halts, the grenade's cooldown is cleared, a lightbox dims everything except
+that one button, and a gold arrow sits above it and below it. Pressing it
+resumes the world at full speed and writes the flag.
+
+⚠ **It teaches on STAGE 1's elite, and the first version had that wrong too.**
+`GRENADE_TUTORIAL_STAGE` said 2, on the belief that stage 2 is the first road
+carrying a miniboss at all — which is false. `placeMinibosses` gives stage 1
+exactly one, the `'tutorial'` rank at 88 % of the road: the beat that REPLACED
+stage 1's boss, and the first thing with a health bar a player ever meets.
+Teaching on stage 2 put the lesson on the second miniboss and let the first one
+go by unanswered, which is the one place it had to land. It is also the better
+fight — the climax of the only stage a stranger has played, so the grenade
+arrives as the answer to the hardest thing they have been shown.
+
+**And it needs no health tuning there.** The brief was "survives about three
+seconds of ordinary fire", because a threat the player deletes by accident
+teaches nothing. On stage 2 that needed a ×4: the stage-2 elite is 64 hp and
+dies in 0.65–0.93 s for every policy. The stage-1 elite already carries
+`MINIBOSS_TUTORIAL` (a premium, not a discount) and measures 258 hp —
+4.20 s optimal, 5.30 s good, 5.32 s average, 4.67 s careless, through
+`tests/game/tutorialPump.test.ts`. So `GRENADE_TUTORIAL_HP_MUL` is **1**, and
+the tuning is the one the road already had. The knob stays at 1 rather than
+being deleted: it is what makes the stage safe to move, and a lesson pointed at
+an ordinary elite would collapse back under a second without it.
+
+⚠ **This is the most dangerous thing in the codebase and it shipped broken.**
+It is the one feature that takes the controls away and will not give them back
+until a specific act is performed, which makes it a dead end if the act is not
+available — and it was: the lesson started at the elite's **spawn**, forty units
+off the top of the screen, and `grenadeTarget` correctly refuses a throw with
+nothing in range. The single instruction on screen was also the one act the game
+would not accept. **A headless spec could not see it; a browser pass did.** It
+now waits until the elite is 12 units out (`GRENADE_TUTORIAL_RANGE`, derived
+from `VIEW_HEIGHT × CROWD_SCREEN_Y` so it is on screen on every ratio the game
+ships on) **and** the throw is accepted unconditionally while the lesson holds.
+Belt and braces, both pinned in `tests/game/grenadeLesson.test.ts`.
+
+Two more properties worth keeping:
+
+* `setGrenadeTutorialAllowed(on)` defaults to **off**, and only `GameScene`
+  turns it on. The balance harness, eleven headless specs and the preview
+  recorder all drive `step()` with nobody at the controls, and a world that
+  stops for them simply never resolves. Same shape as `setRallyPolicy`.
+* The crawl exists so a player who already knows what the button is throws one
+  inside it and never sees an overlay at all.
+
+### 24. Ads can no longer interrupt a run — **SHIPPED (2026-09-13)**
+**Moves:** trust, portal QA · **Effort:** 1 h · **Risk:** low
+
+An interstitial could previously land on any result screen, including a wipe.
+It is now gated on a **win**: `maybeShowInterstitial(cleared)` returns
+immediately on a loss, so the order is always *kill → celebration → ad →
+result*. A player who has just lost a run meets no ad at all.
+
+The rewarded-availability check the platform playbook asks for was already in
+place (`canOfferReward` reads `isRewardedReady` and the rate limit on gated
+builds); what changed is that the ×3's **picture** now waits for the video —
+see #22.
+
+### 25. The primer pill never left the DOM — **FIXED (2026-09-13)**
+**Moves:** trust · **Effort:** 1 h · **Risk:** none
+
+Found while verifying #23 in a browser, and it had been shipping for months.
+`ControlHint` reported `suppressed: true, shown: false` — correctly — while the
+pill sat fully lit on top of the grenade lesson's lightbox, which had dimmed
+everything else on the screen.
+
+The cause is two CSS features colliding on one element. `.control-hint` breathes
+(`animation: hint-breathe 2.4s infinite`) and its `<Transition>` fades it
+(`260 ms`). Vue times a leave off whichever of the two is **longer**, picked the
+2.4 s animation, and then waited for an `animationend` that an infinite
+animation never fires. The node was dropped from the render tree and left in the
+DOM permanently.
+
+`type="transition"` is the whole fix, plus `animation: none` on the leave so the
+fade is not an opacity loop fighting an opacity ramp. **`IncomingWarning` had the
+identical bug** — `.incoming` is the transitioned root and carries
+`incoming-pulse … infinite` — so the attack alarm was equally permanent, which is
+very likely the real mechanism behind Playtest 01's "‘Hold still’ and ‘MOVE!’ on
+screen at the same time". Both are fixed the same way. The other transitioned
+components put their infinite animations on CHILDREN, which Vue does not read.
+
+⚠ **Nothing caught it because `@vue/test-utils` stubs `<Transition>` by
+default** and renders its children straight through — so
+`tests/game/controlHintSuppressed.test.ts` had four passing assertions about an
+element that never actually left the screen. It now pins the attribute
+structurally, which is the only level at which jsdom can hold this.
+
+### 26. A dead boss stops promising things — **FIXED (2026-09-13)**
+**Moves:** trust, readability · **Effort:** 2 h · **Risk:** low
+
+Every tell in this game is a promise: a ring that says something lands here, a
+band that says leave this column, three furrows that say stand in the gaps. The
+boss cannot keep any of them once it is dead — and until now they stayed on the
+road anyway, through the two-second celebration and into the result screen
+behind it.
+
+The simulation was already clean. `bossIsCharging`, `bossIsVarying`,
+`bossGazeOpening`, `attackIncoming` and the slam ring all gate on `!b.dead`, and
+`killBoss` takes the ward and the eye down explicitly. What survived were the
+RENDERER's own transient pools — `casts`, `rakes`, `healTells`, `gazeBeams` —
+which go on running their own clocks because nothing in them knows the thing
+that armed them is gone.
+
+⚠ **And they cannot expire, which is the part that made it permanent rather
+than brief.** Those pools are stepped by `tellDtMs`, which is how far the
+SIMULATION advanced — deliberately, so a travelling telegraph lands on the beat
+rather than near it (see the two-clocks note in `drawScene`). The kill flips
+`phase` to `'clear'`, `step` returns immediately on that, and `simDtMs` is zero
+from the death frame onward. `CAST_AFTER_S` and `RAKE_AFTER_S` never elapse. A
+quarter-second impact flash becomes a mark that sits there until the next stage
+opens — measured in a browser: the claw's struck furrows were still across the
+road a full second after the kill, unchanged.
+
+So `clearBossTells` empties them on the `bossDie` event, whole. The cost is the
+last frames of one impact flash on the frame the boss died; what it buys is a
+road with nothing on it but the body the player is being shown.
+
+**The one thing it must not do is take a MINIBOSS's wind-up with it.** `casts`
+is a single shared pool and most of what is in it is somebody else's — a
+bomber's fuse, a gunner's line, a scythe's arc — and the arena is not empty of
+them: a summoner spawns into it, and a road elite can still be on its leash when
+the arena opens. `bossOwnsCast` in `game/bossTells.ts` is the rule that keeps
+them apart, pure and total over the union so a new cast kind has to be
+classified rather than defaulting into somebody's telegraph being deleted. The
+healer's `ward` is deliberately not claimed there: `killBoss` already fades it
+through `clearWard`, and cutting it here as well would race two paths at the
+same mark on the road.
+
 ---
 
 ## What NOT to build
@@ -718,16 +930,36 @@ to make.
 
 ---
 
-## Where the list stands, 2026-09-12
+## Where the list stands, 2026-09-13
 
 Read against the source tree, not against these headings — three of them were
-wrong before this pass.
+wrong before the 09-12 pass.
 
 | | |
 | --- | --- |
-| **Shipped** | 1, 2, 3, 4, 6 (in another shape), 7, 8, 8b, 9, 11, 12, 13, 14, 15, 16, 17, 20 |
+| **Shipped** | 1, 2, 3, 4, 6 (in another shape), 7, 8, 8b, 9, 11, 12, 13, 14, 15, 16, 17, 20, 21, 22, 23, 24, 25, 26 |
 | **Open, declined for now** | **5** (combo meter) and **10** (squad skins) |
 | **Built, then taken out** | 18 (share card), 19 (the self-closing result screen) |
+
+**Open from Playtest 02, and not on this list:** the boss's danger zone should
+be a filled area on the road rather than a word in a badge (two testers
+memorised the dodge distance by dying, one of them the best player in the
+group), and stage 6 is priced by the authored curve alone because the adaptive
+boss pricing stops at stage 5 — so the fight straight after the hardest one in
+the game reads as a faceplant. Those are the two largest things left in either
+report.
+
+**The opening is weaker on purpose, 2026-09-13.** `START_SQUAD` is now **one**
+survivor and the opening gate's pump caps at **+7** (was 10), on the owner's
+call. Measured over eight seeds on stage 1: `average` 8/8, `good` 8/8,
+`optimal` 8/8, `careless` 5/8 — so a player who taps at all is untouched, and a
+run that never touches the screen is now stopped by the closing elite some of
+the time. `tests/sim/balance.test.ts` moved with it rather than loosening: the
+old guard pinned "a zero-input run clears stage 1 every time", which was a side
+effect of a stronger opening rather than a promise, and it now pins the promise
+directly on `average`. Only stage 1 starts at one — `squadBaseAt` holds every
+later stage at `STAGE_SQUAD_FLOOR`, because a flat cut walled the `average`
+career at stage 11.
 
 **5 and 10 are refusals, not backlog.** The combo meter adds a sixth number to a
 HUD that already carries squad, damage, fire rate, the challenge streak and four
@@ -749,3 +981,14 @@ five first-time players — which is the only reason this list is worth keeping.
 shipped as `game/weapons.ts` — gatling and rocket, earned through the
 lever-and-armour puzzle and expiring with the stage — rather than as three
 crate-dropped weapons on a timer. The spec above is obsolete history.
+
+**The weapon badge is gone with it (2026-09-13).** It named the gun you were
+carrying and printed its multiplier, and the owner's call was that *"the real
+player does not need a chip stating they have a gatling gun — he sees the
+different attack projectiles."* Which is now true in a way it was not when the
+badge was written: a gatling round is **red** (`tracerStyle`) and a launcher
+throws a rocket with a wake, so a player looking at the road can tell, and a
+player not looking at the road was never reading a badge either. What survives
+in `WeaponTag.vue` is the two states the rounds cannot say, because both are
+about something still out on the road rather than in your hands: the lever
+puzzle's live to-do list, and an open gift box ahead marked FREE.

@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Boss terrassé !',
+    'wasted': 'Éliminé',
+    'cause': {
+      'foe': 'Submergé par les monstres',
+      'elite': 'Un mini-boss vous a brisé',
+      'barricade': 'Foncé dans les barricades',
+      'crate': 'Foncé dans les caisses',
+      'divider': 'Accroché les séparateurs',
+      'trap': 'Pris dans les pièges',
+      'slam': 'Le boss vous a écrasé'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Palier !',
     'rallied': 'Second souffle',

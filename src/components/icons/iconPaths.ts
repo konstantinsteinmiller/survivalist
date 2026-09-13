@@ -342,17 +342,32 @@ export const ICON_PATHS: Record<GameIconName, string[]> = {
   // is a shade smaller than the old one) because this glyph also fronts a shop
   // row in `UpgradeModal.vue` beside `bolt`, `rate` and `range` — the note above
   // about redrawing the five together is why the other four are untouched.
+  //
+  // ── Redrawn again once the chip grew ──
+  //
+  // The version above this one gave the two figures BEHIND the leader thin
+  // side-crescents — enough to say "there are more of them" at 16 px, and the
+  // most that fitted while four chips shared the row. The row is one chip now
+  // and it is drawn half again as large, so the crescents became the weak part
+  // of the drawing: at 23 px they read as bracket marks around a person rather
+  // than as two more people.
+  //
+  // They are whole figures now, each with its own head and its own shoulder
+  // line, and the leader sits lower and larger so the three heads land on three
+  // different lines. That stagger is what makes it a group rather than a row.
+  // Gutters are still at or above 1.4 units everywhere, for the reason in the
+  // note above, and nothing overlaps — so there is still no winding to reason
+  // about.
   'squad': [
-    // The front figure: head, then shoulders that reach 1.6 units lower than the
-    // pair behind it. That overhang is the only depth cue a flat fill can carry.
-    'M12 6.5a3.1 3.1 0 1 1 0 6.2 3.1 3.1 0 0 1 0-6.2Z',
-    'M6.4 22v-.9c0-3.2 2.5-5.3 5.6-5.3s5.6 2.1 5.6 5.3v.9Z',
-    // …and the two behind it, mirrored about the middle so the glyph balances in
-    // a chip that has nothing else left in it to lean against.
-    'M4.3 4.3a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6Z',
-    'M6.3 13.9c-2.6.7-4.3 2.6-4.3 5.2v1.3h3v-1.3c0-1.9.5-3.5 1.3-4.7Z',
-    'M19.7 4.3a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6Z',
-    'M17.7 13.9c2.6.7 4.3 2.6 4.3 5.2v1.3h-3v-1.3c0-1.9-.5-3.5-1.3-4.7Z'
+    // The pair behind, mirrored about the middle so the glyph balances in a chip
+    // that has nothing else left in it to lean against.
+    'M4.9 3.6a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.2Z',
+    'M4.9 10.1c1.1 0 2.1.25 2.9.72-1.3 1.15-2.1 2.72-2.1 4.58v.6H.9v-.6c0-3.0 1.75-5.3 4-5.3Z',
+    'M19.1 3.6a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.2Z',
+    'M19.1 10.1c-1.1 0-2.1.25-2.9.72 1.3 1.15 2.1 2.72 2.1 4.58v.6h3.8v-.6c0-3.0-1.75-5.3-4-5.3Z',
+    // The leader: biggest, lowest, drawn last so it is the shape the eye lands on.
+    'M12 7.1a3.35 3.35 0 1 1 0 6.7 3.35 3.35 0 0 1 0-6.7Z',
+    'M12 15.1c3.3 0 5.9 2.25 5.9 5.6v1.7H6.1v-1.7c0-3.35 2.6-5.6 5.9-5.6Z'
   ],
   // Damage. One polygon, no holes — the classic bolt reads at any size.
   'bolt': [

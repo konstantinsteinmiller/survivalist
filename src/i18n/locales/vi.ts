@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Hạ gục trùm!',
+    'wasted': 'Toi đời',
+    'cause': {
+      'foe': 'Bị quái vật tràn ngập',
+      'elite': 'Trùm nhỏ hạ gục bạn',
+      'barricade': 'Đâm vào rào chắn',
+      'crate': 'Đâm vào thùng gỗ',
+      'divider': 'Vướng dải phân cách',
+      'trap': 'Sập bẫy',
+      'slam': 'Trùm nghiền nát bạn'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Cột mốc!',
     'rallied': 'Hồi sức',

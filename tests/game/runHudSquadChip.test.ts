@@ -72,9 +72,22 @@ describe('the three chips nobody could name are gone', () => {
     expect(hud.find('.run-hud__stats').text()).toBe('10')
   })
 
-  it('keeps the star milestone chip and the stage line, which were never the problem', async () => {
-    const hud = await mountHud({ milestoneIn: 2 })
-    expect(hud.find('.run-hud__chest').exists()).toBe(true)
+  it('keeps the stage line, and has since lost the star and the career best too', async () => {
+    // The second playtest took two more readouts off this strip, and both for
+    // the same reason the first three went: a glyph and a digit with no unit is
+    // not a goal, it is one more thing to ignore.
+    //
+    //   ★ 4     the milestone countdown. "What is the ★ 1 mean? Nobody
+    //           understands it anyway." The payout it counted down to still
+    //           lands and still names itself on the result screen.
+    //   Best 3  a career best, under a stage number, in a game where you cannot
+    //           go back to it. Nothing the player can act on.
+    //
+    // The stage line survives because it is the one label that says where you
+    // are, and the rail now sits directly under it.
+    const hud = await mountHud({ milestoneIn: 2, best: 3 })
+    expect(hud.find('.run-hud__chest').exists(), 'the star chip came back').toBe(false)
+    expect(hud.find('.run-hud__best').exists(), 'the career best came back').toBe(false)
     expect(hud.find('.run-hud__stage-label').text()).toBe('Stage 3')
   })
 })

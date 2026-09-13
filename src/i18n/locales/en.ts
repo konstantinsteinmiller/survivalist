@@ -249,6 +249,25 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Boss felled!',
+    // The three seconds after the squad falls, over the bodies. The word is
+    // the owner's own brief — GTA's and Elden Ring's death card — and it is
+    // doing the job the result screen could not: marking the loss as an EVENT
+    // rather than as a transition into a menu.
+    'wasted': 'Wasted',
+    // ─── What stopped the run ───────────────────────────────────────────────
+    // One line per cause, shown in an info box on a loss and billed to whatever
+    // took the most survivors (`dominantCause`). Every one of these has to stay
+    // three or four words: the finding they answer is that nobody knew what
+    // killed them, and the reason nobody knew is that nobody reads.
+    'cause': {
+      'foe': 'Overrun by monsters',
+      'elite': 'A miniboss broke you',
+      'barricade': 'Ran into barricades',
+      'crate': 'Ran into crates',
+      'divider': 'Clipped the dividers',
+      'trap': 'Caught in traps',
+      'slam': 'The boss flattened you'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Milestone!',
     // Badge for a retried stage whose enemies came back weakened.

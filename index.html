@@ -33,6 +33,9 @@
           display: flex;
           align-items: center;
           justify-content: center;
+          /* The tile layer below is one tile wider and taller than the screen;
+             without this it would hand the page a scrollbar. */
+          overflow: hidden;
           background: radial-gradient(circle at 50% 38%, #1b2b52 0%, #0a1224 70%);
           transition: opacity 0.4s ease-out;
       }
@@ -40,6 +43,52 @@
       #static-splash.hidden {
           opacity: 0;
           pointer-events: none;
+      }
+
+      /* The panning backdrop.
+         ------------------------------------------------------------------
+         Eight of the game's own things — the survivor, the boss, the chest,
+         the coin, a barrel, an anvil, a grenade, a rocket — as faint line
+         drawings on one seamless tile (public/images/bg/bg-tile_800x800.webp,
+         flattened out of the paintings themselves by `pnpm art:bg-tile`),
+         drifting down and to the right the way a Brawl Stars loading screen
+         does.
+
+         The layer is one tile bigger than the screen up and to the left, and
+         slides exactly one tile down-right before it loops, so the loop has
+         no seam. It moves by TRANSFORM, never background-position: a
+         transform runs on the compositor, so the drift stays smooth while the
+         main thread is busy booting the game — which is the whole time this
+         screen is up.
+
+         The URL is RELATIVE on purpose. Vite rewrites `src`/`href`
+         attributes against the build's base but leaves `url()` inside an
+         inline <style> alone, and `./` resolves against this document
+         wherever it is deployed — the site root, a `--base=./` portal zip, or
+         the `/survivalist/` GitHub path — where a leading slash would only
+         work for the first.
+
+         It is a file both splashes name, so it arrives a beat after the first
+         frame; the fade-in hides that. FLogoProgress draws the same layer and
+         adopts this one's clock at the handover. Change one, change both. */
+      .splash-tiles {
+          position: absolute;
+          top: -400px;
+          left: -400px;
+          right: 0;
+          bottom: 0;
+          background: url(./images/bg/bg-tile_800x800.webp) 0 0 / 400px 400px repeat;
+          opacity: 0.16;
+          will-change: transform;
+          animation: splash-tiles-in 0.6s ease-out both, splash-tiles-pan 40s linear infinite;
+      }
+
+      @keyframes splash-tiles-in {
+          from { opacity: 0; }
+      }
+
+      @keyframes splash-tiles-pan {
+          to { transform: translate3d(400px, 400px, 0); }
       }
 
       /* The greeting card, minus its punchline.
@@ -143,12 +192,13 @@
       }
 
       @media (prefers-reduced-motion: reduce) {
-          .splash-wisp { animation: none; }
+          .splash-wisp, .splash-tiles { animation: none; }
       }
   </style>
 </head>
 <body>
 <div id="static-splash">
+  <div class="splash-tiles" aria-hidden="true"></div>
   <div class="splash-greet">
     <div class="splash-stage">
       <div class="splash-wisp">

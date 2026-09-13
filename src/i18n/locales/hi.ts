@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'बॉस गिरा!',
+    'wasted': 'ख़त्म',
+    'cause': {
+      'foe': 'राक्षसों ने घेर लिया',
+      'elite': 'मिनीबॉस ने तोड़ दिया',
+      'barricade': 'बैरिकेड से टकराए',
+      'crate': 'बक्सों से टकराए',
+      'divider': 'डिवाइडर से टकराए',
+      'trap': 'जाल में फँस गए',
+      'slam': 'बॉस ने कुचल दिया'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'पड़ाव!',
     'rallied': 'नया जोश',

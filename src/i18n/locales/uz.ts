@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Boss quladi!',
+    'wasted': 'Tamom',
+    'cause': {
+      'foe': 'Maxluqlar bosib ketdi',
+      'elite': 'Miniboss sindirdi',
+      'barricade': 'To‘siqlarga urildingiz',
+      'crate': 'Yashiklarga urildingiz',
+      'divider': 'Ajratgichlarga ilindingiz',
+      'trap': 'Tuzoqqa tushdingiz',
+      'slam': 'Boss yanchib tashladi'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Bosqich!',
     'rallied': 'Ikkinchi nafas',

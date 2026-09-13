@@ -1,5 +1,12 @@
 <template lang="pug">
-  Transition(name="incoming")
+  //- `type="transition"`, for the same reason `ControlHint` needs it: `.incoming`
+  //- is the transitioned element AND carries `animation: incoming-pulse …
+  //- infinite`. Vue times a leave off whichever of the two clocks is longer,
+  //- would pick the animation, and would then wait for an `animationend` that an
+  //- infinite animation never fires — leaving the alarm mounted on screen for
+  //- the rest of the run. The child glyph's own infinite flash is harmless: Vue
+  //- reads the computed style of THIS element only.
+  Transition(name="incoming" type="transition")
     div.incoming(
       v-if="show"
       :class="{ 'incoming--into': answer === 'into', 'incoming--still': answer === 'still' }"
@@ -191,6 +198,9 @@ defineProps<{ show: boolean; answer?: 'away' | 'into' | 'still' }>()
 
 .incoming-leave-active
   transition: opacity 0.22s ease
+  // The alarm stops pulsing on the way out. It is an opacity loop over an
+  // opacity ramp; run together, the badge flickers instead of leaving.
+  animation: none
 
 .incoming-enter-from, .incoming-leave-to
   opacity: 0

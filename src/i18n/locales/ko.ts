@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': '보스 격파!',
+    'wasted': '전멸',
+    'cause': {
+      'foe': '몬스터에게 밀렸다',
+      'elite': '미니보스에게 당했다',
+      'barricade': '바리케이드에 충돌',
+      'crate': '상자에 충돌',
+      'divider': '분리대에 걸렸다',
+      'trap': '함정에 걸렸다',
+      'slam': '보스에게 짓밟혔다'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': '마일스톤!',
     'rallied': '기사회생',

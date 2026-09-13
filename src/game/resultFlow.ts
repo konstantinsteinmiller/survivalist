@@ -97,3 +97,56 @@ export interface GoBounceInputs {
  */
 export const shouldBounceGo = (i: GoBounceInputs): boolean =>
   !i.sawInput && i.onScreenMs >= RESULT_BOUNCE_DELAY_MS
+
+// ─── One payout gets one picture ────────────────────────────────────────────
+//
+// The coins a stage pays are added to the wallet the instant the result screen
+// goes up, on every build. That is not negotiable and is not what this decides:
+// a payment that waits on an ad is a payment held hostage, and the number in the
+// badge moves whether or not anything is drawn.
+//
+// What this decides is where the PICTURE goes — the burst of coins that flies
+// from the screen to the wallet — and it has to, because three separate things
+// now want to draw the same transaction:
+//
+//   THE CROWD      every survivor turning into a coin on the road when the boss
+//                  falls (`cashOutSquad`), which is the fix for the handover
+//                  reading as a loss;
+//   THE CARD       the result screen's own coin line bursting to the wallet;
+//   THE ×3         the rewarded video's bonus, which has to be visibly paid or
+//                  the button did not sell anything.
+//
+// Two of them firing for one payout reads as being paid twice, and the ×3 firing
+// for nothing reads as a video that did not work. The rule is small enough to
+// state in one line and easy enough to get wrong that it is worth pinning:
+//
+//   • if the crowd already flew, the card draws NOTHING — the coins have been
+//     seen leaving, and the only thing still owed a picture is the ×3's extra;
+//   • otherwise, if a ×3 is genuinely on offer, the card's burst is HELD so the
+//     claim can throw the run's coins and the bonus together, as one number,
+//     which is the number the button was selling;
+//   • otherwise it throws now.
+
+/** What the result card does with the coins it has just banked. */
+export interface CardPayoutView {
+  /** Coins to burst immediately, as the screen opens. */
+  now: number
+  /** Coins held back for a successful ×3 claim to throw along with its bonus. */
+  owed: number
+}
+
+export interface CardPayoutInputs {
+  /** Is the ×3 button actually live on this screen — real provider, real
+   *  inventory, not yet claimed? See `rewardOfferLive`. */
+  rewardOfferLive: boolean
+  /** Did the crowd already convert into coins on the road? See
+   *  `convertSquadToCoins`. */
+  squadCashed: boolean
+}
+
+export const cardPayout = (total: number, i: CardPayoutInputs): CardPayoutView => {
+  if (total <= 0) return { now: 0, owed: 0 }
+  if (i.squadCashed) return { now: 0, owed: 0 }
+  if (i.rewardOfferLive) return { now: 0, owed: total }
+  return { now: total, owed: 0 }
+}

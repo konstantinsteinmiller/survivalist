@@ -117,8 +117,11 @@ describe('tower_state cloud hydrate → composable refresh', () => {
     const { UPGRADES } = await import('@/use/useUpgrades')
     expect(unitDamage.value).toBeCloseTo(UPGRADES.power.valueAt(3), 5)
     expect(unitDamage.value).toBeGreaterThan(UPGRADES.power.valueAt(0))
-    // One Squad level, read on stage 1, where a level is one survivor.
-    expect(startSquadAt(1)).toBe(4)
+    // One Squad level, read on stage 1. Stage 1 opens with ONE survivor
+    // (`START_SQUAD`) and a level is worth one more, so a hydrated save with a
+    // single Squad level starts the first road with two. Every later stage
+    // reads `STAGE_SQUAD_FLOOR` instead — see `squadBaseAt`.
+    expect(startSquadAt(1)).toBe(2)
   })
 
   it('refreshes user settings so the player keeps their language and volume', async () => {

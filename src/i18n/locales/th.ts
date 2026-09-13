@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'ล้มบอสได้!',
+    'wasted': 'จบเห่',
+    'cause': {
+      'foe': 'ถูกมอนสเตอร์ถล่ม',
+      'elite': 'มินิบอสเล่นงานคุณ',
+      'barricade': 'ชนแผงกั้น',
+      'crate': 'ชนลังไม้',
+      'divider': 'เกี่ยวแนวแบ่งถนน',
+      'trap': 'ติดกับดัก',
+      'slam': 'บอสทุบคุณจม'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'หมุดหมาย!',
     'rallied': 'ฮึดสู้อีกครั้ง',

@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Baas geveld!',
+    'wasted': 'Afgemaakt',
+    'cause': {
+      'foe': 'Overlopen door monsters',
+      'elite': 'Een minibaas brak je',
+      'barricade': 'Op barricades gereden',
+      'crate': 'Op kratten gereden',
+      'divider': 'De scheidingen geraakt',
+      'trap': 'In vallen gelopen',
+      'slam': 'De baas verpletterde je'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Mijlpaal!',
     'rallied': 'Tweede adem',

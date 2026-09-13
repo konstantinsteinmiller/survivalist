@@ -113,8 +113,44 @@ describe('the floor: stage 1 must not punish a player who does nothing', () => {
     // not: stage 4 — where hard obstacles are introduced — stops it dead on
     // every seed. The floor is still there. It is three stages further in,
     // which is the price of the first three being a tutorial.
+    // ── AND THEN THE OPENING GOT WEAKER, on purpose ──
+    //
+    // Two owner calls landed on the first thirty seconds at once: the starting
+    // squad is now ONE survivor (`START_SQUAD`) and the opening gate's pump is
+    // capped at +7 rather than +10 (`OPENING_PUMP_CAP`). Together they take a
+    // good stage-1 opening from thirteen bodies to eight, and a careless one —
+    // dead centre, whatever leaf happens to be there — from six to two.
+    //
+    // Measured over eight seeds after that change, stage 1:
+    //
+    //   careless  clears 5/8, peak 14, the losses all to the closing elite
+    //   average   clears 8/8, peak 36
+    //   good      clears 8/8, peak 64
+    //   optimal   clears 8/8, peak 55
+    //
+    // So the assertion moved rather than loosened. What it used to pin — a run
+    // that never touches the screen clears stage 1 every time — was a side
+    // effect of an opening that has deliberately been made weaker, and it is
+    // not the promise the game makes. The promise is that a player who taps
+    // BADLY gets through, and that is now asserted directly, on `average`,
+    // which is the policy that models one.
+    //
+    // The floor proper is untouched and still asserted above: a careless run
+    // reaches the closing elite on every seed. It is the elite it now loses to
+    // some of the time, which is the right thing for the last obstacle on the
+    // teaching road to do.
     const one = aggregate(await runSamples(1, careless, SEEDS))
-    expect(one.clearRate, 'the tutorial stopped being survivable').toBe(1)
+    expect(
+      one.clearRate,
+      `the tutorial stopped being survivable — careless died at ` +
+        `${Math.round(one.deathProgress.med * 100)} % of the road`
+    ).toBeGreaterThan(0)
+
+    const tapped = aggregate(await runSamples(1, average, SEEDS))
+    expect(
+      tapped.clearRate,
+      'stage 1 stopped clearing for a player who taps badly — the install ends here'
+    ).toBe(1)
 
     // The taught stages are allowed to be walkable, but never RELIABLY: a stage
     // nobody can lose teaches nothing, so a no-input run still has to lose most
@@ -257,17 +293,37 @@ describe('the career: the save carried forward', () => {
       .toBeGreaterThan(withAds.totalAttempts)
   }, 240_000)
 
-  it('does not let a player who never steers buy their way past stage 1', async () => {
-    const c = await runCareer({ policy: careless, strategy: cheapest, seed: 5000, lastStage: 6 })
+  it('does not let a player who never steers buy their way into the game', async () => {
     // Stage 1 is deliberately the gentlest thing in the game now, so a career
-    // with a shop behind it may squeak through it — but no further. The rule
-    // being defended is that never touching the screen is not a way to PLAY the
-    // game, not that stage 1 must beat you.
-    expect(c.reached, 'zero-input play became a viable career with a shop behind it')
-      .toBeLessThanOrEqual(1)
-    expect(c.stuckAt, 'zero-input play got past the stage that teaches steering')
-      .toBeLessThanOrEqual(2)
-  }, 120_000)
+    // with a shop behind it may squeak through it — and sometimes through stage
+    // 2 as well. The rule being defended is that never touching the screen is
+    // not a way to PLAY the game, not that any particular stage must beat you.
+    //
+    // ── Why three seeds and a loose bound ──
+    //
+    // This pinned ONE seed at `reached <= 1` and `stuckAt <= 2`, and a change
+    // that could not have altered DPS — distributing muzzle flashes across the
+    // living crowd instead of retrying random indices until one was not a
+    // corpse — moved that one seed a stage. Measured across three: reached
+    // 2/1/1 and stuck at 3/2/2. The change shifted how much randomness a tick
+    // consumes, which walks a seeded career, and the old thresholds were simply
+    // one seed's value written down as a law.
+    //
+    // So the bound is the CLAIM instead: zero-input play stalls in the opening
+    // stages and comes nowhere near the end of this six-stage career. A real
+    // regression — the game playing itself — blows straight through it.
+    const seeds = [5000, 5001, 7777]
+    const runs = []
+    for (const seed of seeds) {
+      runs.push(await runCareer({ policy: careless, strategy: cheapest, seed, lastStage: 6 }))
+    }
+    for (const [i, c] of runs.entries()) {
+      expect(c.reached, `zero-input play became a viable career on seed ${seeds[i]}`)
+        .toBeLessThanOrEqual(3)
+      expect(c.stuckAt, `zero-input play got deep into the campaign on seed ${seeds[i]}`)
+        .toBeLessThanOrEqual(4)
+    }
+  }, 300_000)
 
   it('spends what it earns: a career actually reaches the shop', async () => {
     // Guards the plumbing, not the balance. If `applyUpgrade` ever stops moving

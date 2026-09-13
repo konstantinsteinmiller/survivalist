@@ -21,12 +21,26 @@
       button.skills__btn(
         v-else
         type="button"
-        :class="{ 'skills__btn--ready': s.ready, 'skills__btn--live': s.live, 'skills__btn--reveal': s.reveal, 'skills__btn--trial': s.state === 'trial', [`skills__btn--${s.id}`]: true }"
+        :class="{ 'skills__btn--ready': s.ready, 'skills__btn--live': s.live, 'skills__btn--reveal': s.reveal, 'skills__btn--trial': s.state === 'trial', 'skills__btn--taught': s.taught, [`skills__btn--${s.id}`]: true }"
         :disabled="!s.ready"
         :aria-label="s.label"
         :title="s.label"
         @pointerdown.stop.prevent="onUse(s.id)"
       )
+        //- ── The lesson's two arrows ──────────────────────────────────────
+        //-
+        //- Above and below, pointing at the button, on the one slot the game
+        //- has stopped the world to ask for. Gold because gold is this HUD's
+        //- "here is something for you" colour (the ladder promise, the
+        //- milestone plate) and because nothing else in the skill row is gold,
+        //- so the eye has nowhere else to land.
+        //-
+        //- Inside the button rather than beside it: the row is a flex line and
+        //- an arrow that took part in it would shove the other three sideways
+        //- at the exact moment the player is being asked to aim at one.
+        template(v-if="s.taught")
+          span.skills__arrow.skills__arrow--up(aria-hidden="true")
+          span.skills__arrow.skills__arrow--down(aria-hidden="true")
         //- The cooldown ring. An SVG arc rather than a CSS conic gradient: the
         //- ring has to read at 44px on a phone, and a stroked circle keeps its
         //- weight at any size where a gradient wedge turns to mush.
@@ -150,6 +164,15 @@ const emit = defineEmits<{ (e: 'use', id: SkillId): void }>()
 const RING = 2 * Math.PI * 19
 
 interface Props {
+  /**
+   * The skill the game is currently TEACHING, or null.
+   *
+   * One slot at a time, and only ever during the lesson on the first miniboss
+   * (`game/grenadeTutorial.ts`). While it is set, that button is forced ready,
+   * its meter is cleared, and it wears the arrows — because the world has
+   * stopped and it is the only thing that can start it again.
+   */
+  taught?: SkillId | null
   /** True while the shield is actually up — the button glows rather than waits. */
   shieldLive: boolean
   /** …and the same for the world being frozen, and for a flare being up. */
@@ -247,6 +270,7 @@ const barStyle = computed(() => {
 const revealing = ref<string[]>([])
 
 const visible = computed(() => SKILL_SLOTS.map((slot, i) => {
+  const taught = props.taught ?? null
   const state = slotState(slot)
   const usable = state !== 'locked'
   const id = slot.id
@@ -270,16 +294,30 @@ const visible = computed(() => SKILL_SLOTS.map((slot, i) => {
     label,
     // Staggered so a row of them never shimmers in lockstep.
     shineS: 3.2 + i * 0.55,
-    ready: usable && id !== null ? skillReady(id) : false,
-    charge: usable && id !== null ? skillCharge(id) : 0,
-    leftMs: usable && id !== null ? skillReadyIn(id) : 0,
+    // The lesson forces the grenade ready and clears its meter: the one button
+    // the player is being told to press may never be showing a countdown while
+    // it is being pointed at. See `teachGrenade` in the simulation.
+    ready: taught === 'grenade' && id === 'grenade'
+      ? true
+      : usable && id !== null ? skillReady(id) : false,
+    charge: taught === 'grenade' && id === 'grenade'
+      ? 1
+      : usable && id !== null ? skillCharge(id) : 0,
+    leftMs: taught === 'grenade' && id === 'grenade'
+      ? 0
+      : usable && id !== null ? skillReadyIn(id) : 0,
+    taught: taught === id,
     live,
     reveal: id !== null && usable && revealing.value.includes(revealKey(id, state))
   }
 }))
 
 const onUse = (id: SkillId | null): void => {
-  if (id === null || !skillReady(id)) return
+  if (id === null) return
+  // A taught button is pressable whatever its cooldown says — the scene makes
+  // the same exception, and the two have to agree or the press is swallowed
+  // here and the world never resumes.
+  if (props.taught !== id && !skillReady(id)) return
   emit('use', id)
 }
 
@@ -577,4 +615,66 @@ img.skills__icon
     box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(255, 217, 60, 0)
   50%
     box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 0 0.28rem rgba(255, 217, 60, 0.16)
+
+// ─── The taught button ──────────────────────────────────────────────────────
+//
+// The world has stopped and this is the only thing that starts it again, so it
+// is lifted out of the lightbox rather than merely highlighted inside it: the
+// dimmer is a sibling of the row (`GameScene.vue`), and raising this above it
+// is what makes "everything except this" true.
+.skills__btn--taught
+  z-index: 3
+  border-color: #ffd93c
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 0 0.3rem rgba(255, 217, 60, 0.28), 0 0 1.6rem rgba(255, 200, 40, 0.55)
+  animation: skill-taught 900ms ease-in-out infinite
+
+@keyframes skill-taught
+  0%, 100%
+    transform: scale(1)
+  50%
+    transform: scale(1.07)
+
+// Two arrows, one above and one below, pointing IN at the button. Absolutely
+// positioned off the button's own box so the row's flex line never moves.
+.skills__arrow
+  position: absolute
+  left: 50%
+  width: 0
+  height: 0
+  border-left: 0.62rem solid transparent
+  border-right: 0.62rem solid transparent
+  pointer-events: none
+  filter: drop-shadow(0 0 0.35rem rgba(255, 200, 40, 0.8))
+
+.skills__arrow--up
+  bottom: calc(100% + 0.3rem)
+  border-top: 0.78rem solid #ffd93c
+  transform: translateX(-50%)
+  animation: skill-arrow-down 900ms ease-in-out infinite
+
+.skills__arrow--down
+  top: calc(100% + 0.3rem)
+  border-bottom: 0.78rem solid #ffd93c
+  transform: translateX(-50%)
+  animation: skill-arrow-up 900ms ease-in-out infinite
+
+// They travel TOWARD the button, not away from it — an arrow that drifts off
+// reads as a thing leaving rather than a thing to press.
+@keyframes skill-arrow-down
+  0%, 100%
+    transform: translateX(-50%) translateY(-0.22rem)
+  50%
+    transform: translateX(-50%) translateY(0.1rem)
+
+@keyframes skill-arrow-up
+  0%, 100%
+    transform: translateX(-50%) translateY(0.22rem)
+  50%
+    transform: translateX(-50%) translateY(-0.1rem)
+
+@media (prefers-reduced-motion: reduce)
+  .skills__btn--taught,
+  .skills__arrow--up,
+  .skills__arrow--down
+    animation: none
 </style>

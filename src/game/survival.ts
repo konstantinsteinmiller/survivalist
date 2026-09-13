@@ -50,9 +50,50 @@ export const CROWD_SCREEN_Y = 0.72
 
 // ─── The squad ──────────────────────────────────────────────────────────────
 
-/** Survivors at the start of stage 1 before any meta upgrades. Three is enough
- *  to read as "a crowd" and few enough that the first `+4` gate feels enormous. */
-export const START_SQUAD = 3
+/**
+ * Survivors at the start of stage 1 before any meta upgrades.
+ *
+ * ONE. It was three, on the argument that three reads as "a crowd" and is few
+ * enough that the first gate feels enormous. The second half of that was right
+ * and the first half was the mistake: three figures already read as a squad, so
+ * the opening door turned a small crowd into a slightly larger one, and the
+ * single loudest thing this game does — one person becoming a mob — was being
+ * shown to a first-time player as a change of degree.
+ *
+ * From one, the opening door is the difference between a lone survivor and a
+ * group. Every meta level is measured on top of this (`UPGRADES.squad`), so a
+ * player who has bought anything at all starts above it and the change is felt
+ * hardest by the person meeting the game for the first time, which is the
+ * person it is for.
+ *
+ * ⚠ THIS IS STAGE 1's NUMBER, NOT EVERY STAGE'S — see `squadBaseAt`. Cutting
+ * the floor everywhere was tried and measured: a career that reached stage 30
+ * for a mid-skill player walled at ELEVEN. The opening is a dramatic beat and
+ * can afford to start at nothing; a stage handed over at depth is a fight the
+ * player has to be able to take, and three bodies is that floor.
+ */
+export const START_SQUAD = 1
+
+/**
+ * The floor every stage AFTER the first opens on, before meta levels.
+ *
+ * Three, which is what stage 1 used to start with and what the whole campaign
+ * was balanced against. It is a separate number from `START_SQUAD` because the
+ * two answer different questions: the first is "what does a stranger see in the
+ * opening seconds", and this is "what is the smallest crowd a stage is winnable
+ * from".
+ */
+export const STAGE_SQUAD_FLOOR = 3
+
+/**
+ * The base crowd a stage opens with, before meta levels.
+ *
+ * The discontinuity at stage 2 is deliberate and is the whole point: stage 1
+ * exists to show one person becoming a mob, and every stage after it exists to
+ * be played.
+ */
+export const squadBaseAt = (stage: number): number =>
+  stage <= 1 ? START_SQUAD : STAGE_SQUAD_FLOOR
 
 /**
  * Hard ceiling on simulated survivors.
@@ -1722,6 +1763,33 @@ export const wipeReward = (stage: number, bestSquad: number, progress01: number)
  */
 export const BOSS_FELLED_MS = 2000
 
+/**
+ * How long a WIPE sits on the road before the result screen arrives.
+ *
+ * The mirror of `BOSS_FELLED_MS`, and it exists for the opposite reason. A
+ * clear was over in a frame and that stole the reward; a loss was over in a
+ * frame and that stole the EXPLANATION. Two playtests in a row filed the same
+ * complaint — "nothing says what killed you" — and the screen that was supposed
+ * to answer it arrived so fast that four of five testers never connected it to
+ * anything they had seen happen. The last thing on the road, every time, was a
+ * result card.
+ *
+ * Three seconds is the beat that puts the two back together: the world is
+ * already stopped at a wipe (`step` returns on `'wipe'`), so the bodies stay
+ * exactly where they fell, the camera leans in on them, the light goes out of
+ * the frame, and the word lands on top. The cause the result screen then names
+ * is a caption for something the player just watched, rather than a fact about
+ * a run they have already stopped thinking about.
+ *
+ * Longer than the boss hold on purpose. A win is a reward and should not be
+ * made to wait; a loss is a lesson, and the lesson is the thing being sold.
+ */
+export const WASTED_HOLD_MS = 3000
+
+/** How far the camera leans in over that hold. Small — the frame is the story,
+ *  not the zoom, and a hard push on a phone reads as a glitch. */
+export const WASTED_ZOOM = 1.14
+
 // ─── How far the run actually got ───────────────────────────────────────────
 //
 // `progress01` is where the crowd is along the ROAD, and it reaches 1 the
@@ -2445,6 +2513,32 @@ export type DeathCause = 'foe' | 'elite' | 'barricade' | 'crate' | 'divider' | '
  */
 export const SURVIVOR_FALL_MS = 420
 
+/**
+ * What `dying` is parked at once the fall is finished.
+ *
+ * A hair above zero, deliberately: every "is this body out of play" test in the
+ * simulation is `u.dying > 0`, and a corpse has to answer yes to all of them
+ * for as long as it is on the road. Letting it reach zero would put the body
+ * back in the formation, back in the firing line and back in the crowd's
+ * bounding box.
+ */
+export const SURVIVOR_REST_MS = 0.001
+
+/**
+ * How far behind the crowd a body is left before it is dropped, world units.
+ *
+ * Bodies used to be spliced the moment the fall finished, which is why a stage
+ * that cost the player forty survivors showed no sign of it a second later. The
+ * road is the record now: a corpse lies where it fell until the camera has
+ * carried it off the bottom of the screen, and is only then forgotten.
+ *
+ * Eight units is comfortably past the edge — about thirteen and a half units of
+ * road are visible at a time and the crowd rides roughly three quarters of the
+ * way down it, so under four are ever behind the anchor. The margin is there so
+ * nothing is ever seen to vanish.
+ */
+export const FALLEN_CULL_BEHIND = 8
+
 /** The causes that are a THING the crowd ran into rather than something that
  *  reached for them. A body stopped by one of these stays crumpled against it;
  *  everything else ends prone in the open. Read only by the renderer. */
@@ -2477,6 +2571,17 @@ export interface Unit {
   /** Death animation, ms remaining. `> 0` means it is falling out. */
   dying: number
   /**
+   * The fall is over and the body is lying on the road.
+   *
+   * `dying` is held at a hair above zero for a resting body rather than allowed
+   * to reach it, so every `u.dying > 0` guard in the simulation — collision,
+   * shooting, formation slots, the bubble's bounding box — keeps working
+   * unchanged and a corpse stays out of all of them. This flag is what the
+   * RENDERER reads to know it should hold the fallen pose instead of playing
+   * the fall again from the top.
+   */
+  down: boolean
+  /**
    * What killed it, or `null` while it is alive.
    *
    * Carried on the body purely so the RENDERER can tell a fall from a crash: a
@@ -2491,6 +2596,18 @@ export interface Unit {
    * the two drift apart.
    */
   cause: DeathCause | null
+  /**
+   * This survivor has already been paid out, and is no longer drawn.
+   *
+   * Set by `cashOutSquad` in the beat after a boss falls, when every living
+   * body on the road turns into a coin and flies to the wallet. It is a
+   * RENDERER flag and nothing more: the body stays in `units` so the handover's
+   * carry-over formation (`entryFrom`) still reads the crowd that won the
+   * stage, and `squadCount` is deliberately untouched so the HUD keeps printing
+   * the number the payout was priced against while the coins are still in the
+   * air. Cleared by being a fresh unit — `startStage` rebuilds the crowd.
+   */
+  cashed: boolean
   /** Monster-collision immunity, ms remaining. See `FOE_COLLIDE_IFRAMES_MS`. */
   inv: number
   /**

@@ -18,7 +18,7 @@ import {
   GATE_LEAF_X,
   GATE_GROWTH_TRIM, GATE_MAX_VALUE, GATE_MUL_MAX, GATE_SCALE_STEP, GATE_SUB_MAX,
   MAX_SQUAD,
-  START_SQUAD,
+  STAGE_SQUAD_FLOOR,
   earlyCrateHpMul, earlyMinibossHpMul, earlyObstacleKeep, earlyPackCap, earlyPackMul,
   gateMulOpen,
   gatePumpStep,
@@ -564,12 +564,12 @@ export const MINIBOSS_STAGE_THIRD = 20
  *
  * Two things had moved out from under the constant.
  *
- *   1. THE OPENING DOOR. Stage 1 opens on a solo `+3` that pumps to
- *      `OPENING_PUMP_CAP` = 10, and the crowd reaches it holding the full ten
+ *   1. THE OPENING DOOR. Stage 1 opened on a solo `+3` that pumped to
+ *      `OPENING_PUMP_CAP` = 10, and the crowd reached it holding the full ten
  *      (nine without the tutorial hold — the door caps either way, see below).
  *      The road's beats were priced for the squad of ~6 that a `+3` produced;
- *      what actually walks down it is 13 at the teaching wall and 24-47 at the
- *      elite.
+ *      what actually walked down it was 13 at the teaching wall and 24-47 at
+ *      the elite.
  *   2. THE BOSS STOPPED BEING A FIXED BAR. `minibossHp` prices this against
  *      `BOSS_BASE_HP * bossHpScale(1)` — a flat 1000 — but stage 1's boss has
  *      been sized to the crowd that arrives since `game/adaptive.ts`, and it
@@ -1977,12 +1977,43 @@ const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
  * approach — three ticks, `+3` to `+6`, which is not a spectacle. At 2.6× it
  * ticks every ~190 ms: `+3` races to the cap inside the approach, the ladder
  * climbs seven notes, and the first thing the game shows a stranger is the one
- * thing it does that nothing else does. The cap keeps it a reward rather than a
- * number that runs away from the player, and keeps the crowd it hands over —
- * thirteen survivors — inside what stage 1 was priced against.
+ * thing it does that nothing else does.
+ *
+ * ── The cap came DOWN to seven ──
+ *
+ * It was ten, and ten was too much of a head start: the door handed over
+ * thirteen survivors and the rest of stage 1 had nothing left to give. Seven is
+ * still the whole spectacle — the number visibly races, the ladder still climbs
+ * — and it leaves the road after it something to do. It also lands better
+ * against the new opening: from a squad of ONE (`START_SQUAD`), a door that
+ * pumps to seven is a crowd appearing out of nothing, which is the thing being
+ * sold, and eight survivors is a squad the stage-1 gates can still multiply
+ * into something the player is proud of.
  */
 export const OPENING_PUMP_MUL = 2.6
-export const OPENING_PUMP_CAP = 10
+export const OPENING_PUMP_CAP = 7
+
+/**
+ * What the opening door says before anybody has shot it.
+ *
+ * ONE, to match the squad standing in front of it (`START_SQUAD`). The whole
+ * job of this door is to teach that a gate turns fire into people, and the
+ * clearest possible statement of that is `1 → 1`: the number on the door and
+ * the number of survivors are the same number, and then the player shoots and
+ * both of them climb together.
+ *
+ * It was three, which was a head start rather than a lesson — a stranger who
+ * did nothing at all still walked out of the opening with four people, and the
+ * door's climb was four notes (`+3` to `+7`) instead of seven. Starting at one
+ * makes the pump the entire content of the opening: ignore it and you leave
+ * with two, hold fire on it and you leave with eight, and the difference is
+ * visible on the door the whole way in.
+ *
+ * The approach still covers the climb with room to spare — `gatePumpStep(1)`
+ * is one survivor a tick and the door ticks every ~190 ms
+ * (`OPENING_PUMP_MUL`), so seven notes take ~1.15 s of a ~1.8 s run-up.
+ */
+export const OPENING_GATE_VALUE = 1
 /** Where the opening doorway stands. INSIDE the first screen (~13.7 units of
  *  road are visible), so it is already on view — and already being shot at —
  *  while the controls lightbox holds the road for a first-time player. */
@@ -2758,7 +2789,9 @@ const stageOne = (b: Beat): void => {
   // frame, the crowd is already shooting it while the lightbox is up, and the
   // number races (`OPENING_PUMP_MUL`) — the first thing the game shows is the
   // one thing it does that nothing else does.
-  soloGate(b, OPENING_GATE_Y, 3, { pumpMul: OPENING_PUMP_MUL, pumpCap: OPENING_PUMP_CAP })
+  soloGate(b, OPENING_GATE_Y, OPENING_GATE_VALUE, {
+    pumpMul: OPENING_PUMP_MUL, pumpCap: OPENING_PUMP_CAP
+  })
 
   // ── The first pickup in the game, and the one lesson it has to land ──
   //
@@ -5628,13 +5661,16 @@ const squadAfter = (squad: number, leaf: GateLeaf, stage: number, payoutBonus: n
  * The biggest crowd this stage's doors can possibly hand a player.
  *
  * @param startSquad what the run opens with — `startSquadAt(stage)` from the shop,
- *                   NOT the bare `START_SQUAD`, so an upgraded save is measured
- *                   against the ceiling its own purchases raised.
+ *                   NOT the bare floor, so an upgraded save is measured against
+ *                   the ceiling its own purchases raised. The default is the
+ *                   post-opening floor rather than stage 1's single survivor,
+ *                   because every caller that omits it is asking about a stage
+ *                   the campaign has to be winnable from.
  * @param payoutBonus `gatePayoutBonus.value`, for the same reason.
  */
 export const perfectSquadFor = (
   stage: number,
-  startSquad: number = START_SQUAD,
+  startSquad: number = STAGE_SQUAD_FLOOR,
   payoutBonus = 1
 ): number => {
   let squad = Math.max(1, Math.round(startSquad))

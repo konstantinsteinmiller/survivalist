@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': '首领已倒下！',
+    'wasted': '全灭',
+    'cause': {
+      'foe': '被怪物淹没',
+      'elite': '被小头目击溃',
+      'barricade': '撞上路障',
+      'crate': '撞上木箱',
+      'divider': '刮到隔离墩',
+      'trap': '踩中陷阱',
+      'slam': '被首领砸扁'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': '里程碑！',
     'rallied': '重整旗鼓',

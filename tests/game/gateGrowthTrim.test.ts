@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { gateAddBase } from '@/game/track'
-import { GATE_GROWTH_TRIM, START_SQUAD } from '@/game/survival'
+import { GATE_GROWTH_TRIM, START_SQUAD, STAGE_SQUAD_FLOOR } from '@/game/survival'
 import {
   UPGRADES, gatePayoutBonusAt, gatePayoutStepPct, squadPerLevel
 } from '@/use/useUpgrades'
@@ -59,13 +59,20 @@ describe('a Squad level is a sixth of the stage\'s door', () => {
   })
 
   it('shows the shop the start the player will actually get', () => {
-    expect(UPGRADES.squad.valueAt(0, 40)).toBe(START_SQUAD)
+    // The BASE is stage-dependent now (`squadBaseAt`): stage 1 opens on a
+    // single survivor so the first door reads as a crowd appearing out of
+    // nothing, and every stage after it opens on the floor the campaign was
+    // balanced against. Cutting the floor everywhere was tried and measured —
+    // a mid-skill career that reached stage 30 walled at eleven.
+    expect(START_SQUAD).toBe(1)
+    expect(UPGRADES.squad.valueAt(0, 1)).toBe(START_SQUAD)
+    expect(UPGRADES.squad.valueAt(0, 40)).toBe(STAGE_SQUAD_FLOOR)
     expect(UPGRADES.squad.valueAt(10, 1)).toBe(START_SQUAD + 10)
-    expect(UPGRADES.squad.valueAt(10, 40)).toBe(START_SQUAD + 50)
+    expect(UPGRADES.squad.valueAt(10, 40)).toBe(STAGE_SQUAD_FLOOR + 50)
     // Six levels is a whole door ahead, on any stage — the sentence the
     // divisor was chosen to make true.
     for (const s of [20, 40, 60, 100]) {
-      expect(UPGRADES.squad.valueAt(6, s) - START_SQUAD, `stage ${s}`)
+      expect(UPGRADES.squad.valueAt(6, s) - STAGE_SQUAD_FLOOR, `stage ${s}`)
         .toBeGreaterThanOrEqual(gateAddBase(s) - 3)
     }
   })

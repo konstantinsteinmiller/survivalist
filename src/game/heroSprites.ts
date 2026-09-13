@@ -566,6 +566,17 @@ const CRASH_END = 0.46
 const SETTLE_END = 0.62
 const FADE_START = 0.84
 
+/**
+ * Where a body comes to rest and STAYS.
+ *
+ * The last frame before the fade used to begin. A corpse is no longer disposed
+ * of by turning transparent — it lies on the road until the camera carries it
+ * away — so the renderer holds this point indefinitely rather than walking past
+ * it. The fade tail below still exists and is still what the fall walks through
+ * if anything ever plays the animation to completion again.
+ */
+export const FALL_REST_P = FADE_START
+
 /** How far the body rocks back INTO the blow while it is being stopped, rad. */
 const JOLT_BACK = 0.14
 /**

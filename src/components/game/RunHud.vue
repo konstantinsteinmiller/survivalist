@@ -324,27 +324,30 @@ onBeforeUnmount(() => {
 <template lang="pug">
   div.run-hud
     div.run-hud__row
+      //- ── Two things, and the rail directly under them ──────────────────
+      //-
+      //- This column carried four: the stage, the career best, the ladder's
+      //- promise and a milestone countdown. Two of those are gone and the rail
+      //- has moved up into the space, because the column was pushing the
+      //- progress bar a third of the way down a phone.
+      //-
+      //-   BEST — "Best 3" under "Stage 4". A career best is a number you
+      //-   cannot act on and cannot go back to; the stage number already says
+      //-   where you are, and the result screen says the record when it means
+      //-   something.
+      //-
+      //-   ★ 4  — the milestone countdown. Nobody read it. It was a glyph and a
+      //-   digit with no unit, sitting next to another glyph and digit, and a
+      //-   counter whose subject has to be guessed is not a goal two stages
+      //-   ahead — it is one more thing to ignore. The payout it counted down
+      //-   to still lands, and still names itself on the result screen.
       div.run-hud__stage
         span.run-hud__stage-label {{ label ?? t('hud.stage', { n: stage }) }}
-        span.run-hud__best(v-if="best > 0") {{ t('hud.best', { n: best }) }}
         //- The promise. Gold, like the banner's, and never during the boss:
         //- the fight is the only thing the player should be reading then.
         span.run-hud__next(v-if="nextUnlock && !isBoss")
           GameIcon.run-hud__next-icon(:name="nextUnlock.icon")
           span.run-hud__next-text {{ nextUnlock.text }}
-        //- The countdown to the next milestone. Gold like the ladder's promise
-        //- above it, and gone during the boss for the same reason: the fight is
-        //- the only thing worth reading then. The words live in the
-        //- screen-reader label — the chip itself is a star and a digit.
-        span.run-hud__chest(
-          v-if="milestoneIn !== null && milestoneIn !== undefined && !isBoss"
-          :class="{ 'is-now': milestoneIn === 0 }"
-        )
-          GameIcon.run-hud__chest-icon(name="star")
-          span.sr-only {{ t('hud.toMilestone') }}
-          //- No digit on the stage that pays: "★ 0" reads as an empty counter
-          //- rather than as arrival. The star lighting up IS the zero.
-          span.run-hud__chest-text(v-if="milestoneIn > 0") {{ milestoneIn }}
 
       div.run-hud__stats
         //- Re-keyed on every milestone so the punch animation restarts from
@@ -430,14 +433,6 @@ onBeforeUnmount(() => {
   line-height: 1
   text-shadow: 2px 2px 0 #000, 0 0 12px rgba(120, 200, 255, 0.35)
 
-.run-hud__best
-  color: #ffd93c
-  font-weight: 900
-  text-transform: uppercase
-  font-size: clamp(0.52rem, 2.4vw, 0.72rem)
-  line-height: 1
-  text-shadow: 2px 2px 0 #000
-
 // The ladder chip. Reads in a quarter of a second — a glyph and three words —
 // and sits where the eye already goes for the stage number.
 .run-hud__next
@@ -465,40 +460,6 @@ onBeforeUnmount(() => {
 .run-hud__next-text
   color: #fff
 
-// The milestone countdown. Same plate as the ladder's promise, half the width:
-// it is a star and a digit, and it has to cost the stage column almost nothing
-// because the ladder chip is frequently above it.
-.run-hud__chest
-  display: inline-flex
-  align-items: center
-  gap: 0.2em
-  margin-top: 0.1rem
-  padding: clamp(0.1rem, 0.7vw, 0.2rem) clamp(0.24rem, 1.2vw, 0.4rem)
-  border: 2px solid rgba(255, 217, 60, 0.28)
-  border-radius: 999px
-  background-color: rgba(10, 16, 30, 0.72)
-  backdrop-filter: blur(3px)
-  color: #ffd93c
-  font-weight: 900
-  font-size: clamp(0.52rem, 2.4vw, 0.72rem)
-  line-height: 1
-  text-shadow: 2px 2px 0 #000
-
-.run-hud__chest .run-hud__chest-icon
-  width: clamp(0.6rem, 2.7vw, 0.82rem)
-  height: clamp(0.6rem, 2.7vw, 0.82rem)
-  flex: 0 0 auto
-
-.run-hud__chest-text
-  color: #fff
-  font-variant-numeric: tabular-nums
-
-// The stage that pays. Solid gold plate instead of a hairline, so the chip the
-// player has been counting down visibly arrives.
-.run-hud__chest.is-now
-  border-color: #ffd93c
-  background-color: rgba(120, 84, 8, 0.85)
-
 .run-hud__stats
   display: flex
   align-items: center
@@ -514,8 +475,28 @@ onBeforeUnmount(() => {
   background-color: rgba(10, 16, 30, 0.72)
   backdrop-filter: blur(3px)
 
+  // ── The one readout left, sized like it ──
+  //
+  // Two playtests in a row found that nobody read this as a count of people.
+  // The first blamed the glyph; the second removed the three chips beside it
+  // and it STILL went unnoticed, which says the problem was never that it was
+  // crowded — it was that it looked like every other piece of dark chrome on
+  // the screen. A HUD element that the whole game is about cannot be styled
+  // like the mute button.
+  //
+  // So it is bigger than everything else in the row, it is VIOLET rather than
+  // the pale blue every other plate uses, and it glows. Violet is not a colour
+  // this HUD spends anywhere else, and — the reason it was picked over gold or
+  // red — it does not collide with the two tints the icon itself has to be able
+  // to show: green for a gain and red for a loss both read clearly on it.
   &.is-squad
-    color: #8fd6ff
+    color: #e5d4ff
+    padding: clamp(0.22rem, 1.5vw, 0.42rem) clamp(0.5rem, 3vw, 0.95rem)
+    border-color: rgba(190, 140, 255, 0.75)
+    background-color: rgba(64, 30, 112, 0.82)
+    // Two shadows: a tight rim that lifts the plate off the road, and a wide
+    // soft bloom that is what actually catches an eye aimed somewhere else.
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 18px rgba(157, 92, 255, 0.55)
     // The milestone word hangs off this box rather than sitting in the flex
     // row: a chip that grew a label would shove the stage column and the wallet
     // sideways for a second and a half, mid-fight, for a thing that is pure
@@ -529,8 +510,8 @@ onBeforeUnmount(() => {
 // winner is whichever stylesheet the bundler happened to emit last. Nesting
 // adds the ancestor class and settles it.
 .run-hud__chip .run-hud__icon
-  width: clamp(0.75rem, 3.4vw, 1rem)
-  height: clamp(0.75rem, 3.4vw, 1rem)
+  width: clamp(1.05rem, 4.8vw, 1.45rem)
+  height: clamp(1.05rem, 4.8vw, 1.45rem)
   flex: 0 0 auto
   // The tint's way OUT — see the block below.
   transition: color 200ms ease-out, filter 200ms ease-out
@@ -575,7 +556,7 @@ onBeforeUnmount(() => {
 .run-hud__value
   color: #fff
   font-weight: 900
-  font-size: clamp(0.72rem, 3.4vw, 1rem)
+  font-size: clamp(1rem, 4.8vw, 1.5rem)
   line-height: 1
   text-shadow: 2px 2px 0 #000
 

@@ -8,6 +8,7 @@ import {
   CHALLENGE_MAX, CHALLENGE_STEP,
   COIN_MAGNET_BASE, COIN_PULL_LEAD, CRATE_DAMAGE_GAIN,
   isMilestone, MILESTONE_EVERY, milestoneReward, nextMilestone, reachOf,
+  SURVIVOR_REST_MS, FALLEN_CULL_BEHIND,
   FOE_COIN_DROP_ELITE, FOE_COIN_DROP_PER_BOUNTY,
   BULWARK_FLOOR, BULWARK_R, BULWARK_SHARE, CAGE_R,
   CRATE_R, CRATE_RATE_GAIN, CROWD_MAX_R, CROWD_SQUASH, DIVIDER_H, DIVIDER_HALF_W,
@@ -179,13 +180,18 @@ import {
   EXPEDITION_PAYOUT, EXPEDITION_STAGE, expeditionDay, markExpeditionTaken
 } from '@/use/useDailyExpedition'
 import { flushSaveNow } from '@/use/useSaveStatus'
+import {
+  GRENADE_TUTORIAL_HP_MUL, GRENADE_TUTORIAL_RANGE, GRENADE_TUTORIAL_SCALE,
+  GRENADE_TUTORIAL_SLOWMO_S,
+  grenadeTutorialDue
+} from '@/game/grenadeTutorial'
 // Aliased: `track` is already this module's private name for the current
 // stage's authored score (`track = buildTrack(...)`), and shadowing that with
 // an analytics call would be a genuinely nasty bug to read.
 import { track as sendAnalytics, dominantCause } from '@/use/useAnalytics'
 import {
   BEST_PROGRESS_KEY, BEST_SQUAD_KEY, BEST_STAGE_KEY, CHALLENGE_KEY, FAILED_STAGES_KEY,
-  MILESTONES_KEY,
+  GRENADE_TAUGHT_KEY, MILESTONES_KEY,
   REWARD_DECLINE_KEY, RUNS_KEY,
   STAGE_KEY, TOTAL_KILLS_KEY
 } from '@/keys'
@@ -753,6 +759,47 @@ const drain = <T>(live: T[], pool: T[], cap: number): void => {
 }
 
 export const getUnits = (): Unit[] => units
+
+/**
+ * ─── The squad IS the payout, and now it looks like it ──────────────────────
+ *
+ * Both playtests rated the handover's worst moment Major, and both described it
+ * the same way: "Squad 101 → 3". A hundred people the player spent forty seconds
+ * collecting vanish between one road and the next, and nothing on screen says
+ * they were SOLD. The first fix threw one burst of coins from the crowd's
+ * centre, and the second playtest still read it as a loss — one puff off one
+ * point is a dropped purse, not a hundred people cashing out.
+ *
+ * So every living body becomes a coin, on the spot it is standing on, and the
+ * coins fly to the wallet. Returned as world positions rather than drawn here,
+ * because the projection and the VFX both live in the scene; this function's
+ * whole job is to name the bodies and take them off the road.
+ *
+ * Three things it deliberately does NOT do:
+ *
+ *   • it does not splice them out of `units`. The handover's carry-over
+ *     formation (`entryFrom`) reads the crowd that won the stage to decide where
+ *     the next road opens under it, and an empty array would drop the continuity
+ *     the continuous stages are built on.
+ *   • it does not touch `squadCount`. The HUD goes on printing the number the
+ *     payout was priced against for the whole flight — a chip that fell to zero
+ *     while the coins were in the air would be telling the player they lost the
+ *     squad at the exact moment the coins are saying they sold it.
+ *   • it does not pay. `bankCoins` already did, at the stage's own price. This
+ *     is the picture of a transaction that has already happened.
+ *
+ * Safe to call twice — a cashed body is skipped, so a second call finds nobody.
+ */
+export const cashOutSquad = (): { x: number; y: number }[] => {
+  const out: { x: number; y: number }[] = []
+  for (const u of units) {
+    if (u.dying > 0 || u.cashed) continue
+    u.cashed = true
+    out.push({ x: u.x, y: u.y })
+  }
+  return out
+}
+
 export const getBullets = (): Bullet[] => bullets
 export const getGates = (): Gate[] => gates
 export const getDividers = (): Divider[] => dividers
@@ -1209,6 +1256,14 @@ const resetWorld = (): void => {
   timeScale = 1
   timeScaleTarget = 1
   slowHoldMs = 0
+  // A lesson never survives the stage it was started on: a retry re-arms it
+  // from the top if it is still unlearnt, and a clear has already written it.
+  // The ARMED elite goes with it — the id belongs to a `foes` entry that is
+  // about to be recycled into something else on the new road.
+  teachingGrenade = false
+  teachEliteId = null
+  teachMs = 0
+  grenadeTeachHeld.value = false
   firingAtGate = false
   passageSide = 0
   crushDebt.clear()
@@ -1250,16 +1305,6 @@ const nextUnitSeed = (): number => {
   return (h >>> 8) / 16777216
 }
 
-/**
- * How fast a dying body's sideways stagger bleeds off, per second.
- *
- * Seven puts ~95 % of the impulse behind the body inside the fall window and
- * almost all of it before the crash pose lands, which is what makes "it fell
- * where it was hit" true. Lower and the body skates; higher and the blow stops
- * reading as a blow at all.
- */
-const FALL_DRAG = 7
-
 const spawnUnit = (x: number, y: number, join = 0): void => {
   if (squadCount.value >= MAX_SQUAD) return
   units.push({
@@ -1272,7 +1317,9 @@ const spawnUnit = (x: number, y: number, join = 0): void => {
     phase: Math.random(),
     flash: 0,
     dying: 0,
+    down: false,
     cause: null,
+    cashed: false,
     inv: 0,
     join
   })
@@ -1707,12 +1754,25 @@ export interface RunSummary {
    * disappear into a bigger one at the moment it arrived.
    */
   milestone: number
+  /**
+   * What took the most bodies this run, or `null` on a clear.
+   *
+   * The same number the `wipe` analytics event is billed to, put on the screen:
+   * `dominantCause` bills the loss to the system that took the most survivors
+   * rather than the one that took the last, because "a barricade" is a useful
+   * thing to be told and "the last hit" is not — a run that fed forty people to
+   * crates and then lost its final three to the boss was lost to the crates.
+   *
+   * Null on a clear because there is nothing to explain, and the result screen
+   * reads it as "draw no box".
+   */
+  cause: DeathCause | null
 }
 
 let summary: RunSummary = {
   stage: 1, cleared: false, squad: 0, peakSquad: 0, kills: 0, coins: 0,
   baseCoins: 0, isRecord: false, relieved: false, expedition: false,
-  progress01: 0, reach01: 0, bestReach01: 0, milestone: 0
+  progress01: 0, reach01: 0, bestReach01: 0, milestone: 0, cause: null
 }
 
 export const runSummary = (): RunSummary => summary
@@ -1785,7 +1845,11 @@ const finishRun = (cleared: boolean): void => {
     progress01: progress01.value,
     reach01: reach,
     bestReach01: prevBest,
-    milestone
+    milestone,
+    // Only on a loss — see `RunSummary.cause`. `dominantCause` is typed against
+    // a plain string map (it is an analytics helper and knows nothing about this
+    // vocabulary), so the narrowing happens here, once.
+    cause: cleared ? null : ((dominantCause(deaths) as DeathCause | undefined) ?? null)
   }
 
   const patch: Record<string, unknown> = {
@@ -1872,6 +1936,29 @@ const finishRun = (cleared: boolean): void => {
       cause: dominantCause(deaths), peakSquad: peakSquad.value,
       played: wasPlayed(), durationMs, expedition
     })
+  }
+
+  // ── The last bodies land before the world stops ──
+  //
+  // `step` returns immediately on `'wipe'`, so the instant the phase flips the
+  // simulation clock is gone — and with it the countdown that finishes a fall.
+  // Whoever was still in the air when the squad ran out would be frozen at
+  // whatever frame of the 420 ms fall they happened to be on, which on the LAST
+  // death is frame zero: a survivor standing bolt upright on an empty road,
+  // held there for the whole three-second wipe hold.
+  //
+  // That is the opposite of what the hold is for. The screen stops so the player
+  // can look at what happened, so everything on it has to have finished
+  // happening. The remaining fallers are put straight on the ground — the same
+  // resting state `stepUnits` would have given them a few frames later, arrived
+  // at directly because there are no more frames.
+  if (!cleared) {
+    for (const u of units) {
+      if (u.dying > 0 && !u.down) {
+        u.dying = SURVIVOR_REST_MS
+        u.down = true
+      }
+    }
   }
 
   phase.value = cleared ? 'clear' : 'wipe'
@@ -2058,9 +2145,22 @@ const streamTrack = (): void => {
 
       case 'miniboss': {
         const def = foeDef(e.typeId)
+        // ── The one elite that teaches the grenade is worth surviving a burst ──
+        //
+        // It is the first thing on the road with a health bar that is not the
+        // end boss, and today it dies in well under a second — which is why it
+        // has taught nobody anything. Priced to last about three seconds of
+        // ordinary fire ONLY while the lesson is unlearnt; every other elite on
+        // every other road keeps the number the balance study was run against.
+        const teaches = tutorialAllowed && elitesSpawned === 0 && grenadeTutorialDue({
+          stage: stage.value, taught: grenadeTaught(), expedition: isExpedition.value
+        })
         const hp = Math.max(
           20,
-          Math.round(def.hp * foeHpScale(stage.value) * e.hpScale * diff * hpRelief)
+          Math.round(
+            def.hp * foeHpScale(stage.value) * e.hpScale * diff * hpRelief
+            * (teaches ? GRENADE_TUTORIAL_HP_MUL : 1)
+          )
         )
         // STAGE 1's elite is a lesson, not a wall — it stands in for the boss
         // the opening no longer has, and the player has not met an upgrade yet.
@@ -2112,6 +2212,13 @@ const streamTrack = (): void => {
         foes.push(el)
         elitesSpawned++
         pushFx({ kind: 'eliteSpawn', x: 0, y: e.y })
+        // ARMED here, started when it arrives — see `pollGrenadeLesson`. The
+        // first version stopped the world on this line, and an elite spawns
+        // forty units off the top of the screen: the lightbox went up over an
+        // empty road and the grenade it demanded had nothing to be thrown at,
+        // which `throwGrenade` correctly refuses. That is a softlock, and it was
+        // only visible in a browser.
+        if (teaches) teachEliteId = el.id
         break
       }
 
@@ -2213,6 +2320,24 @@ export const step = (dtMs: number): void => {
   if (slowHoldMs > 0) {
     slowHoldMs -= dtMs
     timeScaleTarget = 0.45
+  }
+
+  // Armed at the elite's spawn, started when it is close enough to be thrown at.
+  pollGrenadeLesson()
+
+  // ── The grenade lesson takes the clock ──
+  //
+  // Measured on WALL time (`dtMs`) rather than on the simulation's own, because
+  // the simulation is exactly what this is slowing down: counted on `dt` the
+  // crawl would take `1 / GRENADE_TUTORIAL_SCALE` times as long to elapse and
+  // the full stop would never arrive. It overrides the eased target rather than
+  // joining it, so nothing else that wants slow motion can lift it.
+  if (teachingGrenade) {
+    teachMs += dtMs
+    const stopped = teachMs >= GRENADE_TUTORIAL_SLOWMO_S * 1000
+    timeScale = stopped ? 0 : GRENADE_TUTORIAL_SCALE
+    timeScaleTarget = timeScale
+    grenadeTeachHeld.value = stopped
   }
 
   // Cap the step: a backgrounded tab that returns with a 4-second delta must
@@ -2966,9 +3091,25 @@ const clearOfSolids = (tx: number, ty: number, ux: number): number => {
  * never tangle, oscillate or drift out of the lane. The per-unit noise is what
  * stops it looking like a rigid lattice being dragged around.
  */
+/**
+ * Living bodies only, rebuilt once a tick by `stepUnits`.
+ *
+ * It exists because a corpse now lies on the road until the camera carries it
+ * away, so `units` can hold far more dead than living — and the muzzle picked a
+ * RANDOM INDEX out of `units` and retried up to six times until it found
+ * somebody alive. With corpses outnumbering survivors that both stuttered every
+ * flash out of the same body (the fallback takes the first living one) and,
+ * worse, burned a different number of `Math.random()` calls per tick, which
+ * shifts every seeded run downstream of it.
+ *
+ * Reused rather than reallocated: this is rebuilt sixty times a second.
+ */
+const livingUnits: Unit[] = []
+
 const stepUnits = (dt: number): void => {
   updateFunnel(dt)
   collectSolids()
+  livingUnits.length = 0
   let reach2 = 0
   const n = squadCount.value
   const maxR = funnelR
@@ -2981,32 +3122,43 @@ const stepUnits = (dt: number): void => {
     if (u.inv > 0) u.inv = Math.max(0, u.inv - dt * 1000)
 
     if (u.dying > 0) {
-      u.dying -= dt * 1000
-      if (u.dying <= 0) {
+      // ── A body is dropped when the road carries it away, not on a timer ──
+      //
+      // It used to be spliced the instant the fall finished, which is why a
+      // stage that cost forty survivors showed no trace of it a second later.
+      // The fall now ends in a REST: `dying` parks just above zero so every
+      // "out of play" guard still holds, `down` tells the renderer to hold the
+      // fallen pose, and the body lies there until the camera has taken it off
+      // the bottom of the screen.
+      if (!u.down) {
+        u.dying -= dt * 1000
+        if (u.dying <= 0) {
+          u.dying = SURVIVOR_REST_MS
+          u.down = true
+        }
+      } else if (u.y < anchorY - FALLEN_CULL_BEHIND) {
         units.splice(i, 1)
         continue
       }
-      // Tumble out of the crowd rather than blinking away — a survivor that
-      // vanishes reads as a rendering bug, one that falls over reads as a loss.
+      // ── A body stays where it was killed ──
       //
-      // ── Why `vx` is dragged and `vy` is not ──
+      // It used to keep travelling: the blow's impulse was integrated for the
+      // whole fall window, and `vy` carried it forward up the road while the
+      // camera carried the living crowd forward too. Two things were wrong with
+      // that. A survivor cut down at a barricade drifted away from the barricade
+      // that killed it, so the one death the player reads most closely stopped
+      // saying what it was about; and a corpse that advances is a corpse the
+      // player can still mistake for something taking part.
       //
-      // The sideways impulse is a STAGGER, not a slide. Undamped it ran for the
-      // whole window at up to 3.2 units a second, carrying a body about 1.3
-      // world units — a third of the lane's half-width — which fought the drawn
-      // fall on the one death the player reads most closely: a survivor that
-      // runs into a barricade is supposed to crumple AGAINST it, and instead it
-      // skated away from the thing that stopped it. Dragged, the body carries
-      // roughly a third of a unit and is planted by the time the crash pose
-      // lands (`survivorFallStep` cuts to it at 30 % of the window).
+      // So the position is frozen at the instant of the kill and the fall is
+      // drawn ON it (`survivorFallStep`) rather than moved by it. The road keeps
+      // scrolling underneath, which is what leaves the body behind — correctly,
+      // because being left behind is what happened.
       //
-      // `vy` keeps its constant fall instead, because it is not a stagger: it
-      // is the arc the body is thrown along, and the renderer's own drop is
-      // drawn on top of it.
-      u.x += u.vx * dt
-      u.y += u.vy * dt
-      u.vx -= u.vx * Math.min(1, FALL_DRAG * dt)
-      u.vy -= 5 * dt
+      // `vx` and `vy` are NOT cleared: they are no longer a velocity, they are
+      // the direction the blow came from, and the renderer reads `sign(u.vx)` to
+      // decide which way the body rocks and crumples. Zeroing them would centre
+      // every fall and lose the only thing that says where the hit came from.
       continue
     }
     // Alive units take slots in array order, so a death in the middle of the
@@ -3080,6 +3232,8 @@ const stepUnits = (dt: number): void => {
     // Gait phase advances with actual speed, so a halted crowd stops running on
     // the spot during the boss fight.
     u.phase += dt * (phase.value === 'run' ? 1.7 : 0.55)
+
+    livingUnits.push(u)
 
     // Free, because this loop is already here: the real bound every contact
     // pass this frame will test against.
@@ -3883,6 +4037,7 @@ const killUnit = (u: Unit, dirX = 0, cause: DeathCause = 'foe'): void => {
     }
   }
   u.dying = SURVIVOR_FALL_MS
+  u.down = false
   // Read ONLY by the renderer, to tell a fall from a crash — see `Unit.cause`.
   // The loss itself is billed to `deaths` below; this is not a second tally.
   u.cause = cause
@@ -3922,7 +4077,16 @@ const grenadeTarget = (): { x: number; y: number } | null => {
   if (boss && !boss.dead && boss.y - anchorY < 30) return { x: boss.x, y: boss.y }
 
   const live = foes.filter((f) => !f.dead && f.y > anchorY - 2 && f.y < anchorY + 26)
-  if (live.length === 0) return null
+  // ── The lesson's throw is never refused ──
+  //
+  // Returning null here is right for an ordinary press: a skill that eats its
+  // own cooldown on an empty road is a skill players learn not to press. It is
+  // catastrophic during the grenade lesson, where the world is stopped and this
+  // one act is the only way out — a refusal there is a softlock, and it was one
+  // (see `GRENADE_TUTORIAL_RANGE`). `pollGrenadeLesson` is what makes this
+  // branch unreachable in practice; this is what makes it harmless if it ever
+  // becomes reachable again.
+  if (live.length === 0) return teachingGrenade ? { x: anchorX, y: anchorY + 12 } : null
 
   const elite = live.find((f) => f.elite)
   if (elite) return { x: elite.x, y: elite.y }
@@ -3983,6 +4147,96 @@ const GRENADE_FLIGHT_MS = 420
  *
  * The damage lands when it LANDS, in `stepGrenades`.
  */
+/**
+ * ─── The grenade lesson ─────────────────────────────────────────────────────
+ *
+ * See `game/grenadeTutorial.ts` for why this exists at all. The simulation owns
+ * only the clock and the one flag the scene needs; the lightbox, the arrows and
+ * the cooldown reset are the scene's, because they are about a button.
+ *
+ * `grenadeTeachHeld` is the part the scene watches: false while the world is
+ * merely crawling, true once it has stopped and the player is being waited on.
+ * The scene shows nothing during the crawl — a player who already knows what
+ * the button is throws one in that window and never sees an overlay at all,
+ * which is the whole design.
+ */
+let teachingGrenade = false
+let teachMs = 0
+export const grenadeTeachHeld = ref(false)
+
+/**
+ * Is there a player to teach?
+ *
+ * OFF until the scene says otherwise, and that default is the whole point. The
+ * lesson stops the world and waits for a button press, which is correct in
+ * front of a person and catastrophic in front of anything else: the balance
+ * harness, every headless spec that walks stage 2, and the preview recorder all
+ * drive `step()` with nobody at the controls, and a world that stops for them
+ * simply never resolves. Eleven specs proved it in one run.
+ *
+ * So the simulation does not decide to teach — it is TOLD to, by the one caller
+ * that knows a human is watching. Same shape as `setRallyPolicy`, and for the
+ * same reason.
+ */
+let tutorialAllowed = false
+export const setGrenadeTutorialAllowed = (on: boolean): void => { tutorialAllowed = on }
+
+/** Is a lesson running at all — crawling or stopped? The scene reads it to know
+ *  that the grenade's cooldown is being held clear. */
+export const grenadeTeaching = (): boolean => teachingGrenade
+
+/** Has this player already been taught, or already thrown one of their own? */
+export const grenadeTaught = (): boolean => getState<boolean>(GRENADE_TAUGHT_KEY, false) === true
+
+const teachGrenade = (): void => {
+  if (teachingGrenade) return
+  teachingGrenade = true
+  teachMs = 0
+  grenadeTeachHeld.value = false
+}
+
+/**
+ * The elite that is going to teach the grenade, while it is still walking in.
+ *
+ * Null the rest of the time: before the stage that teaches, after the lesson has
+ * started, and if the crowd shoots the thing dead on the way in (which a strong
+ * enough squad can do even at four times health — and a player who kills it with
+ * the gun did not need the lesson).
+ */
+let teachEliteId: number | null = null
+
+/**
+ * Start the lesson once its subject is actually within reach.
+ *
+ * Cheap enough to run every tick: it is a linear scan of `foes`, which is a
+ * handful of bodies, and only while an id is armed — which is at most once per
+ * career. See `GRENADE_TUTORIAL_RANGE` for what this is defending against.
+ */
+const pollGrenadeLesson = (): void => {
+  if (teachEliteId === null || teachingGrenade) return
+  const el = foes.find((f) => f.id === teachEliteId)
+  if (!el || el.dead) { teachEliteId = null; return }
+  if (el.y - anchorY > GRENADE_TUTORIAL_RANGE) return
+  teachEliteId = null
+  teachGrenade()
+}
+
+/**
+ * The lesson ends the moment a grenade is thrown — by the lesson or otherwise.
+ *
+ * Written to the save immediately rather than at the end of the stage: a player
+ * who is taught this and then closes the tab has been taught, and meeting the
+ * same full stop again on the next launch would read as the game not having
+ * noticed.
+ */
+const endGrenadeLesson = (): void => {
+  teachingGrenade = false
+  teachMs = 0
+  teachEliteId = null
+  grenadeTeachHeld.value = false
+  if (!grenadeTaught()) setStates({ [GRENADE_TAUGHT_KEY]: true })
+}
+
 export const throwGrenade = (mult: number): boolean => {
   if (phase.value !== 'run' && phase.value !== 'boss') return false
   const at = grenadeTarget()
@@ -3998,6 +4252,9 @@ export const throwGrenade = (mult: number): boolean => {
     mult
   })
   pushFx({ kind: 'grenadeThrow', x: anchorX, y: anchorY })
+  // Whether the lesson threw it or the player did, the lesson is over — see
+  // `endGrenadeLesson`. Safe to call unconditionally; it is a no-op otherwise.
+  endGrenadeLesson()
   return true
 }
 
@@ -4483,12 +4740,19 @@ const fireGun = (
       // front rank instead of stuttering out of the same three bodies — and for
       // a volley it is also what fans the salvo out across the rank rather than
       // launching five rockets from one pair of shoulders.
+      //
+      // Drawn from `livingUnits` and not from `units`: the array is mostly
+      // corpses on a bad stage, and picking out of it meant most tries missed
+      // — which changed how much randomness a tick consumed and shifted every
+      // seeded run. The retries that remain are the intended ones, for a body
+      // in the BACK half.
       let from: Unit | null = null
-      for (let tries = 0; tries < 6 && !from; tries++) {
-        const u = units[Math.floor(Math.random() * units.length)]
-        if (u && u.dying <= 0 && u.y >= anchorY - 0.4) from = u
+      const liveN = livingUnits.length
+      for (let tries = 0; tries < 6 && !from && liveN > 0; tries++) {
+        const u = livingUnits[Math.floor(Math.random() * liveN)]
+        if (u && u.y >= anchorY - 0.4) from = u
       }
-      if (!from) from = units.find((u) => u.dying <= 0) ?? null
+      if (!from) from = livingUnits[0] ?? null
       if (!from) {
         budget = 0
         break

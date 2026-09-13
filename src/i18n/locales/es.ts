@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': '¡Jefe abatido!',
+    'wasted': 'Liquidado',
+    'cause': {
+      'foe': 'Arrollado por monstruos',
+      'elite': 'Un minijefe te rompió',
+      'barricade': 'Chocaste con barricadas',
+      'crate': 'Chocaste con cajas',
+      'divider': 'Rozaste los separadores',
+      'trap': 'Atrapado en trampas',
+      'slam': 'El jefe te aplastó'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': '¡Hito!',
     'rallied': 'Segundo aire',

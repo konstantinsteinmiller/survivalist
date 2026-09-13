@@ -71,3 +71,46 @@ describe('a hint can be held quiet from outside', () => {
     expect(quieted.html()).toBe(retired.html())
   })
 })
+
+/**
+ * ─── And it has to actually LEAVE THE DOM ───────────────────────────────
+ *
+ * Everything above passes whether or not the pill ever comes off the screen,
+ * and for months it did not. `@vue/test-utils` stubs `<Transition>` by default
+ * and renders its children straight through, so every `exists()` here was
+ * reading the render tree — which was correct — while the real browser kept the
+ * element mounted.
+ *
+ * The cause is a collision between two CSS features on one element. `.control-
+ * hint` breathes (`animation: hint-breathe 2.4s infinite`) and the transition
+ * fades it (`260ms`). Vue times a leave off whichever is LONGER, picked the
+ * animation, and then waited for an `animationend` that an infinite animation
+ * never fires. Measured in a browser during the grenade lesson: the component
+ * reported `suppressed: true, shown: false` while the pill sat, fully lit, on
+ * top of a lightbox that had dimmed everything else on the screen.
+ *
+ * `type="transition"` is the documented answer and it is the whole fix. It
+ * cannot be asserted through behaviour in jsdom — there are no real transitions
+ * there either — so it is asserted as the structural fact it is.
+ */
+describe('the pill is timed off its transition, not its infinite animation', () => {
+  it('tells Vue which clock to use, so the leave can finish', async () => {
+    const seen: Record<string, unknown>[] = []
+    const TransitionSpy = {
+      name: 'TransitionSpy',
+      props: ['name', 'type', 'duration'],
+      setup(props: Record<string, unknown>) { seen.push(props); return () => null }
+    }
+    const ControlHint = (await import('@/components/game/ControlHint.vue')).default
+    mount(ControlHint, {
+      props: { hint: 'guard' },
+      global: { plugins: [i18n], stubs: { transition: TransitionSpy } }
+    })
+    expect(seen.length, 'the pill stopped being wrapped in a Transition').toBe(1)
+    expect(
+      seen[0]!.type,
+      'the leave is back on auto-detection, and `hint-breathe` is infinite — '
+        + 'the pill will never be removed from the DOM'
+    ).toBe('transition')
+  })
+})

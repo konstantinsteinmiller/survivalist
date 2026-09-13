@@ -15,7 +15,7 @@ import {
   activeWeapon, puzzleGift, puzzlePulled, puzzleTotal, puzzleWeapon, weaponPower,
   sideWeapon, sideWeaponPower,
   rallies, readWeaponPick, setRallyPolicy, stageBeats, worldVersion,
-  isExpedition, startExpedition
+  isExpedition, startExpedition, cashOutSquad
 } from '@/use/useSurvivalGame'
 import { EXPEDITION_STAGE } from '@/use/useDailyExpedition'
 import {
@@ -53,7 +53,7 @@ import { FEED_ON, installPreviewSeam } from '@/game/previewFeed'
 import { resetSkillFx } from '@/use/useSkillFx'
 import { warmAudio, playFx } from '@/use/useGameAudio'
 import {
-  BOSS_FELLED_MS,
+  BOSS_FELLED_MS, WASTED_HOLD_MS, WASTED_ZOOM,
   CROWD_MAX_R, CROWD_SCREEN_Y, DECLINE_FREE_THROUGH_STAGE, DECLINE_MAX, LANE_HALF, UNIT_R
 } from '@/game/survival'
 
@@ -68,8 +68,11 @@ import useTowerEconomy from '@/use/useTowerEconomy'
 import { affordableCount, grantUpgrade } from '@/use/useUpgrades'
 import { track, exposeAnalytics } from '@/use/useAnalytics'
 import { isDebug } from '@/use/useMatch'
-import { RESULT_BOUNCE_DELAY_MS, shouldBounceGo } from '@/game/resultFlow'
+import { cardPayout, RESULT_BOUNCE_DELAY_MS, shouldBounceGo } from '@/game/resultFlow'
 import { stagesToPendingMilestone } from '@/use/useSurvivalGame'
+import {
+  grenadeTeaching, grenadeTeachHeld, setGrenadeTutorialAllowed
+} from '@/use/useSurvivalGame'
 import useSounds, {
   useMusic, setMusicRate, squadMusicRate, MUSIC_WIPE_RATE, MUSIC_WIPE_MS
 } from '@/use/useSound'
@@ -81,7 +84,7 @@ import IncomingWarning from '@/components/game/IncomingWarning.vue'
 import WeaponTag from '@/components/game/WeaponTag.vue'
 import type { GameIconName } from '@/components/icons/iconNames'
 import { isGamePaused, isAdShowing, isVisibilityHidden, isPlatformPaused } from '@/use/useGamePause'
-import { spawnCoinExplosion } from '@/use/useCoinExplosion'
+import { spawnCoinExplosion, spawnCoinTrail } from '@/use/useCoinExplosion'
 import { isInterstitialReady, showMidgameAd } from '@/use/useAds'
 import {
   canShowInterstitial, markInterstitialShown, adInFlight, canOfferReward, claimReward, isRewardGated
@@ -313,7 +316,15 @@ const frostLive = ref(false)
 const decoyLive = ref(false)
 
 const onUseSkill = (id: SkillId): void => {
-  if (!skillReady(id)) return
+  // ── The lesson's one exception ──
+  //
+  // While the grenade lesson is holding the world, the grenade is ready by
+  // definition: the one instruction on screen may never also be refused. Every
+  // other button is inert for the same beat — the lesson is about one act, and
+  // letting the player clear it with the shield would teach the wrong one.
+  if (grenadeTeaching()) {
+    if (id !== 'grenade') return
+  } else if (!skillReady(id)) return
   if (isGamePaused.value || overlayUp.value) return
 
   if (id === 'grenade') {
@@ -872,7 +883,21 @@ const attackAnswer = computed(() => {
  * driven by the WORLD rather than by whether the pill was on screen, so a hint
  * suppressed through its whole window is neither shown nor spent.
  */
-const hintSuppressed = computed(() => attackWarning.value)
+const hintSuppressed = computed(() =>
+  // An inbound attack takes the pill DOWN rather than un-choosing it — see the
+  // note on the template — and so do the two moments that own the screen with
+  // type of their own. Measured: "BOSS FELLED!" landed straight across a primer
+  // reading "Keep shooting a gate — it grows +1 every half second", and neither
+  // was readable. A hint the player never got to read is still owed to them
+  // afterwards, which is exactly what suppression (rather than selection) means.
+  //
+  // The grenade lesson is the same rule for a stronger reason: it dims the whole
+  // screen down to one button and refuses to start again until that button is
+  // pressed, and the pill rides ABOVE the lightbox. A primer reading "keep
+  // shooting a gate" over a lesson that will not accept anything but a grenade
+  // is the game giving two instructions and honouring one.
+  attackWarning.value || bossFelledShown.value || wastedShown.value || grenadeTeachHeld.value
+)
 // Retire it the moment the shield drops: the lesson has landed by then, and the
 // swing that follows is the part the player needs to be looking at. Persisted,
 // because a primer that reappears every boss is nagging rather than teaching.
@@ -958,6 +983,29 @@ const showReachMark = computed(() =>
   bestReachPct.value > 2 && bestReachPct.value > reachPct.value
 )
 
+/**
+ * ─── What stopped the run, in one line ──────────────────────────────────────
+ *
+ * The oldest open finding in the file, carried from Playtest 01 into Playtest 02
+ * word for word: "Still nothing says what killed you." The simulation has known
+ * all along — every death is billed to a cause and the `wipe` analytics event
+ * has been reporting it for months — so this is only ever a matter of putting
+ * the number the game already has on the screen the player is already reading.
+ *
+ * TWO rules decide the shape of it, both from the owner:
+ *
+ *   • it is an INFO BOX, not a paragraph — a bordered strip with a glyph, so it
+ *     is recognisably a note about the run rather than more of the result;
+ *   • it is SHORT. "Players hate to read." Every line in `result.cause.*` is
+ *     three or four words and names one noun: the thing to avoid next time.
+ *
+ * Null on a clear (nothing to explain) and null on a run with no deaths billed
+ * at all, which is not a case the game can normally produce but is exactly what
+ * a dev skip or a first frame looks like — and an empty box is a question the
+ * screen cannot answer.
+ */
+const deathCause = computed(() => (summary.value.cleared ? null : summary.value.cause))
+
 /** Stages left until the next milestone pays. Null on an expedition, which is
  *  not on the campaign's counter at all. */
 const milestoneIn = computed(() => stagesToPendingMilestone(stage.value))
@@ -1042,11 +1090,26 @@ const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)
 /**
  * Show an interstitial, if one is due.
  *
- * Two gates: the provider must actually have inventory, and the cooldown in
- * `useAdGate` must have elapsed. Every interstitial in the game goes through
- * here, so the pacing rule lives in exactly one place.
+ * Three gates: the run must have ended in a WIN, the provider must actually
+ * have inventory, and the cooldown in `useAdGate` must have elapsed. Every
+ * interstitial in the game goes through here, so the pacing rule lives in
+ * exactly one place.
+ *
+ * ─── Why a win, and only a win ──────────────────────────────────────────────
+ *
+ * It used to run on both edges, which meant the most common interstitial in the
+ * game was the one that landed on a DEFEAT. A playtester met it on her first
+ * wipe, watched the ad dim the road she had just died on, and filed it as the
+ * ad having killed her — she was already at zero survivors, but the reading is
+ * the point: an ad over a loss is an ad the player blames.
+ *
+ * A boss kill is the opposite moment. The player has just won something, the
+ * stage is over, and the break is the natural one. So the ad is paid for out of
+ * a good mood rather than a bad one, and the worst-placed ad in the game — the
+ * one after a defeat — simply does not exist any more.
  */
-const maybeShowInterstitial = async (): Promise<void> => {
+const maybeShowInterstitial = async (cleared: boolean): Promise<void> => {
+  if (!cleared) return
   if (!isInterstitialReady.value) return
   if (!canShowInterstitial()) return
   markInterstitialShown()
@@ -1422,8 +1485,9 @@ const presentResult = async (): Promise<void> => {
   stopBattleMusic()
   if (summary.value.cleared) triggerHappytime()
 
-  // Ad FIRST, overlay second. See the header note.
-  await maybeShowInterstitial()
+  // Ad FIRST, overlay second. See the header note — and note the argument: a
+  // wipe never buys one.
+  await maybeShowInterstitial(summary.value.cleared)
 
   rewardClaimed.value = false
   // `rewardOfferLive`, not `canOfferReward`: on a build where the perk is not
@@ -1588,15 +1652,11 @@ const onClaimReward = async (): Promise<void> => {
     void flushSaveNow()
   })
   if (!granted) return
-  await nextTick()
-  const el = rewardCoinRef.value
-  if (el && coinBadgeEl.value) {
-    spawnCoinExplosion({
-      sourceEl: el,
-      targetEl: coinBadgeEl.value,
-      count: Math.min(60, 20 + Math.round(rewardBonus.value / 5))
-    })
-  }
+  // The run's own coins were banked when the screen opened and their burst was
+  // held for this moment (see `bankCoins`). One throw, for the full ×3.
+  const owed = cardBurstOwed
+  cardBurstOwed = 0
+  await burstFromCard(owed + rewardBonus.value)
   playFx('countUp', 0.85)
 }
 
@@ -1695,6 +1755,11 @@ const showCrowdCash = async (total: number, survivors: number): Promise<void> =>
   await nextTick()
   const el = crowdCashRef.value
   if (!el || !coinBadgeEl.value) return
+  // The crowd has already BEEN the coins, a body at a time, two seconds ago —
+  // see `convertSquadToCoins`. The line above still runs (it names what left),
+  // but a second burst out of the same crowd for the same payout reads as being
+  // paid twice for one stage.
+  if (squadCashed) return
   spawnCoinExplosion({
     sourceEl: el,
     targetEl: coinBadgeEl.value,
@@ -1704,6 +1769,77 @@ const showCrowdCash = async (total: number, survivors: number): Promise<void> =>
     // into coins — a tight puff off a single point reads as one dropped purse.
     burstRadius: 170
   })
+}
+
+/**
+ * ─── The squad turns into the money, one body at a time ─────────────────────
+ *
+ * Playtest 01 rated the handover's reading Major with all five testers seeing
+ * it, and Playtest 02 — after the first fix — filed it again: "the handover
+ * still reads as losing the squad". The first fix paid the coins where the
+ * player was looking, which was right, but it paid them as ONE burst out of the
+ * formation's centre. A hundred people becoming one puff of gold is a dropped
+ * purse; it does not say who the gold was.
+ *
+ * So every survivor becomes a coin on the tile they are standing on, and the
+ * crowd empties from the back of the formation forward as the coins leave for
+ * the wallet. `cashOutSquad` takes them off the road at the same moment, so
+ * what the player watches is literally a squad turning into money — which is
+ * the sentence the handover has never managed to say.
+ *
+ * It runs on the BOSS KILL rather than at the stage change: "as soon as the
+ * boss is felled, before the result screen appears". The two-second celebration
+ * (`BOSS_FELLED_MS`) is dead air the payout can be spent in, and the whole
+ * sequence — label, cash-out, coins landing — fits inside it with room over.
+ */
+
+/** How long after the kill the crowd starts cashing out, ms. Long enough that
+ *  "BOSS FELLED!" has popped and been read first: two things arriving together
+ *  is two things nobody looks at. */
+const SQUAD_CASH_DELAY_MS = 520
+
+/** Most coins the conversion will draw. Past this the sample strides through
+ *  the crowd instead — 700 survivors is 700 DOM nodes and a dropped frame on a
+ *  phone, and at that size the picture is already "all of them". */
+const SQUAD_CASH_MAX = 70
+
+/**
+ * Has this stage's crowd already been converted into coins?
+ *
+ * Read by `bankCoins`, which owns the OTHER picture of the same transaction.
+ * One payout gets one picture: if the crowd has already flown to the wallet,
+ * neither the handover's burst nor the result card's may throw a second.
+ */
+let squadCashed = false
+let squadCashTimer: number | null = null
+
+const endSquadCash = (): void => {
+  if (squadCashTimer !== null) { clearTimeout(squadCashTimer); squadCashTimer = null }
+  squadCashed = false
+}
+
+const convertSquadToCoins = (): void => {
+  if (squadCashTimer !== null) clearTimeout(squadCashTimer)
+  squadCashTimer = window.setTimeout(() => {
+    squadCashTimer = null
+    const badge = coinBadgeEl.value
+    if (!badge) return
+    const bodies = cashOutSquad()
+    if (bodies.length === 0) return
+    squadCashed = true
+    const stride = Math.max(1, Math.ceil(bodies.length / SQUAD_CASH_MAX))
+    const origins: { x: number; y: number }[] = []
+    // Projected HERE and not in the simulation: the world is frozen for the
+    // whole celebration (`step` returns on 'clear'), so one read of the camera
+    // is as good as sixty, and the renderer's own projection is the only thing
+    // that agrees with where the bodies were actually painted.
+    for (let i = 0; i < bodies.length; i += stride) {
+      const b = bodies[i]!
+      origins.push({ x: worldToScreenX(b.x), y: worldToScreenY(b.y) })
+    }
+    spawnCoinTrail({ origins, targetEl: badge })
+    playFx('countUp', 0.45)
+  }, SQUAD_CASH_DELAY_MS)
 }
 
 /** What the payment is SEEN as, decided by the call site. */
@@ -1742,15 +1878,47 @@ const bankCoins = async (from: CoinSource): Promise<void> => {
     return
   }
 
+  // ─── The card's burst waits for the button ────────────────────────────────
+  //
+  // The coins are PAID above on every build — the wallet moves the instant the
+  // screen goes up, and that must not change: a payment that waits on an ad is a
+  // payment held hostage. What is decided here is only the PICTURE, and the rule
+  // is `cardPayout`, which is pure and is pinned in `tests/game/resultFlow`.
+  //
+  // A player who walks past a held offer is not cheated of it: `beginStage`
+  // flushes whatever is owed on the way out, while the card is still on screen.
+  const view = cardPayout(total, {
+    rewardOfferLive: rewardOfferLive.value,
+    squadCashed
+  })
+  cardBurstOwed = view.owed
+  if (view.now > 0) await burstFromCard(view.now)
+}
+
+/** Coins already paid onto the result card whose burst is waiting on the ×3. */
+let cardBurstOwed = 0
+
+/** The result card's own burst: from the coin line it prints to the wallet. */
+const burstFromCard = async (total: number): Promise<void> => {
+  if (total <= 0) return
   await nextTick()
   const el = rewardCoinRef.value
-  if (el && coinBadgeEl.value) {
-    spawnCoinExplosion({
-      sourceEl: el,
-      targetEl: coinBadgeEl.value,
-      count: Math.min(40, 12 + Math.round(total / 6))
-    })
-  }
+  if (!el || !coinBadgeEl.value) return
+  spawnCoinExplosion({
+    sourceEl: el,
+    targetEl: coinBadgeEl.value,
+    count: Math.min(60, 12 + Math.round(total / 5))
+  })
+}
+
+/** Throw a held burst that is never going to be claimed. Called as the player
+ *  leaves the screen, one frame before the card it bursts from unmounts —
+ *  `spawnCoinExplosion` measures the source rect synchronously, so the coins
+ *  leave the right place even though that place is about to be gone. */
+const flushCardBurst = (): void => {
+  const owed = cardBurstOwed
+  cardBurstOwed = 0
+  void burstFromCard(owed)
 }
 
 /**
@@ -1940,9 +2108,104 @@ const presentClear = (s: ReturnType<typeof runSummary>): void => {
   void (s.stage <= CONTINUOUS_THROUGH_STAGE ? flowToNextStage() : presentResult())
 }
 
+/**
+ * ─── Wasted ─────────────────────────────────────────────────────────────────
+ *
+ * The other half of the boss hold, and the more important half. Both playtests
+ * filed the same finding — "still nothing says what killed you" — and the
+ * reason the result screen's answer never landed is that it was not an answer
+ * to anything the player had watched: the last survivor fell and a card was on
+ * screen before the body was. Four of five testers could not name what had
+ * ended a run they had just finished.
+ *
+ * So the road keeps the screen for three seconds. Nothing has to be paused to
+ * do it — `step` already returns on `'wipe'`, so the world is stopped at the
+ * frame the squad died on, with the bodies exactly where they fell (and every
+ * faller put on the ground first; see `finishRun`). Over those three seconds:
+ *
+ *   • the camera leans in on the bodies — `WASTED_ZOOM`, a CSS transform on the
+ *     canvas rather than a change to the renderer's own scale, because the
+ *     projection is shared with the coin VFX, the crowd-cash anchor and the
+ *     boss-felled label, and moving it under them mid-hold would put all four
+ *     in different places;
+ *   • the light goes out of the frame, from the edges in;
+ *   • the word lands.
+ *
+ * Then the result screen arrives, and the cause it names (`result__cause`) is a
+ * caption for something the player has just spent three seconds looking at.
+ */
+
+const wastedShown = ref(false)
+/** Flipped a frame after the hold opens, so the CSS transition has a resting
+ *  state to run FROM. Set in the same frame and the zoom simply snaps. */
+const wastedZoomed = ref(false)
+/** Where the camera leans in, CSS px — the crowd's own last position, which on
+ *  a wipe is the pile of bodies. */
+const wastedOrigin = ref<{ x: number; y: number } | null>(null)
+let wastedTimer: number | null = null
+let wastedRaf = 0
+
+/**
+ * The canvas's transform: the shake, except while the death hold owns it.
+ *
+ * The two cannot be composed — `useScreenshake` writes a whole style object
+ * every frame, transition and all, and a shake's `transition: none` would
+ * flatten the three-second zoom into a snap. The hold wins for its three
+ * seconds, which costs nothing real: the only shake that could overlap is the
+ * wipe's own, and a screen that is already leaning in does not need one.
+ */
+const canvasStyle = computed<Record<string, unknown>>(() => {
+  if (!wastedShown.value) return shakeStyle.value as Record<string, unknown>
+  const at = wastedOrigin.value
+  return {
+    transformOrigin: at ? `${Math.round(at.x)}px ${Math.round(at.y)}px` : '50% 62%',
+    transform: `scale(${wastedZoomed.value ? WASTED_ZOOM : 1})`,
+    transition: `transform ${WASTED_HOLD_MS}ms cubic-bezier(0.22, 0.55, 0.25, 1)`
+  }
+})
+
+const endWasted = (): void => {
+  if (wastedTimer !== null) { clearTimeout(wastedTimer); wastedTimer = null }
+  if (wastedRaf !== 0) { cancelAnimationFrame(wastedRaf); wastedRaf = 0 }
+  wastedShown.value = false
+  wastedZoomed.value = false
+  wastedOrigin.value = null
+}
+
+const holdOnWipe = (): void => {
+  endWasted()
+  const a = anchor()
+  wastedOrigin.value = { x: worldToScreenX(a.x), y: worldToScreenY(a.y) }
+  wastedShown.value = true
+  // Two frames, not one: the first paints the un-zoomed state with the new
+  // origin, the second starts the transition. One frame and Vue's patch can
+  // land both values in the same style flush, which the browser reads as "it
+  // was always scaled" and animates nothing.
+  wastedRaf = requestAnimationFrame(() => {
+    wastedRaf = requestAnimationFrame(() => {
+      wastedRaf = 0
+      if (wastedShown.value) wastedZoomed.value = true
+    })
+  })
+  wastedTimer = window.setTimeout(() => {
+    wastedTimer = null
+    // The player may have left the wipe while it was on screen — the expedition
+    // chip is on the HUD and is not hidden during the hold. Presenting a result
+    // for a run that is no longer in flight would strand them on a screen about
+    // a road they have already left.
+    const stillLost = phase.value === 'wipe'
+    endWasted()
+    if (stillLost) void presentResult()
+  }, WASTED_HOLD_MS)
+}
+
 const holdOnFelledBoss = (s: ReturnType<typeof runSummary>): void => {
   endBossFelled()
   bossFelledShown.value = true
+  // The crowd cashes out on the kill, not at the stage change — see
+  // `convertSquadToCoins`. Started here so it rides the celebration the label
+  // is already holding the screen for.
+  convertSquadToCoins()
   // Once now, then on a short poll for the whole window. The first read can
   // legitimately come back null — the accessor may need a drawn death frame
   // before it has a box — and `placeBossFelled` only ever RAISES the label, so
@@ -1963,16 +2226,24 @@ const holdOnFelledBoss = (s: ReturnType<typeof runSummary>): void => {
 watch(phase, (p, prev) => {
   // Anything that is not a live celebration takes the label down with it, and
   // takes the pending dispatch with it too: whoever moved the phase off 'clear'
-  // now owns what happens next.
+  // now owns what happens next. The death hold is the same rule on the other
+  // side — a retry out of a wipe must not carry the dim and the zoom into the
+  // first frame of the new run.
   if (p !== 'clear') endBossFelled()
+  if (p !== 'wipe') endWasted()
 
   if (p === 'clear' && prev !== p) {
+    // A fresh clear is a fresh payout: whatever the last one converted is over.
+    endSquadCash()
     const s = runSummary()
     if (prev === 'boss') holdOnFelledBoss(s)
     else presentClear(s)
     return
   }
-  if (p === 'wipe' && prev !== p) void presentResult()
+  if (p === 'wipe' && prev !== p) {
+    endSquadCash()
+    holdOnWipe()
+  }
 })
 
 // ─── The score follows the crowd ────────────────────────────────────────────
@@ -2011,6 +2282,9 @@ const beginStage = (next: boolean): void => {
   // dedicated "no thanks" button because there isn't one — the player declines
   // by pressing on, which is the only honest place to read the intent.
   recordDecline()
+  // Declined, or never offered at all — either way the picture is owed and this
+  // is the last frame the card exists to throw it from.
+  flushCardBurst()
   showResult.value = false
   invalidateArt()
   // Forward, the road opens where the boss fell (`continueRoad`). A retry goes
@@ -2065,6 +2339,7 @@ const onRetry = (): void => {
  */
 const onStartExpedition = (): void => {
   if (adInFlight.value) return
+  flushCardBurst()
   showResult.value = false
   resetVfx()
   resetSkillFx()
@@ -2256,7 +2531,11 @@ const isLiveGameplay = computed(() => isGameplayLive({
   adShowing: isAdShowing.value,
   visibilityHidden: isVisibilityHidden.value,
   platformPaused: isPlatformPaused.value,
-  tutorialActive: tutorialActive.value
+  // The opening lightbox and the grenade lesson are the same kind of thing to a
+  // portal: the world is held and the player is being asked for one specific
+  // act, so nobody is playing. The bracket has to close, or a player who leaves
+  // the lesson open on a bus counts as minutes of playtime that never happened.
+  tutorialActive: tutorialActive.value || grenadeTeachHeld.value
 }))
 watch(isLiveGameplay, syncGameplayLifecycle, { immediate: true })
 
@@ -2335,6 +2614,10 @@ let insetTimer = 0
 
 onMounted(() => {
   setRallyPolicy(rallyPolicy)
+  // There is a person at the controls, so the grenade lesson may stop the world
+  // and wait for them. Nothing else that drives `step()` ever says this — see
+  // `setGrenadeTutorialAllowed`.
+  setGrenadeTutorialAllowed(true)
   // `window.__analytics()` on a device under test. The funnel is in memory and
   // dies with the tab; this is the only way to read it back on a phone.
   if (isDebug.value) exposeAnalytics()
@@ -2367,11 +2650,14 @@ onMounted(() => {
 
 onUnmounted(() => {
   setRallyPolicy(null)
+  setGrenadeTutorialAllowed(false)
   // `stopGoBounce` also removes the two capture-phase window listeners, which is
   // the one piece of teardown here that leaks into the whole document rather than
   // merely into this component.
   stopGoBounce()
   endBossFelled()
+  endWasted()
+  endSquadCash()
   if (bannerTimer !== null) clearTimeout(bannerTimer)
   if (crowdCashTimer !== null) clearTimeout(crowdCashTimer)
   if (guardianTimer !== null) clearTimeout(guardianTimer)
@@ -2391,7 +2677,7 @@ onUnmounted(() => {
   div.scene
     canvas.scene__canvas(
       ref="canvasRef"
-      :style="shakeStyle"
+      :style="canvasStyle"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
@@ -2522,13 +2808,44 @@ onUnmounted(() => {
           //- `aria-hidden` — a screen reader must not announce the label twice.
           span.boss-felled__shine(aria-hidden="true") {{ t('result.bossFelled') }}
 
+      //- ── The death hold ────────────────────────────────────────────────
+      //-
+      //- Three seconds of the road, stopped on the frame the squad died on,
+      //- with the camera leaning in and the light going out of it — see
+      //- `holdOnWipe`. It eats input on purpose: the skill row is still under
+      //- it, and a grenade thrown at a stage that is already lost would be the
+      //- player arguing with a decision the game has made.
+      //-
+      //- The dim's duration is BOUND, not written in the stylesheet, so the
+      //- light finishes going out exactly as the hold ends. One constant.
+      div.wasted(v-if="wastedShown")
+        div.wasted__dim(:style="{ animationDuration: WASTED_HOLD_MS + 'ms' }")
+        div.wasted__word
+          span.wasted__text {{ t('result.wasted') }}
+
       //- Centred under the squad, in the strip between the crowd and the bottom
       //- bar, on EVERY viewport — the row used to jump out to the right edge
       //- when that strip was too short, which is where it spent a whole
       //- playtest on desktop, off the road entirely. It shrinks to the lane now
       //- instead of moving off it. See `SkillBar.vue` for the whole argument.
+      //- ── The grenade lesson's lightbox ────────────────────────────────
+      //-
+      //- A dimmer over everything, UNDER the skill row, with the taught button
+      //- lifted above it (`.skills__btn--taught` takes a z-index). That is the
+      //- whole trick: there is no cut-out and no mask, just one element the
+      //- dimmer does not cover, which means it lands correctly at every
+      //- viewport and cannot drift out of register with the button it is
+      //- supposed to be framing.
+      //-
+      //- It appears only once the world has STOPPED, not while it is crawling —
+      //- a player who already knows the button throws one during the crawl and
+      //- never sees an overlay at all.
+      Transition(name="teach")
+        div.teach-box(v-if="grenadeTeachHeld" aria-hidden="true")
+
       SkillBar(
         v-if="!overlayUp"
+        :taught="grenadeTeachHeld ? 'grenade' : null"
         :shield-live="shieldLive"
         :frost-live="frostLive"
         :decoy-live="decoyLive"
@@ -2649,6 +2966,13 @@ onUnmounted(() => {
             span.result__reach-now {{ t('result.reach', { n: reachPct }) }}
             span.result__reach-best(v-if="isNewReach") {{ t('result.newReach') }}
             span.result__reach-prev(v-else-if="bestReachPct > 0") {{ t('result.bestReach', { n: bestReachPct }) }}
+
+        //- ── What stopped it ───────────────────────────────────────────────
+        //- One glyph, one short line, and a border that says "this is a note".
+        //- See `deathCause` for why it is this short and why it is a box.
+        div.result__cause(v-if="deathCause")
+          GameIcon.result__cause-icon(name="warning")
+          span.result__cause-text {{ t(`result.cause.${deathCause}`) }}
 
         //- ── Three chips on ONE line ───────────────────────────────────────
         //-
@@ -3114,6 +3438,90 @@ onUnmounted(() => {
     opacity: 1
 
 
+// ─── The death hold ─────────────────────────────────────────────────────────
+//
+// The loss's answer to `.boss-felled`, and built from the same parts on purpose:
+// a win and a loss should be told in one typographic voice, or the game reads as
+// two games. What differs is the tempo. The win lands in 420 ms and gets out of
+// the way; this one takes the whole three seconds — the light leaves the frame
+// gradually, and the word arrives late, after the player has already been made
+// to look at the bodies.
+.wasted
+  position: absolute
+  inset: 0
+  display: grid
+  place-items: center
+  // Above every run readout, including the skill row. The road is over; nothing
+  // under this is worth tapping.
+  z-index: 6
+  // The one thing in the HUD layer that is NOT transparent to input. See the
+  // template note.
+  pointer-events: auto
+
+.wasted__dim
+  position: absolute
+  inset: 0
+  // From the edges in, and never to true black: the whole point of the hold is
+  // that the player looks at the bodies, so the middle of the frame — where the
+  // camera is leaning — keeps enough light to read them by. The red is what
+  // makes it a death rather than a pause.
+  background: radial-gradient(ellipse at 50% 60%, rgba(48, 6, 10, 0.12) 0%, rgba(26, 3, 7, 0.6) 46%, rgba(3, 0, 2, 0.95) 100%)
+  opacity: 0
+  animation-name: wasted-dim
+  // Linear, with the shape in the keyframes rather than in an easing curve.
+  // Measured in a browser first: an ease-in put barely a tenth of the dim on
+  // screen a second in, and since the result card lands the moment the hold
+  // ends, most of the fade was being spent behind the overlay. The player has
+  // to SEE the light go, so half of it is gone by 40 % of the hold.
+  animation-timing-function: linear
+  animation-fill-mode: forwards
+
+@keyframes wasted-dim
+  0%
+    opacity: 0
+  40%
+    opacity: 0.55
+  100%
+    opacity: 1
+
+.wasted__word
+  position: relative
+  max-width: 92vw
+  text-align: center
+
+.wasted__text
+  display: inline-block
+  color: #ff2f2f
+  font-weight: 900
+  text-transform: uppercase
+  // Wider than the win's label. Letter-spacing is the whole difference between
+  // a word that shouts and a word that pronounces, and this one pronounces.
+  letter-spacing: 0.16em
+  line-height: 1
+  font-size: clamp(2rem, 13vmin, 4.6rem)
+  text-shadow: 4px 4px 0 #000, -2px -2px 0 #290000, 0 0 26px rgba(255, 47, 47, 0.5)
+  // Late, and slow. It arrives from too big and settles, which reads as
+  // something landing ON the screen rather than being drawn on it — and the
+  // delay is what keeps it from competing with the three-second lean.
+  animation: wasted-pop 760ms cubic-bezier(0.16, 0.9, 0.28, 1) 700ms both
+
+@keyframes wasted-pop
+  0%
+    opacity: 0
+    scale: 1.9
+    filter: blur(6px)
+  55%
+    opacity: 1
+  100%
+    opacity: 1
+    scale: 1
+    filter: blur(0)
+
+@media (prefers-reduced-motion: reduce)
+  .wasted__text
+    animation: boss-felled-fade 400ms ease-out 600ms both
+
+
 // ─── Result screen ──────────────────────────────────────────────────────────
 
 // The ribbon caption is TYPED BY THE RIBBON, not by this screen: `FReward`
@@ -3174,6 +3582,27 @@ onUnmounted(() => {
   font-size: clamp(0.55rem, 2.6vmin, 0.8rem)
   text-shadow: 2px 2px 0 #000
 
+// ─── The grenade lesson's lightbox ──────────────────────────────────────────
+//
+// Deliberately not black: the road under it still has to be legible, because
+// the thing the player is being asked to answer — an elite walking in — is on
+// it, and a lesson that hides its own subject teaches nothing. A violet-black
+// wash at 62 % dims the scene to "held" rather than to "off".
+.teach-box
+  position: absolute
+  inset: 0
+  z-index: 2
+  background: radial-gradient(ellipse at 50% 78%, rgba(12, 6, 22, 0.5), rgba(6, 4, 12, 0.78))
+  pointer-events: none
+
+.teach-enter-active,
+.teach-leave-active
+  transition: opacity 220ms ease-out
+
+.teach-enter-from,
+.teach-leave-to
+  opacity: 0
+
 // ─── The near-miss rail ─────────────────────────────────────────────────────
 //
 // Reads as a piece of road, because that is what it is: the same dark plate the
@@ -3232,6 +3661,46 @@ onUnmounted(() => {
 
 .result__reach-prev
   color: rgba(255, 255, 255, 0.62)
+
+// ─── The cause box ──────────────────────────────────────────────────────────
+//
+// Deliberately NOT in the result screen's own gold-and-plate vocabulary, and
+// deliberately not red either. It is a note ABOUT the run rather than a part of
+// the scoring, so it wears the one look nothing else on this screen wears: a
+// flat slate strip with a warm amber rule down its leading edge, which is the
+// shape every UI in the world uses for "here is something you should know".
+//
+// Red was tried first and thrown out. The screen already says WIPED OUT on the
+// ribbon; a second red thing underneath it reads as a second failure, and the
+// box is not scolding the player, it is answering their question.
+.result__cause
+  display: flex
+  align-items: center
+  justify-content: center
+  gap: 0.5rem
+  align-self: center
+  max-width: 100%
+  padding: 0.42rem 0.8rem
+  border-radius: 0.6rem
+  border: 1px solid rgba(255, 190, 90, 0.32)
+  // The rule that makes it an info box rather than a chip.
+  border-left: 4px solid rgba(255, 190, 90, 0.85)
+  background-color: rgba(12, 18, 32, 0.78)
+
+.result__cause-icon
+  flex: none
+  width: 1.05rem
+  height: 1.05rem
+  color: #ffbe5a
+
+.result__cause-text
+  color: rgba(255, 255, 255, 0.92)
+  font-weight: 700
+  font-size: clamp(0.82rem, 3.4vw, 1rem)
+  line-height: 1.2
+  // Wraps rather than clipping: four words is short in English and can be six
+  // in German, and a cause that is cut off is worse than no cause at all.
+  text-align: left
 
 // ─── The milestone line ─────────────────────────────────────────────────────
 //

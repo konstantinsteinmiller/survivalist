@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Бос повалений!',
+    'wasted': 'Кінець',
+    'cause': {
+      'foe': 'Зім’яли монстри',
+      'elite': 'Мінібос зламав вас',
+      'barricade': 'Влетіли в барикади',
+      'crate': 'Влетіли в ящики',
+      'divider': 'Зачепили розділювачі',
+      'trap': 'Потрапили в пастки',
+      'slam': 'Бос вас розчавив'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Рубіж!',
     'rallied': 'Друге дихання',

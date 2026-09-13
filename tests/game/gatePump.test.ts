@@ -48,14 +48,18 @@ describe('the weapons and the pump', () => {
 })
 
 describe('the opening doorway races', () => {
-  it('is the only door on the road with its own pump, and it stops at ten', () => {
+  it('is the only door on the road with its own pump, and it stops at seven', () => {
     const doors = buildTrack(1).events.filter((e) => e.kind === 'gates')
     const opener = doors[0]!
     expect(opener.kind === 'gates' && opener.leaves).toHaveLength(1)
     const leaf = opener.kind === 'gates' ? opener.leaves[0]! : null!
     expect(leaf.pumpMul).toBe(OPENING_PUMP_MUL)
     expect(leaf.pumpCap).toBe(OPENING_PUMP_CAP)
-    expect(OPENING_PUMP_CAP).toBe(10)
+    // Seven, down from ten. Ten handed the player thirteen survivors out of the
+    // first door and left the rest of stage 1 with nothing to give; seven is
+    // still the whole spectacle — from a squad of ONE it is a crowd appearing
+    // out of nothing — and leaves the road after it something to do.
+    expect(OPENING_PUMP_CAP).toBe(7)
     for (const d of doors.slice(1)) {
       if (d.kind !== 'gates') continue
       for (const l of d.leaves) {

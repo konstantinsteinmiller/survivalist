@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Bos tumbang!',
+    'wasted': 'Tamat',
+    'cause': {
+      'foe': 'Dibanjiri monster',
+      'elite': 'Minibos menghabisimu',
+      'barricade': 'Menabrak barikade',
+      'crate': 'Menabrak peti',
+      'divider': 'Menyerempet pembatas',
+      'trap': 'Terjebak perangkap',
+      'slam': 'Bos meremukkanmu'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Pencapaian!',
     'rallied': 'Napas kedua',

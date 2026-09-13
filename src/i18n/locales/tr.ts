@@ -122,6 +122,16 @@ export default {
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Patron devrildi!',
+    'wasted': 'Bitti',
+    'cause': {
+      'foe': 'Canavarlar ezip geçti',
+      'elite': 'Bir minipatron devirdi',
+      'barricade': 'Barikatlara çarptın',
+      'crate': 'Sandıklara çarptın',
+      'divider': 'Ayırıcılara takıldın',
+      'trap': 'Tuzaklara yakalandın',
+      'slam': 'Patron seni ezdi'
+    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Dönüm noktası!',
     'rallied': 'İkinci nefes',

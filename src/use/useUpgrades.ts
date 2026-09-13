@@ -4,7 +4,7 @@ import { getState, setState, towerState } from '@/use/useTowerState'
 import { UPGRADES_KEY } from '@/keys'
 import { RANGE_PER_LEVEL } from '@/game/survival'
 import { WEAPONS, type WeaponId } from '@/game/weapons'
-import { BASE_DAMAGE, BASE_FIRE_RATE, START_SQUAD } from '@/game/survival'
+import { BASE_DAMAGE, BASE_FIRE_RATE, squadBaseAt } from '@/game/survival'
 import { gateAddBase } from '@/game/track'
 
 /**
@@ -194,7 +194,10 @@ export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
      */
     cost: endlessCost(70, 1.38, 16),
     /** The crowd a run opens with on `stage` — the number the shop shows. */
-    valueAt: (l, stage = 1) => START_SQUAD + l * squadPerLevel(stage)
+    // `squadBaseAt` rather than a constant: stage 1 opens on ONE survivor so the
+    // first door reads as a crowd appearing, and every stage after it opens on
+    // the floor the campaign was balanced against.
+    valueAt: (l, stage = 1) => squadBaseAt(stage) + l * squadPerLevel(stage)
   },
   power: {
     id: 'power',
