@@ -165,8 +165,7 @@ export default {
     'failed': 'Classement inaccessible.',
     'loading': 'Chargement…',
     'you': 'Toi',
-    'yourRank': 'Tu es #{n}',
-    'of': 'sur {n} joueurs'
+    'yourRank': 'Tu es #{n} sur {total}'
   },
 
   'chest': {

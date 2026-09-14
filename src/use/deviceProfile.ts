@@ -66,7 +66,10 @@ const WEAK_GPU = new RegExp([
   'llvmpipe',
   'swiftshader',
   'software\\s*rasterizer',
-  'intel[^,)]*u?hd graphics [56]\\d\\d'
+  // Intel's integrated line reports as `Intel(R) UHD Graphics 620` — the
+  // vendor word is separated from the part by a `(R)` and a comma, so the part
+  // number carries the match on its own. Iris and Arc are deliberately absent.
+  '\\bu?hd graphics [456]\\d\\d'
 ].join('|'), 'i')
 
 /**
@@ -102,6 +105,17 @@ const readRenderer = (): string => {
   }
 }
 
+/**
+ * The verdict for one renderer string, with no browser in it.
+ *
+ * Split out so the table above can be tested against the exact strings real
+ * devices report — including `ANGLE (freedreno, FD618, OpenGL ES 3.2)`, the one
+ * this file was written for — rather than only against whatever GPU the machine
+ * running the suite happens to have.
+ */
+export const classifyRenderer = (renderer: string): DeviceClass =>
+  WEAK_GPU.test(renderer) ? 'weak' : 'normal'
+
 let cached: DeviceClass | null = null
 let cachedRenderer = ''
 
@@ -132,7 +146,7 @@ export const deviceClass = (): DeviceClass => {
   const tinyRam = typeof nav?.deviceMemory === 'number' && nav.deviceMemory <= 2
   const fewCores = typeof nav?.hardwareConcurrency === 'number' && nav.hardwareConcurrency <= 2
 
-  cached = (WEAK_GPU.test(cachedRenderer) || tinyRam || fewCores) ? 'weak' : 'normal'
+  cached = (classifyRenderer(cachedRenderer) === 'weak' || tinyRam || fewCores) ? 'weak' : 'normal'
   return cached
 }
 

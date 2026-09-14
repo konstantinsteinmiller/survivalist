@@ -165,8 +165,7 @@ export default {
     'failed': '리더보드에 연결할 수 없습니다.',
     'loading': '불러오는 중…',
     'you': '나',
-    'yourRank': '내 순위 {n}',
-    'of': '{n}명 중'
+    'yourRank': '{total}명 중 {n}위'
   },
 
   'chest': {

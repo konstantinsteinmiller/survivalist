@@ -165,8 +165,7 @@ export default {
     'failed': 'Ranglijst niet bereikbaar.',
     'loading': 'Laden…',
     'you': 'Jij',
-    'yourRank': 'Jij bent #{n}',
-    'of': 'van {n} spelers'
+    'yourRank': 'Jij bent #{n} van {total}'
   },
 
   'chest': {

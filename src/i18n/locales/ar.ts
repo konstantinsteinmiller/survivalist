@@ -165,8 +165,7 @@ export default {
     'failed': 'تعذر الوصول إلى لوحة الصدارة.',
     'loading': 'جارٍ التحميل…',
     'you': 'أنت',
-    'yourRank': 'ترتيبك #{n}',
-    'of': 'من {n} لاعب'
+    'yourRank': 'ترتيبك #{n} من {total} لاعب'
   },
 
   'chest': {

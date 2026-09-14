@@ -165,8 +165,7 @@ export default {
     'failed': '无法连接排行榜。',
     'loading': '加载中…',
     'you': '你',
-    'yourRank': '你排第 {n}',
-    'of': '共 {n} 人'
+    'yourRank': '{total} 人中你排第 {n}'
   },
 
   'chest': {

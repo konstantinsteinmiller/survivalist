@@ -165,8 +165,7 @@ export default {
     'failed': 'Classifica non raggiungibile.',
     'loading': 'Caricamento…',
     'you': 'Tu',
-    'yourRank': 'Sei #{n}',
-    'of': 'su {n} giocatori'
+    'yourRank': 'Sei #{n} su {total}'
   },
 
   'chest': {

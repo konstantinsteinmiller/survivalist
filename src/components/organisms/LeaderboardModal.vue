@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { formatCount } from '@/utils/localeNumber'
 import { useI18n } from 'vue-i18n'
 import FModal from '@/components/molecules/FModal.vue'
 import { bestStage } from '@/use/useSurvivalGame'
@@ -27,7 +28,7 @@ import {
  */
 
 const model = defineModel<boolean>({ required: true })
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const entries = computed(() => leaderboard.value?.entries ?? [])
 
@@ -57,11 +58,43 @@ const onBoard = computed(() => entries.value.some((e) => isYou(e.name)))
 /** The player's own rank, for the footer. `0` means "nothing to say yet". */
 const ownRank = computed(() => rankFor(bestStage.value))
 
+/**
+ * A whole number, grouped the way the PLAYER's language groups it.
+ *
+ * Read inside the render rather than bound once at setup: a formatter built in
+ * `setup()` keeps whichever locale was active on first paint, so switching
+ * language would leave English commas on a German board. Reading
+ * `locale.value` here makes every computed that calls it re-run on the switch.
+ *
+ * It matters most on this screen, which formats a rank per row for a hundred
+ * rows — `#41032` is five digits to count, `#41,032` is a placing.
+ */
+const grouped = (n: number): string => formatCount(n, locale.value)
+
 /** Below the cut the exact rank is unknowable — the server only publishes its
  *  top slice — so the honest label is "past the last row we can see". */
 const ownRankLabel = computed(() =>
-  ownRank.value === OUTSIDE_BOARD ? `${boardSize.value}+` : String(ownRank.value)
+  ownRank.value === OUTSIDE_BOARD ? `${grouped(boardSize.value)}+` : grouped(ownRank.value)
 )
+
+/**
+ * ─── One sentence, both numbers ─────────────────────────────────────────────
+ *
+ * "You are #1,130 of 2,531" — and it is ONE message rather than a rank plus an
+ * "of N" fragment, because the word order belongs to the locale. Japanese is
+ * "{total} 人中 #{n} 位"; Korean, Turkish, Kazakh, Uzbek, Hindi and Chinese also
+ * lead with the population. A footer split into two spans renders every one of
+ * them backwards, and a locale-parity test cannot see it — both halves are
+ * present, translated, and carrying the right placeholders.
+ *
+ * Both values arrive PRE-FORMATTED, which is what makes the grouping the
+ * player's own (`utils/localeNumber`) and is why neither message may be
+ * pluralised on `|`.
+ */
+const footerLine = computed(() => t('leaderboard.yourRank', {
+  n: ownRankLabel.value,
+  total: grouped(playerTotal.value)
+}))
 
 const showOwnRank = computed(() => !onBoard.value && ownRank.value !== 0)
 
@@ -102,18 +135,30 @@ watch(model, (open) => {
           :key="`${entry.rank}-${entry.name}-${i}`"
           :class="{ 'is-you': isYou(entry.name) }"
         )
-          span.board-row__rank {{ entry.rank }}
+          span.board-row__rank {{ grouped(entry.rank) }}
           span.board-row__name
             span.board-row__name-text {{ entry.name }}
             span.board-row__you(v-if="isYou(entry.name)") {{ t('leaderboard.you') }}
           span.board-row__stage {{ entry.score }}
-          span.board-row__squad {{ entry.squad }}
+          span.board-row__squad {{ grouped(entry.squad) }}
 
       //- Where the player stands when they are not up there. The reason a
       //- player outside the top 100 opens this screen at all.
+      //- ── ONE message carrying BOTH numbers, rendered as ONE element ──
+      //-
+      //- This was a "#1,130" span and an "of 2,531" span, which is the obvious
+      //- shape because the two numbers want different weights. It is wrong in
+      //- every language that leads with the POPULATION: Japanese is
+      //- "{total} 人中 #{n} 位", and Korean, Turkish and Kazakh do the same — a
+      //- split renders all four backwards, and a locale-parity test cannot see
+      //- it, because both halves are present, translated, and carrying the
+      //- right placeholders. The word order belongs to the locale, so the whole
+      //- sentence has to be one string it can reorder.
+      //-
+      //- If the population ever needs to recede visually again, change the
+      //- weight of the whole line rather than splitting it.
       div.board__footer(v-if="showOwnRank")
-        span.board__footer-rank {{ t('leaderboard.yourRank', { n: ownRankLabel }) }}
-        span.board__footer-total(v-if="playerTotal > 0") {{ t('leaderboard.of', { n: playerTotal }) }}
+        span.board__footer-rank {{ footerLine }}
 </template>
 
 <style scoped lang="sass">
@@ -245,7 +290,4 @@ $cols: clamp(1.6rem, 8vw, 2.4rem) minmax(0, 1fr) clamp(2rem, 9vw, 3rem) clamp(2.
   font-size: clamp(0.68rem, 3.2vw, 0.95rem)
   text-shadow: 2px 2px 0 #000
 
-.board__footer-total
-  color: #9fb2d0
-  font-size: clamp(0.55rem, 2.4vw, 0.75rem)
 </style>

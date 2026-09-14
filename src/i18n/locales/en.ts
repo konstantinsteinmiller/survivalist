@@ -298,9 +298,31 @@ export default {
   // short word — translate for brevity over literalness, and reuse whatever
   // this locale already calls a stage and a squad elsewhere in this file.
   //
-  // `{n}` in `yourRank` is NOT always a number: it is `100+` once the player is
-  // past the last published row, so no locale may wrap it in a grammatical case
-  // or a counter that only works for digits.
+  // ── `yourRank` is a WHOLE SENTENCE and takes BOTH numbers ──
+  //
+  // "You are #1,130 of 2,531". It used to be a rank message plus a separate
+  // "of N" fragment rendered in its own span, which is the obvious shape and is
+  // wrong in every language that leads with the POPULATION — Japanese is
+  // "{total} 人中 #{n} 位", and Korean, Turkish, Kazakh, Uzbek, Hindi and
+  // Chinese do the same. A split renders all of them backwards, and a
+  // locale-parity test cannot see it: both halves are present, translated, and
+  // carrying the right placeholders. So the word order belongs to the locale,
+  // which means the whole sentence has to be one string it can reorder.
+  //
+  // ⚠ BOTH VALUES ARRIVE PRE-FORMATTED, as strings — "1,130" in English,
+  // "1.130" in German, "1,54,331" in Hindi (see `utils/localeNumber`). Two
+  // consequences for whoever writes a locale file:
+  //
+  //   • do NOT pluralise this message on `|`. vue-i18n's plural selection needs
+  //     a real number and will not get one — it silently picks the wrong form,
+  //     or renders the raw pipe. (No locale wants a plural here anyway: "of 1
+  //     players" never renders, because a board with one player is not shown.)
+  //   • `{n}` is not always digits either — it is `100+` once the player is
+  //     past the last published row, so it may not be wrapped in a grammatical
+  //     case or a counter that only works for numerals.
+  //
+  // Grammatical cases that key off the SENTENCE rather than off the value are
+  // unaffected, which is why the Slavic locales keep theirs.
   'leaderboard': {
     'title': 'Leaderboard',
     'rank': '#',
@@ -311,8 +333,7 @@ export default {
     'failed': "Couldn't reach the leaderboard.",
     'loading': 'Loading…',
     'you': 'You',
-    'yourRank': 'You are #{n}',
-    'of': 'of {n} players'
+    'yourRank': 'You are #{n} of {total}'
   },
 
   // ─── Upgrades ─────────────────────────────────────────────────────────────

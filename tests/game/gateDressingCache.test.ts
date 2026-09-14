@@ -20,9 +20,16 @@ import { resolve } from 'node:path'
  * one underneath it.
  */
 
+// Line endings are NORMALISED before anything is sliced out of the source.
+//
+// The cuts below hunt for a brace on its own line, and this repository has
+// MIXED line endings: git converts on checkout, so a file somebody else
+// touched can arrive with CRLF and the search silently finds nothing. It
+// failed as "expected -1 to be greater than 261555", which reads like the
+// renderer lost a function rather than like a carriage return.
 const src = readFileSync(
   resolve(__dirname, '../../src/use/useSurvivalArt.ts'), 'utf8'
-)
+).replace(/\r\n/g, '\n')
 
 /** The body of `drawGates`, up to the first line that closes a top-level block. */
 const drawGates = ((): string => {

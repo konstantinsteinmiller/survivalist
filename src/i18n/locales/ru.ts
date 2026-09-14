@@ -165,8 +165,7 @@ export default {
     'failed': 'Таблица лидеров недоступна.',
     'loading': 'Загрузка…',
     'you': 'Вы',
-    'yourRank': 'Вы на #{n}',
-    'of': 'из {n} игроков'
+    'yourRank': 'Вы на #{n} из {total}'
   },
 
   'chest': {

@@ -96,6 +96,7 @@ import {
 import { isAnyModalOpen } from '@/use/useModalState'
 import { isMobileLandscape, isShortViewport } from '@/use/useUser'
 import { mobileCheck } from '@/utils/function'
+import { formatCount } from '@/utils/localeNumber'
 import {
   OUTSIDE_BOARD, boardSize, leaderboardEnabled, leaderboardFailed, playerTotal, rankFor, reportRun
 } from '@/use/useLeaderboard'
@@ -146,7 +147,7 @@ import GameIcon from '@/components/icons/GameIcon.vue'
  * which is exactly what portal QA rejects builds for.
  */
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { coins, addCoins } = useTowerEconomy()
 /**
  * How many shop tracks the wallet can pay for right now.
@@ -993,11 +994,25 @@ const deathCause = computed(() => (summary.value.cleared ? null : summary.value.
  *  not on the campaign's counter at all. */
 const milestoneIn = computed(() => stagesToPendingMilestone(stage.value))
 
+/**
+ * A whole number, grouped the way the PLAYER's language groups it.
+ *
+ * Read inside the render rather than bound once at setup, which is the whole
+ * trick: a formatter built in `setup()` captures whichever locale was active
+ * on first paint, so switching language leaves English commas on a German
+ * board. `locale.value` here makes every computed that calls it re-run on the
+ * switch, because it is a reactive read like any other.
+ */
+const grouped = (n: number): string => formatCount(n, locale.value)
+
 const resultRank = computed<string>(() => {
   if (!leaderboardEnabled) return ''
   const rank = rankFor(bestStage.value)
-  if (rank === OUTSIDE_BOARD) return `#${boardSize.value}+`
-  if (rank > 0) return `#${rank}`
+  // `#41032` is not a placing, it is five digits to count. Both branches are
+  // grouped — the "past the last published row" one especially, since that
+  // number is the size of the whole board and therefore the biggest on screen.
+  if (rank === OUTSIDE_BOARD) return `#${grouped(boardSize.value)}+`
+  if (rank > 0) return `#${grouped(rank)}`
   // Nothing known yet. The ellipsis holds the cell's place so the stats row does
   // not jump sideways when the rank lands a beat later — but only until the
   // endpoint has actually failed, after which the cell goes away and stays away
@@ -2990,7 +3005,7 @@ onUnmounted(() => {
             //- Only once the player count has landed. Before that there is no
             //- "of N" to print, and the word that used to hold the slot is now
             //- said by the trophy.
-            span.result__chip-of(v-if="playerTotal > 0") {{ t('result.rankOf', { n: playerTotal }) }}
+            span.result__chip-of(v-if="playerTotal > 0") {{ t('result.rankOf', { n: grouped(playerTotal) }) }}
 
         //- ── The milestone ──────────────────────────────────────────────────
         //-

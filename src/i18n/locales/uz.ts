@@ -165,8 +165,7 @@ export default {
     'failed': 'Reytingga ulanib bo‘lmadi.',
     'loading': 'Yuklanmoqda…',
     'you': 'Siz',
-    'yourRank': 'Siz #{n} o‘rindasiz',
-    'of': '{n} o‘yinchidan'
+    'yourRank': '{total} o‘yinchidan #{n} o‘rindasiz'
   },
 
   'chest': {

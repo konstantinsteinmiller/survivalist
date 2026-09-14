@@ -165,8 +165,7 @@ export default {
     'failed': 'Liderlik tablosuna ulaşılamadı.',
     'loading': 'Yükleniyor…',
     'you': 'Sen',
-    'yourRank': 'Sıran #{n}',
-    'of': '{n} oyuncu içinde'
+    'yourRank': '{total} oyuncu içinde #{n}. sıradasın'
   },
 
   'chest': {

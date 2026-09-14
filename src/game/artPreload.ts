@@ -9,6 +9,7 @@ import { WEAPON_PICK_KEY } from '@/keys'
 import { allMonsterIds } from '@/game/monsterSprites'
 import { ART_CATALOGUE } from '@/game/artCatalogue'
 import { artSettled, artOverridesEnabled, type ArtWant } from '@/game/art'
+import { deviceClass } from '@/use/deviceProfile'
 import { getState } from '@/use/useTowerState'
 import { STAGE_KEY } from '@/keys'
 
@@ -37,7 +38,8 @@ import { STAGE_KEY } from '@/keys'
  *            and what it throws, then the next stage on the same terms.
  *   tier 2 — after tier 1 has settled, `fetchPriority: low`, in one batch.
  *            Everything else, so nothing a resuming player skipped past is
- *            orphaned. Skipped outright on a data-saver connection.
+ *            orphaned. Skipped outright on a data-saver connection, and on a
+ *            device that named a weak GPU — see `memoryConstrained`.
  *
  * Nothing waits on tiers 1 or 2. A design whose strip has not arrived when it
  * first walks on simply draws its procedural body, exactly as it does with the
@@ -352,6 +354,26 @@ const dataSaver = (): boolean => {
   return !!(navigator as { connection?: { saveData?: boolean } }).connection?.saveData
 }
 
+/**
+ * …and the other reason to skip the sweep, which is not about bandwidth.
+ *
+ * Tier 2 is every painting in the game. Decoded, the full set is **66 MB of
+ * RGBA** — 23 MB of it the thirteen monster strips, which are then sliced into
+ * per-frame canvases and held a second time. On a phone or a Chromebook with
+ * one memory pool shared with the GPU that is a texture working set several
+ * times the size of the frame buffer, and the cost of exceeding it is not a
+ * slow frame, it is the compositor evicting and re-uploading textures for the
+ * rest of the session.
+ *
+ * A device that named a weak GPU before the first frame (`deviceProfile.ts`) is
+ * the one that cannot carry it, and it is also the one with the least to gain:
+ * the procedural renderer IS the fallback, it is what the game shipped with,
+ * and tiers 0 and 1 have already covered everything this stage and the next one
+ * can put on screen. So the sweep for stages the player may never reach is the
+ * first thing to go.
+ */
+const memoryConstrained = (): boolean => deviceClass() === 'weak'
+
 let started = false
 
 /**
@@ -376,7 +398,7 @@ export const preloadRemainingArt = async (): Promise<void> => {
   await networkQuiet()
   for (const [kind, id] of earlyArtWants()) await artSettled(kind, id)
 
-  if (dataSaver()) return
+  if (dataSaver() || memoryConstrained()) return
   await idle(8000)
   await Promise.allSettled(allArtWants().map(([kind, id]) => artSettled(kind, id, 'low')))
 }

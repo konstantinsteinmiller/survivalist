@@ -165,8 +165,7 @@ export default {
     'failed': 'Không kết nối được bảng xếp hạng.',
     'loading': 'Đang tải…',
     'you': 'Bạn',
-    'yourRank': 'Bạn hạng #{n}',
-    'of': 'trên {n} người chơi'
+    'yourRank': 'Bạn hạng #{n} trên {total}'
   },
 
   'chest': {

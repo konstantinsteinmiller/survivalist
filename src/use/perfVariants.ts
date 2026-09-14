@@ -60,8 +60,15 @@ export const activeVariants = (): string[] => [...flags]
 
 // ─── Live experiments ───────────────────────────────────────────────────────
 //
-// None. Add them here for the life of one experiment, then delete with the
-// losing branch. Example of the shape:
-//
-//   /** Baseline: rebuild the ramp per puff. See PERF-LEDGER 2026-09-04. */
-//   export const SMOKE_LEGACY = perfFlag('smoke-legacy')
+/**
+ * Baseline: paint the full-screen vignette as a live radial gradient.
+ *
+ * The shipping path blits a small baked texture instead. This is a RE-TEST of
+ * an experiment the ledger already rejected once (2026-09-05, "-0.0 %") and it
+ * is only legitimate because the metric changed: that run measured `workP95`
+ * under CPU throttling on a phone-sized canvas with a real GPU, and the failure
+ * this is aimed at is fill-bound — a 2.7 Mpx canvas on an Adreno 618, where the
+ * cost is a radial shader evaluated per pixel rather than the JS that submits
+ * it. Delete the loser and record the verdict in `PERF-LEDGER.md`.
+ */
+export const VIGNETTE_GRADIENT = perfFlag('vignette-gradient')

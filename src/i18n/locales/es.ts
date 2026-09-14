@@ -165,8 +165,7 @@ export default {
     'failed': 'No se pudo cargar la clasificación.',
     'loading': 'Cargando…',
     'you': 'Tú',
-    'yourRank': 'Eres #{n}',
-    'of': 'de {n} jugadores'
+    'yourRank': 'Eres #{n} de {total}'
   },
 
   'chest': {

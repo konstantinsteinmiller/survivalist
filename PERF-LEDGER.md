@@ -19,6 +19,7 @@ another session; this never has to close a browser that belongs to open work).
 | Variant flags | `src/use/perfVariants.ts` | Boot-frozen A/B flags. Nothing set ⇒ shipping path. |
 | Probe | `src/use/usePerfProbe.ts` | Zero-alloc ring buffers; work/interval percentiles, long tasks, heap slope, `step`/`draw` phase timers. Publishes `window.__perf`. |
 | Runner | `scripts/perf-play.mjs` | `pnpm perf:play` — **the one to use for renderer work.** Interleaved, CPU-throttled, paired verdict, and it PLAYS the game (see the 2026-09-05 harness row). Fresh browser per measurement. |
+| Runner (two BUILDS) | `scripts/perf-builds.mjs` | `pnpm perf:builds` — two URLs instead of two flags, so the arms can be two standalone builds. Carries the **overdraw census** (screens of fill per frame, exact), a `--gpu 0` fill-rate proxy, a quiet-machine gate and a per-rep calibration loop. See 2026-09-14. |
 | Runner (no input) | `scripts/perf-ab.mjs` | `pnpm perf:ab` — the original. Fine against `perf/harness.html`, which needs no input; against the game itself it measures the tutorial. |
 | Isolation harness | `perf/harness.html` | Prices ONE draw path with a fixed seeded workload, when driving real gameplay adds more variance than the change under test. |
 
@@ -76,6 +77,219 @@ Per the procedure's own rule: *if the worst target device holds the fps target
 with headroom, the correct verdict is don't — spend the time on content.* Treat
 further renderer micro-optimization here as unjustified until a real device, a
 heavier scene (boss + peak wave + full VFX), or a player report says otherwise.
+
+> **⚠️ Read the 2026-09-14 row before acting on the paragraph above.** A player
+> report arrived, and it did not say the CPU was busy. It said 5–12 fps on a
+> machine whose `workP50` — measured, reproduced — is **0.7 ms**. Everything
+> above this line is a `workP95` measurement, and `workP95` is not the metric
+> that fails on the device that failed. The verdict "don't optimize further"
+> holds for the CPU side and holds for nothing else.
+
+---
+
+## 2026-09-14 — the game is FILL-bound, and nothing here had measured that ✅ KEPT
+
+**The report.** A Poki playtester on Survivalist 3.1.0 quit after fifteen
+seconds of footage at 5–12 fps. Their panel: `ANGLE (freedreno, FD618, OpenGL
+ES 3.2)` — an Adreno 618 under the open-source driver, i.e. a low-end Chromebook
+— `hardwareConcurrency` 8, `devicePixelRatio` 1.6, desktop, 1366x768.
+
+### The question that was asked, and the answer
+
+*Did performance degrade, and is the upfront baking the problem?* Two standalone
+production builds, `f74708f` ("finishing art — performance optimizations",
+2026-09-07) against `54d0f8d` (2026-09-14), each served from its own static
+server, compared with `scripts/perf-builds.mjs`.
+
+**Boot got slower and the bake got cheaper — opposite directions.** 3 reps each,
+4x CPU throttle from navigation, the reporter's window:
+
+```
+                              f74708f      54d0f8d
+  first rendered frame          3 691 ms     4 641 ms   +26 %
+  long-task time during boot      754 ms     1 155 ms   +53 %
+  canvases created                  451          192    -57 %
+  canvas pixels baked             39.6 Mpx     10.8 Mpx  -73 %
+  JS shipped (obfuscated)          688 kB       911 kB   +32 %
+```
+
+So **the sprite bake is not the problem and has not been for a week**: the
+staged loader and the scoped art invalidation cut it by nearly three quarters.
+The boot regression is the other two rows — a third more JavaScript to parse and
+evaluate, and tier 0 of the painted-art preload decoding on the way in.
+
+**And frame work is not the problem either.** Overdraw is the number that can be
+counted rather than timed, and it did not move: **3.37 → 3.50 screens of fill
+per frame**. On a quiet machine at 4x throttle both builds hold 55–60 fps on
+that window. Stage-1 gameplay reps diverge by 3x run to run (the sine steer
+takes different gates), so no honest verdict on `workP95` is available from them
+and none is claimed here.
+
+### What the CPU probe could never have shown
+
+Chrome with `--disable-gpu` (SwiftShader) as a **fill-rate proxy** — a 4090 will
+never show what an Adreno 618 does, and software raster over-weights fill
+relative to any real GPU, so it is read only as "which arm pushes fewer pixels".
+The shipped build, reporter's window, **no CPU throttle at all**:
+
+```
+  rafFps                  25
+  RAF interval p50      33.4 ms      p95  50.1 ms
+  workP50                0.7 ms      <- the entire CPU side of the frame
+  draw phase             1.3 ms
+```
+
+**97 % of the frame is pixel work outside the RAF callback.** The report
+reproduces at a `workP95` this file would have called healthy. Every number
+above this row is CPU time, which is why nine days of renderer work moved
+nothing for this player.
+
+### Where the pixels go
+
+The overdraw census (`--mode play`: `fillRect` and `drawImage` destination areas
+through the live transform, bucketed by share of the screen):
+
+```
+reporter's window   1366x768 @ DPR 1.6 -> 2.69 Mpx canvas, 3.5 screens/frame
+  878x1229  x4.0 /frame   1.61 screens   the off-lane band, painted FOUR times
+  2186x1229 x1.05/frame   1.05 screens   the vignette
+  everything else         0.88 screens
+
+phone               412x915 @ DPR 2 -> 1.51 Mpx canvas, 4.29 screens/frame
+  824x1830  x1.02/frame   1.02 screens   the vignette
+  662x2124  x1.00/frame   0.93 screens   the gravel pattern
+  662x1830  x1.00/frame   0.80 screens   the lane base tone, under the gravel
+  662x1007  x1.00/frame   0.44 screens   the depth fade
+```
+
+Two findings fall straight out of that table.
+
+**The desktop pays 1.8x the phone's pixels for LESS game.** `setViewport` fits
+the lane by height, so on a 16:9 window the road is a third of the width and the
+other two thirds are off-lane terrain — and that terrain was painted twice per
+frame, once as a slice of the sky texture and once as a translucent darkening
+ramp. 46 % of all the fill in the frame, on ground nobody plays on.
+
+**The DPR cap was priced off the wrong thing.** It caps against the device's
+pixel grid and never against the window that has to be filled, so the same rung
+that gives the tuned phone profile 1.51 Mpx gives that Chromebook 2.69 Mpx.
+
+### The changes
+
+All of them are in the shipping path; the vignette carried a flag long enough to
+be priced (below).
+
+* **A pixel BUDGET per tier** (`renderScaleFor` in `useVfx.ts`): 2.10 / 1.40 /
+  0.90 / 0.50 Mpx. A ceiling on top of the old DPR cap, never a floor, so a
+  window already inside its budget is untouched — **every phone profile this
+  file's measurements were taken on renders exactly as it did.**
+* **A device class read before the first frame** (`deviceProfile.ts`). The
+  quality ladder is a MEASUREMENT and therefore cannot help a player who leaves
+  during it: the frames it needs are rendered at the resolution it has not yet
+  decided is wrong, and 10 s of calibration plus a 4 s ratchet hold is longer
+  than this player stayed. A GPU that names itself weak gets 0.6 of the budget
+  immediately. It moves the RESOLUTION and nothing else — never the effect tier,
+  because a wrong guess there is a permanently worse-looking game for somebody
+  whose device was fine.
+* **The off-lane band, once instead of twice** at `low` and `min`: the darkening
+  is pre-multiplied into the backdrop texture (flat, at the ramp's midpoint — a
+  ramp baked into a texture that scrolls and wraps would slide down the off-lane
+  and jump at the wrap), and `drawLane` skips its own pass. The ridges and the
+  sun survive, which the first attempt — a flat opaque fill — did not.
+* **No gravel at `low`**, not only at `min`. It is the single largest pass on a
+  portrait phone: a pattern sample per pixel, laid straight over the opaque base
+  tone filled the line above it.
+* **Tier 2 of the art preload is skipped on a weak device**, alongside the
+  existing data-saver skip. The full painted set is **66 MB of decoded RGBA**,
+  23 MB of it monster strips that are then sliced into per-frame canvases and
+  held a second time — a texture working set several times the frame buffer, on
+  a machine with one memory pool shared with the GPU.
+
+### What it buys, in the unit that was failing
+
+Fill per frame, counted rather than timed, on the reporter's window:
+
+```
+                  shipped                 with the changes
+  tier high    2.69 Mpx  9.46 Mpx/frame   1.26 Mpx  4.49 Mpx/frame   -53 %
+  tier low     1.64 Mpx  5.76 Mpx/frame   0.54 Mpx  1.36 Mpx/frame   -76 %
+  tier min     0.67 Mpx  2.19 Mpx/frame   0.30 Mpx  0.73 Mpx/frame   -67 %
+
+phone 412x915 @ DPR 2
+  tier high    1.51 Mpx  6.48 Mpx/frame   1.51 Mpx  6.17 Mpx/frame   unchanged
+  tier low     0.59 Mpx  2.52 Mpx/frame   0.59 Mpx  1.74 Mpx/frame   -31 %
+```
+
+End-to-end under the fill-rate proxy, ONE clean paired rep with matched
+calibration (26 ms vs 33 ms) on an otherwise busy machine — reported as one rep,
+because that is what it is:
+
+```
+  rafFps            16.9  ->  23.1      (+37 %)
+  long-task time  11 184  ->  4 399 ms  (-61 %)
+```
+
+### 2026-09-14b — the vignette, baked ✅ KEPT (and the 2026-09-05 null CONFIRMED)
+
+A deliberate re-test of an experiment this file already rejected, legitimate only
+because the metric changed: the 2026-09-05 run measured `workP95` under CPU
+throttling with a real GPU, and this failure is fill-bound.
+
+Isolation harness, one pass priced at a time, arms alternating in blocks of 30
+frames (a frame-by-frame swap charges each arm for the other's GPU work), timed
+on the RAF INTERVAL — a `getImageData` sync would flip Chrome's canvas to a CPU
+surface and quietly turn the whole thing into a software benchmark:
+
+```
+  RTX 4090, 2186x1229, 200 full-screen passes per frame
+    gradient  16.7 ms   blit  16.7 ms      both vsync-capped — NO DIFFERENCE
+
+  SwiftShader, 1497x842, 8 passes per frame
+    interval p50   83.4 ms  ->  66.8 ms    (-20 %)
+    interval p95  149.9 ms  -> 116.8 ms    (-22 %)
+```
+
+**Both results are true and they are the same result.** A radial gradient is
+free on a GPU that can shade 500 Mpx a frame and costs ~25 % more per pixel than
+a texture blit on a rasteriser that cannot — which is precisely the device in the
+report. The 2026-09-05 verdict was right about the machine it was measured on
+and was generalised one step too far.
+
+Baked at 384 px on the long edge, aspect preserved so the ramp stays circular
+under a uniform scale; ~0.3 MB against the 0.6 MB the first attempt spent. The
+gradient path is retained behind `?perf=vignette-gradient` and for jsdom, where
+there is no offscreen context.
+
+### Also kept, unmeasured, Tier A hygiene
+
+`getContext('2d', { alpha: false })` on the scene canvas. The renderer covers
+every pixel of the frame before it draws anything — the backdrop's two strips
+and the lane's own opaque base tone meet at the rails with no seam — so the
+alpha channel was a per-pixel blend against a page nobody can see through.
+Strictly less work for identical output; there is no mechanism by which it
+loses.
+
+### Harness notes, each of which cost a rep
+
+* **`chrome.kill()` leaves the renderer and GPU processes alive on Windows.**
+  Two reps in, both arms collapse together — which reads as a result and is an
+  artefact. `taskkill /PID <pid> /T /F`, by PID, never by name.
+* **A window another app covers is occluded**: rAF stops, the game's own blur
+  pause engages, and the arm records a canvas that exists and a game that never
+  ran (empty milestones, zero long tasks, a plausible canvas size).
+  `--disable-backgrounding-occluded-windows`,
+  `--disable-features=CalculateNativeWinOcclusion`, plus
+  `Emulation.setFocusEmulationEnabled` and `Page.bringToFront`.
+* **This machine hosts other sessions.** One started `vitest run` — 33 worker
+  processes — mid-experiment, and every rep after it collapsed in BOTH arms. A
+  rep now waits for a quiet machine and carries an in-page calibration loop, so
+  a rep that ran on a busy box can be discarded after the fact instead of
+  believed. Two rows of an earlier draft of this entry were withdrawn on exactly
+  that evidence.
+* **`perfSummary().frames` reads 0 below ~6 fps.** `perfReset` re-arms a
+  120-frame warm-up, so the arm worth knowing about is the one that reports
+  nothing at all. `rafFps`, counted over the measured window, is the
+  unconditional number.
 
 ---
 

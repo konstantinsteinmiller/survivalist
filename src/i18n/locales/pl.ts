@@ -165,8 +165,7 @@ export default {
     'failed': 'Nie można wczytać rankingu.',
     'loading': 'Wczytywanie…',
     'you': 'Ty',
-    'yourRank': 'Jesteś #{n}',
-    'of': 'z {n} graczy'
+    'yourRank': 'Jesteś #{n} z {total}'
   },
 
   'chest': {

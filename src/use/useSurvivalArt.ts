@@ -60,7 +60,8 @@ import { useScreenshake } from '@/use/useScreenshake'
 import { playFx } from '@/use/useGameAudio'
 import { haptic } from '@/use/useHaptics'
 import { getCachedImage } from '@/use/useAssets'
-import { clearRamps, getRamp, putRamp } from '@/use/useGradientRamps'
+import { clearRamps, getRamp, getSprite, putRamp, putSprite } from '@/use/useGradientRamps'
+import { VIGNETTE_GRADIENT } from '@/use/perfVariants'
 import { clearLabelWidths, measureLabel } from '@/use/useTextMetrics'
 import { bossOwnsCast, type CastKind } from '@/game/bossTells'
 
@@ -2276,7 +2277,12 @@ let backdropKey = ''
 
 const buildBackdrop = (): HTMLCanvasElement | null => {
   if (typeof document === 'undefined' || viewW <= 0 || viewH <= 0) return null
-  const key = `${Math.round(viewW)}x${Math.round(viewH)}|${stage.value}`
+  // `cheapFx` is in the key because at those tiers the off-lane darkening is
+  // baked in here rather than laid over the strips per frame (see `drawLane`),
+  // and the quality tier can move without the RESOLUTION tier moving — so a
+  // key that only carried the viewport would hand a `low` session the bright
+  // texture it built at `high`, or the reverse.
+  const key = `${Math.round(viewW)}x${Math.round(viewH)}|${stage.value}|${cheapFx ? 'd' : 'b'}`
   if (backdrop && backdropKey === key) return backdrop
 
   const c = document.createElement('canvas')
@@ -2309,6 +2315,16 @@ const buildBackdrop = (): HTMLCanvasElement | null => {
   // stable across frames, or the painted bands tinted to this stage's sky.
   paintRidge(ctx, 'ridge-far', w, h, h * 0.52, h * 0.07, sky.ridge, 1.7)
   paintRidge(ctx, 'ridge-near', w, h, h * 0.60, h * 0.045, sky.dune, 4.2)
+
+  // The off-lane darkening, pre-multiplied, at the midpoint of the ramp
+  // `drawLane` would otherwise run over these pixels every frame. Only the two
+  // side strips of this texture are ever blitted — the lane paints an opaque
+  // base over the middle — so darkening the whole thing costs nothing and
+  // saves the widest pass in the frame.
+  if (cheapFx) {
+    ctx.fillStyle = 'rgba(8,8,13,0.58)'
+    ctx.fillRect(0, 0, w, h)
+  }
 
   backdrop = c
   backdropKey = key
@@ -3222,27 +3238,6 @@ const drawBackdrop = (ctx: CanvasRenderingContext2D, w: number, h: number): void
   const right = worldToScreenX(LANE_HALF)
   if (left <= 0 && right >= w) return
 
-  // ── The off-lane band, on a device that cannot afford it ──
-  //
-  // On a 16:9 window the lane is fitted by HEIGHT, so the road is about a third
-  // of the width and these two strips are the other two thirds — and they were
-  // painted TWICE per frame: once as a slice of the sky texture here, and again
-  // as a translucent darkening ramp in `drawLane`. Measured on the Chromebook
-  // profile (1366x768 @ DPR 1.6, `PERF-LEDGER.md` 2026-09-14) that is four
-  // full-height blits a frame covering 1.61 screens — 46 % of ALL the fill in
-  // the frame, spent on terrain nobody plays on.
-  //
-  // At `low` and `min` the two passes collapse into one flat opaque fill of the
-  // colour they compose to. It costs no texture sample and no gradient
-  // evaluation, and what is lost is the ridge silhouette and the sun's haze at
-  // the sides of the screen — under a ramp that is already 40–76 % black.
-  if (cheapFx) {
-    ctx.fillStyle = offLaneFlat()
-    if (left > 0) ctx.fillRect(0, 0, left, h)
-    if (right < w) ctx.fillRect(right, 0, w - right, h)
-    return
-  }
-
   // The source rectangle has to be cut to match, or the strips would be
   // horizontally squashed copies of the whole sky rather than the parts of it
   // that belong at those x positions.
@@ -3253,29 +3248,6 @@ const drawBackdrop = (ctx: CanvasRenderingContext2D, w: number, h: number): void
   if (right < w) {
     ctx.drawImage(bd, right * k, sy, (w - right) * k, h, right, 0, w - right, h)
   }
-}
-
-/**
- * The one colour the off-lane band composes to at `low` and `min`.
- *
- * The sky's dune tone with the wash's own ramp already mixed in, at the ramp's
- * midpoint (0.58 of `rgb(8,8,13)`) — so the strip reads as the same place at a
- * glance, without a gradient or a texture behind it. Keyed on the stage,
- * because the sky is.
- */
-let offLaneFlatKey = -1
-let offLaneFlatValue = '#0a0a12'
-const offLaneFlat = (): string => {
-  if (offLaneFlatKey === stage.value) return offLaneFlatValue
-  const dune = skyFor(stage.value).dune
-  const n = parseInt(dune.slice(1), 16)
-  const mix = (c: number, over: number): number => Math.round(c * (1 - 0.58) + over * 0.58)
-  const r = mix((n >> 16) & 255, 8)
-  const g = mix((n >> 8) & 255, 8)
-  const b = mix(n & 255, 13)
-  offLaneFlatKey = stage.value
-  offLaneFlatValue = `rgb(${r},${g},${b})`
-  return offLaneFlatValue
 }
 
 // ─── Layer 4: the lane ──────────────────────────────────────────────────────
@@ -3294,10 +3266,22 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
   // transform, so screen space and the ramp's own space are the same thing here
   // and `h` is the whole key.
   //
-  // Skipped entirely at `low` and `min`: `drawBackdrop` has already laid these
-  // two strips down as the flat colour this ramp composes to, so running it
-  // again would be a second full-height pass over the widest thing on the
-  // screen for a difference nobody can see. See `offLaneFlat`.
+  // ── …and at `low` and `min` it is not drawn here at all ──
+  //
+  // On a 16:9 window the lane is fitted by HEIGHT, so the road is about a third
+  // of the width and these two strips are the other two thirds — and they were
+  // painted TWICE per frame: once as a slice of the sky texture by
+  // `drawBackdrop`, and again as this ramp. Measured on the Chromebook profile
+  // in the playtest report (1366x768 @ DPR 1.6, `PERF-LEDGER.md` 2026-09-14)
+  // that is four full-height passes a frame covering 1.61 screens — 46 % of ALL
+  // the fill in the frame, on terrain nobody plays on.
+  //
+  // So at the two tiers that cannot afford it the darkening is pre-multiplied
+  // into the backdrop TEXTURE instead (`buildBackdrop`), at this ramp's own
+  // midpoint, and the strip arrives already dark in one blit. Flat rather than
+  // ramped, because the texture scrolls and wraps under a parallax offset: a
+  // ramp baked into it would slide down the off-lane and jump at the wrap,
+  // which is a far louder artefact than a band that does not shade.
   if (!cheapFx) {
     let off = getRamp(`laneOff|${h}`)
     if (!off) {
@@ -8820,6 +8804,79 @@ const drawFloatingText = (ctx: CanvasRenderingContext2D): void => {
   ctx.globalAlpha = 1
 }
 
+/**
+ * The vignette: the one full-screen pass that is on in every frame of every
+ * session, at every tier including `min`.
+ *
+ * Measured on the Chromebook profile from the playtest report, it is **1.05 of
+ * the 3.5 screens** the renderer covers per frame (`PERF-LEDGER.md`
+ * 2026-09-14) — a third of all the fill in the game, and on that device the
+ * fill is the whole problem: `workP50` sat at 0.7 ms against a 33–50 ms frame,
+ * so 97 % of the frame was pixel work the CPU probe cannot see.
+ *
+ * A radial gradient is the most expensive fill a rasteriser offers — a distance
+ * and a ramp lookup per pixel — for an image that is byte-identical from the
+ * first frame to the last. So it is baked once and blitted.
+ *
+ * ── Why it is baked SMALL ──
+ *
+ * The ramp is smooth to the point of being featureless: two stops, transparent
+ * to 34 % black, over most of the screen's diagonal. Its second derivative is
+ * tiny everywhere, which is exactly the image bilinear upscaling reproduces
+ * without a visible seam. 384 px on the long edge keeps the aspect (so the
+ * ramp stays circular after a uniform scale) and costs ~0.3 MB instead of the
+ * 0.6 MB the 2026-09-05 attempt spent.
+ */
+const bakeVignette = (w: number, h: number): HTMLCanvasElement | null => {
+  if (typeof document === 'undefined') return null
+  try {
+    const long = Math.max(w, h)
+    const k = Math.min(1, 384 / long)
+    const bw = Math.max(2, Math.round(w * k))
+    const bh = Math.max(2, Math.round(h * k))
+    const c = document.createElement('canvas')
+    c.width = bw
+    c.height = bh
+    const vctx = c.getContext('2d')
+    if (!vctx) return null
+    const g = vctx.createRadialGradient(
+      bw / 2, bh * 0.6, Math.min(bw, bh) * 0.38, bw / 2, bh * 0.6, Math.max(bw, bh) * 0.8
+    )
+    g.addColorStop(0, 'rgba(0,0,0,0)')
+    g.addColorStop(1, 'rgba(0,0,0,0.34)')
+    vctx.fillStyle = g
+    vctx.fillRect(0, 0, bw, bh)
+    return c
+  } catch {
+    return null
+  }
+}
+
+const drawVignette = (ctx: CanvasRenderingContext2D, w: number, h: number): void => {
+  const vKey = `vignette|${Math.round(w)}|${Math.round(h)}`
+  if (!VIGNETTE_GRADIENT) {
+    // `undefined` is "never asked"; `null` is "asked, and this browser cannot
+    // give us an offscreen context" — which is jsdom under test, and which must
+    // fall through to the gradient rather than retry the bake every frame.
+    let baked = getSprite(vKey)
+    if (baked === undefined) baked = putSprite(vKey, bakeVignette(w, h))
+    if (baked) {
+      ctx.drawImage(baked, 0, 0, w, h)
+      return
+    }
+  }
+  let v = getRamp(vKey)
+  if (!v) {
+    v = putRamp(vKey, ctx.createRadialGradient(
+      w / 2, h * 0.6, Math.min(w, h) * 0.38, w / 2, h * 0.6, Math.max(w, h) * 0.8
+    ))
+    v.addColorStop(0, 'rgba(0,0,0,0)')
+    v.addColorStop(1, 'rgba(0,0,0,0.34)')
+  }
+  ctx.fillStyle = v
+  ctx.fillRect(0, 0, w, h)
+}
+
 const drawGrades = (ctx: CanvasRenderingContext2D, w: number, h: number): void => {
   // Speed streaks at the edges after a gate pass. Only at the EDGES, so they
   // never sit over anything the player has to read.
@@ -8896,17 +8953,7 @@ const drawGrades = (ctx: CanvasRenderingContext2D, w: number, h: number): void =
     ctx.fillRect(0, 0, w, scrimH)
   }
 
-  const vKey = `vignette|${w}|${h}`
-  let v = getRamp(vKey)
-  if (!v) {
-    v = putRamp(vKey, ctx.createRadialGradient(
-      w / 2, h * 0.6, Math.min(w, h) * 0.38, w / 2, h * 0.6, Math.max(w, h) * 0.8
-    ))
-    v.addColorStop(0, 'rgba(0,0,0,0)')
-    v.addColorStop(1, 'rgba(0,0,0,0.34)')
-  }
-  ctx.fillStyle = v
-  ctx.fillRect(0, 0, w, h)
+  drawVignette(ctx, w, h)
 
   // Miniboss arrival: a DARK red vignette that closes further in than the hurt
   // pulse and drains slower. It says "the room just got smaller", where the

@@ -165,8 +165,7 @@ export default {
     'failed': 'ランキングに接続できません。',
     'loading': '読み込み中…',
     'you': 'あなた',
-    'yourRank': 'あなたは {n} 位',
-    'of': '{n} 人中'
+    'yourRank': '{total} 人中 #{n} 位'
   },
 
   'chest': {

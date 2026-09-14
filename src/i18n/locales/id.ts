@@ -165,8 +165,7 @@ export default {
     'failed': 'Papan peringkat tidak terjangkau.',
     'loading': 'Memuat…',
     'you': 'Kamu',
-    'yourRank': 'Kamu peringkat #{n}',
-    'of': 'dari {n} pemain'
+    'yourRank': 'Kamu peringkat #{n} dari {total}'
   },
 
   'chest': {

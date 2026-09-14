@@ -165,8 +165,7 @@ export default {
     'failed': 'Bestenliste nicht erreichbar.',
     'loading': 'Wird geladen…',
     'you': 'Du',
-    'yourRank': 'Du bist #{n}',
-    'of': 'von {n} Spielern'
+    'yourRank': 'Du bist #{n} von {total}'
   },
 
   'chest': {
