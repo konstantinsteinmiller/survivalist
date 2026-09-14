@@ -1870,8 +1870,36 @@ export const retrySquadScaleFor = (failures: number, stage: number): number =>
  */
 export const stageLength = (stage: number): number =>
   stage <= 1
-    ? 105
+    ? STAGE_ONE_LENGTH
     : Math.round(120 + Math.min(stage, 20) * 9 + Math.max(0, stage - 20) * 4)
+
+/**
+ * ─── …and then stage 1 went the other way ───────────────────────────────────
+ *
+ * The block above records why the opening was cut to a ~30 s round trip, and
+ * the reasoning still holds for the half of the funnel it was about: a stranger
+ * will not spend three minutes finding out whether they like the game, so the
+ * road has to reach a climax fast.
+ *
+ * What it did not anticipate is WHERE they leave. Measured on the live build,
+ * the median drop-out is ~35 s in and it lands **right after the first boss
+ * dies** — the exit is the climax, not the road before it. Shortening the road
+ * moved the exit earlier rather than removing it, because a player who has just
+ * been shown an ending takes it.
+ *
+ * So the first stage is a ~70 s round trip: **320 units of road (~63 s at
+ * `RUN_SPEED`), two elites, and a boss with a floor under it**
+ * (`ADAPTIVE_FIRST_FIGHT_SECONDS`). The fit-test arithmetic is not undone by
+ * that, it is served by it — a session that used to end at 35 s now ends at 70
+ * if the player leaves at the same beat, and the 3-minute gate is two stages
+ * away instead of five.
+ *
+ * The road is the cheap half of the change. What actually holds a stranger is
+ * that it is not the same thirty seconds twice: the beats are re-cut into three
+ * acts with a landmark in each (see `stageOne`), so the stage keeps introducing
+ * something for its whole length.
+ */
+export const STAGE_ONE_LENGTH = 320
 
 /** Forward speed for a stage. */
 export const stageSpeed = (stage: number): number =>

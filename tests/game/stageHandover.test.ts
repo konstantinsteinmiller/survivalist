@@ -232,6 +232,21 @@ describe('stage 2 can hand over two weapons, and they fire together', () => {
   const breakGiftBox = async (game: Game): Promise<void> => {
     game.debugAddUnits(20)
     for (let i = 0; i < 3000 && game.activeWeapon.value !== 'gatling'; i++) {
+      // ── The crowd is topped up, and that is not padding ──
+      //
+      // What is under test is the HANDOVER: which gun ends up in which hand
+      // when a box is opened. Whether twenty survivors live long enough to
+      // reach the box on stage 2 is a different question entirely, and it is
+      // one this file was answering by accident — a marginal crowd walking a
+      // road with a husk pack on it dies on some rolls and not others (nothing
+      // here seeds `Math.random`), so the spec failed about two runs in three
+      // under load while passing every time it was run alone.
+      //
+      // Kept alive rather than started bigger, because the box is a CRATE: a
+      // crowd big enough to be safe for the whole road is also a crowd wide
+      // enough to clip the box from a lane it never steered into, which would
+      // make the steering below decorative.
+      if (game.squadCount.value < 12) game.debugAddUnits(12 - game.squadCount.value)
       const box = game.getWeaponBoxes().find((b) => !b.dead)
       if (box) game.steerTo(box.x)
       game.step(STEP_MS)

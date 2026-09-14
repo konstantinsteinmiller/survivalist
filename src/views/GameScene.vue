@@ -48,7 +48,7 @@ import {
  * anything here for the tree-shaker to drop.
  */
 import * as survivalArt from '@/use/useSurvivalArt'
-import { rebaseVfx, renderScaleTier, resetVfx } from '@/use/useVfx'
+import { rebaseVfx, renderScaleFor, renderScaleTier, resetVfx } from '@/use/useVfx'
 import { FEED_ON, installPreviewSeam } from '@/game/previewFeed'
 import { resetSkillFx } from '@/use/useSkillFx'
 import { warmAudio, playFx } from '@/use/useGameAudio'
@@ -237,23 +237,25 @@ const resize = (): void => {
   // 36 % fewer pixels than even a DPR-1 canvas. It is visibly softer, and on a
   // device that is otherwise showing this game at 10 fps that is the right side
   // of the trade — a soft 30 fps reads as a game, a crisp 10 fps does not.
-  const dprCap = renderScaleTier.value === 'min'
-    ? 0.8
-    : renderScaleTier.value === 'low'
-      ? 1.25
-      : renderScaleTier.value === 'medium' ? 1.5 : 2
-  // `Math.min` against the device ratio would let a DPR-1 laptop keep a full-res
-  // canvas at `min`, which is exactly the device the tier is trying to help.
-  dpr = renderScaleTier.value === 'min'
-    ? Math.min(window.devicePixelRatio || 1, 1) * dprCap
-    : Math.min(window.devicePixelRatio || 1, dprCap)
+  //
+  // …and the cap is a PIXEL BUDGET as well as a ratio, because a ratio alone
+  // prices the canvas off the device's grid and never off the window it has to
+  // fill. See `renderScaleFor`, which owns both halves.
   cssW = window.innerWidth
   cssH = window.innerHeight
+  dpr = renderScaleFor(cssW, cssH, renderScaleTier.value)
   canvas.width = Math.round(cssW * dpr)
   canvas.height = Math.round(cssH * dpr)
   canvas.style.width = `${cssW}px`
   canvas.style.height = `${cssH}px`
-  ctx = canvas.getContext('2d')
+  // OPAQUE. The renderer covers every pixel of the frame before it draws
+  // anything — the backdrop's two strips and the lane's own base tone meet at
+  // the rails with no seam — so there has never been anything to see through
+  // the canvas, and the alpha channel was a per-pixel blend against the page
+  // that the compositor did for nothing on every frame of every session.
+  // The attributes are honoured on the FIRST call for a canvas and ignored
+  // afterwards, which is exactly right here: the element outlives the resizes.
+  ctx = canvas.getContext('2d', { alpha: false })
   ctx?.setTransform(dpr, 0, 0, dpr, 0, 0)
   applyViewport()
   // Half the road, in CSS pixels — measured through the renderer's own

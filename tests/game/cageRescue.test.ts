@@ -48,10 +48,30 @@ beforeEach(async () => {
   __resetTowerState()
 })
 
-describe('the cage arrives on stage 2', () => {
-  it('stays off the thirty-second teach and appears on the very next road', () => {
+describe('the cage is taught on stage 1 and rolled from stage 2', () => {
+  it('opens the teaching pair at four and twelve, and the curve takes over after', () => {
+    // ── Stage 1 used to carry none ──
+    //
+    // The argument was that the first road a player sees should have one kind
+    // of box on it, and it held while that road was a thirty-second teach.
+    // Stage 1 is seventy seconds now (`STAGE_ONE_LENGTH`), so it has room to
+    // introduce the prop properly — and a cage is the one object whose payout
+    // cannot be guessed by looking at it, which is exactly the kind of thing a
+    // teaching road should be the one to explain.
+    //
+    // Two of them, hand-priced like everything else on that road: FOUR, which
+    // any passing volley opens, so the lesson lands whether or not the player
+    // understood it was on offer; then TWELVE, which is three times the first
+    // and has to be committed to. `CAGE_STAGE` still says where the GENERATOR
+    // starts placing them — stage 1's are authored in `stageOne`, exactly as
+    // its crate wall and its second pickup are.
+    const hp = buildTrack(1).events
+      .filter((e) => e.kind === 'cages')
+      .flatMap((e) => e.cages.map((c) => c.hp))
+      .sort((a, b) => a - b)
+    expect(hp, 'stage 1 lost its teaching cages').toEqual([4, 12])
+
     expect(CAGE_STAGE).toBe(2)
-    expect(buildTrack(1).events.some((e) => e.kind === 'cages'), 'stage 1 carries a cage').toBe(false)
     expect(buildTrack(2).events.some((e) => e.kind === 'cages'), 'stage 2 carries no cage').toBe(true)
   })
 })

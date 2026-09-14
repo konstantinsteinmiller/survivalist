@@ -44,7 +44,8 @@ import {
 import { BOSS_REWARD_KEY, GAZE_TAUGHT_KEY, WEAPON_PICK_KEY } from '@/keys'
 import { buildTrack, perfectSquadFor, type Track } from '@/game/track'
 import {
-  adaptiveBigHitMul, adaptiveBossHp, adaptiveBossSeconds, adaptiveBossStage, adaptiveYardstick,
+  adaptiveBigHitMul, adaptiveBossHp, adaptiveBossSeconds, adaptiveBossStage, adaptiveEliteHp,
+  adaptiveYardstick,
   ADAPTIVE_BOSS_STAGES,
   clampAdaptiveSeconds, meltFloorStage, BOSS_MIN_FIRE_SECONDS, BOSS_FLOOR_GRENADE_MULT,
   type AdaptiveFight
@@ -2202,13 +2203,41 @@ const streamTrack = (): void => {
         const teaches = tutorialAllowed && elitesSpawned === 0 && grenadeTutorialDue({
           stage: stage.value, taught: grenadeTaught(), expedition: isExpedition.value
         })
-        const hp = Math.max(
-          20,
-          Math.round(
-            def.hp * foeHpScale(stage.value) * e.hpScale * diff * hpRelief
-            * (teaches ? GRENADE_TUTORIAL_HP_MUL : 1)
+        // ── What this landmark is worth, measured NOW ──
+        //
+        // On the stages the ladder covers, an elite is priced against the crowd
+        // that is about to fight it rather than against a curve authored for an
+        // imaginary one — the same argument `game/adaptive.ts` makes about the
+        // boss, and the same evidence: measured on the shipped build, stage 1's
+        // elite ran 2.3 s for a run that read the road and 5.3 s for one that
+        // did not, while stages 2-3 fielded it at 0.8-1.5 s. One number cannot
+        // be a landmark for both.
+        //
+        // ⚠ THE READING IS TAKEN HERE, and here is the point. This runs from
+        // `streamTrack`, which materialises an event `LOOKAHEAD` (30 units, ~6 s
+        // of road) before the crowd reaches it — so the price is set a few
+        // seconds ahead of the fight, off the squad, damage and fire rate the
+        // player actually has at that moment. Baking it into the track at build
+        // time would be the authored curve again under a different name.
+        //
+        // The one thing it cannot see is a bank inside those 30 units: the
+        // generator keeps gates `MINIBOSS_LEAD` clear of an elite, so a door can
+        // still land 13-30 units ahead of one and hand the crowd a payout after
+        // the price was struck. That makes the fight shorter than its target,
+        // never longer, which is the safe direction for a landmark.
+        const adaptiveElite = stage.value <= ADAPTIVE_BOSS_STAGES
+        const hp = adaptiveElite
+          ? Math.round(
+            adaptiveEliteHp(squadDps.value * weaponDamageMul())
+            * diff * hpRelief
           )
-        )
+          : Math.max(
+            20,
+            Math.round(
+              def.hp * foeHpScale(stage.value) * e.hpScale * diff * hpRelief
+              * (teaches ? GRENADE_TUTORIAL_HP_MUL : 1)
+            )
+          )
         // STAGE 1's elite is a lesson, not a wall — it stands in for the boss
         // the opening no longer has, and the player has not met an upgrade yet.
         //
@@ -2725,12 +2754,20 @@ const stepAnchor = (dt: number): void => {
  * never disagree about what a second of this run's fire is worth — the floor's
  * whole promise is denominated in that number.
  */
-const fightModel = (openingCd: number): AdaptiveFight => {
+/**
+ * What the crowd's guns multiply its raw `squadDps` by.
+ *
+ * Pulled out of `fightModel` so the two things priced against the crowd's real
+ * firepower — the boss's bar and an elite's (`adaptiveEliteHp`) — read it from
+ * one place. A second copy of this is how one of them quietly stops counting a
+ * side gun.
+ */
+const weaponDamageMul = (): number => {
   const weapon = activeWeapon.value
   const def = weapon ? WEAPONS[weapon] : null
   // `weaponPower` too: the stage-1 boss's launcher is priced as what it is, or
   // the stage-2 boss would be sized for a full one and outlast the gift.
-  let damageMul = def ? def.damageMul * weaponPowerMul(weapon!) * weaponPower.value : 1
+  let mul = def ? def.damageMul * weaponPowerMul(weapon!) * weaponPower.value : 1
   // …and a side gun adds its share (`sideWeapon`). Added as a RATIO of true
   // firepower — rate × damage × power for each gun — and applied to the first
   // gun's term, so the single-weapon model every fight was tuned against is
@@ -2740,8 +2777,13 @@ const fightModel = (openingCd: number): AdaptiveFight => {
     const trueMul = (id: WeaponId, power: number): number =>
       WEAPONS[id].rateMul * WEAPONS[id].damageMul * weaponPowerMul(id) * power
     const first = weapon ? trueMul(weapon, weaponPower.value) : 1
-    damageMul *= (first + trueMul(side, sideWeaponPower.value)) / first
+    mul *= (first + trueMul(side, sideWeaponPower.value)) / first
   }
+  return mul
+}
+
+const fightModel = (openingCd: number): AdaptiveFight => {
+  const damageMul = weaponDamageMul()
   // The bar is priced on the SOFT swing — see the note in `adaptiveHp`.
   const soft = earlyBigHitMul(stage.value)
   return {
@@ -2799,8 +2841,12 @@ const meltFloorHp = (kind: BossKind, openingCd: number): number =>
     * difficultyFactor() * hpRelief
 
 const adaptiveHp = (kind: BossKind, openingCd: number): number => {
+  // The FLOOR is per stage — see `adaptiveFloorSeconds`. The first fight in the
+  // game is the one the session is decided on and it gets five seconds of fire
+  // whatever the run brought; everything deeper keeps the anti-melt floor.
   const seconds = clampAdaptiveSeconds(
-    adaptiveBossSeconds(squadCount.value, perfectSquad) * difficultyFactor() * hpRelief
+    adaptiveBossSeconds(squadCount.value, perfectSquad) * difficultyFactor() * hpRelief,
+    stage.value
   )
   // ── The bar is priced on the SOFT swing, and the fight may throw a hard one ──
   //

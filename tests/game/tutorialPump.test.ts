@@ -320,13 +320,31 @@ describe('the tutorial hold, priced', () => {
     // re-asserted here on the held run because the hold is what a FIRST session
     // gets, and a stage-1 tuning pass that only ever ran the cold road could
     // move the one it did not measure.
-    for (const policy of ['optimal', 'good', 'average', 'careless']) {
+    //
+    // ── `careless` is held to a majority, not to every seed ──
+    //
+    // It is the policy that never touches the screen, and the promise the
+    // design actually makes about it is "still sees the first boss die" — a
+    // floor of SOME, stated as `> 0` in `balance.test.ts` and historically
+    // measured at 5 clears in 8. Every seed was never the contract; it was
+    // what the numbers happened to do while stage 1 had nothing on it that
+    // could take anything away. It has a `÷2` and a `-3` now, and a crowd that
+    // holds the centre line walks into one of them about a third of the time.
+    //
+    // `average` is the one held to every seed, and it is the one that matters:
+    // it models a player who taps BADLY, which is who the install is lost on.
+    for (const policy of ['optimal', 'good', 'average']) {
       const rs = rows(`s1 ${policy} hold`)
       expect(
         rs.filter((r) => r.cleared).length,
         `s1 ${policy}: the tutorial stopped being clearable after the hold`
       ).toBe(rs.length)
     }
+    const idle = rows('s1 careless hold')
+    expect(
+      idle.filter((r) => r.cleared).length,
+      'a run that never steers stopped seeing the first boss die at all'
+    ).toBeGreaterThan(idle.length / 2)
 
     // ── Stage 2 is not in this at all, and that is the finding ──
     //

@@ -3221,6 +3221,28 @@ const drawBackdrop = (ctx: CanvasRenderingContext2D, w: number, h: number): void
   const left = worldToScreenX(-LANE_HALF)
   const right = worldToScreenX(LANE_HALF)
   if (left <= 0 && right >= w) return
+
+  // ── The off-lane band, on a device that cannot afford it ──
+  //
+  // On a 16:9 window the lane is fitted by HEIGHT, so the road is about a third
+  // of the width and these two strips are the other two thirds — and they were
+  // painted TWICE per frame: once as a slice of the sky texture here, and again
+  // as a translucent darkening ramp in `drawLane`. Measured on the Chromebook
+  // profile (1366x768 @ DPR 1.6, `PERF-LEDGER.md` 2026-09-14) that is four
+  // full-height blits a frame covering 1.61 screens — 46 % of ALL the fill in
+  // the frame, spent on terrain nobody plays on.
+  //
+  // At `low` and `min` the two passes collapse into one flat opaque fill of the
+  // colour they compose to. It costs no texture sample and no gradient
+  // evaluation, and what is lost is the ridge silhouette and the sun's haze at
+  // the sides of the screen — under a ramp that is already 40–76 % black.
+  if (cheapFx) {
+    ctx.fillStyle = offLaneFlat()
+    if (left > 0) ctx.fillRect(0, 0, left, h)
+    if (right < w) ctx.fillRect(right, 0, w - right, h)
+    return
+  }
+
   // The source rectangle has to be cut to match, or the strips would be
   // horizontally squashed copies of the whole sky rather than the parts of it
   // that belong at those x positions.
@@ -3231,6 +3253,29 @@ const drawBackdrop = (ctx: CanvasRenderingContext2D, w: number, h: number): void
   if (right < w) {
     ctx.drawImage(bd, right * k, sy, (w - right) * k, h, right, 0, w - right, h)
   }
+}
+
+/**
+ * The one colour the off-lane band composes to at `low` and `min`.
+ *
+ * The sky's dune tone with the wash's own ramp already mixed in, at the ramp's
+ * midpoint (0.58 of `rgb(8,8,13)`) — so the strip reads as the same place at a
+ * glance, without a gradient or a texture behind it. Keyed on the stage,
+ * because the sky is.
+ */
+let offLaneFlatKey = -1
+let offLaneFlatValue = '#0a0a12'
+const offLaneFlat = (): string => {
+  if (offLaneFlatKey === stage.value) return offLaneFlatValue
+  const dune = skyFor(stage.value).dune
+  const n = parseInt(dune.slice(1), 16)
+  const mix = (c: number, over: number): number => Math.round(c * (1 - 0.58) + over * 0.58)
+  const r = mix((n >> 16) & 255, 8)
+  const g = mix((n >> 8) & 255, 8)
+  const b = mix(n & 255, 13)
+  offLaneFlatKey = stage.value
+  offLaneFlatValue = `rgb(${r},${g},${b})`
+  return offLaneFlatValue
 }
 
 // ─── Layer 4: the lane ──────────────────────────────────────────────────────
@@ -3248,15 +3293,22 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
   // would normally make it uncacheable — but the lane is drawn with the identity
   // transform, so screen space and the ramp's own space are the same thing here
   // and `h` is the whole key.
-  let off = getRamp(`laneOff|${h}`)
-  if (!off) {
-    off = putRamp(`laneOff|${h}`, ctx.createLinearGradient(0, 0, 0, h))
-    off.addColorStop(0, 'rgba(10,10,16,0.4)')
-    off.addColorStop(1, 'rgba(6,6,10,0.76)')
+  //
+  // Skipped entirely at `low` and `min`: `drawBackdrop` has already laid these
+  // two strips down as the flat colour this ramp composes to, so running it
+  // again would be a second full-height pass over the widest thing on the
+  // screen for a difference nobody can see. See `offLaneFlat`.
+  if (!cheapFx) {
+    let off = getRamp(`laneOff|${h}`)
+    if (!off) {
+      off = putRamp(`laneOff|${h}`, ctx.createLinearGradient(0, 0, 0, h))
+      off.addColorStop(0, 'rgba(10,10,16,0.4)')
+      off.addColorStop(1, 'rgba(6,6,10,0.76)')
+    }
+    ctx.fillStyle = off
+    ctx.fillRect(0, 0, left, h)
+    ctx.fillRect(right, 0, w - right, h)
   }
-  ctx.fillStyle = off
-  ctx.fillRect(0, 0, left, h)
-  ctx.fillRect(right, 0, w - right, h)
 
   ctx.save()
   ctx.beginPath()
@@ -3267,10 +3319,15 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
   ctx.fillRect(left, 0, laneW, h)
 
   // The gravel is the road's texture and it is also a full-lane fill of a
-  // repeating pattern — the most expensive thing on the ground pass. At `min`
-  // the road is the flat base tone above and nothing else; the rungs below are
-  // what actually carry the sensation of speed, and they stay.
-  const pattern = minFx ? null : buildLaneTile(ctx)
+  // repeating pattern — the most expensive thing on the ground pass, and
+  // measured the single biggest one in the frame on a portrait phone: 0.93 of a
+  // screen, a pattern sample per pixel, laid straight over the opaque base tone
+  // that was filled a line above it (`PERF-LEDGER.md` 2026-09-14).
+  //
+  // Off at `low` as well as `min`, not just `min`. The tier means the device is
+  // under 40 fps, and the rungs below are what actually carry the sensation of
+  // speed — the gravel is texture on a surface that is moving too fast to read.
+  const pattern = cheapFx ? null : buildLaneTile(ctx)
   if (pattern) {
     // Scroll the pattern with the camera. Translating the context (rather than
     // the pattern's own matrix) keeps this working on every browser we ship to.

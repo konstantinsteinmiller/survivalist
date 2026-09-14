@@ -555,9 +555,11 @@ describe('minibosses are the midpoint win, not the climax', () => {
   // it. Which only works if beating one does NOT end the stage.
 
   it('puts at least one elite on every stage, including the first', () => {
-    // Stage 1 gained one — a weakened `tutorial` elite standing in for the boss
-    // it no longer has, so the opening still ends on a fight the player wins.
-    expect(buildTrack(1).events.filter((e) => e.kind === 'miniboss')).toHaveLength(1)
+    // Stage 1 fields TWO of them now, one per half of a ~70 s road: the first
+    // carries the grenade lesson, the second is the same fight without it (see
+    // `placeMinibosses`). It was one, back when the road was thirty seconds
+    // long and a single landmark was the whole of its second half.
+    expect(buildTrack(1).events.filter((e) => e.kind === 'miniboss')).toHaveLength(2)
     for (let stage = 2; stage <= 25; stage++) {
       const elites = buildTrack(stage).events.filter((e) => e.kind === 'miniboss')
       expect(elites.length, `stage ${stage} has no miniboss`).toBeGreaterThanOrEqual(1)

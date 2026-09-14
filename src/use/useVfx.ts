@@ -5,6 +5,7 @@ import {
   bakeRadialSprite, getRamp, getSprite, putRamp, putSprite, rgbString
 } from '@/use/useGradientRamps'
 import { spriteFor } from '@/game/art'
+import { deviceClass } from '@/use/deviceProfile'
 
 /**
  * ─── VFX: event bus + pooled particle system ────────────────────────────────
@@ -631,6 +632,76 @@ let qualityCeiling: QualityTier = 'high'
  * single biggest lever the renderer has bolted shut for the rest of the session.
  */
 export const renderScaleTier = ref<QualityTier>('high')
+
+/**
+ * ─── A pixel BUDGET, not just a DPR cap ─────────────────────────────────────
+ *
+ * `dprCap` alone prices the canvas off the device's pixel grid and never off
+ * the window it has to fill, which is the same bet on a phone and a desktop and
+ * is only right on one of them. Measured on the real builds
+ * (`PERF-LEDGER.md`, 2026-09-14):
+ *
+ *   412x915 @ DPR 2  (the phone the game is tuned on)   1.51 Mpx
+ *   1366x768 @ DPR 1.6 (the Chromebook in the report)   2.69 Mpx  — 1.8x
+ *
+ * The desktop is not doing more gameplay for those pixels. It is doing LESS:
+ * the lane is fitted by height, so on a 16:9 window the road is a third of the
+ * width and the other two thirds are off-lane wash. The extra 1.2 Mpx a frame
+ * are terrain, and the renderer covers the whole frame ~3.5 times over.
+ *
+ * So the cap is a budget in FINISHED PIXELS, and the DPR falls out of it. It is
+ * a ceiling, never a floor: a window already inside its budget is untouched, so
+ * every phone profile this game was tuned on renders exactly as it did.
+ *
+ * ── Where the numbers come from ──
+ *
+ * `high` is set just above the 1.51 Mpx of the tuned phone profile with room
+ * for a taller one, so no phone moves and every 16:9 desktop does. Each rung
+ * below is roughly the square of its old DPR cap over `high`'s — the same
+ * ladder, expressed in the unit that actually costs.
+ */
+const MAX_CANVAS_PX: Record<QualityTier, number> = {
+  high: 2_100_000,
+  medium: 1_400_000,
+  low: 900_000,
+  min: 500_000
+}
+
+/**
+ * What a `weak` device is allowed of that budget.
+ *
+ * The class is read off the GPU's own name before the first frame
+ * (`deviceProfile.ts`) — the ladder cannot help a player who leaves during the
+ * measurement, and the report this exists for is exactly that player. 0.6 of
+ * the budget is 0.77 of the DPR: on the Chromebook in the report, 2.69 Mpx
+ * becomes 1.26 Mpx on the very first frame instead of after fourteen seconds
+ * of 5 fps.
+ */
+const WEAK_DEVICE_BUDGET = 0.6
+
+/**
+ * The device-pixel scale to render a `cssW x cssH` window at, at `tier`.
+ *
+ * Everything the old inline cap did, plus the budget. Exported from here rather
+ * than left in `GameScene` because it belongs to the ladder: the tier, the cap
+ * and the ratchet are one decision and they should be readable in one place.
+ */
+export const renderScaleFor = (cssW: number, cssH: number, tier: QualityTier): number => {
+  const dprCap = tier === 'min' ? 0.8 : tier === 'low' ? 1.25 : tier === 'medium' ? 1.5 : 2
+  const device = (typeof window === 'undefined' ? 1 : window.devicePixelRatio) || 1
+  // `Math.min` against the device ratio would let a DPR-1 laptop keep a full-res
+  // canvas at `min`, which is exactly the device the tier is trying to help.
+  const byGrid = tier === 'min' ? Math.min(device, 1) * dprCap : Math.min(device, dprCap)
+
+  const cssPx = Math.max(1, cssW * cssH)
+  const budget = MAX_CANVAS_PX[tier]
+    * (deviceClass() === 'weak' ? WEAK_DEVICE_BUDGET : 1)
+  const byBudget = Math.sqrt(budget / cssPx)
+  // 0.5 is the floor: below it the compositor's upscale stops reading as soft
+  // and starts reading as broken, and a game nobody can see is not a fast one.
+  return Math.max(0.5, Math.min(byGrid, byBudget))
+}
+
 /** Sustained time at a lower tier before the canvas is re-sized to match. */
 const RESCALE_HOLD_MS = 4000
 let lowSince = 0

@@ -168,6 +168,58 @@ describe('the floor: stage 1 must not punish a player who does nothing', () => {
   }, 300_000)
 })
 
+describe('the opening is a session, not a demo', () => {
+  /**
+   * ─── Why this is measured through the simulation ──────────────────────────
+   *
+   * The road length is a constant and the boss floor is a constant, and
+   * `tests/game/stageOneShape.test.ts` pins both. Neither of them is the
+   * promise. The promise is a PLAYTIME — about seventy seconds from the first
+   * frame to the result screen — and that is the sum of the road, the two
+   * elites, the boss, and every gate pass the crowd waits through in slow
+   * motion. It only exists as a measurement.
+   *
+   * Worth a regression test rather than a note because the number it replaced
+   * (~30 s) was nobody's decision either: it was a road length chosen for one
+   * reason with the fights landing wherever they landed, and the drop-out data
+   * says the TOTAL is what the player actually experiences.
+   */
+  it('runs about seventy seconds however it is played', async () => {
+    for (const policy of [optimal, good, average]) {
+      const a = aggregate(await runSamples(1, policy, 3))
+      const said = `stage 1 ran ${a.seconds.med.toFixed(1)}s for ${policy.id}`
+      expect(a.seconds.med, said).toBeGreaterThan(60)
+      expect(a.seconds.med, said).toBeLessThan(85)
+    }
+  }, 300_000)
+
+  it('ends on a boss worth staying for, not one that falls over', async () => {
+    // The exit this whole change is about: measured on the shipped build the
+    // median drop-out landed right after a 4.0 s first boss. The brief is a
+    // fight of six to ten seconds with at least five of them spent shooting it
+    // — see `ADAPTIVE_FIRST_FIGHT_SECONDS`.
+    for (const policy of [optimal, good, average]) {
+      const a = aggregate(await runSamples(1, policy, 3))
+      expect(a.bossReachRate, `${policy.id} did not reach the stage-1 boss`).toBe(1)
+      const said = `the first boss lasted ${a.bossSeconds.med.toFixed(1)}s for ${policy.id}`
+      expect(a.bossSeconds.med, said).toBeGreaterThan(5.5)
+      expect(a.bossSeconds.med, said).toBeLessThan(10)
+    }
+  }, 300_000)
+
+  it('asks for the squad own guns at the second landmark', async () => {
+    // Two elites now, and the second is the one that matters here: the grenade
+    // lesson is armed on the FIRST elite of the road, so by the time the second
+    // arrives the skill is spent and the answer is the crowd's own fire. Priced
+    // at `ELITE_FIRE_SECONDS` of that crowd, so it is a beat rather than a wall
+    // — and, because the price is quoted in seconds of fire, never one volley.
+    const a = aggregate(await runSamples(1, optimal, 3))
+    const said = `the elite fight took ${a.eliteSeconds.med.toFixed(1)}s`
+    expect(a.eliteSeconds.med, said).toBeGreaterThan(0.4)
+    expect(a.eliteSeconds.med, said).toBeLessThan(3)
+  }, 300_000)
+})
+
 describe('the ceiling: the benchmark player clears the authored stages', () => {
   for (const stage of [1, 2, 3, 4, 5]) {
     it(`clears stage ${stage} on every seed`, async () => {

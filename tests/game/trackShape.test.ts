@@ -220,16 +220,27 @@ describe('the -N door, and the bank with no right answer', () => {
     }
   })
 
-  it('holds the subtraction back until traps have been taught', () => {
+  it('shows the trap before the bill on the road that introduces them', () => {
     // `÷2` punishes the door you walked through. `-N` punishes the door you
-    // were AIMING at on the way in, which is a subtler rule and gets its own
-    // stage of grace.
-    for (const stage of [1, 2]) {
-      for (const bank of gateBanks(stage)) {
-        expect(bank.leaves.some((l) => l.op === 'sub'), `stage ${stage} bills too early`)
-          .toBe(false)
-      }
-    }
+    // were AIMING at on the way in, which is the subtler rule and goes second.
+    //
+    // ── This used to be "not before stage 3" ──
+    //
+    // The ORDER is the thing that matters; the stages were only how a
+    // thirty-second opening got to teach one idea at a time. Stage 1 is seventy
+    // seconds now (`STAGE_ONE_LENGTH`) and carries both, so the rule moved
+    // inside it — and it is asserted on stage 1 alone, deliberately. Past the
+    // road that introduces them both ops are vocabulary the player has, and the
+    // generator orders them by the odds rather than by a lesson plan: stage 12
+    // bills at 90 and traps at 139, which is not a bug to fix, it is what
+    // "already taught" looks like.
+    const banks = gateBanks(1).slice().sort((a, b) => a.y - b.y)
+    const firstDiv = banks.find((b) => b.leaves.some((l) => l.op === 'div'))?.y
+    const firstSub = banks.find((b) => b.leaves.some((l) => l.op === 'sub'))?.y
+    expect(firstDiv, 'stage 1 no longer teaches the trap').toBeDefined()
+    expect(firstSub, 'stage 1 no longer teaches the bill').toBeDefined()
+    expect(firstSub!, `stage 1 bills at ${firstSub} before it has trapped`)
+      .toBeGreaterThan(firstDiv!)
   })
 
   it('offers one somewhere in the campaign, and never two in a bank', () => {
@@ -337,20 +348,38 @@ describe('the three-leaf bank is a spike, not the default', () => {
 })
 
 describe('traps and multipliers arrive on schedule', () => {
-  it('never puts anything on stage 1 that can take from the player', () => {
-    // Stage 1 used to be adds and nothing else. It now closes on a x2 — see the
-    // swell in `stageOne` — because a stage that only ever teaches is a stage
-    // nobody stays for, and the crowd exploding is what this genre is FOR.
+  it('puts exactly one trap and one bill on stage 1, both after it has given', () => {
+    // ── This used to read "never puts anything on stage 1 that can take" ──
     //
-    // What must never appear there is a leaf that costs: no trap, no bill. The
-    // multiplier is allowed precisely because both leaves of that bank are good,
-    // so the door cannot be answered wrongly.
+    // That was the right rule for a thirty-second road: give, teach, end. On a
+    // seventy-second one it meant the back half of the opening asked nothing at
+    // all, and the first door that could cost anything arrived on stage 2 with a
+    // whole stage's crowd riding on it. Stage 1 carries both now — see
+    // `stageOne` — and what is pinned instead is that they are RATIONED and
+    // LATE: one of each, both past the point where the player has something to
+    // lose, and each standing beside a door that pays.
     const banks = gateBanks(1)
-    for (const bank of banks) {
-      for (const leaf of bank.leaves) {
-        expect(['add', 'mul'], `stage 1 offered ${leaf.op}${leaf.value}`).toContain(leaf.op)
-      }
+    const { arenaY } = track(1)
+    const hostile = banks.filter((b) => b.leaves.some((l) => l.op === 'div' || l.op === 'sub'))
+    expect(hostile.length, 'stage 1 asks the same hard question more than twice').toBe(2)
+    expect(banks.filter((b) => b.leaves.some((l) => l.op === 'div')).length).toBe(1)
+    expect(banks.filter((b) => b.leaves.some((l) => l.op === 'sub')).length).toBe(1)
+
+    for (const bank of hostile) {
+      // Never in the opening stretch: a door that costs, met before the player
+      // has been given anything, is a punishment for turning up.
+      expect(bank.y / arenaY, `stage 1 takes at ${Math.round(bank.y / arenaY * 100)}% of the road`)
+        .toBeGreaterThan(0.33)
+      // …and always beside something worth crossing for (`legalise` rule 5).
+      expect(bank.leaves.some((l) => l.op === 'add' || l.op === 'mul'),
+        'a stage-1 bank costs on both doors').toBe(true)
     }
+    // The trap is the soft one and the bill is small: this is the road they are
+    // being introduced on, not a road they are being tested on.
+    const div = banks.flatMap((b) => b.leaves).filter((l) => l.op === 'div')
+    for (const d of div) expect(d.value, `stage 1 trapped for ÷${d.value}`).toBe(2)
+    const sub = banks.flatMap((b) => b.leaves).filter((l) => l.op === 'sub')
+    for (const x of sub) expect(x.value, `stage 1 billed for -${x.value}`).toBeLessThanOrEqual(3)
 
     // Every multiplier is a x2 — stage 1 never sees a x3 — and no bank offers
     // two of them: a x2 against a x2 is the same non-decision as `+7 | +8`,
@@ -623,23 +652,34 @@ describe('a stage gives the run what it needs', () => {
     }
   })
 
-  it('gives stage 1 exactly one weakened elite and no boss', () => {
-    // The opening used to be a full stage plus a full boss. A 500-player Poki
-    // fit test put 64 % of sessions under two minutes against a gate wanting
-    // 25 % past three, so stage 1 is a ~30 s teach: one elite the player cannot
-    // really lose to, then the same creature again at boss size.
+  it('gives stage 1 two weakened elites, one per half of the road', () => {
+    // ── This used to read "exactly one weakened elite" ──
     //
-    // It briefly had no boss at all, and that was worse — a level that simply
-    // stops reads as unfinished. The fix was the boss's PRICE, not its absence.
+    // It was one because the road was thirty seconds long, and the road was
+    // thirty seconds long because a 500-player Poki fit test put 64 % of
+    // sessions under two minutes. What that missed is WHERE the session ends:
+    // measured on the live build the median exit is ~35 s in and lands right
+    // after the first boss dies, so the short road moved the exit earlier
+    // rather than removing it. The opening is now a ~70 s round trip
+    // (`STAGE_ONE_LENGTH`), and a seventy-second road with one landmark on it
+    // is a minute of nothing followed by a fight.
+    //
+    // Two, and they are not the same beat: the first is the grenade lesson (it
+    // is armed on the road's FIRST elite), the second is the same fight with
+    // the grenade spent, answered with the crowd's own guns.
     const elites = track(1).events.filter((e) => e.kind === 'miniboss')
-    expect(elites).toHaveLength(1)
+    expect(elites).toHaveLength(2)
+    for (const e of elites) expect(e.kind === 'miniboss' && e.hpScale).toBeGreaterThan(0)
 
-    const elite = elites[0]!
-    expect(elite.kind === 'miniboss' && elite.hpScale).toBeGreaterThan(0)
-    // Last thing on the road, but with road left after it: the player beats the
-    // small one, runs, and then meets the big one in the arena.
-    expect(elite.y).toBeGreaterThan(track(1).arenaY * 0.7)
-    expect(elite.y).toBeLessThan(track(1).arenaY)
+    const ys = elites.map((e) => e.y).sort((a, c) => a - c)
+    const { arenaY } = track(1)
+    // One in each half, and the second still has road after it: the player beats
+    // the small one, runs, and then meets the big one in the arena.
+    expect(ys[0]!, 'the first elite is not in the first half').toBeLessThan(arenaY * 0.5)
+    expect(ys[0]!, 'the first elite lands before the player has built anything')
+      .toBeGreaterThan(arenaY * 0.25)
+    expect(ys[1]!).toBeGreaterThan(arenaY * 0.7)
+    expect(ys[1]!).toBeLessThan(arenaY)
   })
 
   it('makes the stage-1 boss the same body as the elite on that road', () => {

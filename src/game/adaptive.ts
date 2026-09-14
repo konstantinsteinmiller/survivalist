@@ -391,9 +391,84 @@ export const adaptiveBossHp = (fight: AdaptiveFight, seconds: number): number =>
   // a boss with a one-point bar is a softlock dressed as a victory.
   Math.max(30, Math.round(expectedDamage(fight, seconds)))
 
+/**
+ * ─── The floor is not the same on every stage the ladder covers ─────────────
+ *
+ * `ADAPTIVE_MIN_SECONDS` is a floor against the bar MELTING — under about two
+ * seconds the player is watching chunks disappear rather than a bar go down.
+ * That is the right floor for stages 2-5, where the player has already decided
+ * to be here and a short climax is the reward for a clean road.
+ *
+ * Stage 1 is a different question, and it is the only one in the game that is
+ * about whether there is a session at all. Measured on the live build, the
+ * median drop-out is ~35 s in and it lands RIGHT AFTER the first boss dies: the
+ * fight is 4.0 s for a run that read the road, which is long enough to be a
+ * boss and far too short to be a climax worth staying for. A first boss that
+ * falls over in four seconds teaches a stranger that the game is over.
+ *
+ * So the first fight has a floor of its own. The brief is five seconds of
+ * straight fire and 6-10 s on a stopwatch, and the number here is SIX because
+ * the two are not the same measurement: this is a target handed to
+ * `expectedDamage`, which integrates the crowd shrinking under the boss's
+ * swings, so the bar it buys is cleared by the real fight a little faster than
+ * the target says. Measured at a target of 5.0 the realised fight was 4.7 s of
+ * fire and 5.7 s on the clock — both under the brief. At 6.0 it lands at
+ * 5.5-6 s of fire and 6.5-7.5 s wall, which is the band with a margin.
+ *
+ * The ceiling does not move — `ADAPTIVE_MAX_SECONDS` is still 7.5 s of fire —
+ * so a hopeless crowd is not handed a longer fight than the brief allows just
+ * because it is their first one.
+ */
+export const ADAPTIVE_FIRST_FIGHT_SECONDS = 6.0
+
+/** The smallest fight this stage is allowed to hand out. */
+export const adaptiveFloorSeconds = (stage: number): number =>
+  stage <= 1 ? ADAPTIVE_FIRST_FIGHT_SECONDS : ADAPTIVE_MIN_SECONDS
+
 /** Clamp a target into the band the fight is allowed to occupy. */
-export const clampAdaptiveSeconds = (seconds: number): number =>
-  Math.max(ADAPTIVE_MIN_SECONDS, Math.min(ADAPTIVE_MAX_SECONDS, seconds))
+export const clampAdaptiveSeconds = (seconds: number, stage = 2): number =>
+  Math.max(adaptiveFloorSeconds(stage), Math.min(ADAPTIVE_MAX_SECONDS, seconds))
+
+/**
+ * ─── …and the elites on those stages are priced the same way ────────────────
+ *
+ * An elite is a LANDMARK: it plants, it blocks the road, and the crowd has to
+ * shoot it down before the stage continues. What it costs should therefore be
+ * measured in the only currency that means anything there — seconds of the
+ * crowd's own fire — and for exactly the reason the boss is: the firepower two
+ * players bring to the same elite differs by an order of magnitude, so one
+ * authored health number is a speed bump for one of them and a wall for the
+ * other. Measured on the shipped build, stage 1's elite ran **2.3 s for a run
+ * that read the road and 5.3 s for one that did not**, while stages 2 and 3
+ * fielded the same landmark at 0.8-1.5 s. The curve was not describing a fight,
+ * it was describing whoever happened to walk into it.
+ *
+ * A second and a half is the target: four volleys at the opening fire rate, so
+ * the crowd visibly has to STOP and shoot something, and nothing like the boss.
+ *
+ * "Not one-shottable" falls out of that rather than being bolted on — a price
+ * quoted in seconds of fire cannot be paid in one volley however big the crowd
+ * is, which is the property an authored number cannot promise.
+ */
+export const ELITE_FIRE_SECONDS = 1.5
+
+/**
+ * The health an elite is worth: the damage this crowd lands in
+ * `ELITE_FIRE_SECONDS`.
+ *
+ * Deliberately NOT integrated the way the boss's bar is. That model exists
+ * because a boss spends five to eight seconds killing the crowd that is killing
+ * it, so the DPS at the start is not the DPS at the end. An elite fight is a
+ * second and a half, and over that window the crowd it is being priced against
+ * is the crowd it is fighting.
+ *
+ * @param squadDps what the whole crowd lands per second, on target.
+ * @param seconds  the fight this elite is meant to be worth.
+ */
+export const adaptiveEliteHp = (squadDps: number, seconds = ELITE_FIRE_SECONDS): number =>
+  // The same floor the authored path carries: a landmark with a sliver of a bar
+  // is a landmark the player never sees have one.
+  Math.max(20, Math.round(Math.max(0, squadDps) * seconds))
 
 /**
  * ─── …and the swing stops being soft ────────────────────────────────────────

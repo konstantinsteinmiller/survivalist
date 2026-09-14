@@ -1555,7 +1555,7 @@ const liveDoor = (crowd: number): number =>
  * both there to catch it drifting.
  */
 const EARLY_CLOSING_CROWD: Readonly<Record<number, number>> = {
-  1: 32, 2: 45, 3: 45, 4: 36, 5: 60
+  1: 37, 2: 45, 3: 45, 4: 36, 5: 60
 }
 
 /**
@@ -1636,7 +1636,13 @@ const sanitiseLeaf = (stage: number, spec: LeafSpec): LeafSpec => {
     return mul(gateMulOpen(headline))
   }
   if (spec.op === 'div') {
-    if (stage < 2) return add(gateAddBase(stage))
+    // Stage 1 carries one now — see `stageOne`. The gate below used to be 2 on
+    // the reasoning that the first road should only ever give, which was right
+    // while that road was thirty seconds long. At seventy it left the back half
+    // of the opening asking nothing at all, so the introduction order moved
+    // INSIDE stage 1 instead of across stages: the trap at 47 % of the road,
+    // the bill at 62 %, both after the player has been given something to lose.
+    if (stage < 1) return add(gateAddBase(stage))
     // Snap to the harshest legal value at or below what was asked for, so a
     // caller can always write `div(5)` and get the strongest trap the stage has
     // earned rather than a crash or a silent `÷2`.
@@ -1646,7 +1652,10 @@ const sanitiseLeaf = (stage: number, spec: LeafSpec): LeafSpec => {
     return div(2)
   }
   if (spec.op === 'sub') {
-    if (stage < 3) return add(gateAddBase(stage))
+    // Same move as the trap above, one beat later on the same road. `bank()`
+    // still refuses a bill inside the first `SUB_EARLIEST` of any stage, which
+    // is what stops this reaching a crowd small enough for it to zero.
+    if (stage < 1) return add(gateAddBase(stage))
     return sub(Math.max(1, Math.min(GATE_SUB_MAX, Math.round(spec.value))))
   }
   return add(Math.max(1, Math.min(GATE_MAX_VALUE, Math.round(spec.value))))
@@ -2980,8 +2989,15 @@ const bait = (b: Beat, y: number, trapOnRight: boolean): void => {
   coinTrail(b, y + 2.2, side * 0.55, side, 3, 1.3)
 }
 
-/** One rescue cage, on a shoulder. See `placeRescues` for where. */
-const cage = (b: Beat, y: number, x: number): void => {
+/**
+ * One rescue cage, on a shoulder. See `placeRescues` for where.
+ *
+ * `hp` overrides the curve, and only stage 1 uses it — for the same reason its
+ * crate wall is pinned at 1 and its second pickup at `SECOND_PICKUP_HP`. A
+ * teaching beat is priced for the lesson it has to land, not by the curve that
+ * prices the same prop once the player knows what it is.
+ */
+const cage = (b: Beat, y: number, x: number, hp?: number): void => {
   b.events.push({
     kind: 'cages',
     y: r2(y),
@@ -2989,7 +3005,7 @@ const cage = (b: Beat, y: number, x: number): void => {
       x: clampX(x),
       // Flat, not depth-priced — see `cageHp` for why a prop measured against a
       // wall may not be scaled by a curve the wall itself does not use.
-      hp: cageHp(b.stage),
+      hp: Math.max(1, Math.round(hp ?? cageHp(b.stage))),
       hold: cageSurvivors(b.stage)
     }]
   })
@@ -3114,8 +3130,8 @@ const stageOne = (b: Beat): void => {
   pack(b, 39, 'creep', 3, 2.4)
 
   // Coins that mean something: they run straight into the wall's gap.
-  coinTrail(b, 57, -1.4, -1.9, 7, 1.25)
-  wall(b, 62, [
+  coinTrail(b, 68, -1.4, -1.9, 7, 1.25)
+  wall(b, 74, [
     { x: 1.05, w: BARRICADE_W, hp: barricadeHp(1) },
     { x: 2.85, w: BARRICADE_W, hp: barricadeHp(1) }
   ])
@@ -3137,10 +3153,32 @@ const stageOne = (b: Beat): void => {
   // So the first real bank in the game asks the simplest version of the only
   // question it ever asks — can you get across to the bigger door — and the
   // gap between the two numbers is wide enough to read at speed.
-  bank(b, 47, add(6), add(2))
+  bank(b, 55, add(6), add(2))
 
   // First real ask: the crate is off the line, and the line is safe.
-  crates(b, 70, 'damage', [CRATE_DETOUR_X])
+  crates(b, 86, 'damage', [CRATE_DETOUR_X])
+
+  // ── The first cage in the game, at four HP ──
+  //
+  // A cage is a box that pays PEOPLE, and it is the one prop whose payout the
+  // player cannot guess from looking at it — so the first one is priced to come
+  // apart in a single volley from whatever crowd is passing. It is the crate
+  // wall's trick again (`TUTORIAL_CRATE_WALL`, pinned at 1): the beat is not
+  // asking a question, it is delivering an answer, and a lesson the player
+  // cannot afford to break is a lesson nobody learns.
+  //
+  // On the opposite shoulder from the damage crate above, so the detour is a
+  // real one rather than the line the player is already on.
+  cage(b, 98, -CAGE_DETOUR_X, 4)
+
+  // ── Act two opens on the other side of the first elite ──
+  //
+  // The grenade lesson lands at 38 % of the road and stops the world for it, so
+  // this is the first thing the player meets having spent the new verb. A pack
+  // rather than a door on purpose: the beat after a lesson should be somewhere
+  // to use it, and the crowd has just been handed one for free.
+  pack(b, 124, 'creep', 3, 2.4)
+  coinTrail(b, 136, -1.1, GATE_LEAF_X, 7, 1.2)
 
   // First bank with two different offers. Nothing threatens it — the lesson is
   // "the leaves are not the same", not "you were too slow".
@@ -3170,18 +3208,67 @@ const stageOne = (b: Beat): void => {
   // a fourth gate this late pushed the elite off the end of the road (the
   // generator nudges elites clear of gates, and there was nowhere left to nudge
   // to — it landed at 107 on a 101-unit stage, past the arena, never fought).
-  // `liveDoor(12)` is the whole trick: twelve is what a MIDDLING run arrives
+  // `liveDoor(28)` is the whole trick: twenty-eight is what a MIDDLING run arrives
   // with here — halfway between the two walks the crowd table prints — so the
   // add ties with the multiplier for that run, loses to it for everybody ahead
-  // and beats it for everybody behind. A player who cleared the wall doubles; a
-  // player who has been steering round things takes the seven and catches up.
-  // Both are right, which is what makes it the first real decision in the game.
-  bank(b, 78, mul(2), add(liveDoor(8)))
+  // and beats it for everybody behind. A player who has worked the road doubles;
+  // a player who has been steering round things takes the number and catches
+  // up. Both are right, which is what makes it the first real decision in the
+  // game — and it lands at three quarters of the road, on the biggest crowd the
+  // stage has built, because it is the beat everything before it was for.
+  // ── The first door that takes something ──
+  //
+  // A `÷2` on the shoulder the coin trail at 136 leads AWAY from. Stage 1 used
+  // to carry nothing hostile at all on the grounds that the first road should
+  // only ever give — and that was right when the first road was thirty seconds
+  // long and the player met a trap twenty seconds into stage 2 anyway. On a
+  // seventy-second opening it means the back half of the stage asks nothing,
+  // and a player who has never been shown that a door can cost meets that idea
+  // for the first time with a full stage's crowd riding on it.
+  //
+  // It is deliberately the SOFT one: `÷2` halves what walks through, which on
+  // the crowd stage 1 has built here is a handful of bodies and a lesson, and
+  // the coins have been marking the good line all stage.
+  bank(b, 148, div(2), add(roadDoor(b, 22)))
 
   // …and immediately the opposite shoulder, so the reward for the right leaf is
   // a swerve back across the lane.
-  crates(b, 88, 'rate', [-CRATE_DETOUR_X - 0.5])
+  crates(b, 166, 'rate', [-CRATE_DETOUR_X - 0.5])
 
+  // ── Act three: the same verbs, with nothing new being explained ──
+  //
+  // The stage has taught everything it teaches by the swell. What the last
+  // third is for is letting the player USE it — two more banks, two more packs
+  // and the second elite — because a stranger decides whether they are having a
+  // good time while doing the thing, not while being shown it. Nothing here is
+  // a new idea, and that is the design: a tutorial that keeps introducing
+  // mechanics for seventy seconds is a tutorial nobody finishes.
+  //
+  // Kept clear of both elites' run-ups (`MINIBOSS_LEAD`, 12 units either side
+  // of 109 and 246) so each landmark is met on open road.
+  pack(b, 180, 'creep', 3, 2.6)
+  // ── …and the other way a door can cost ──
+  //
+  // `−3` against a door that pays. The two hostile ops are one mechanic with a
+  // sign — a division takes a FRACTION and a subtraction takes a COUNT — and
+  // meeting both on the road that introduces them is what makes the difference
+  // legible: the `÷2` twenty seconds ago scaled with the crowd, this one does
+  // not. Three is small on purpose. It is a number the player can watch leave.
+  bank(b, 196, add(roadDoor(b, 30)), sub(3))
+  crates(b, 210, 'damage', [-CRATE_DETOUR_X])
+  coinTrail(b, 222, -1.2, 1.4, 7, 1.2)
+
+  // …and the same prop again at twelve, which is a real decision: three times
+  // the first one, so a crowd that clips it in passing does NOT open it, and the
+  // detour has to be committed to. It stands in front of the swell, on the
+  // shoulder away from the door the coins are pointing at, which is the shape
+  // `placeRescues` gives every cage from stage 2 on.
+  cage(b, 230, -CAGE_DETOUR_X, 12)
+  bank(b, 240, mul(2), add(liveDoor(28)))
+  // …and the last thing before the second elite is a pack, so the landmark is
+  // walked into with the crowd already thinned rather than at full strength.
+  pack(b, 252, 'creep', 4, 3.0)
+  crates(b, 288, 'rate', [CRATE_DETOUR_X + 0.4])
 }
 
 /**
@@ -4896,8 +4983,30 @@ const placeMinibosses = (b: Beat): void => {
   // at the arena so the player meets it with the crowd the stage built, and so
   // there is still a beat of road after it: the stage ends on a win, not on the
   // fight itself.
+  // STAGE 1 — TWO elites, both weakened, one in each half of the road.
+  //
+  // It was one, at 88 %, on a road that was thirty seconds long. On a road that
+  // is seventy it would be a single landmark with a minute of nothing in front
+  // of it, which is the shape a player leaves during.
+  //
+  // They do different jobs, and the order is the whole design:
+  //
+  //   FIRST, at 38 %, is the grenade lesson. The world crawls, the screen dims
+  //     to one button, and the answer to the thing walking at you is the skill
+  //     you have never pressed (`grenadeTutorialDue`). It is armed on the FIRST
+  //     elite of the road, so it belongs to this one by construction.
+  //   SECOND, at 86 %, is the same fight with the lesson already spent — the
+  //     grenade is on cooldown, so this one is answered with the crowd's own
+  //     guns. That is the point of it: the stage asks the question twice, once
+  //     with the new verb and once without, and the second time is the one that
+  //     says the player can do it themselves.
+  //
+  // Both are priced at `ELITE_FIRE_SECONDS` of the crowd's live fire when they
+  // stream in, so "easily beatable but not one-shottable" is a property of the
+  // price rather than of a number that happens to suit one crowd size.
   if (b.stage === 1) {
-    miniboss(b, nudgeClearElite(b, b.arenaY * 0.88), 'tutorial')
+    miniboss(b, nudgeClearElite(b, b.arenaY * 0.38), 'tutorial')
+    miniboss(b, nudgeClearElite(b, b.arenaY * 0.86), 'tutorial')
     return
   }
   if (b.stage < 2) return

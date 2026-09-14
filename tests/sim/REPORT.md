@@ -943,3 +943,170 @@ from stage 3 to stage 5.
 * **`gateAddBase` is untouched.** The opening five are authored, so their doors
   are written as crowds rather than as offsets from it; the curve still sets the
   floor under every one of them (`roadDoor`).
+
+---
+
+# Re-measured, 2026-09-14 (later) — the opening is a session
+
+The opening five pass above left stage 1 a ~26 s road trip ending on a 4.0 s
+boss. The drop-out data says that is the problem rather than the fix: **the
+median exit is ~35 s in and lands right after the first boss dies.** The exit is
+the climax, not the road in front of it, so the shorter road moved the exit
+earlier instead of removing it.
+
+Stage 1 is now a **~70 s** round trip. Four changes, each measured.
+
+## The road
+
+`STAGE_ONE_LENGTH` 105 → **320** (62.7 s of walking at `RUN_SPEED`), and the
+beats re-cut into three acts rather than stretched. The acts are the point: the
+cheap way to double a stage is to double the road and leave the beats where they
+were, which produces thirty seconds of game and forty of walking.
+`tests/game/stageOneShape.test.ts` pins that every quarter of the road carries
+more than one thing that is not scenery.
+
+| | before | after |
+| --- | --- | --- |
+| road | 105 u (20.6 s) | 320 u (62.7 s) |
+| banks | 3 + opening solo | 5 + opening solo |
+| elites | 1 | 2 |
+| the swell (`×2`) | y = 78 (77 %) | y = 240 (76 %) |
+
+## Two elites, and they are different fights
+
+The first is at 38 % and carries the **grenade lesson** — the lightbox is armed
+on the road's FIRST elite, so it belongs to that one by construction. The second
+is at 86 %, by which time the grenade is spent: it is the same fight answered
+with the crowd's own guns, which is the beat that says the player can do it
+themselves.
+
+## An elite is priced in seconds of the crowd's own fire
+
+`adaptiveEliteHp`, read when the elite streams in — `LOOKAHEAD` is 30 units, so
+the price is struck about six seconds before the fight, off the squad, damage
+and fire rate the player actually has.
+
+The authored curve was not describing a fight, it was describing whoever walked
+into it:
+
+| | optimal | good / average | stages 2-3 |
+| --- | --- | --- | --- |
+| before | 2.3 s | **5.3 s** | 0.8-1.5 s |
+| after | 1.4 s | 1.3-1.5 s | 1.2-1.5 s |
+
+"Not one-shottable" falls out of the price rather than being bolted on: a bar
+quoted in seconds of fire is, by construction, more than one volley of it,
+whatever the crowd size. Checked at the opening fire rate — the slowest the
+crowd ever shoots — in `stageOneShape.test.ts`.
+
+The one thing the price cannot see is a bank inside those 30 units. The
+generator keeps gates `MINIBOSS_LEAD` clear of an elite, so a door can still land
+13-30 units ahead of one and hand the crowd a payout after the price was struck.
+That makes the fight shorter than its target, never longer.
+
+## The first boss has a floor
+
+`ADAPTIVE_FIRST_FIGHT_SECONDS` — six seconds of straight fire, where every other
+stage keeps the 2.0 s anti-melt floor. Six and not five because the two are
+different measurements: the number is a target handed to `expectedDamage`, which
+integrates the crowd shrinking under the boss's swings, so the bar it buys is
+cleared a little faster than the target says. At a target of 5.0 the realised
+fight was 4.7 s of fire and 5.7 s on the clock — both under the brief.
+
+| | before | after |
+| --- | --- | --- |
+| boss, optimal | 4.0 s | 6.6 s |
+| boss, good | 4.8 s | 6.6 s |
+| boss, average | 4.7 s | 6.7 s |
+
+The ceiling is untouched (`ADAPTIVE_MAX_SECONDS`, 7.5 s of fire), so a hopeless
+crowd is not handed a longer fight than the brief allows just because it is
+their first one.
+
+## The whole stage, measured
+
+Through the simulation, 4 seeds a policy:
+
+| policy | total | elite | boss | peak crowd | clears |
+| --- | --- | --- | --- | --- | --- |
+| `optimal` | 69.9 s | 1.4 s | 6.6 s | 58 | 100 % |
+| `good` | 70.2 s | 1.4 s | 6.6 s | 61 | 100 % |
+| `average` | 70.3 s | 1.3 s | 6.7 s | 59 | 100 % |
+| `careless` | 69.6 s | 1.1 s | 6.3 s | 38 | 100 % |
+| `trail` | 70.4 s | 1.4 s | 6.7 s | 54 | 100 % |
+
+…and played in a real browser on the production build, with a driver that steers
+like a player and presses the grenade when the lesson demands it:
+
+```
+total 74.1s, cleared, peak 78
+grenade lesson at 23.4s (34 % of the road)
+elites  [ 32 % · 106 hp · 4.4 s · the lesson ]
+        [ 80 % ·  802 hp · 2.1 s · squad only ]
+boss    7.4s
+banks   +6|+2 @14 %   +4|+2 @44 %   +5|+2 @59 %   x1.6|+17 @73 %   +6|+2 @93 %
+```
+
+The two elites' health — 106 against 802 — is the adaptive price working: the
+same fight, struck against the crowd that turned up to each.
+
+## What this costs, stated plainly
+
+`careless` now clears stage 1 on every seed where it used to clear two thirds.
+A longer road with five banks on it hands a no-input run more crowd, and stage 1
+is the one stage where that is allowed: the floor the balance suite defends is
+"a run that never touches the screen still sees the first boss die", and stage 2
+still stops one dead. The career probe is unchanged — zero-input play stalls at
+stage 2.
+
+## …and then stage 1 got teeth
+
+Three additions to the seventy-second opening, all on the same reasoning: a road
+that long has room to teach a prop properly and to ask a question it used to
+defer to stage 2.
+
+**Two cages, hand-priced.** Four HP and twelve. The first comes apart in a
+single volley from whatever crowd is passing — the crate wall's trick
+(`TUTORIAL_CRATE_WALL`, pinned at 1), because a cage is the one prop whose
+payout cannot be guessed by looking at it and a lesson the player cannot afford
+to break is a lesson nobody learns. The second is three times that, so a crowd
+that clips it in passing does NOT open it and the detour has to be committed to.
+Each frees three survivors.
+
+`CAGE_STAGE` still says 2 and still means something: it is where the GENERATOR
+starts placing them. Stage 1's pair is authored in `stageOne`, exactly as its
+crate wall and its second pickup are.
+
+**A `÷2` at 47 % and a `−3` at 62 %.** Stage 1 used to carry nothing hostile at
+all, on the reasoning that the first road should only ever give. That was right
+for a thirty-second road; on a seventy-second one it meant the back half of the
+opening asked nothing, and the first door that could cost anything arrived on
+stage 2 with a whole stage's crowd riding on it. The introduction order moved
+INSIDE stage 1 rather than across stages — trap first, bill second, both past
+`SUB_EARLIEST`, both beside a door that pays, and both deliberately the soft
+version (`÷2` on a crowd of twenty, `−3` the player can watch leave).
+
+| stage 1, 4 seeds | total | boss | elite | peak | lost | clears |
+| --- | --- | --- | --- | --- | --- | --- |
+| `optimal` | 71.0 s | 6.7 s | 1.4 s | 59 | 9.3 | 100 % |
+| `good` | 70.3 s | 6.5 s | 1.7 s | 74 | 3.5 | 100 % |
+| `average` | 70.9 s | 6.8 s | 1.8 s | 38 | 12.0 | 100 % |
+| `careless` | 69.8 s | 6.4 s | 1.1 s | 31 | 6.8 | 100 % |
+| `trail` | 70.4 s | 6.7 s | 1.8 s | 64 | 5.8 | 100 % |
+
+`average`'s losses are now `trap:28 foe:16` — the hostile doors are where a
+player with a 250 ms thumb pays, which is what "a bit tougher" was asked for.
+`careless` pays the pillar instead (`divider:20`) and drops from clearing every
+seed of the held first-session road to two in three, which is the historical
+5-in-8 the balance suite was written around rather than a new floor.
+
+Played in a real browser on the production build:
+
+```
+total 74.3s, cleared, peak 89
+cages   4 hp @27 %  (3 survivors)    12 hp @68 %  (3 survivors)
+banks   +6|+2 @14 %   /2|+4 @44 %   +5|-3 @59 %   x1.6|+17 @73 %   +6|+2 @93 %
+elites  32 % · 124 hp · 4.4 s · the lesson
+        80 % · 746 hp · 2.7 s · squad only
+boss    7.6s
+```

@@ -105,12 +105,22 @@ describe('what a cage is worth', () => {
 // ─── The placement ──────────────────────────────────────────────────────────
 
 describe('where the road puts them', () => {
-  it('keeps both props out of the taught stages entirely', () => {
-    // Stages 1-5 are the authored teaching arc and the campaign's pinned
-    // invariants live in there. Nothing new may appear on them.
-    for (let s = 1; s < CAGE_STAGE; s++) {
-      expect(cagesOf(s), `stage ${s} grew a cage`).toEqual([])
-    }
+  it('keeps the shield box out of the taught stages, and rolls no cage into them', () => {
+    // ── Stage 1's cages are AUTHORED, and that is the distinction ──
+    //
+    // This used to assert that stage 1 carried no cage at all. It carries two
+    // now, hand-priced at 4 and 12 in `stageOne` — the same way its crate wall
+    // is pinned at 1 — because a seventy-second opening has room to introduce
+    // the one prop whose payout cannot be guessed by looking at it.
+    //
+    // What `CAGE_STAGE` still means, and what is pinned here, is that the
+    // GENERATOR puts none there: `placeRescues` is the thing that could drop a
+    // third one onto a road whose beats are measured, and it still starts at
+    // stage 2.
+    const authored = cagesOf(1).flatMap((e) => e.cages.map((c) => c.hp)).sort((a, b) => a - b)
+    expect(authored, 'stage 1 lost its teaching cages').toEqual([4, 12])
+    expect(cagesOf(1).length, 'the generator added a cage to stage 1').toBe(2)
+
     for (let s = 1; s < BULWARK_STAGE; s++) {
       expect(bulwarksOf(s), `stage ${s} grew a shield box`).toEqual([])
     }
@@ -126,7 +136,10 @@ describe('where the road puts them', () => {
     // a full-size crowd centred at x = 0 reaches `CROWD_MAX_R + UNIT_R`, and the
     // prop's own half-extent has to clear that with room left over.
     const reach = CROWD_MAX_R + UNIT_R
-    for (let s = CAGE_STAGE; s <= DEEP; s++) {
+    // From stage 1, not from `CAGE_STAGE`: the two hand-placed ones on the
+    // teaching road owe this more than any other cage in the game, because
+    // stage 1 is the stage a run that never steers is allowed to survive.
+    for (let s = 1; s <= DEEP; s++) {
       for (const e of cagesOf(s)) {
         for (const c of e.cages) {
           expect(Math.abs(c.x) - CAGE_R, `stage ${s}: a cage at x=${c.x} is inside a centred crowd`)
