@@ -2,6 +2,23 @@
 <html lang="">
 <head>
   <meta charset="UTF-8">
+  <!-- YouTube Playables SDK - kept ONLY on the Playgama build, which IS the
+       Playables submission (Playgama forwards that one archive to YouTube).
+       Stripped everywhere else by vite.config.ts.
+
+       Load-bearing twice over. YouTube's integration requirements say the SDK
+       MUST load before any game code executes; and the Playgama Bridge's own
+       `youtube` adapter polls for `window.ytgame` on a 100 ms interval with NO
+       timeout, so without this tag `bridge.initialize()` never settles and
+       Playables shows a blank screen with every other check green.
+
+       IN <head>, AND FIRST, on purpose. Vite injects the entry bundle as a
+       `<script type="module">` into the head at build time — so a tag placed
+       down in <body> with the other portal SDKs loads AFTER the game's own
+       code in document order, which is the thing the requirement forbids.
+       A classic (non-module) script here is parser-blocking and modules are
+       deferred regardless, so this is guaranteed to run first. -->
+  <script src="https://www.youtube.com/game_api/v1"></script>
   <meta name="color-scheme" content="dark only">
   <link rel="icon" href="/favicon.ico">
   <!-- CSP meta tag injected by vite.config.ts at build time -->
@@ -49,7 +66,7 @@
          ------------------------------------------------------------------
          Eight of the game's own things — the survivor, the boss, the chest,
          the coin, a barrel, an anvil, a grenade, a rocket — as faint line
-         drawings on one seamless tile (public/images/bg/bg-tile_800x800.webp,
+         drawings on one seamless tile (public/images/bg/bg-tile.svg,
          flattened out of the paintings themselves by `pnpm art:bg-tile`),
          drifting down and to the right the way a Brawl Stars loading screen
          does.
@@ -77,7 +94,7 @@
           left: -400px;
           right: 0;
           bottom: 0;
-          background: url(./images/bg/bg-tile_800x800.webp) 0 0 / 400px 400px repeat;
+          background: url(./images/bg/bg-tile.svg) 0 0 / 400px 400px repeat;
           opacity: 0.16;
           will-change: transform;
           animation: splash-tiles-in 0.6s ease-out both, splash-tiles-pan 40s linear infinite;

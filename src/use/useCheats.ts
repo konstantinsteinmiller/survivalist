@@ -1,13 +1,20 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import useTowerEconomy from '@/use/useTowerEconomy'
 import { toggleDebug } from '@/use/useMatch'
+import { safeGetBool } from '@/utils/safeStorage'
 
 // `cheat` stays a top-level localStorage flag — it's an explicit dev toggle
 // that gates the whole keyboard-shortcut module, so we don't want it living
 // inside the gameplay save blob (where a cloud restore could re-enable
 // cheats on a clean device).
-const storedCheat = localStorage.getItem('cheat') || 'false'
-const isCheat = ref<boolean>(JSON.parse(storedCheat))
+//
+// Read through `safeGetBool`: this runs at MODULE SCOPE, so a bare
+// `localStorage.getItem` here throws before `bootstrap()` on any runtime where
+// `window.localStorage` is `null` — which is exactly what YouTube Playables
+// does — and takes the whole app down with it. See `safeStorage.ts`.
+// The flag itself stays in every build on purpose: QA back doors must exist in
+// the artefact QA actually tests.
+const isCheat = ref<boolean>(safeGetBool('cheat'))
 
 // ─── Always-on key-sequence cheat: type "cmarc" to flip debug mode. ──────
 //

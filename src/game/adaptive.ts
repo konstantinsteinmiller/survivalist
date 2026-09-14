@@ -184,6 +184,38 @@ export const ADAPTIVE_MAX_SECONDS = 7.5
  * @param squad   survivors that walked into the arena.
  * @param perfect the ceiling for this stage — `perfectSquadFor`.
  */
+/**
+ * ─── The one road that eats a quarter of its own ceiling ────────────────────
+ *
+ * `perfectSquadFor` counts DOORS. It assumes a flawless run loses nobody, which
+ * is true enough on four of these five roads and false on stage 4: that road
+ * carries the first boulders and barricades in the game AND the one bank where
+ * both doors take something, and a flawless run finishes it having lost around
+ * half of what the doors handed over.
+ *
+ * The consequence is not that stage 4 is hard — that is the intention — it is
+ * that the yardstick MISREADS it. A run that played stage 4 as well as stage 4
+ * can be played scores ~0.52 of its ceiling where the same player scores
+ * 0.86-0.89 on its neighbours, so the ladder reads a good run as a mediocre one
+ * and hands it a longer fight. Measured, that made stage 4's boss the longest
+ * of the five (8-10.7 s against 4-6 s) and its slam the single biggest killer
+ * in the opening campaign: 28 survivors a run, ~40 % of the crowd that arrived.
+ * Stage 4 was a wall, and this is a third of why.
+ *
+ * This was left as a "measured wart" before, on the grounds that modelling road
+ * attrition means inventing a per-body loss rate. It does not: the share is
+ * MEASURED, exactly like every other number in this file, by the same probe
+ * (`SIM_EARLY=1`, the crowd walk against the play table). One stage is listed
+ * because one stage is an outlier; the rest are within a few points of each
+ * other and are left alone rather than papered over with a table of ones.
+ */
+export const ROAD_ATTRITION: Readonly<Record<number, number>> = { 4: 0.6 }
+
+/** The ceiling to judge a run against: what the doors could pay, less what this
+ *  particular road takes back off even a flawless one. */
+export const adaptiveYardstick = (stage: number, ceiling: number): number =>
+  ceiling * (ROAD_ATTRITION[stage] ?? 1)
+
 export const adaptiveBossSeconds = (squad: number, perfect: number): number => {
   // A hopeless crowd gets the bottom rung outright, whatever the ratio says.
   if (squad <= ADAPTIVE_TINY_SQUAD) return ADAPTIVE_RUNGS[ADAPTIVE_RUNGS.length - 1]!.seconds

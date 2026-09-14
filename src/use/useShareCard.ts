@@ -151,6 +151,15 @@ export const shareAffordance = (): ShareAffordance => {
 const detect = (): ShareAffordance => {
   if (typeof navigator === 'undefined' || typeof document === 'undefined') return 'none'
 
+  // YOUTUBE PLAYABLES: no share surface at all. The Playgama archive is the
+  // Playables submission, and its design requirements are explicit — the game
+  // MUST NOT display in-game sharing prompts; YouTube owns sharing from its own
+  // chrome. Returning 'none' here is the whole fix: every caller binds its UI
+  // to `shareAffordance()`, so the button disappears and `navigator.share` is
+  // never reached. Placed ABOVE the feature detection on purpose — the point is
+  // not to fail gracefully, it is not to offer it.
+  if (import.meta.env.VITE_APP_PLAYGAMA === 'true') return 'none'
+
   const file = probeFile()
   if (
     file !== null &&

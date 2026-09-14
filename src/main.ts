@@ -12,9 +12,10 @@ import {
 import { LANGUAGES } from '@/utils/enums'
 import { initAds } from '@/use/useAds'
 import { installGamePauseAudio } from '@/use/useGamePauseAudio'
+import { onPauseChange } from '@/use/useGamePause'
 import useUser, { isCrazyWeb, isWaveDash, isItch, isGlitch, isGameDistribution, isPlaygama, isGamepix, isGameMonetize, isYandex, isPoki } from '@/use/useUser'
 import { isDebug } from '@/use/useMatch.ts'
-import { hasState, reloadTowerState } from '@/use/useTowerState'
+import { hasState, reloadTowerState, flushPersist } from '@/use/useTowerState'
 import { LANGUAGE_KEY } from '@/keys'
 import { SaveManager } from '@/utils/save/SaveManager'
 import { resolveSaveStrategy } from '@/platforms/resolveSaveStrategy'
@@ -277,19 +278,42 @@ const bootstrap = async () => {
   // is best-effort — the strategy's setItem may not finish before the
   // process is suspended. But it dramatically widens the window where
   // writes complete vs. relying on the natural debounce.
-  const flushOnHide = (): void => {
-    if (document.visibilityState === 'hidden') {
-      void saveManager.flush().catch((e) => {
-        console.warn('[save] visibilitychange flush failed', e)
-      })
-    }
-  }
-  document.addEventListener('visibilitychange', flushOnHide)
-  window.addEventListener('pagehide', () => {
+  //
+  // PLAYABLES EXCEPTION. The Playgama archive is also the YouTube Playables
+  // submission, and Playables forbids BOTH of these events: the game "MUST NOT
+  // use the web Page Visibility API or similar web APIs" — and `pagehide` is
+  // squarely "similar" — and MUST take its lifecycle only from the SDK's
+  // `onPause`. Its own requirements then ask for exactly the behaviour this
+  // block provides ("SHOULD save progress when onPause occurs"), so the flush
+  // does not go away on that build, it MOVES onto the pause gate. Dropping the
+  // listeners without re-hooking the flush would trade a certification finding
+  // for silent data loss, which is the worse bug.
+  const flushNow = (why: string): void => {
     void saveManager.flush().catch((e) => {
-      console.warn('[save] pagehide flush failed', e)
+      console.warn(`[save] ${why} flush failed`, e)
     })
-  })
+  }
+  if (import.meta.env.VITE_APP_PLAYGAMA === 'true') {
+    // `isPlatformPaused` is flipped by the Bridge's `PAUSE_STATE_CHANGED`
+    // handler in `playgamaPlugin`. Flush on the leading edge only — a resume
+    // has nothing to persist, and the gate also fires for ads and modals,
+    // where an extra flush is harmless but pointless.
+    onPauseChange((paused) => {
+      if (!paused) return
+      // Order matters: `flushPersist` drains the debounced in-memory writes
+      // into the storage layer, THEN `saveManager.flush()` pushes that layer
+      // to the cloud. Reversed, the cloud gets the previous snapshot.
+      // (`useTowerState` cannot subscribe here itself — it is a zero-dependency
+      // module — which is why its own hide listeners are gated off in tandem.)
+      try { flushPersist() } catch (e) { console.warn('[save] persist flush failed', e) }
+      flushNow('platform-pause')
+    })
+  } else {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushNow('visibilitychange')
+    })
+    window.addEventListener('pagehide', () => flushNow('pagehide'))
+  }
 
   // NOTE: gates below use `import.meta.env.VITE_APP_*` literals (not the
   // `isGlitch` / `isGameDistribution` constants imported from useUser).

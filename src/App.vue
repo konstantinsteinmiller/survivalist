@@ -93,13 +93,34 @@ onMounted(() => {
       windowHeight.value = window.innerHeight
     }, 400)
     window.addEventListener('orientationchange', delayedUpdateGlobalDimensions)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+    // Not on Playgama: that archive is the YouTube Playables submission, and
+    // Playables forbids the Page Visibility API outright — only the SDK's
+    // `onPause` may halt the game. The Bridge's `PAUSE_STATE_CHANGED` already
+    // drives `pauseGame()`, and `useGamePauseAudio` suspends audio off the
+    // aggregate `isGamePaused`, so the music this handler manages is covered
+    // there without a second, forbidden driver.
+    // `import.meta.env` literal rather than the imported `isPlaygama`: the
+    // constant crosses a module boundary, and this file is in the obfuscator's
+    // path, so the raw literal is the form esbuild is most likely to fold
+    // before the string-array pass runs. Same reasoning as the note in
+    // `pokiPlugin.stub.ts`.
+    if (import.meta.env.VITE_APP_PLAYGAMA !== 'true') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+    }
   }
 })
 onUnmounted(() => {
   window.removeEventListener('resize', updateGlobalDimensions)
   window.removeEventListener('orientationchange', delayedUpdateGlobalDimensions)
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  // Guarded to MATCH the add above rather than left unconditional. A bare
+  // `removeEventListener(..., handleVisibilityChange)` keeps a live reference
+  // to the handler, so the function — and the `document.hidden` branch inside
+  // it — survives into the Playgama bundle even though nothing can ever call
+  // it, and reads there as a Page Visibility usage. Same literal on both sides
+  // so the whole pair folds away together.
+  if (import.meta.env.VITE_APP_PLAYGAMA !== 'true') {
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }
   clearInterval(dimensionsInterval.value)
 })
 

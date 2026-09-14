@@ -29,11 +29,27 @@ import { computed, ref, watch } from 'vue'
  *  by `useAds.showRewardedAd` / `useAds.showMidgameAd` set/reset. */
 export const isAdShowing = ref(false)
 
+/** Whether this build may touch the Page Visibility API at all.
+ *
+ *  YouTube Playables forbids it outright: the game "MUST NOT use the web Page
+ *  Visibility API or similar web APIs and MUST only use Playables SDK
+ *  `onPause`". The Playgama archive IS the Playables submission, so on that
+ *  build this whole rung is removed and `isPlatformPaused` — driven by the
+ *  Bridge's `PAUSE_STATE_CHANGED` — becomes the sole pause source. Every other
+ *  platform keeps it: it is the most reliable background signal a mobile
+ *  WebView gives us, and the portals that have their own pause callback still
+ *  benefit from it as a backstop.
+ *
+ *  Read off `import.meta.env` rather than importing `isPlaygama` — this module
+ *  is a deliberate zero-dependency island (see the header note), and the
+ *  literal folds at build time so the listener disappears from the bundle. */
+const mayUseVisibilityApi = import.meta.env.VITE_APP_PLAYGAMA !== 'true'
+
 /** True when `document.visibilityState === 'hidden'`. Seeded from the
  *  document on first import, kept current by the listener installed
- *  below. */
+ *  below. Pinned `false` on Playables, where the API is forbidden. */
 export const isVisibilityHidden = ref(
-  typeof document !== 'undefined' && document.visibilityState === 'hidden'
+  mayUseVisibilityApi && typeof document !== 'undefined' && document.visibilityState === 'hidden'
 )
 
 /** True while the embedding portal (GamePix, etc.) has asked the game
@@ -117,7 +133,7 @@ watch(isGamePaused, (paused) => {
 
 // ─── Visibility listener ───────────────────────────────────────────────────
 
-if (typeof document !== 'undefined') {
+if (mayUseVisibilityApi && typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     isVisibilityHidden.value = document.visibilityState === 'hidden'
   })

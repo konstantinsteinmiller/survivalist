@@ -1,0 +1,804 @@
+{
+  "verdict": "NOT ELIGIBLE — 1 MUST failure",
+  "root": "C:\\Users\\konst\\Documents\\__p\\survivalist",
+  "dist": "C:\\Users\\konst\\Documents\\__p\\survivalist\\dist",
+  "generated": "2026-09-14T11:57:24.584Z",
+  "limits": {
+    "initialMust": 31457280,
+    "initialShould": 15728640,
+    "initialIdeal": 5242880,
+    "totalMust": 262144000,
+    "zipMust": 209715200,
+    "fileMust": 31457280,
+    "fileShould": 524288,
+    "saveMust": 3145728,
+    "saveShould": 512000,
+    "saveFlush": 65536,
+    "fileCount": 8000,
+    "heapMust": 536870912,
+    "loadShould": 5
+  },
+  "findings": [
+    {
+      "evidence": [
+        "bridge.playgama.com  <-  dist:assets/playgamaPlugin-DODM0yVe.js — ht.delete(e)}}}const E=\"https://bridge.playgama.com/v1/stable/playgama-bridge.js\",F=15e3,d"
+      ],
+      "fix": "YT-PRV: the game MUST NOT make external calls to any URLs or services except where explicitly required by other technical requirements (i.e. APIs owned by Google or YouTube), and MUST NOT attempt to circumvent external-call prevention. That kills third-party analytics, leaderboard workers, font CDNs, remote config and external multiplayer outright, and remote data is refused — all game data must ship in the bundle. Bundle it, gate it behind the platform flag, or remove it. A hit is not automatically a live call, but a string in a dead path still has to be PROVEN dead; and note that Playgama's own bridge analytics endpoint is one YouTube has called out.",
+      "id": "YTP-NO-EXTERNAL-CALLS",
+      "title": "The build reaches no host outside YouTube/Google",
+      "severity": "MUST",
+      "source": "YT-PRV + PG + YT-FAQ",
+      "status": "FAIL"
+    },
+    {
+      "evidence": [
+        "dist:assets/playgamaPlugin-DODM0yVe.js — return}const t=document.createElement(\"script\");t.src=E,t.async=!1,t.addEventListener(\"loa"
+      ],
+      "fix": "A named rejection reason: dynamically created script tags lack the nonce YouTube's CSP requires, so they are blocked at runtime — the game then fails in a way that no local test reproduces. Every SDK the game injects at runtime (a portal SDK's own lazy loader included) must be a static tag in index.html for this build, or provably never reached.",
+      "id": "YTP-DYN-SCRIPT",
+      "title": "No dynamically injected <script> tags",
+      "severity": "MUST",
+      "source": "YT-FAQ",
+      "status": "WARN"
+    },
+    {
+      "evidence": [
+        "not found in src or dist"
+      ],
+      "fix": "If the game draws its own loading/splash screen, call `ytgame.game.firstFrameReady()` the moment that screen is up so YouTube hands the surface over. Only meaningful when the game owns its loader — a game that shows nothing until gameReady can skip it.",
+      "id": "YTP-FIRSTFRAME",
+      "title": "firstFrameReady() is called when the game paints its own loading screen",
+      "severity": "SHOULD",
+      "source": "YT-INT",
+      "status": "WARN"
+    },
+    {
+      "evidence": [
+        "survivalist-playgama.zip = 3.38 MiB"
+      ],
+      "fix": "Run `compress-images-pipeline` over the art and split oversized chunks. Check which of these land before game_ready — those count twice.",
+      "id": "YTP-SIZE-FILE-SOFT",
+      "title": "Files SHOULD stay under 512.0 KiB",
+      "severity": "SHOULD",
+      "source": "YT-STA",
+      "status": "WARN"
+    },
+    {
+      "evidence": [
+        "survivalist-playgama.zip = 3.38 MiB",
+        "size figures measured from dist/ include this file; subtract it"
+      ],
+      "fix": "Harmless for the artefact itself as long as the zip is created BEFORE it is moved in and the next build empties the folder — confirm both. It still skews every size audit of dist/ and would be swallowed by a manual re-zip, so prefer writing the archive outside the build folder.",
+      "id": "YTP-ZIP-INSIDE",
+      "title": "A .zip sits inside the directory the archive is built from",
+      "severity": "SHOULD",
+      "source": "YT-STA",
+      "status": "WARN"
+    },
+    {
+      "evidence": [],
+      "fix": "YT-MON: with ads enabled the game MUST still handle mute/unmute via isAudioEnabled + onAudioEnabledChange and pause/resume via onPause + onResume. Hard-stop music and kill in-flight one-shot SFX before every ad request (the playbook's ad-audio guarantee), and make sure an onPause landing mid-ad still parks the game.",
+      "id": "YTP-AD-AUDIO-PAUSE",
+      "title": "Ads keep honouring mute and pause",
+      "severity": "MUST",
+      "source": "YT-MON",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Playgama: \"timers before interstitials are also strictly forbidden.\" A \"your ad starts in 3…\" screen is a rejection. Call the break directly.",
+      "id": "YTP-AD-NO-TIMER",
+      "title": "No countdown/timer in front of an interstitial",
+      "severity": "MUST",
+      "source": "PG",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "dist:assets/GameScene-CruYLJkO.js:2 — =>console.warn(\"[qa-ad] interstitial failed\",t)).finally(()=>{_l=!1,u2()}),!0)},jg={class:",
+        "dist:assets/index-4Qg0WSKF.js:4 — :\"playgama\",isReady:t,isRewardedReady:t,isInterstitialReady:t,isAdsBlocked:e,init:async()=",
+        "dist:assets/index-4Qg0WSKF.js:4 — y:t,isRewardedReady:t,isInterstitialReady:t,isAdsBlocked:e,init:async()=>{try{const o=awai",
+        "dist:assets/index-4Qg0WSKF.js:4 — lugin init failed\",o)}},showRewardedAd:async o=>(await s()).showRewardedPG(o),showMidgameA",
+        "dist:assets/index-4Qg0WSKF.js:4 — Ad:async o=>(await s()).showRewardedPG(o),showMidgameAd:async o=>(await s()).showInterstit",
+        "dist:assets/index-4Qg0WSKF.js:4 — Ad:async o=>(await s()).showInterstitialPG(o)}},yb=t=>Eb(),Xd=\"__save_internal__rewarded_h",
+        "dist:assets/index-4Qg0WSKF.js:4 — (),Xd=\"__save_internal__rewarded_history\",vb=5,ac=420*1e3,Ab=6e4,wb=()=>{const t=In(Xd);re",
+        "dist:assets/index-4Qg0WSKF.js:4 — =ot.name,u6=je(()=>ot.isRewardedReady.value&&!zd.value),f6=je(()=>ot.isInterstitialReady.v"
+      ],
+      "fix": "Playgama: the code \"must always check whether ad placements are supported\" before firing. Where rewarded is unsupported the BUTTON must not exist — not fail silently after the player commits. Gate every rewarded surface on \"init settled AND placement supported\", never on \"a provider object exists\".",
+      "id": "YTP-AD-SUPPORT-CHECK",
+      "title": "Every ad call checks placement support first",
+      "severity": "MUST",
+      "source": "PG",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Playgama singles out 1:1, 16:9 and 9:16; YouTube requires the full ladder. Drive the BUILT game in a browser at each ratio and assert: nothing clipped, text readable, no black bars at the sides (fill the viewport, or centre with a deliberate pillarbox/letterbox), every touch target reachable. Landscape must be a real adaptation, not a stretched portrait.",
+      "id": "YTP-ASPECT",
+      "title": "Renders correctly at 9:32, 9:21, 9:16, 3:4, 1:1, 4:3, 16:9, 21:9, 32:9",
+      "severity": "MUST",
+      "source": "YT-DES + PG",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "A named rejection: games that expect user interaction before playback fail, because YouTube may auto-focus the playable. Resume the AudioContext on the SDK ready/resume path as well as on first input. The mirror rule is also a MUST: no sound the player did not ask for.",
+      "id": "YTP-AUDIO-AUTOPLAY",
+      "title": "Audio does not depend on a first tap, and never fires unexpectedly",
+      "severity": "MUST",
+      "source": "YT-FAQ + YT-INT",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "dist:assets/playgamaPlugin-DODM0yVe.js — ause_state_changed\",l=t.AUDIO_STATE_CHANGED??\"audio_state_changed\",f=t.VISIBILITY_STATE_CH",
+        "dist:assets/playgamaPlugin-DODM0yVe.js — t.AUDIO_STATE_CHANGED??\"audio_state_changed\",f=t.VISIBILITY_STATE_CHANGED??\"visibility_sta",
+        "src:utils/playgamaPlugin.ts:159 — nst audioEventName = ev.AUDIO_STATE_CHANGED ?? 'audio_state_changed' const visibilit",
+        "src:utils/playgamaPlugin.ts:159 — AUDIO_STATE_CHANGED ?? 'audio_state_changed' const visibilityEventName = ev.VISIBILI"
+      ],
+      "fix": "Trace the gain path: platform mute must be a hard AND at the output, applied after every in-game volume. A game that restores its own saved volume on resume and forgets the platform flag fails this — and so does one whose ad SDK plays through a channel the mute never touches.",
+      "id": "YTP-AUDIO-PRIORITY",
+      "title": "In-game sound settings never override the platform setting",
+      "severity": "MUST",
+      "source": "PG + YT-INT",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Chrome, Edge, Firefox, plus the YouTube app on Android and iOS. The playbook's cross-browser matrix covers the desktop half; iOS/WebKit is the one that finds the real bugs.",
+      "id": "YTP-BROWSERS",
+      "title": "Runs on every YouTube-supported browser and both YouTube apps",
+      "severity": "MUST",
+      "source": "YT-STA",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Housekeeping, but a stated MUST NOT.",
+      "id": "YTP-DEV-LINKS",
+      "title": "Staging/dev links are not shared outside certification testing",
+      "severity": "MUST",
+      "source": "YT-TS",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "A run that silently loops back to level 1, or an endless mode pretending to have an ending, fails this.",
+      "id": "YTP-END-OF-CONTENT",
+      "title": "The game says so when there is no more content",
+      "severity": "MUST",
+      "source": "YT-DES",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "YT-DES: SHOULD allow closing modals/dialogs with Esc, and MUST NOT call preventDefault() on Esc events — YouTube uses it to leave the playable. Check every global key handler for a blanket preventDefault.",
+      "id": "YTP-ESC",
+      "title": "Esc closes modals, and preventDefault() is never called on Esc",
+      "severity": "MUST",
+      "source": "YT-DES",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "dist:assets/App-DqC18lcn.js:2 — FLogoProgress] Playgama game_ready failed\",P)}}))};return G(k,f=>{f&&setTimeout(()=>{L.val",
+        "dist:assets/playgamaPlugin-DODM0yVe.js — _stopped\"),!A&&(A=!0,m(\"game_ready\")))},K=()=>{!d.value||v||(v=!0,m(\"gameplay_started\"))},",
+        "src:components/atoms/FLogoProgress.vue:274 [in a comment] — e) } } // Playgama's `game_ready` is certification-mandatory — fire it on the same // sp",
+        "src:components/atoms/FLogoProgress.vue:292 — FLogoProgress] Playgama game_ready failed', e) } }) } // GamePix's `gameLoaded` is the",
+        "src:components/atoms/FLogoProgress.vue:363 [in a comment] — // the platform `game_ready` / `gameLoaded` signals so the ad lands // immedi",
+        "src:main.ts:347 [in a comment] — nit resolves; the // `game_ready` edge is fired later from App.vue's asset-loaded watche"
+      ],
+      "fix": "Read the call site. It must be after the first playable frame, not after asset load. Firing it while a splash, spinner, countdown or non-interactable intro is on screen is an explicit MUST NOT. Verify in a browser: the YouTube spinner must clear exactly when the game starts accepting input.",
+      "id": "YTP-GAMEREADY-TIMING",
+      "title": "game_ready fires ONLY when the player can actually interact",
+      "severity": "MUST",
+      "source": "YT-INT + PG",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "src:router/index.ts — import { createRouter, createWebHashHistory, createMemoryHistory, type RouteRecordRaw } fr",
+        "src:router/index.ts:50 — teMemoryHistory() : createWebHashHistory(import.meta.env.BASE_URL), routes }) expor",
+        "NOTE: no URL read found in dist/ — the source mentions a URL history mode, so confirm the platform branch selects memory history for THIS build"
+      ],
+      "fix": "Switch the Playables/Playgama build to `createMemoryHistory()`. Both `createWebHashHistory` and `createWebHistory` read and write a URL that Playables owns and whose shape is not yours — this is how a 2026-09 submission failed with every MUST and SHOULD check in YouTube's own test suite passing. A single-scene game loses nothing by holding its route in memory. If the router must stay as-is, prove it by loading the built archive from a deep, unfamiliar path (not `/`) and confirming the game still renders.",
+      "id": "YTP-HASH-HISTORY",
+      "title": "The router does not depend on the page URL",
+      "severity": "MUST",
+      "source": "KONST",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Over it, iPhones crash — YT-STA says so outright. Record performance.memory or a DevTools heap timeline across a long session with everything unlocked.",
+      "id": "YTP-HEAP",
+      "title": "Peak JS heap stays under 512 MB",
+      "severity": "MUST",
+      "source": "YT-STA",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Both are MUST. Also MUST NOT unintentionally delay or ignore input, and MUST NOT ship UI components with errors. Keyboard for directional/text input is SHOULD. Haptics are allowed only with an on/off toggle.",
+      "id": "YTP-INPUT",
+      "title": "Every interaction works with touch AND with mouse",
+      "severity": "MUST",
+      "source": "YT-DES",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Thumbnails in several aspect ratios, description, title, genre, publisher/developer info — supplied through the Developer Portal. MUST NOT put branding or logos in the thumbnail, title or description, and MUST NOT use any of them to misrepresent the game.",
+      "id": "YTP-METADATA",
+      "title": "Store metadata is complete and unbranded",
+      "severity": "MUST",
+      "source": "YT-DES",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "dist:assets/GameScene-CruYLJkO.js:2 — (),ap);try{return await fetch(e,{...a,signal:t.signal})}finally{clearTimeout(n)}},op=async",
+        "dist:assets/index-4Qg0WSKF.js:2 — rn;o.ep=!0;const r=n(o);fetch(o.href,r)}})();const o1=\"modulepreload\",r1=function(t,e){ret",
+        "dist:assets/index-4Qg0WSKF.js:4 — c()=>{try{const r=await fetch(t);if(!r.ok)return null;const a=await r.arrayBuffer(),i=awai"
+      ],
+      "fix": "A same-origin `fetch` of a bundled asset is fine. Audit each call site: anything with an absolute URL, a configurable base, a beacon or a WebSocket is a blocker.",
+      "id": "YTP-NET-API",
+      "title": "Network APIs are only used for same-origin bundle assets",
+      "severity": "MUST",
+      "source": "YT-PRV",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "No EULA, no cookie banner, no age gate, no consent dialog of your own.",
+      "id": "YTP-NO-AGREEMENTS",
+      "title": "No additional user agreements shown in-game",
+      "severity": "MUST",
+      "source": "YT-DES",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Playgama restates it as zero tolerance for bugs affecting gameplay.",
+      "id": "YTP-NO-CRASH",
+      "title": "No consistently reproducible crash, and nothing that crashes the YouTube app/site",
+      "severity": "MUST",
+      "source": "YT-STA",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "src:i18n/index.ts:107 [in a comment] — .ts` calls us. * 3. navigator.language short code — first-ever load with no portal *",
+        "src:i18n/index.ts:115 [in a comment] — // YOUTUBE PLAYABLES: `navigator.language` / `navigator.languages` are named // in the",
+        "src:i18n/index.ts:115 [in a comment] — `navigator.language` / `navigator.languages` are named // in the Playables i18n require",
+        "src:i18n/index.ts:125 — == 'undefined' ? navigator.language?.split('-')[0] : undefined if (isSu",
+        "src:utils/pokiPlugin.ts:125 [in a comment] — lang`, falling back to `navigator.language`. * A HINT, not the player's choice — never p"
+      ],
+      "fix": "YT-I18N: MUST NOT use web localization APIs like navigator.languages or navigator.language. Take the locale from the platform (`bridge.platform.language`, which maps to the Playables `getLanguage`) and fall back to English.",
+      "id": "YTP-NO-NAVLANG",
+      "title": "navigator.language / navigator.languages is not used",
+      "severity": "MUST",
+      "source": "YT-I18N",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "src:components/organisms/PortraitLock.vue:100 [in a comment] — ever rely on it. * * `screen.orientation.lock` is the right thing to try — a device that"
+      ],
+      "fix": "YT-DES: MUST NOT lock device orientation or posture, and the game MUST be playable at every ratio from 9:32 to 32:9. A \"please rotate your device\" gate is a lock by another name — the game has to lay out in whatever ratio it is handed.",
+      "id": "YTP-NO-ORIENT-LOCK",
+      "title": "Orientation and posture are never locked",
+      "severity": "MUST",
+      "source": "YT-DES",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "[UNGUARDED] src:main.ts:239 — (const k of stragglers) window.localStorage.removeItem(k) } catch { /* harmless */",
+        "[UNGUARDED] src:use/useTowerState.ts:128 — rs) { const raw = localStorage.getItem(k) if (raw === null) continue if",
+        "[try/catch — ok] dist:assets/GameScene-CruYLJkO.js:2 — 0,Ym),tn=e=>{try{return localStorage.getItem(e)??\"\"}catch{return\"\"}},Wr=(e,a)=>{try{localS",
+        "[try/catch — ok] dist:assets/GameScene-CruYLJkO.js:2 — turn\"\"}},Wr=(e,a)=>{try{localStorage.setItem(e,a)}catch{}},Dr=e=>{const a=Math.floor(42949",
+        "[try/catch — ok] dist:assets/GameScene-CruYLJkO.js:2 — he\",np=()=>{try{const e=localStorage.getItem(m1);return e?JSON.parse(e):null}catch{return",
+        "[try/catch — ok] dist:assets/GameScene-CruYLJkO.js:2 — eturn null}},p1=e=>{try{localStorage.setItem(m1,JSON.stringify(e))}catch{}},lp=()=>{if(!eo",
+        "[try/catch — ok] dist:assets/index-4Qg0WSKF.js:4 — h{return t}},xl=t=>{try{localStorage.setItem(Qs,JSON.stringify(t))}catch{}},q2=200,J2=2500"
+      ],
+      "fix": "On Playables `window.localStorage` and `window.sessionStorage` are **null**, not absent — `typeof x === \"undefined\"` does NOT catch it (typeof null is \"object\"), so an unguarded module-scope `localStorage.getItem(...)` throws before bootstrap and the whole game is a blank screen. This exact bug got a 2026-09 submission rejected with every SDK check green. Fix the `[UNGUARDED]` hits by routing them through a null-checking shim that tests the storage OBJECT (`window.localStorage && typeof s.getItem === \"function\"`), not `typeof`. The `[try/catch — ok]` hits are listed for completeness and need no change: the member read throws and the catch takes it. Watch specifically for the broken guard `typeof localStorage === \"undefined\"` — it reads as careful and is exactly wrong.",
+      "id": "YTP-NO-RAW-STORAGE",
+      "title": "No unguarded localStorage / sessionStorage access",
+      "severity": "MUST",
+      "source": "YT-INT + KONST",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "src:use/useShareCard.ts:22 [in a comment] — licy-gated feature: * `navigator.share` EXISTS in that frame and `navigator.canShare({fil",
+        "src:use/useShareCard.ts:158 [in a comment] — button disappears and `navigator.share` is // never reached. Placed ABOVE the feature d",
+        "src:use/useShareCard.ts:166 — !== null && typeof navigator.share === 'function' && typeof navigator.canShare ==",
+        "src:use/useShareCard.ts:267 — lse } await navigator.share({ files: [file], title: o.title, text: o.text })"
+      ],
+      "fix": "YT-DES: MUST NOT display in-game sharing prompts — YouTube owns sharing in its own chrome.",
+      "id": "YTP-NO-SHARE",
+      "title": "No in-game sharing prompts",
+      "severity": "MUST",
+      "source": "YT-DES",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "src:App.vue:66 — () => { try { if (document.hidden) { pauseMusic() // console.log('App mo",
+        "src:App.vue:108 — ument.addEventListener('visibilitychange', handleVisibilityChange) } } }) onUnmounte",
+        "src:App.vue:117 [in a comment] — the function — and the `document.hidden` branch inside // it — survives into the Playgam",
+        "src:App.vue:122 — nt.removeEventListener('visibilitychange', handleVisibilityChange) } clearInterval(dim",
+        "src:main.ts:271 [in a comment] — fecycle path: // • `visibilitychange` — fires on background/foreground on every modern",
+        "src:main.ts:312 — ument.addEventListener('visibilitychange', () => { if (document.visibilityState ===",
+        "src:main.ts:313 — nge', () => { if (document.visibilityState === 'hidden') flushNow('visibilitychange'",
+        "src:main.ts:313 — === 'hidden') flushNow('visibilitychange') }) window.addEventListener('pagehide',",
+        "src:main.ts:315 — window.addEventListener('pagehide', () => flushNow('pagehide')) } // NOTE: gates belo",
+        "src:main.ts:315 — gehide', () => flushNow('pagehide')) } // NOTE: gates below use `import.meta.env.VITE",
+        "src:use/useAssets.ts:164 [in a comment] — amePause` owns the // `visibilitychange` listener (flipping `isVisibilityHidden`) and //",
+        "src:use/useGamePause.ts:48 [in a comment] — 'true' /** True when `document.visibilityState === 'hidden'`. Seeded from the * docume"
+      ],
+      "fix": "YT-INT: the game MUST NOT use the web Page Visibility API \"or similar web APIs\" and MUST only use the Playables SDK onPause. Gate every such listener behind `!isPlaygama` or delete it. A `pagehide` save flush counts as \"similar\" — route that through onPause instead (YT-INT: SHOULD save progress when onPause occurs).",
+      "id": "YTP-NO-VISIBILITY-API",
+      "title": "The Page Visibility API is not used",
+      "severity": "MUST",
+      "source": "YT-INT",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "No characters or skins copied from another franchise; no copyrighted music and none that merely sounds like a known track. YT-TS requires fully cleared third-party IP — trademark, trade dress, copyright, music rights AND personality rights (name, likeness). Sweep every sprite, font, sound and licence, including anything an image model produced from a franchise-shaped prompt.",
+      "id": "YTP-ORIGINALITY",
+      "title": "100% original or properly licensed assets",
+      "severity": "MUST",
+      "source": "PG + YT-TS",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Both halves are MUST: it must clear the YouTube Community Guidelines for a general audience, and it must NOT specifically target children or be \"made for kids\".",
+      "id": "YTP-RATING",
+      "title": "Suitable for a general audience (13+) and NOT made for kids",
+      "severity": "MUST",
+      "source": "YT-TS",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "No blur, pixelation or stretching. Check a 3x-DPR phone and a 1x desktop.",
+      "id": "YTP-RENDER-CLARITY",
+      "title": "Text and graphics are clear at every resolution and density",
+      "severity": "MUST",
+      "source": "YT-DES",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "A named rejection: games that skip resize events or fail on a zero viewport break the Android/SDK test suite. Resize the window to 0 width and back — the run must continue, not reset.",
+      "id": "YTP-RESIZE",
+      "title": "Game state survives a resize, including a zero-size viewport",
+      "severity": "MUST",
+      "source": "YT-DES + YT-FAQ",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Load a save written by the previous release into the new build. A migration that throws is a rejection.",
+      "id": "YTP-SAVE-BACKCOMPAT",
+      "title": "Cloud saves from previous game versions load without error",
+      "severity": "MUST",
+      "source": "YT-INT",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Measure at runtime: `JSON.stringify(<game>_state).length` after a long session with everything unlocked. Confirm the blob written on the final flush stays under 64 KiB, and that a save from an OLDER game version still loads without throwing (a separate YT-INT MUST).",
+      "id": "YTP-SAVE-SIZE",
+      "title": "Save blob < 3.00 MiB (SHOULD < 500.0 KiB; final flush <= 64.0 KiB)",
+      "severity": "MUST",
+      "source": "YT-STA + YT-INT",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Only applies if the game reports scores. Divergence between the reported best and the saved best is a MUST failure.",
+      "id": "YTP-SCORE-CONSISTENCY",
+      "title": "If sendScore() is used, the best score sent matches the save",
+      "severity": "MUST",
+      "source": "YT-INT",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "No visual artifacts, no low-effort assets, a colourful and readable UI. Playgama explicitly rejects AI-generated visual styles.",
+      "id": "YTP-VISUALS",
+      "title": "Vibrant, professional visuals with dynamic animation",
+      "severity": "MUST",
+      "source": "PG",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "WCAG AA is a SHOULD. The hard rule: MUST NOT select Accessible Gaming Initiative tags that improperly represent the game's functionality or content.",
+      "id": "YTP-A11Y",
+      "title": "Best effort at WCAG AA; AGI tags chosen honestly",
+      "severity": "SHOULD",
+      "source": "YT-A11Y",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [
+        "src:components/atoms/FMuteButton.vue:10 [in a comment] — - Desktop: volume-based mute (Web Audio gain works here). button.mute-btn.rounded-ful",
+        "src:components/atoms/FMuteButton.vue:11 — orks here). button.mute-btn.rounded-full.backdrop-blur-sm.transition-all.cursor-point",
+        "src:components/atoms/FMuteButton.vue:16 — ute\" ) span.mute-btn__icon {{ isMuted ? '🔇': '🔊' }} //- Mobile: hard si",
+        "src:components/atoms/FMuteButton.vue:20 — music app. button.mute-btn.rounded-full.backdrop-blur-sm.transition-all.cursor-point",
+        "src:components/atoms/FMuteButton.vue:25 — ute\" ) span.mute-btn__icon {{ isMobileAudioMuted ? '🔇': '🔊' }} </template>",
+        "src:components/atoms/FMuteButton.vue:35 — a comfortable thumb. .mute-btn display: inline-flex align-items: center justify",
+        "src:components/atoms/FMuteButton.vue:43 — 6rem) padding: 0 .mute-btn__icon font-size: clamp(1rem, 4.4vw, 1.35rem) line-h",
+        "src:components/game/RunHud.vue:485 [in a comment] — be styled // like the mute button. // // So it is bigger than everything else in the"
+      ],
+      "fix": "YT-INT: SHOULD NOT display an overall mute button in-game — YouTube owns that control, and a second one that disagrees with it reads as a bug. Granular music/SFX sliders are allowed if they still obey platform mute. Hide the master toggle in this build.",
+      "id": "YTP-AUDIO-MUTEBTN",
+      "title": "No overall in-game mute button",
+      "severity": "SHOULD",
+      "source": "YT-INT",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Playgama's performers: action (runners, fighting), arcade (.io-likes), racing (obstacle racing), simulation (tycoon, evolution), simple matching or drawing puzzles. Avoid trivia, word, board, RPG, strategy, music/rhythm, and derivative puzzle clones. \"Simplicity of gameplay\" is the stated golden rule — anything needing significant learning time is out.",
+      "id": "YTP-GENRE",
+      "title": "The genre is one Playables actually promotes",
+      "severity": "SHOULD",
+      "source": "PG",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Measure on a throttled connection against the BUILT archive, not the dev server.",
+      "id": "YTP-LOAD-5S",
+      "title": "Loads and becomes interactive in under 5 seconds",
+      "severity": "SHOULD",
+      "source": "YT-STA",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Playgama's stated bar for a Playables placement. Take the number from a real playtest, not an estimate. If it is short, the fix is progression — a new mechanic every few levels, a steady difficulty ramp — not a longer timer.",
+      "id": "YTP-PLAYTIME",
+      "title": "Around 10 minutes average playtime",
+      "severity": "SHOULD",
+      "source": "PG",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Gradual difficulty increase with consistent challenge.",
+      "id": "YTP-PROGRESSION",
+      "title": "Thought-out progression with new mechanics every few levels",
+      "severity": "SHOULD",
+      "source": "PG",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Playgama lists the USA, Canada, Australia, the UK, India, Malaysia, Turkey, Japan and some European countries. It shapes localisation priorities and revenue expectations, not eligibility.",
+      "id": "YTP-GEO",
+      "title": "The target audience sits inside the Playables footprint",
+      "severity": "INFO",
+      "source": "PG",
+      "status": "MANUAL"
+    },
+    {
+      "evidence": [],
+      "fix": "Build with `--base=./` (the playgama script already does) and hunt any hand-written `/foo.png` in index.html, CSS or a web manifest.",
+      "id": "YTP-ABSPATH",
+      "title": "All file references are relative (no absolute paths)",
+      "severity": "MUST",
+      "source": "YT-STA",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "dist:assets/playgamaPlugin-DODM0yVe.js — ause_state_changed\",l=t.AUDIO_STATE_CHANGED??\"audio_state_changed\",f=t.VISIBILITY_STATE_CH",
+        "dist:assets/playgamaPlugin-DODM0yVe.js — t.AUDIO_STATE_CHANGED??\"audio_state_changed\",f=t.VISIBILITY_STATE_CHANGED??\"visibility_sta",
+        "src:utils/playgamaPlugin.ts:159 — nst audioEventName = ev.AUDIO_STATE_CHANGED ?? 'audio_state_changed' const visibilit",
+        "src:utils/playgamaPlugin.ts:159 — AUDIO_STATE_CHANGED ?? 'audio_state_changed' const visibilityEventName = ev.VISIBILI"
+      ],
+      "fix": "Read the platform mute state at boot AND subscribe to its change event. While YouTube mute is active the game MUST produce no audio and its own controls MUST NOT override it; in-game sliders may only take effect when platform mute is off.",
+      "id": "YTP-AUDIO-SDK",
+      "title": "Mute follows the platform via isAudioEnabled / onAudioEnabledChange",
+      "severity": "MUST",
+      "source": "YT-INT + PG",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "YT-MON: MUST NOT display in-game advertising, or monetize, using off-platform services. Another portal's SDK riding along in this bundle is exactly that, even if it never fires. Add a bundle-purity test — grep dist for each portal's markers, assert zero — so it cannot regress.",
+      "id": "YTP-BUNDLE-PURITY",
+      "title": "No other portal's SDK or ad stack in the Playables archive",
+      "severity": "MUST",
+      "source": "YT-MON + KONST",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "none"
+      ],
+      "fix": "Playables serves the game under YouTube's own CSP and shares the document with YouTube's runtime — a game-authored policy fights it, and CSP violations are a named rejection reason. Skip CSP injection for the playgama mode in vite.config.ts (`buildCsp` already branches per mode).",
+      "id": "YTP-CSP-META",
+      "title": "No self-imposed CSP meta tag in the Playables archive",
+      "severity": "MUST",
+      "source": "KONST + YT-FAQ",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "151 files"
+      ],
+      "fix": "Pack loose assets into atlases/sprite sheets or a single JSON bank.",
+      "id": "YTP-FILECOUNT",
+      "title": "Bundle holds at most 8000 files",
+      "severity": "MUST",
+      "source": "YT-STA",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "Rename the offenders (spaces, @, brackets, non-ASCII) and fix every reference. Vite derives asset names from the source filename — rename at the source, not in dist.",
+      "id": "YTP-FILENAME",
+      "title": "File and directory names use only [A-Za-z0-9_.-]",
+      "severity": "MUST",
+      "source": "YT-STA",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "dist:assets/App-DqC18lcn.js:2 — FLogoProgress] Playgama game_ready failed\",P)}}))};return G(k,f=>{f&&setTimeout(()=>{L.val",
+        "dist:assets/playgamaPlugin-DODM0yVe.js — _stopped\"),!A&&(A=!0,m(\"game_ready\")))},K=()=>{!d.value||v||(v=!0,m(\"gameplay_started\"))},",
+        "src:components/atoms/FLogoProgress.vue:274 [in a comment] — e) } } // Playgama's `game_ready` is certification-mandatory — fire it on the same // sp",
+        "src:components/atoms/FLogoProgress.vue:292 — FLogoProgress] Playgama game_ready failed', e) } }) } // GamePix's `gameLoaded` is the",
+        "src:components/atoms/FLogoProgress.vue:363 [in a comment] — // the platform `game_ready` / `gameLoaded` signals so the ad lands // immedi",
+        "src:main.ts:347 [in a comment] — nit resolves; the // `game_ready` edge is fired later from App.vue's asset-loaded watche"
+      ],
+      "fix": "Fire `bridge.platform.sendMessage('game_ready')` — the Bridge maps it to the Playables `gameReady()`. YouTube does not remove its loading spinner until this call arrives.",
+      "id": "YTP-GAMEREADY",
+      "title": "game_ready / gameReady() is signalled",
+      "severity": "MUST",
+      "source": "YT-INT + PG",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "Playgama states it plainly: no external analytics reports. Strip every analytics SDK from this build mode — including a portal SDK's own event beacon if it posts off-YouTube.",
+      "id": "YTP-NO-ANALYTICS",
+      "title": "No third-party analytics or telemetry",
+      "severity": "MUST",
+      "source": "YT-PRV + PG",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "Only a read in direct response to the player's own paste action is allowed. A \"copy your score\" button is a MUST NOT.",
+      "id": "YTP-NO-CLIPBOARD",
+      "title": "No clipboard access outside an explicit paste",
+      "severity": "MUST",
+      "source": "YT-PRV",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "src:components/organisms/BossReward.vue:53 [in a comment] — o killed the first boss quit right there, so the kill now hands something * over in the s",
+        "src:game/threats.ts:2226 [in a comment] — gate — a wiped crowd, a quit — and a teaching * beat that a bad first run can skip is a t",
+        "src:views/GameScene.vue:1624 [in a comment] — g streak // becomes a quit. if (!summary.value.cleared) return // And never while th"
+      ],
+      "fix": "YT-DES: MUST NOT include an in-game exit/quit button, and MUST NOT place icons identical to the platform's own buttons next to them. Check the pause menu and the corner HUD.",
+      "id": "YTP-NO-EXIT",
+      "title": "No in-game exit/quit button",
+      "severity": "MUST",
+      "source": "YT-DES",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "YT-DES: MUST NOT display clickable external links. That covers a \"more games\" strip, a studio site, a privacy-policy link, a Discord badge and every window.open. Hide them behind the platform flag.",
+      "id": "YTP-NO-EXT-LINKS",
+      "title": "No clickable external links",
+      "severity": "MUST",
+      "source": "YT-DES",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "YT-MON forbids IAP and monetization through off-platform services; Playgama restates it as \"no standard in-app purchases\". Remove the surface for this build — a disabled shop button that still ships the SDK is still a finding.",
+      "id": "YTP-NO-IAP",
+      "title": "No in-app purchases or off-platform payment",
+      "severity": "MUST",
+      "source": "YT-MON + PG",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "src:components/game/IncomingWarning.vue:120 [in a comment] — te that makes the alarm register in peripheral vision is // re-made here as brightness.",
+        "src:components/organisms/TreasureChest.vue:175 [in a comment] — s what keeps the two in register at any aspect ratio. .chest-art__shade position: absolu",
+        "src:game/artSheet.ts:73 [in a comment] — is, in the dark-fantasy register: the prompt's `WHAT IT IS`. */ blurb: string /** The",
+        "src:game/artSheet.ts:98 [in a comment] — rendering into the grim register: cracked hide, bone, rust, ember light. * The bench's ta",
+        "src:game/artSheet.ts:1166 [in a comment] — ck, in the dark-fantasy register. * * Written the way the reference project's was: prohi",
+        "src:main.ts:123 [in a comment] — // tooling does NOT register the load window unless we fire the // event ourselves",
+        "src:use/useAssets.ts:81 [in a comment] — eb Audio context. Loops register on creation in useSound. */ const trackedAudioElements =",
+        "src:use/useAssets.ts:132 [in a comment] — ferSourceNode>() /** Register a one-shot Web Audio source so `killOneShotSfx()` can sto"
+      ],
+      "fix": "Even a cosmetic \"sign in to save your progress\" panel is a MUST NOT. Confirm every hit is a portal-SDK auth call that renders no UI of its own, and that no such UI is reachable in this build.",
+      "id": "YTP-NO-LOGIN-UI",
+      "title": "No login / account-creation screen",
+      "severity": "MUST",
+      "source": "YT-PRV",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "YT-PRV: content MUST NOT prompt the user to enter, or in any way collect, personal information — explicitly including **names, ages, locations, usernames and passwords** — and MUST NOT display anything resembling a login or account-creation screen. A leaderboard name-entry field is the usual offender: for this build the board either goes away or runs on a platform identity with no text input.",
+      "id": "YTP-NO-PII",
+      "title": "The game never asks for personal information",
+      "severity": "MUST",
+      "source": "YT-PRV",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "YT-PRV: MUST NOT generate or display graphical content resembling or functioning as a QR code — art that merely looks like one is covered too.",
+      "id": "YTP-NO-QR",
+      "title": "No QR codes, functional or decorative",
+      "severity": "MUST",
+      "source": "YT-PRV",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "Playables runs the game inside YouTube's own document — a service worker is both an external-surface risk and a source of stale-bundle rejections. Drop the PWA plugin from this build mode.",
+      "id": "YTP-NO-SW",
+      "title": "No service worker registration",
+      "severity": "MUST",
+      "source": "YT-PRV + YT-STA",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "dist:assets/index-4Qg0WSKF.js:4 — s,isVisibilityHidden:ic,onPauseChange:lc,pauseGame:Ib,resumeGame:Lb},Symbol.toStringTag,{v",
+        "dist:assets/playgamaPlugin-DODM0yVe.js — t=e?.EVENT_NAME??{},n=t.PAUSE_STATE_CHANGED??\"pause_state_changed\",l=t.AUDIO_STATE_CHANGED",
+        "dist:assets/playgamaPlugin-DODM0yVe.js — t.PAUSE_STATE_CHANGED??\"pause_state_changed\",l=t.AUDIO_STATE_CHANGED??\"audio_state_changed",
+        "src:main.ts:15 — amePauseAudio' import { onPauseChange } from '@/use/useGamePause' import useUser, { isCraz",
+        "src:main.ts:301 — less but pointless. onPauseChange((paused) => { if (!paused) return // Ord",
+        "src:use/useGamePause.ts:120 — omment. */ export const onPauseChange = (sub: PauseSubscriber): (() => void) => { subscr"
+      ],
+      "fix": "On `onPause` the game MUST stop ALL execution — game loop, audio, input, rendering, network — and MUST resume only from `onResume`. Wire it through the Bridge pause events, never a self-invented heuristic. Playgama restates it: \"immediately pause all rendering, sound, and gameplay\".",
+      "id": "YTP-PAUSE",
+      "title": "Pause/resume is driven by the SDK callbacks",
+      "severity": "MUST",
+      "source": "YT-INT + PG",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "Playgama: no compression allowed, a decompression fallback is acceptable. YT-FAQ: if you must pre-compress, use zip and decompress manually via the Compression Streams API. HTTP compression is applied by the platform automatically — do not hand-roll it.",
+      "id": "YTP-PRECOMPRESS",
+      "title": "No pre-compressed payloads without a decompression fallback",
+      "severity": "MUST",
+      "source": "PG + YT-FAQ",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "src:platforms/playgama/index.ts:35 — ue, // bridge.storage with platform_internal hasAds: true, hostna",
+        "src:utils/playgamaPlugin.ts:82 [in a comment] — laygamaStrategy` reads `bridge.storage` through this. */ export const getPlaygamaBridge =",
+        "src:utils/save/PlaygamaStrategy.ts:3 [in a comment] — Storage` write through `bridge.storage`. // Prefers cloud (`platform_internal`) and falls",
+        "src:utils/save/PlaygamaStrategy.ts:11 [in a comment] — fication check watches `bridge.storage.set` as // its detection signal. A \"local-only",
+        "src:utils/save/PlaygamaStrategy.ts:25 [in a comment] — ture enhancement: read `bridge.storage.get` for known keys at hydrate // time and merge ag",
+        "src:utils/save/PlaygamaStrategy.ts:45 [in a comment] — torage' /** Subset of `bridge.storage` we touch — defensively typed so future bridge *"
+      ],
+      "fix": "Use `bridge.storage` (the Bridge maps it to the Playables cloud save). YT-INT: MUST call saveData() after material progress such as a level change, MUST await loadData() before the first saveData(), and MUST NOT use any other save mechanism.",
+      "id": "YTP-SAVE-API",
+      "title": "Progress is saved through the platform storage API",
+      "severity": "MUST",
+      "source": "YT-INT + PG",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "game_api tag at offset 1128; first module script at 9182"
+      ],
+      "fix": "Move the game_api script tag above the entry module script. Note Vite injects the entry bundle into <head> at build time, so a tag sitting in <body> alongside the other portal SDK tags is too late — it must go in <head>, before anything Vite adds.",
+      "id": "YTP-SDK-FIRST",
+      "title": "The Playables SDK loads before any game code",
+      "severity": "MUST",
+      "source": "YT-INT",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "dist:index.html:21 — eed to run first. --> <script src=\"https://www.youtube.com/game_api/v1\"></script> <met"
+      ],
+      "fix": "Add `<script src=\"https://www.youtube.com/game_api/v1\"></script>` to index.html for the playgama build. Load-bearing twice: YT-INT requires the SDK to load before any game code, and the Playgama Bridge's `youtube` adapter polls `window.ytgame` with NO timeout — without the tag, bridge.initialize() never settles and the game is a blank screen on Playables.",
+      "id": "YTP-SDK-TAG",
+      "title": "YouTube's own SDK tag is present in index.html",
+      "severity": "MUST",
+      "source": "YT-INT + KONST",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "largest file within budget"
+      ],
+      "fix": "Split the file. YT-FAQ calls the per-file cap \"a hard limit\" with no exemptions — an atlas or an audio bank over it has to be cut in two.",
+      "id": "YTP-SIZE-FILE",
+      "title": "No single file >= 30.00 MiB",
+      "severity": "MUST",
+      "source": "YT-STA + YT-FAQ",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "measured 3.04 MiB over 112 files",
+        "basis: vite manifest entry graph — static imports only, dynamic imports excluded",
+        "--initial-extra folded in: images, audio"
+      ],
+      "fix": "Cut the pre-game_ready payload: lazy-import everything the first playable frame does not need, and hold late art tiers behind game_ready. Then confirm the real figure with the Playables SDK Test Suite pointed at the uploaded build — it reports the actual measured initial size (from download start until gameReady fires).",
+      "id": "YTP-SIZE-INITIAL",
+      "title": "Initial load (everything before game_ready) < 30.00 MiB — SHOULD < 15.00 MiB, ideally 5.00 MiB",
+      "severity": "MUST",
+      "source": "YT-STA + PG",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "dist/ unpacked = 7.45 MiB across 151 files"
+      ],
+      "fix": "Move non-launch content out of the bundle. Remote data is NOT an alternative — Playables forbids external calls, so \"all game data must be included as part of the game bundle\" (YT-FAQ).",
+      "id": "YTP-SIZE-TOTAL",
+      "title": "Total bundle < 250.00 MiB",
+      "severity": "MUST",
+      "source": "YT-STA",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "dist:assets/playgamaPlugin-DODM0yVe.js — l:window.bridge??window.playgamaBridge??null,C=()=>c(),M=()=>w||(w=new Promise(r=>{if(type"
+      ],
+      "fix": "There is no `build:youtube` — `pnpm build:playgama` produces the ONE archive that Playgama forwards to Playables. Auditing the default `pnpm build` output measures a bundle that will never be submitted: different chunks, different flags, different SDKs. Rebuild with `pnpm build:playgama` and re-run against that dist/.",
+      "id": "YTP-WRONG-BUILD",
+      "title": "The audited dist is the PLAYGAMA build (which is the Playables submission)",
+      "severity": "MUST",
+      "source": "KONST",
+      "status": "PASS"
+    },
+    {
+      "evidence": [
+        "dist/survivalist-playgama.zip = 3.38 MiB"
+      ],
+      "fix": "Shrink the archive — Playgama states the ZIP may reach 200 MB.",
+      "id": "YTP-ZIP",
+      "title": "Uploaded ZIP <= 200.00 MiB",
+      "severity": "MUST",
+      "source": "PG",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "A dev bundle is bigger and slower and can carry dev-only network hooks, which collide with the no-external-calls rule. Rebuild in the platform mode. Note this check is deliberately narrow — it does NOT judge a bundle by framework warning strings, because library dev prose can survive tree-shaking in a perfectly valid production build. If the size budget looks wrong, measure it with the SDK Test Suite rather than inferring a build mode from strings.",
+      "id": "YTP-DEV-BUILD",
+      "title": "No dev-server or devtools bridge in the bundle",
+      "severity": "SHOULD",
+      "source": "YT-STA",
+      "status": "PASS"
+    },
+    {
+      "evidence": [],
+      "fix": "Sourcemaps are dead weight against the total/per-file budgets and hand over the source. Disable `build.sourcemap` for the playgama mode.",
+      "id": "YTP-SOURCEMAPS",
+      "title": "No sourcemaps in the submitted archive",
+      "severity": "SHOULD",
+      "source": "YT-STA",
+      "status": "PASS"
+    }
+  ]
+}

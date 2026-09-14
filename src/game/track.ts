@@ -17,9 +17,10 @@ import {
   GATE_LEAF_HALF,
   GATE_LEAF_X,
   GATE_GROWTH_TRIM, GATE_MAX_VALUE, GATE_MUL_MAX, GATE_SCALE_STEP, GATE_SUB_MAX,
-  MAX_SQUAD,
+  MAX_SQUAD, squadBaseAt,
   STAGE_SQUAD_FLOOR,
-  earlyCrateHpMul, earlyMinibossHpMul, earlyObstacleKeep, earlyPackCap, earlyPackMul,
+  earlyBarricadeKeep, earlyCrateHpMul, earlyMinibossHpMul, earlyPackCap, earlyPackMul,
+  earlyRockKeep,
   gateMulOpen,
   gatePumpStep,
   LANE_HALF,
@@ -29,9 +30,10 @@ import {
   type CrateKind,
   type GateOp
 } from '@/game/survival'
+import { ADAPTIVE_BOSS_STAGES } from '@/game/adaptive'
 import { bossHpScale, foeDef, foeHpScale, foeRoster } from '@/game/foes'
 import {
-  LEVER_R, LEVER_STAGGER, LEVER_STONE_HP_MUL, LEVER_STONE_LEAD, LEVER_STONE_W,
+  LEVER_R, LEVER_STAGGER, LEVER_STONE_LEAD, LEVER_STONE_W, leverStoneHp,
   LEVER_X, WEAPON_BOX_AHEAD, WEAPON_BOX_R, WEAPON_BOX_X, WEAPON_EVERY,
   WEAPON_GUARD_HALF_W, WEAPON_GUARD_HP_MUL, WEAPON_GUARD_LEAD, WEAPON_STAGE,
   leverHp, stageHasWeapon, weaponBoxHp, weaponForStage, WEAPON_GIFT_BOX_R,
@@ -1084,7 +1086,16 @@ export const mulLeaves = (stage: number): number => {
   // actually has, one more multiplier per ~14 stages, so the RATIO of
   // multiplier banks stays roughly what it is at stage 10 instead of decaying
   // toward zero.
-  if (stage < MUL_BUDGET_SCARCE_STAGE) return 99
+  // ── …and the opening five are a budget too, where they used to be 99 ──
+  //
+  // "Their multipliers are hand-placed and measured" was true of the `mul(2)`
+  // calls in `stageOne`..`stageFive`, and false of the road those stages
+  // actually built: rule 4b turned every leftover `add|add` bank into another
+  // multiplier for free, so stages 1, 3 and 5 each ran THREE multiplier banks
+  // back to back and a well-played stage 5 finished 616 strong from a crowd of
+  // three. A multiplier is the loudest thing a door can do; one on the first
+  // three stages and two after that is what makes it an event.
+  if (stage < MUL_BUDGET_SCARCE_STAGE) return stage <= 3 ? 1 : 2
   return 3 + Math.floor(Math.max(0, stage - 20) / 14)
 }
 
@@ -1292,6 +1303,19 @@ export const mulThrees = (stage: number): number => {
 export const MUL_EARLIEST = 0.35
 
 /**
+ * …and how much road has to separate two of them, on the stages that ration
+ * them. A multiplier standing in the bank after a multiplier is the single most
+ * degenerate shape a road can print — `×2` then `×2` is a quadruple for a
+ * player who aimed twice, with no read required — and on the opening five it
+ * was the NORM: stages 1, 3 and 5 each ran three in a row, and a well-played
+ * stage 5 finished 616 strong from a crowd of three.
+ *
+ * Twenty-six units is a little over the closest two banks ever stand on these
+ * stages, so "not in a row" means exactly that.
+ */
+export const EARLY_MUL_GAP = 26
+
+/**
  * …and how far in a TRAP may first appear, for the mirror-image reason.
  *
  * A `÷2` on the opening bank halves a crowd of three, and a `÷5` on it ends the
@@ -1451,6 +1475,126 @@ const sub = (value: number): LeafSpec => ({ op: 'sub', value })
 const mul = (value: number): LeafSpec => ({ op: 'mul', value })
 const div = (value: number): LeafSpec => ({ op: 'div', value })
 
+/**
+ * ─── Pricing a door against the crowd that will reach it ────────────────────
+ *
+ * A `×2` leaf is on the road as a `×1.6` (`gateMulOpen`), so it pays six tenths
+ * of whoever walks through it. That one fact fixes the whole arithmetic of a
+ * bank: an `add` beside it ties at exactly **0.6 × crowd**, wins below that
+ * crowd and loses above it.
+ *
+ * So a door's printed value is not a difficulty knob, it is a statement about
+ * WHICH RUN it is meant for — and the authored stages say which out loud:
+ *
+ *   liveDoor(c)  ties at a crowd of `c`. A run that got there takes the
+ *                multiplier; a run that is behind takes the number. The same
+ *                bank, two correct answers, and the player has to look at their
+ *                own crowd to tell which one they are in.
+ *
+ * ⚠ ONLY FOR A BANK THAT HAS A MULTIPLIER IN IT. Six tenths of the crowd is an
+ * enormous door — on stage 5 it is a `+114` — and it is only the right size
+ * because the leaf beside it pays the same. Printed on a bank of two adds it is
+ * simply the biggest free payout on the road, which is how a first pass at this
+ * put stage 5's run-in at 342 survivors: the shape was right and the price was
+ * copied from the wrong kind of bank. A pair of adds is a question about the
+ * LINE and is priced with `roadDoor`.
+ *
+ * The crowd numbers passed in are MEASURED, not guessed — `tests/sim`'s crowd
+ * walk prints what arrives at every bank of every authored stage, and a value
+ * pass is a re-read of that table. That is also why they are written as a crowd
+ * rather than as `base + 6`: the offset says nothing about whether the bank is
+ * a question, and six stages of `base + 6` is how the opening five ended up
+ * with one live bank between them and a crowd that trebled on every door.
+ *
+ * ⚠ AND THE CROWD TO PRICE AGAINST IS THE MIDDLING RUN, not the best one. The
+ * walk prints two: what a player who commits early and pumps arrives with, and
+ * what a player who takes the same doors late and loses a tenth of the crowd
+ * between banks arrives with. Pricing the tie at the KEEN number was measured
+ * and rejected — it puts a `+43` on stage 2, which is six tenths of a crowd
+ * nobody but the best run has, and three times the crowd of a run that has been
+ * ploughing into things. A door is a promise to everyone who reaches it, so a
+ * door priced for the best run is a rescue package for the worst one: it took
+ * `careless` — a policy that never touches the screen — from failing stage 2 to
+ * clearing stages 2, 3, 4 and 5 with a peak of 110. Halfway between the two
+ * walks is where the tie belongs: the better half of players take the
+ * multiplier, the worse half take the number, and neither is handed the stage.
+ *
+ * Not used for the banks that are not asking an arithmetic question at all — a
+ * trap bank or a pair of adds is a question about the LINE, and its number only
+ * has to be worth the lane change (see `roadDoor`).
+ */
+const GATE_LIVE_SHARE = 0.6
+
+/**
+ * …and what a door on a bank with no multiplier in it pays.
+ *
+ * Measured down from a quarter. A door is a promise to EVERYONE who walks
+ * through it, so the bigger it is the more it is worth to the run that deserves
+ * it least — and at a quarter the opening five became walkable without playing
+ * them: a zero-input career went from stalling at stage 3 to clearing four
+ * stages, carried entirely by whichever side of the pillar its crowd happened
+ * to fall. Not by relief (a run that never steers is granted none) and not by
+ * the shop, which had sold it one body: by doors big enough that winning a coin
+ * flip was worth more than routing.
+ *
+ * At 0.16 the same bank still pays a lane change — a sixth of the crowd is two
+ * banks of the old flat `base + N` — and no longer pays for not making one.
+ */
+const GATE_ROAD_SHARE = 0.16
+
+/** A door that ties with a `×2` for a crowd of exactly `crowd`. */
+const liveDoor = (crowd: number): number =>
+  Math.max(2, Math.round(crowd * GATE_LIVE_SHARE))
+
+/**
+ * What a competent run is holding when it reaches the closing bank of each of
+ * the opening five, measured — `SIM_EARLY=1` prints the walk it comes from.
+ *
+ * It is a MEASUREMENT, so it has to be re-read after any pass that moves the
+ * doors ahead of it. The crowd walk and `tests/game/earlyBanks.test.ts` are
+ * both there to catch it drifting.
+ */
+const EARLY_CLOSING_CROWD: Readonly<Record<number, number>> = {
+  1: 32, 2: 45, 3: 45, 4: 36, 5: 60
+}
+
+/**
+ * Roughly what a competent run is holding `y` units down one of the opening
+ * five, interpolated between the crowd a stage opens with and the one it
+ * closes on (`EARLY_CLOSING_CROWD`).
+ *
+ * Geometric, because the crowd compounds: every bank pays a SHARE of whoever
+ * walks through it, so the curve between the two ends is a ratio per bank
+ * rather than a slope per unit. Rough on purpose — the only callers are doors
+ * that need to be worth a lane change rather than doors that need to tie with
+ * a multiplier, and those are authored against the measured walk directly.
+ */
+const earlyCrowdAt = (b: Beat, y: number): number => {
+  const start = Math.max(1, squadBaseAt(b.stage))
+  const end = Math.max(start + 1, EARLY_CLOSING_CROWD[b.stage] ?? 40)
+  const f = Math.max(0, Math.min(1, y / Math.max(1, b.arenaY)))
+  return Math.max(start, Math.round(start * (end / start) ** f))
+}
+
+/**
+ * A door on a bank that is NOT asking about arithmetic — the pair of adds
+ * either side of a pillar, or the paying half of a trap bank.
+ *
+ * A quarter of the crowd: enough that crossing for it is worth a lane change
+ * and a risk, far short of the six tenths that would make it a second
+ * multiplier. This is the number that actually holds the economy down — the
+ * banks that ask about the LINE are most of a road, and pricing them like the
+ * banks that ask about the CROWD is what turned six doors into a 90x stage.
+ *
+ * Floored at `gateAddBase`, which is what a door on this stage was worth before
+ * any of this: a quarter of a small crowd is a `+2`, and a door that pays two
+ * survivors in front of a pillar that takes three is a bank the player is
+ * better off ignoring. The floor binds early in a road and lets go once the
+ * crowd is worth a quarter of.
+ */
+const roadDoor = (b: Beat, crowd: number): number =>
+  Math.max(gateAddBase(b.stage), Math.round(crowd * GATE_ROAD_SHARE))
+
 /** Both doors take something. See `legalise` rule 6. */
 const isDilemma = (specs: readonly LeafSpec[]): boolean =>
   specs.length > 1 && specs.every((s) => s.op === 'div' || s.op === 'sub')
@@ -1520,6 +1664,21 @@ const sanitiseLeaf = (stage: number, spec: LeafSpec): LeafSpec => {
  */
 const gateSubBase = (stage: number): number =>
   Math.max(2, Math.round(gateAddBase(stage) * 0.75))
+
+/**
+ * How close two `add` doors of the same bank may be. See `legalise` rule 4c.
+ *
+ * A bit over half, because the two numbers have to be far enough apart that the
+ * answer is obvious from across the lane — the bank is then asking "can you get
+ * there", not "which of these is bigger" — and close enough that the small door
+ * is still a door. At 0.55 a `+11` stands beside a `+6`: a lane change is worth
+ * five survivors, which at the stages this rule covers is most of a bank.
+ */
+export const GATE_TWIN_SHARE = 0.55
+
+/** …and below this the bank is too small to separate: cutting `+3` against
+ *  `+2` prints a door worth less than the pillar between them costs. */
+export const GATE_TWIN_FLOOR = 5
 
 const isBigTrap = (spec: LeafSpec): boolean => spec.op === 'div' && spec.value >= 5
 
@@ -1595,7 +1754,7 @@ const rollDiv = (b: Beat): LeafSpec => {
  *      as the last bank before the boss (a run should die to the climax, not to
  *      a toll booth three seconds before it).
  */
-const legalise = (b: Beat, specs: readonly LeafSpec[]): LeafSpec[] => {
+const legalise = (b: Beat, specs: readonly LeafSpec[], mulOk: boolean): LeafSpec[] => {
   const base = gateAddBase(b.stage)
   const out = specs.map((s) => sanitiseLeaf(b.stage, s))
 
@@ -1648,7 +1807,11 @@ const legalise = (b: Beat, specs: readonly LeafSpec[]): LeafSpec[] => {
   for (let i = 0; i < out.length; i++) {
     const leaf = out[i]!
     if (leaf.op !== 'mul') continue
-    if (b.mulLeft < 1) {
+    // `mulOk` is the caller's two-part answer to "may a multiplier stand HERE":
+    // far enough down the road to be worth something, and not in the bank
+    // immediately after another one. A leaf it refuses degrades exactly the way
+    // a leaf the budget cannot pay for does — into an add, never into nothing.
+    if (!mulOk || b.mulLeft < 1) {
       out[i] = add(base + 2 + i)
       continue
     }
@@ -1713,8 +1876,20 @@ const legalise = (b: Beat, specs: readonly LeafSpec[]): LeafSpec[] => {
   //      diagnosis was about stages 1-3 — the opening bank of nearly every early
   //      stage was a non-decision — and that is what this fixes. Stages 6+ keep
   //      their dominated banks until the economy is re-tuned to carry the change.
-  if (b.stage < MUL_BUDGET_SCARCE_STAGE
-    && out.length > 1 && out.every((s) => s.op === out[0]!.op)) {
+  //      IT ONLY FIRES ON A BANK THAT IS NOT ALREADY ASKING SOMETHING. Two adds
+  //      a long way apart are a question about the LINE — the big door, if you
+  //      can get across to it — and rewriting one of those into a multiplier
+  //      overrules an author who wrote the pair on purpose. Measured: it took
+  //      stage 1's teaching bank (`+7 | +3`, deliberately no multiplier at a
+  //      crowd of six) and printed `+7 | ×1.6` on it, then spent the stage's
+  //      whole multiplier budget doing so — which left the swell at y = 78, the
+  //      one beat the stage is built around, with no multiplier to swell.
+  //
+  //      So the trigger is a NEAR-TIE, which is the shape rule 4c also names:
+  //      doors close enough together that the bigger one is simply correct.
+  const twins = out.length > 1 && out.every((s) => s.op === out[0]!.op)
+    && Math.min(...out.map((s) => s.value)) > GATE_TWIN_SHARE * Math.max(...out.map((s) => s.value))
+  if (b.stage < MUL_BUDGET_SCARCE_STAGE && twins) {
     const i = out.length - 1
     const wasAdd = out[0]!.op === 'add'
     // The partner is ALWAYS a multiplier, and it does not pay `mulLeft` for it.
@@ -1726,11 +1901,24 @@ const legalise = (b: Beat, specs: readonly LeafSpec[]): LeafSpec[] => {
     // 5 by landing next to ones the author had placed deliberately. Traps stay
     // where they are written down.
     //
-    // And it does not charge `mulLeft`, because that budget paces the
-    // multipliers the generator places ON PURPOSE — the ones a stage is designed
-    // around. Charging it here starved the authored `xN` near stage 12's arena
-    // into a plain `+N`, and the career sim reported nothing killing that boss.
-    if (wasAdd) {
+    // AND IT CHARGES `mulLeft`. It used to be free, on the reasoning that the
+    // budget paces the multipliers the generator places ON PURPOSE and that
+    // charging it starved the authored `×N` near stage 12's arena. That stage
+    // is above `MUL_BUDGET_SCARCE_STAGE`, so this rule has not run on it since
+    // it was scoped — and below that line the budget was 99, which made "free"
+    // and "charged" the same thing. Now that the opening five have a real
+    // budget, free would mean the budget counts only the multipliers somebody
+    // wrote down and ignores the ones this rule invents, which is exactly how
+    // three of them ended up in a row on a stage authored with one.
+    //
+    //      …AND ONLY WHERE A MULTIPLIER MAY ACTUALLY STAND. This rule used to
+    //      reach for one unconditionally, which is how it undid the two rules
+    //      that pace them: it printed `×N` on opening banks worth +2 to the
+    //      crowd in front of them, and it printed a second one in the bank
+    //      straight after the first. When the answer is no the bank falls
+    //      through to 4c, which separates the two adds instead.
+    if (wasAdd && mulOk && b.mulLeft >= 1) {
+      b.mulLeft--
       out[i] = mul(gateMulOpen(2))
     } else if (!wasAdd) {
       // Two hostile doors that are not an authorised dilemma: one of them turns
@@ -1740,9 +1928,64 @@ const legalise = (b: Beat, specs: readonly LeafSpec[]): LeafSpec[] => {
     }
   }
 
+  // (4c) TWO ADDS IN ONE BANK ARE NEVER NEIGHBOURS ON THE NUMBER LINE.
+  //
+  //      `+5 | +6` is the worst bank the game can print. It is not a decision
+  //      — the bigger number is correct for every crowd that will ever meet it
+  //      — and it is not even a routing problem, because one extra survivor is
+  //      not worth a lane change. It reads as the road going through the
+  //      motions of asking, which is worse than not asking.
+  //
+  //      Rule 4b removes most of them by making one door a multiplier, but it
+  //      can only do that where a multiplier may stand. Where it may not, the
+  //      two adds are pushed APART instead: the smaller is cut to a bit over
+  //      half the larger, so the bank reads as "the big door, if you can get
+  //      across to it" — a question about the line, answered by looking at the
+  //      road rather than at the numbers. That is a different question from the
+  //      one a `×N` bank asks, which is the point of alternating them.
+  //
+  //      Scoped, like 4b, to the stages below the scarce multiplier budget.
+  //      Above it a bank that wants two adds is usually the generator having
+  //      spent its multipliers on purpose, and cutting a door there makes the
+  //      late road poorer without making it more interesting — the same
+  //      re-tuning 4b defers for the same reason.
+  if (b.stage < MUL_BUDGET_SCARCE_STAGE && out.length > 1 && out.every((s) => s.op === 'add')) {
+    // Descending, so each door is cut against the one above it and a three-leaf
+    // bank comes out as three distinct rungs rather than one big and two equal.
+    const order = out.map((s, i) => i).sort((p, q) => out[q]!.value - out[p]!.value)
+    for (let k = 1; k < order.length; k++) {
+      const above = out[order[k - 1]!]!.value
+      const here = out[order[k]!]!
+      // Only where there is room to separate them: cutting `+2` against `+3`
+      // produces `+1`, which is a door that pays less than the pillar beside it
+      // costs. A bank that small is the opening of a stage and reads fine.
+      if (above < GATE_TWIN_FLOOR) break
+      const cap = Math.max(1, Math.round(above * GATE_TWIN_SHARE))
+      if (here.value > cap) out[order[k]!] = add(cap)
+    }
+  }
+
   // (5) A hostile door needs something worth crossing the lane for beside it.
   //     (A bank that reached here is not a dilemma — those returned above.)
-  if (out.some((s) => s.op === 'div' || s.op === 'sub')) {
+  //
+  //     A MULTIPLIER ALWAYS SATISFIES IT, whatever `offerScore` makes of it.
+  //     That crude ranking prices a `×N` at `base × 1.4 × (value − 1)`, and a
+  //     `×2` door is on the road as a `×1.6` — so the score is 0.84 × base and
+  //     the test below failed for EVERY `×2 | ÷N` bank in the game. The repair
+  //     then overwrote the multiplier with an add, which is why stage 4's "first
+  //     pure-routing bank (`×2 | ÷2`)" and stage 5's `×3 | ÷2` have never once
+  //     been printed as anything but `+N | ÷2`. A door that multiplies the crowd
+  //     cannot be "not worth crossing for": the rule exists to stop a bank being
+  //     all cost, and a multiplier is never a cost.
+  //
+  //     Scoped to the opening five, which is where this pass measured. The BUG
+  //     is not scoped — every `×2 | ÷N` bank in the game loses its multiplier
+  //     the same way — but the repair moves `routingNext`, and through it every
+  //     roll that builds the rest of the road, so above stage 5 it re-lays the
+  //     stages the campaign study was run against. Worth fixing; worth fixing
+  //     with its own measurement rather than as a side effect of this one.
+  const multiplied = out.some((s) => s.op === 'mul') && b.stage <= ADAPTIVE_BOSS_STAGES
+  if (out.some((s) => s.op === 'div' || s.op === 'sub') && !multiplied) {
     let bestI = 0
     for (let i = 1; i < out.length; i++) {
       if (offerScore(b.stage, out[i]!) > offerScore(b.stage, out[bestI]!)) bestI = i
@@ -1855,6 +2098,30 @@ const passage = (b: Beat, y: number, back: number): void => {
   }
 }
 
+/**
+ * Is there already a multiplier standing within a bank's reach of `y`?
+ *
+ * Asked of the ROAD rather than of `b.mulLast`, which is the previous bank the
+ * generator BUILT and not the previous bank the player will MEET. The two are
+ * the same right up until `fillGateGaps` drops a filler between two authored
+ * banks — it runs after the whole body, so in call order it is last, and in y
+ * order it is in the middle. A rule enforced in call order would have let a
+ * filler land a multiplier immediately after an authored one and report that
+ * nothing was next to anything.
+ *
+ * Scoped to the stages with a real multiplier budget. Past stage 42 `beatGap`
+ * closes to a few units and banks genuinely do stand back to back — that road
+ * is built around it (`rollPair`), and a window this wide would ban most of the
+ * multipliers on it.
+ */
+const mulNear = (b: Beat, y: number): boolean => {
+  if (b.stage >= MUL_BUDGET_SCARCE_STAGE) return false
+  return b.events.some((e) =>
+    e.kind === 'gates'
+    && Math.abs(e.y - y) < EARLY_MUL_GAP
+    && e.leaves.some((l) => l.op === 'mul'))
+}
+
 const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
   // Belt and braces on `SUB_EARLIEST`: a bill early enough to zero the crowd is
   // not a hard bank, it is a run ending with no picture of why. Enforced HERE
@@ -1864,7 +2131,18 @@ const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
   const placed = y > b.arenaY * SUB_EARLIEST
     ? specs
     : specs.map((s) => (s.op === 'sub' ? add(gateAddBase(b.stage)) : s))
-  const offers = legalise(b, placed.slice(0, 3))
+  // ── May this bank carry a multiplier? ──
+  //
+  // Decided HERE for the same reason `SUB_EARLIEST` is: both questions need
+  // `y`, and `legalise` cannot see it. `rollBank` asks `canMul` the same two
+  // questions before it builds its specs, but the hand-authored stages do not
+  // ask anything — they write `mul(2)` and get one — which is how stages 1-5
+  // came to open on a multiplier at a tenth of the road (worth +2 to the crowd
+  // of three standing in front of it) and then run three multiplier banks back
+  // to back. Every bank in the game goes through here, so this is the one place
+  // the rules cannot be walked around.
+  const mulOk = y > b.arenaY * MUL_EARLIEST && !mulNear(b, y)
+  const offers = legalise(b, placed.slice(0, 3), mulOk)
   const triple = offers.length >= 3
 
   // One pillar per gap between doors. The PAINTED widths tile the lane exactly
@@ -2853,7 +3131,13 @@ const stageOne = (b: Beat): void => {
   // with the crowd: below nine survivors the flat number wins, above it the
   // double does, and the player who cleared the wall is in a different position
   // from the player who drove round it.
-  bank(b, 47, add(gateAddBase(1) + 6), mul(2))
+  // Two doors, one obviously bigger, and no multiplier: at a crowd of six a
+  // `×1.6` pays four people and the bank would be a question with one answer
+  // (see `MUL_EARLIEST`, which `bank()` now enforces on authored stages too).
+  // So the first real bank in the game asks the simplest version of the only
+  // question it ever asks — can you get across to the bigger door — and the
+  // gap between the two numbers is wide enough to read at speed.
+  bank(b, 47, add(6), add(2))
 
   // First real ask: the crate is off the line, and the line is safe.
   crates(b, 70, 'damage', [CRATE_DETOUR_X])
@@ -2886,7 +3170,13 @@ const stageOne = (b: Beat): void => {
   // a fourth gate this late pushed the elite off the end of the road (the
   // generator nudges elites clear of gates, and there was nowhere left to nudge
   // to — it landed at 107 on a 101-unit stage, past the arena, never fought).
-  bank(b, 78, mul(2), add(gateAddBase(1) + 4))
+  // `liveDoor(12)` is the whole trick: twelve is what a MIDDLING run arrives
+  // with here — halfway between the two walks the crowd table prints — so the
+  // add ties with the multiplier for that run, loses to it for everybody ahead
+  // and beats it for everybody behind. A player who cleared the wall doubles; a
+  // player who has been steering round things takes the seven and catches up.
+  // Both are right, which is what makes it the first real decision in the game.
+  bank(b, 78, mul(2), add(liveDoor(8)))
 
   // …and immediately the opposite shoulder, so the reward for the right leaf is
   // a swerve back across the lane.
@@ -2908,7 +3198,10 @@ const stageTwo = (b: Beat): void => {
   // Opening bank, and the crowd is still tiny — so here the flat number is the
   // right answer and the multiplier is the trap-that-isn't. Stage 2's second
   // bank asks the same question with a big crowd and flips it (see y = 36).
-  bank(b, 14, add(base + 2), mul(2))
+  // Crowd of three. Nothing multiplicative is worth anything yet, so the
+  // opening bank is the wide pair again — and the fat door is the one on the
+  // side the crowd is NOT already standing on.
+  bank(b, 14, add(6), add(2))
 
   splitPair(b, 26, 'rate', 'damage')
 
@@ -2926,16 +3219,16 @@ const stageTwo = (b: Beat): void => {
   // …and the same shape again, now that the crowd is worth doubling. Same two
   // ops, opposite answer: that is the lesson, and it is one a pair of `+N`s
   // cannot teach.
-  bank(b, 36, add(base + 1), mul(2))
+  bank(b, 36, add(7), add(3))
 
   // …and the pack itself is three husks, not four, and later. This is still the
   // stage that introduces them; it is no longer the stage that introduces them
   // to a crowd that cannot answer.
-  pack(b, 48, 'husk', 3, 2.1)
+  pack(b, 48, 'husk', 4, 2.1)
 
   // The teaching trap: coins draw the safe line, the trap sits opposite.
   coinTrail(b, 58, -1.6, -GATE_LEAF_X, 6, 1.2)
-  bank(b, 68, add(base + 3), div(2))
+  bank(b, 68, add(roadDoor(b, 28)), div(2))
 
   barricadeRow(b, 78, 2)
   // (miniboss lands at ~55 % — see `placeMinibosses`)
@@ -3001,7 +3294,7 @@ const stageTwo = (b: Beat): void => {
   })
 
   crates(b, 86, 'rate', [CRATE_DETOUR_X + 0.4])
-  pincer(b, 94, 'creep', 1)
+  pincer(b, 94, 'creep', 2)
 
   // Two honest offers, but the bigger one is behind the pack you just walked
   // into: the value on the leaf is not the whole price of the leaf.
@@ -3009,7 +3302,10 @@ const stageTwo = (b: Beat): void => {
   // `legalise` now, and authoring another one here put three in a row across
   // 52 / 68 / 104 — at which point the road stops being a series of decisions
   // and becomes a toll booth.
-  bank(b, 104, add(base + 4), mul(2))
+  // Stage 2's one multiplier, and it is the last bank before the run-in so it
+  // lands on the biggest crowd the stage has built. `liveDoor(37)` ties for the
+  // middling run; the best runs are already past it and double instead.
+  bank(b, 104, add(liveDoor(24)), mul(2))
 }
 
 /**
@@ -3023,8 +3319,7 @@ const stageTwo = (b: Beat): void => {
  * Also the first bait, the first chicane, the first gauntlet, and hounds.
  */
 const stageThree = (b: Beat): void => {
-  const base = gateAddBase(3)
-  bank(b, 14, add(base + 2), mul(2))
+  bank(b, 14, add(7), add(3))
   crates(b, 24, 'rate', [-CRATE_DETOUR_X - 0.4])
   pack(b, 34, 'hound', 4, 2.2)
 
@@ -3037,7 +3332,12 @@ const stageThree = (b: Beat): void => {
   // twenty units after the bait's lying one, because "the coins are a claim"
   // only becomes a lesson if the claim is sometimes true.
   coinTrail(b, 74, 1.1, GATE_LEAF_X, 7, 1.2)
-  bank(b, 84, mul(2), add(base + 4))
+  // The stage's one multiplier, against a door priced for the crowd a run that
+  // has worked the first two banks and the bait arrives with. The coins mark
+  // the ADD, and the trail is honest — but honest is not the same as correct,
+  // and for a run that is ahead of the number the multiplier is still the
+  // better door. That is the lesson stage 3 is named for.
+  bank(b, 84, mul(2), add(liveDoor(18)))
 
   splitPair(b, 96, 'damage', 'damage')
   pack(b, 106, 'husk', packSize(3), 2.8)
@@ -3055,7 +3355,7 @@ const stageThree = (b: Beat): void => {
  */
 const stageFour = (b: Beat): void => {
   const base = gateAddBase(4)
-  bank(b, 14, add(base + 2), mul(2))
+  bank(b, 14, add(7), add(3))
 
   // `true` = exits RIGHT. It used to be `false`, which walls the right half
   // last and spits the crowd out on the LEFT — with the rate crate below
@@ -3074,12 +3374,19 @@ const stageFour = (b: Beat): void => {
   // Pure routing. The coins before it lean toward the trap, because the lazy
   // line and the greedy line are about to become the same line.
   coinTrail(b, 56, 0.6, 1.9, 5, 1.2)
+  // Pure routing, and the first of stage 4's two multipliers. Nothing here can
+  // be pumped into a better offer: the crowd that arrives is the crowd that
+  // doubles or the crowd that halves, and the only input is the line.
   bank(b, 64, mul(2), div(2))
 
   gauntlet(b, 72, 2)
   // …and the pillar of this bank sits exactly where the gauntlet just taught
   // the player to run.
-  bank(b, 86, add(base + 3), mul(2))
+  // A wide pair, and it has to be: the routing bank 22 units back is now a real
+  // `×2 | ÷2` (see `legalise` rule 5), and nothing may carry a multiplier that
+  // close behind one (`EARLY_MUL_GAP`). So this is the beat that asks about the
+  // line instead — the fat door on the side the gauntlet did not leave you on.
+  bank(b, 86, add(roadDoor(b, 44)), add(Math.round(roadDoor(b, 44) * 0.4)))
   // (miniboss lands at ~50 %)
 
   splitPair(b, 94, 'damage', 'damage')
@@ -3124,7 +3431,7 @@ const stageFour = (b: Beat): void => {
  */
 const stageFive = (b: Beat): void => {
   const base = gateAddBase(5)
-  bank(b, 14, add(base + 3), mul(2))
+  bank(b, 14, add(8), add(3))
   pack(b, 24, 'flyer', 5, 3.2)
 
   bait(b, 34, false)
@@ -3148,7 +3455,11 @@ const stageFive = (b: Beat): void => {
   // them one worth trusting before the boss, or the lesson it just taught is
   // simply "ignore coins", which throws away the whole signalling channel.
   coinTrail(b, 120.5, -1.1, -GATE_LEAF_X, 6, 1.2)
-  bank(b, 128, add(base + 6), mul(3))
+  // The run-in pair. Stage 5 spends its second multiplier on the closing bank
+  // twenty-one units later, and nothing may carry one that close behind
+  // (`EARLY_MUL_GAP`), so this beat asks about the line: the coins told the
+  // truth, and the door they point at is the one worth the swerve.
+  bank(b, 128, add(roadDoor(b, 55)), add(Math.round(roadDoor(b, 55) * 0.4)))
   barricadeRow(b, 138, 3)
 }
 
@@ -4738,7 +5049,21 @@ const fillGateGaps = (b: Beat): void => {
         // them spend the counter put extra corridors on roads that never asked
         // for them, and a crowd crossing an unplanned rib bleeds for it.
         const passageIn = b.passageIn
-        bank(b, at, add(base), add(base + 1))
+        // `add(base) | add(base + 1)` — the exact `+5 | +6` shape rule 4c
+        // exists to stop, printed by the pacing filler on every stage that had
+        // a long stretch. On the opening five it was worse than uninteresting:
+        // by the middle of a road the crowd is fifty and the filler was still
+        // offering one more survivor than the door beside it, so the bank was
+        // scenery. Priced against the crowd that reaches it instead, wide
+        // enough apart to read from the other side of the lane.
+        // …on the five stages this pass re-cut. Above them the pair is left
+        // exactly as it was: the same complaint applies, and answering it there
+        // means re-tuning an economy balanced around free `add|add` banks — the
+        // job rule 4b's own comment defers, for the same reason.
+        if (b.stage <= ADAPTIVE_BOSS_STAGES) {
+          const big = roadDoor(b, earlyCrowdAt(b, at))
+          bank(b, at, add(big), add(Math.max(1, Math.round(big * 0.4))))
+        } else bank(b, at, add(base), add(base + 1))
         b.passageIn = passageIn
       }
     }
@@ -5142,8 +5467,9 @@ const placeWeaponPuzzle = (b: Beat): void => {
   const hp = leverHp(b.stage)
   const guardHp = Math.round(barricadeHp(b.stage) * WEAPON_GUARD_HP_MUL)
   // 70 % of the stage's ordinary wall — cover priced UNDER the walls the road
-  // is already charging for. See `LEVER_STONE_HP_MUL`.
-  const stoneHp = Math.max(1, Math.round(barricadeHp(b.stage) * LEVER_STONE_HP_MUL))
+  // See `leverStoneHp` — it is priced against the lever's window, not against
+  // the stage's wall, which is what made the first puzzle unopenable.
+  const stoneHp = leverStoneHp(b.stage)
   const leverXs = [r2(side * LEVER_X), r2(-side * LEVER_X)] as const
 
   b.events.push({
@@ -5528,9 +5854,32 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
     const fat = add(base + 8)
     const flip = b.rng() < 0.5
     bank(b, closing, flip ? fat : big, add(base + 3), flip ? big : fat)
+  } else if (stage <= ADAPTIVE_BOSS_STAGES) {
+    // ── The opening five close on a pair priced against their own crowd ──
+    //
+    // Every other stage prints `base + 6` here, which is a number authored for
+    // the STAGE rather than for the run: on stage 5 it put a `+13` in front of a
+    // crowd of two hundred, so the multiplier beside it was correct by a factor
+    // of fifteen and the last bank before the boss asked nothing at all. These
+    // five know what arrives — the crowd walk in `tests/sim` measures it — so
+    // the big door is priced against that crowd and the small one is the
+    // consolation on the safe side of the pillar.
+    //
+    // No multiplier, and not because one is forbidden: these stages spend their
+    // whole budget on the road (`mulLeaves`), and a bank standing immediately
+    // after one is refused anyway. The run-in is therefore a commitment to a
+    // LINE, landing right after the loudest beat the road has.
+    const arrive = EARLY_CLOSING_CROWD[stage] ?? 40
+    // Stages 4 and 5 have a multiplier left (`mulLeaves` gives them two) and
+    // spend it HERE, on the biggest crowd the stage ever holds, against a door
+    // priced to tie with it for a run that arrived with that crowd. Stages 1-3
+    // have spent their one on the road, so they close on the routing pair
+    // instead — and `legalise` degrades the `mul` below into exactly that if
+    // anything upstream took the budget or stood too close.
+    if (stage >= 4) bank(b, closing, add(liveDoor(arrive)), mul(2))
+    else bank(b, closing, add(roadDoor(b, arrive)), add(Math.round(roadDoor(b, arrive) * 0.4)))
   } else if (stage >= 5) bank(b, closing, add(base + 6), mul(b.rng() < 0.5 ? 3 : 2))
-  else if (stage >= 2) bank(b, closing, add(base + 2), add(base + 5))
-  else bank(b, closing, add(base + 1), add(base + 2))
+  else bank(b, closing, add(base + 2), add(base + 5))
 
   ensureSupplies(b)
   fillGateGaps(b)
@@ -5580,18 +5929,37 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
   // Safe to do after the fact: everything the generator placed around them —
   // gates nudged clear of a wall, crates kept off a rib — stays valid when they
   // are gone, because all those rules only ever pushed things APART.
-  const keep = earlyObstacleKeep(stage)
-  const events = keep >= 1
+  // ── …and the two kinds are on different clocks ──
+  //
+  // A barricade can be shot and a boulder cannot, so they are thinned against
+  // their own curves: see `earlyBarricadeKeep`. The thinning is a RUNNING QUOTA
+  // rather than "every other one" — the old filter dropped every second
+  // obstacle whatever the fraction said, so 0.5 and 0.75 built exactly the same
+  // road and the curve above it read as tuned while only its zero did anything.
+  const rockKeep = earlyRockKeep(stage)
+  const barrKeep = earlyBarricadeKeep(stage)
+  const events = rockKeep >= 1 && barrKeep >= 1
     ? b.events
     : (() => {
-      let seen = 0
+      // One counter per kind, so a road with many boulders cannot spend a
+      // barricade's allowance. Deterministic — no rolls — so the stage is the
+      // same stage on every replay and a player can learn it.
+      const seen = { rocks: 0, barricade: 0 }
       return b.events.filter((e) => {
         if (e.kind !== 'rocks' && e.kind !== 'barricade') return true
+        const keep = e.kind === 'rocks' ? rockKeep : barrKeep
         if (keep <= 0) return false
-        // Deterministic thinning: every other one, so a stage is still the same
-        // stage on every replay and a player can learn it.
-        seen++
-        return seen % 2 === 1
+        if (keep >= 1) return true
+        const n = ++seen[e.kind]
+        // Keep the nth only when it is the one that pays the running quota:
+        // at 0.67 that is two in every three, at 0.5 every other one.
+        //
+        // CEILING, not floor, so the FIRST one is always kept. A stage that
+        // authors a single barricade row — which stage 2 does — has n = 1, and
+        // under a floor the quota does not come due until the second: the road
+        // kept nothing at all and the curve above read as tuned while the stage
+        // it was written for had no scenery on it.
+        return Math.ceil(n * keep) > Math.ceil((n - 1) * keep)
       })
     })()
 

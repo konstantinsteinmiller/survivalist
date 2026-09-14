@@ -119,7 +119,7 @@ const tilesEl = ref<HTMLElement | null>(null)
  * the cache in its first frame. Generated from the game's own paintings by
  * `pnpm art:bg-tile`.
  */
-const tileStyle = { backgroundImage: `url(${prependBaseUrl('images/bg/bg-tile_800x800.webp')})` }
+const tileStyle = { backgroundImage: `url(${prependBaseUrl('images/bg/bg-tile.svg')})` }
 
 /**
  * Hand the static splash's ghost animations over to this one, mid-stride.

@@ -31,8 +31,7 @@ import { CRATE_R, LANE_HALF, SHOOTERS, stageSpeed } from '@/game/survival'
  * so "did you notice" quietly became "did you drift", and a puzzle that solves
  * itself on a stray round is not a puzzle. A stone in front of each post means
  * the round has to be SPENT there: point at the lever, hold it, and be pointing
- * long enough to matter. See `LEVER_STONE_HP_MUL` for why it is not more than
- * that.
+ * long enough to matter. See `leverStoneHp` for why it is not more than that.
  *
  * Three rules keep it a gift rather than a tax:
  *
@@ -640,17 +639,56 @@ export const leverHp = (stage: number): number =>
  */
 
 /**
- * Its health, as a share of the stage's ordinary wall.
+ * Its health.
  *
- * A barricade is the game's yardstick for "a solid thing you may shoot down",
- * so the stone is priced against that and deliberately UNDER it: a lever's
- * cover should cost less than the walls the stage is actually charging for.
- * At 0.7 the strong crowds that were already soloing the armour barely notice
- * it, and the weak ones — the runs a free weapon exists to rescue — spend most
- * of a lever's two-second window on it, which is the attention the beat is
- * supposed to be charging.
+ * ─── Why this is not a share of the stage's wall any more ───────────────────
+ *
+ * It used to be `barricadeHp(stage) * 0.7`, on the reasoning that a barricade
+ * is the game's yardstick for "a solid thing you may shoot down" and a lever's
+ * cover should cost less than the walls the road is already charging for. The
+ * yardstick was the mistake. A wall is priced to be chewed by a whole crowd's
+ * scattered fire over a long approach; this stone has to come off inside one
+ * lever's window, from fire deliberately POINTED at one 1.6-wide body on a
+ * rail. Those are different purchases and the wall does not price either of
+ * them for the other.
+ *
+ * What that cost, measured on stage 4 — the first puzzle any player meets, and
+ * the one this was reported against:
+ *
+ *   • the stone was 42 hp and the lever behind it 6. The cover cost SEVEN
+ *     TIMES the thing it covered, on a beat whose own documentation says the
+ *     lever is deliberately trivial so that a struggling run — "exactly the run
+ *     a free weapon exists to rescue" — can still pay it;
+ *   • a no-upgrade run arrives with a squad of 14 at 1.0 damage and 1.9 shots,
+ *     so 26.6 dps in total (sim, five seeds, all identical — the opening is not
+ *     seed-dependent);
+ *   • one shoulder therefore wanted 1.8 s of EVERY stream on target, inside a
+ *     2.14 s window, twice, while the same fire is what grows the crowd at the
+ *     gates. The puzzle was not hard for a new player, it was arithmetically
+ *     shut.
+ *
+ * So the stone gets its own curve, priced in the currency the beat actually
+ * charges: a moment of a committed crowd's fire, plus room to miss. At stage 4
+ * that is 9 hp — half a lever and a half — which the measured opening run takes
+ * off in 0.34 s with every stream on it and 0.56 s with most of them. A whole
+ * shoulder, stone and lever together, is then 0.94 s of a 2.14 s window, which
+ * leaves the rest of it for the second shoulder and for the gates that are what
+ * the crowd is actually there to grow on.
+ *
+ * Cheap is not free, and the distance between those two is the entire point of
+ * the stone. What it defends against is a STRAY round, and a stray round is one
+ * of fourteen streams carrying `dps / 14` — 1.9 dps on this stage. Nine health
+ * is still 4.7 s of that, which is twice the window: a crowd drifting past the
+ * rail does not take this off by accident, which is the whole reason the stone
+ * was added. It only stops being a second health check on the run that can
+ * least afford one.
+ *
+ * It keeps growing for the same reason, since a later crowd's stray stream
+ * carries far more — it just grows like a prop on an optional bonus and not
+ * like a wall: 9 at stage 4, 19 at 10, 35 at 20, flat at 51 past 30.
  */
-export const LEVER_STONE_HP_MUL = 0.7
+export const leverStoneHp = (stage: number): number =>
+  Math.max(1, Math.round(3 + Math.min(stage, 30) * 1.6))
 
 /**
  * How far in FRONT of its lever the stone sits, world units.

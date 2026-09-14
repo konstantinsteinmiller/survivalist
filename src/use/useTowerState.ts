@@ -81,7 +81,15 @@ const schedulePersist = (): void => {
   }, delay)
 }
 
-if (typeof window !== 'undefined') {
+// Not on Playgama. That archive is the YouTube Playables submission, and
+// Playables forbids the Page Visibility API and anything "similar" — which
+// `pagehide` is — in favour of the SDK's own `onPause`. This module is
+// deliberately dependency-free (only `vue`), so it cannot subscribe to the
+// pause gate itself; `main.ts` calls the exported `flushPersist()` from its
+// `onPauseChange` handler instead, ahead of the SaveManager flush. Losing the
+// listeners without that re-hook would mean a debounced write dying with the
+// frame, so the two changes belong together.
+if (typeof window !== 'undefined' && import.meta.env.VITE_APP_PLAYGAMA !== 'true') {
   const onHide = () => flushPersist()
   window.addEventListener('pagehide', onHide)
   window.addEventListener('visibilitychange', () => {

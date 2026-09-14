@@ -3,6 +3,14 @@ import { LANGUAGES } from '@/utils/enums'
 import { getState } from '@/use/useTowerState'
 import { LANGUAGE_KEY } from '@/keys'
 
+// Read straight off `import.meta.env` rather than importing `isPlaygama` from
+// `@/use/useUser`: this module runs during the i18n bootstrap, before the app
+// is mounted, and pulling useUser in here would both risk an import cycle and
+// drag it into the locale chunks. It is the same build-time constant useUser
+// itself defines, and it folds to a literal at build time so the branch below
+// disappears entirely from every other platform's bundle.
+const isPlaygama = import.meta.env.VITE_APP_PLAYGAMA === 'true'
+
 /**
  * Locale loader — lazy, code-split, cache-safe.
  *
@@ -104,9 +112,19 @@ export const resolveInitialLocale = (preferred?: string | null): string => {
   if (isSupportedLocale(preferred)) return preferred
   const stored = getState<string | undefined>(LANGUAGE_KEY)
   if (isSupportedLocale(stored)) return stored
-  const nav = typeof navigator !== 'undefined'
-    ? navigator.language?.split('-')[0]
-    : undefined
-  if (isSupportedLocale(nav)) return nav
+  // YOUTUBE PLAYABLES: `navigator.language` / `navigator.languages` are named
+  // in the Playables i18n requirements as APIs the game MUST NOT use — the
+  // locale has to come from the platform (`bridge.platform.language`, which the
+  // Bridge maps to the Playables `getLanguage`) and fall back to English, which
+  // is the one language Playables requires be supported. The Playgama build IS
+  // the Playables submission, so the rung is removed there rather than gated at
+  // runtime: a call that never ships cannot be flagged by a reviewer grepping
+  // the archive. Rungs 1 and 2 above already carry the portal locale.
+  if (!isPlaygama) {
+    const nav = typeof navigator !== 'undefined'
+      ? navigator.language?.split('-')[0]
+      : undefined
+    if (isSupportedLocale(nav)) return nav
+  }
   return 'en'
 }

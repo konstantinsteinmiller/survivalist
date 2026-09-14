@@ -33,7 +33,8 @@ import { buildTrack, minibossHp } from '@/game/track'
 import { bossHpScale, foeDef, foeHpScale } from '@/game/foes'
 import { adaptiveBossStage } from '@/game/adaptive'
 import {
-  BOSS_BASE_HP, earlyCrateHpMul, earlyFoeHpMul, earlyObstacleKeep, earlyPackMul
+  BOSS_BASE_HP, earlyBarricadeKeep, earlyCrateHpMul, earlyFoeHpMul, earlyPackMul,
+  earlyRockKeep
 } from '@/game/survival'
 import { bossHpMulFor, bossKindFor } from '@/game/threats'
 
@@ -95,10 +96,10 @@ describe.skipIf(!RUN)('the shape of the opening ramp', () => {
     const rows = STAGES.map(budget)
 
     console.log(`\n${minibossHp(1, false, 'tutorial')} hp is stage 1's elite, for scale.\n`)
-    console.log('stage | foeMul | pack | crate | keep | bodies |  foeHP | elites | eliteHP |   boss | blocks (ribs) | barrHP | crateHP')
+    console.log('stage | foeMul | pack | crate | rock | barr | bodies |  foeHP | elites | eliteHP |   boss | blocks (ribs) | barrHP | crateHP')
     for (const r of rows) {
       console.log(
-        `  ${p(r.stage, 3)} |   ${n(earlyFoeHpMul(r.stage))} | ${n(earlyPackMul(r.stage))} |  ${n(earlyCrateHpMul(r.stage))} | ${n(earlyObstacleKeep(r.stage))} |` +
+        `  ${p(r.stage, 3)} |   ${n(earlyFoeHpMul(r.stage))} | ${n(earlyPackMul(r.stage))} |  ${n(earlyCrateHpMul(r.stage))} | ${n(earlyRockKeep(r.stage))} | ${n(earlyBarricadeKeep(r.stage))} |` +
         ` ${p(r.bodies, 6)} | ${p(Math.round(r.foeHp), 6)} | ${p(r.elites, 6)} | ${p(Math.round(r.elite), 7)} | ${p(Math.round(r.boss), 6)} |` +
         ` ${p(r.blocks, 6)} (${p(r.ribs, 2)}) | ${p(Math.round(r.barrHp), 6)} | ${p(Math.round(r.crateHp), 7)}`
       )

@@ -20,7 +20,10 @@ default suite and takes ~4 s.
 > ⚠ **Read the last section first.** Everything between here and
 > *Re-measured, 2026-09-12* was generated on **8 September** and is the history
 > that led to the current numbers, not the current numbers. The whole study was
-> re-run on 12 September after five features landed; the headline is that a
+> re-run on 12 September after five features landed, and the opening five were
+> re-cut on 14 September — "the opening five re-cut", the last section of this
+> file, which is the one to read for anything about stages 1–5. The 12 September
+> headline is that a
 > player who never opens the shop now walls at stage 6–8 instead of finishing the
 > campaign.
 
@@ -765,3 +768,178 @@ Unchanged from `CAREER.md`, plus two this pass added:
   information, and the policies have perfect information — they read the op and
   value under the `?`. Whether a human takes it, and whether taking it is
   correct, is a playtest question this harness is structurally unable to answer.
+
+---
+
+# Re-measured, 2026-09-14 — the opening five re-cut
+
+Everything above this line is the state the campaign was in before this pass.
+Three complaints started it, all about stages 1–5: the banks were not asking
+anything, the crowd snowballed out of control, and stages 1–3 were a cutscene
+while stage 4 was a wall. All three turned out to be the same two facts.
+
+Reproduce every table below with:
+
+```bash
+SIM_EARLY=1 npx vitest run tests/sim/scratch.early.test.ts --reporter=verbose
+# PowerShell: $env:SIM_EARLY=1; npx vitest run … --reporter=verbose
+```
+
+## What the doors were actually asking
+
+The crowd walk prints, for every bank of every authored stage, the crowd that
+reaches it and the crowd at which its best door changes. Before:
+
+| stage | banks | answer never changes | longest run of `×N` banks | crowd at the last bank |
+| --- | --- | --- | --- | --- |
+| 1 | 3 | 0 | **3** | 76 |
+| 2 | 6 | 1 | **3** | 252 |
+| 3 | 6 | 1 | **3** | 304 |
+| 4 | 6 | 1 | 2 | 158 |
+| 5 | 7 | 2 | **3** | **616** |
+
+The middle column undersells it. Every multiplier bank had a crossover — `+9`
+against `×1.6` flips at 15 — and every one of them sat **far below the crowd
+standing in front of it**: the flips ran 7–22 while the crowd ran 44–452. A bank
+is only a question inside the band of crowds a player can actually arrive with,
+and not one of these was. The player was executing arithmetic, not doing it.
+
+Underneath that, three mechanical faults:
+
+1. **`mulLeaves` was 99 below stage 6.** The opening five's `mul(2)` calls were
+   hand-placed and measured, but `legalise` rule 4b turned every leftover
+   `add|add` bank into another multiplier for free and charged nothing for it.
+   Three stages ran three multiplier banks in a row.
+2. **`MUL_EARLIEST` was never enforced on the authored stages.** All five opened
+   on a multiplier at ~10 % of the road, offered to the three survivors a stage
+   starts with. `rollBank` asks `canMul`; a hand-written `mul(2)` asked nobody.
+3. **`legalise` rule 5 deleted every `×2 | ÷N` bank in the game.** `offerScore`
+   prices a multiplier at `base × 1.4 × (value − 1)`, and a `×2` door is on the
+   road as a `×1.6` — so it scored 0.84 × base, failed the "worth crossing for"
+   test, and was overwritten with an add. Stage 4's "first pure-routing bank
+   (`×2 | ÷2`)" and stage 5's `×3 | ÷2` had never once printed as anything but
+   `+N | ÷2`. Repaired for the opening five only: the fix moves `routingNext`
+   and through it every later roll, so above stage 5 it re-lays roads this study
+   was run against.
+
+## What the doors ask now
+
+| stage | banks | `×N` banks | closest two | the live bank | crowd at the last bank |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 3 | 1 | — | `×1.6 \| +5` flips at 9 | 41 |
+| 2 | 6 | 1 | — | `+14 \| ×1.6` flips at 24 | 91 |
+| 3 | 6 | 1 | — | `×1.6 \| +11` flips at 19 | 86 |
+| 4 | 6 | 2 | 76 units | `+22 \| ×1.6` flips at 37 | 108 |
+| 5 | 7 | 2 | 77 units | `+36 \| ×1.6` flips at 60 | 212 |
+
+The rule behind the "live" column is one line of arithmetic: a `×2` door pays
+six tenths of whoever walks through it, so an add beside it ties at
+`0.6 × crowd`. Doors are priced against a MEASURED crowd now rather than against
+`base + 6` (`liveDoor` / `roadDoor` in `track.ts`), and the tie is put on the
+crowd a MIDDLING run arrives with — so the better half of players take the
+multiplier and the worse half take the number.
+
+Pricing the tie against the BEST run was tried first and rejected on
+measurement: it puts a `+43` on stage 2, which is six tenths of a crowd only the
+best run has and three times the crowd of a run that has been ploughing into
+things. A door is a promise to everyone who reaches it, so a door priced for the
+best run is a rescue package for the worst one — it took `careless`, which never
+touches the screen, from failing stage 2 to clearing stages 2, 3 and 5 with a
+peak of 110.
+
+## The crowd, and the road
+
+| stage | peak crowd, `optimal` | was | crowd lost on the road | was |
+| --- | --- | --- | --- | --- |
+| 1 | 34 | 44 | 20 % | 39 % |
+| 2 | 88 | **285** | 4 % | **0 %** |
+| 3 | 67 | **228** | 8 % | **1 %** |
+| 4 | 54 | 72 | **56 %** | **72 %** |
+| 5 | 164 | **452** | 8 % | **0 %** |
+
+Stages 2, 3 and 5 lost two thirds of their crowd and gained a road. Stage 4 kept its character and stopped being a wall. It is still the hardest of
+the five by design and still the outlier — 56 % against 4-8 % — but in absolute
+survivors the road takes 30 where it took 52, and the climax it hands them to is
+no longer twice its neighbours’. What is left is contact rather than tuning:
+softening its bodies further was tried and measured as INERT (foe losses 31 to
+31), because a stage-4 foe does not live long enough for its health to matter.
+Closing the rest of that gap means moving a beat, not turning a dial.
+
+Three changes did that, and not one of them is a number on stage 4's road:
+
+* **Barricades and boulders stopped arriving on the same stage.** A barricade
+  can be shot and a boulder cannot, which is the whole difference between an
+  obstacle that teaches and one that only punishes. Boulders stay behind
+  `HARD_OBSTACLE_FROM_STAGE`; barricades arrive on stage 2, thinned
+  (`earlyBarricadeKeep`). Stages 2 and 3 already AUTHOR them — the relief was
+  deleting every one, and the thinning ignored its own fraction (it dropped
+  every second obstacle whatever the curve said, so 0.5 and 0.75 built the same
+  road).
+* **The pack cap stopped rewriting the stages.** `earlyPackCap` was 2 on stages
+  2 and 3, which author a three-husk pack, a four-hound pack and a five-husk
+  pack. The roads the player met had two bodies in each.
+* **The adaptive yardstick stopped misreading stage 4.** `perfectSquadFor`
+  counts doors and assumes a flawless run loses nobody. On stage 4 — first
+  boulders, first barricades, and the one bank where both doors take something —
+  a flawless run finishes having lost about half of what the doors paid, so it
+  scored 0.52 of its ceiling where the same player scores 0.8–0.9 on the
+  neighbours. The ladder read a good run as a mediocre one and handed it a
+  longer fight. `ROAD_ATTRITION` in `adaptive.ts` is that share, measured.
+
+## The boss, after the yardstick was corrected
+
+Wall-clock seconds from the boss spawning to its death, 3 seeds:
+
+| stage | optimal | good | average | was (optimal / average) |
+| --- | --- | --- | --- | --- |
+| 1 | 4.0 s | 4.8 s | 4.7 s | 4.0 / 5.7 |
+| 2 | 4.8 s | 4.9 s | 5.0 s | 4.9 / 5.6 |
+| 3 | 5.9 s | 6.0 s | 6.6 s | 6.0 / 8.4 |
+| 4 | 6.3 s | 6.4 s | 6.6 s | **8.0 / 10.7** |
+| 5 | 6.0 s | 7.1 s | 7.8 s | 5.9 / 8.3 |
+
+Stage 4's climax is now its neighbours' length, and its slam takes 12 survivors
+a run where it took 28.
+
+## The floor still holds
+
+That a run which never touches the screen is not a way to PLAY the game is the
+rule this pass came closest to breaking, twice, and both times the doors were
+why. Final:
+
+| policy | 1 | 2 | 3 | 4 | 5 |
+| --- | --- | --- | --- | --- | --- |
+| `careless` clears | 67 % | 0 % | 0 % | 0 % | 0 % |
+| `trail` clears | 100 % | 100 % | 0 % | 100 % | 0 % |
+
+A zero-input career with the cheapest shop behind it stalls at stage 2
+(`reached 1, stuckAt 2` on both probe seeds, against a bound of 3 and 4).
+
+## New: relief that arrives before the first loss
+
+Every other concession is paid on a FAILURE, which is a late signal — a beginner
+who scrapes through stage 1 with four survivors has not failed anything, so
+nothing in the save knows they are struggling. `carryReliefFor` reads the share
+of the previous stage's yardstick the player's crowd actually reached and takes
+up to a quarter off every enemy on the next road, on a straight line between
+`perf 0.55` (nothing) and `perf 0.20` (the full quarter). Scoped to the opening
+five, never shown in the HUD, and **not written by a run nobody played** — the
+same `wasPlayed()` gate the failure ledger uses. Without that gate an idle tab
+banks a terrible score, collects a quarter off stage 2, and walks the campaign
+on concessions it never earned; measured, exactly that took a zero-input career
+from stage 3 to stage 5.
+
+## What this pass did NOT move
+
+* **Stages 6 and up are byte-identical.** Every rule above is scoped to the five
+  stages that were measured. Two leaked on the first cut — the pacing filler's
+  new door values, and the rule-5 repair — and both were caught by the existing
+  suite (a weapon box at 95 % of stage 114, a boss that stopped throwing charged
+  swings on stage 9) rather than by anything written here.
+* **The `+N | +N+1` pacing filler survives above stage 5**, which is the same
+  shape rule 4c exists to stop. Answering it there means re-tuning an economy
+  balanced around free `add|add` banks — the job rule 4b's own comment defers,
+  for the same reason.
+* **`gateAddBase` is untouched.** The opening five are authored, so their doors
+  are written as crowds rather than as offsets from it; the curve still sets the
+  floor under every one of them (`roadDoor`).

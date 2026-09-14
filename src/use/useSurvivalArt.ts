@@ -6195,7 +6195,15 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     // tilt long before the glyph is legible.
     const mystery = g.mystery
     const hostile = !mystery && (g.op === 'div' || g.op === 'sub')
-    const tint = GATE_TINT[mystery ? 'add' : g.op]
+    // ONE op for the whole dressing — and every CACHE KEY below is keyed on it
+    // rather than on `g.op`. The ramps live for the whole stage, so a key that
+    // carried the TRUE op while the colours were built from the DISGUISED one
+    // handed the next leaf of that op somebody else's gradient: one face-down
+    // `×` leaf early in a stage painted every `×1.6` door after it the neutral
+    // blue, and a readable `×` leaf drawn first painted the mystery magenta.
+    // The same collision, and it takes the disguise off in both directions.
+    const dressOp: GateOp = mystery ? 'add' : g.op
+    const tint = GATE_TINT[dressOp]
     const pop = g.pop
 
     ctx.save()
@@ -6210,7 +6218,7 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     // Cached on the four things that shape it. It was already expressed in the
     // leaf's own local space, so this needs no geometry change — and `hot` is
     // the only term that moves, which it does about twice a second.
-    const curtainKey = `gateCurtain|${g.op}|${hot ? 1 : 0}|${height}`
+    const curtainKey = `gateCurtain|${dressOp}|${hot ? 1 : 0}|${height}`
     let curtain = getRamp(curtainKey)
     if (!curtain) {
       curtain = putRamp(curtainKey, ctx.createLinearGradient(0, -height / 2, 0, height / 2))
@@ -6273,7 +6281,7 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     }
 
     // Posts — or the painted frame, nine-sliced to this leaf's own width.
-    paintGateFrame(ctx, g.op, halfW, height, scale)
+    paintGateFrame(ctx, dressOp, halfW, height, scale)
     // The foot of each post sparks while the door is being pumped. Additive,
     // after both posts, so it reads as light on the ironwork.
     if (!bad && hot && !minFx) {
@@ -6327,7 +6335,7 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     // frame, outline and number — into a sprite and blitting it was built and
     // measured, and came back a dead null at 6x CPU throttle over real
     // gameplay. See `PERF-LEDGER.md`, 2026-09-05.
-    const plateKey = `gatePlate|${g.op}|${plateH}`
+    const plateKey = `gatePlate|${dressOp}|${plateH}`
     let plate = getRamp(plateKey)
     if (!plate) {
       plate = putRamp(plateKey, ctx.createLinearGradient(0, -plateH / 2, 0, plateH / 2))
@@ -6366,7 +6374,13 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     // makes a bank a decision was invisible while it happened. A trap's meter
     // fills in its own hostile tint, which is the point: the bar is a warning
     // there, not a promise.
-    if (g.value < gatePumpCap(g.op) && (hot || g.charge > 0)) {
+    // …and NOT for a face-down door. `stepGates` refuses to charge one — the
+    // whole point is that fire is never spent on a promise — but the leaf still
+    // goes hot when a round crosses it, so the bar drew and then sat at zero
+    // for as long as the crowd kept shooting. An empty meter under a `?` is the
+    // one thing on the leaf that says "this door does not work like the others",
+    // which is the tell the neutral dressing exists to avoid.
+    if (!mystery && g.value < gatePumpCap(g.op) && (hot || g.charge > 0)) {
       const barW = plateW * 1.02
       const frac = Math.max(0, Math.min(1, g.charge / (isScaleOp(g.op) ? scaleTickMs : addTickMs)))
       ctx.fillStyle = 'rgba(0,0,0,0.5)'

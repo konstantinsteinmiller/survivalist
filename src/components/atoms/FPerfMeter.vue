@@ -169,6 +169,7 @@ const _stopLoop = (): void => {
 
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { safeGetItem } from '@/utils/safeStorage'
 
 const props = withDefaults(
   defineProps<{
@@ -194,8 +195,12 @@ const props = withDefaults(
 const visible = computed<boolean>(() => {
   if (props.enabled === true) return true
   if (props.enabled === false) return false
-  if (typeof localStorage === 'undefined') return false
-  return localStorage.getItem(props.localStorageKey) === 'true'
+  // `typeof localStorage === 'undefined'` was the guard here, and it is the
+  // WRONG one: on YouTube Playables `window.localStorage` is `null`, and
+  // `typeof null` is `'object'`, so the guard passes and the next line throws.
+  // A computed is evaluated during render, so that surfaces as a broken frame
+  // rather than a clean failure. `safeGetItem` checks the object itself.
+  return safeGetItem(props.localStorageKey) === 'true'
 })
 
 // Kick off the RAF loop (and canvas patch, if requested) as soon as we

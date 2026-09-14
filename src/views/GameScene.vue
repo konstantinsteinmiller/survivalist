@@ -3756,8 +3756,22 @@ onUnmounted(() => {
   border-radius: 999px
   background-color: rgba(10, 16, 30, 0.72)
 
+  // The squad wears the HUD's violet, not a blue of its own.
+  //
+  // The chip in the corner spends a colour on saying that the crowd is the one
+  // number the whole game is about — violet where every other plate up there is
+  // pale blue (see `.run-hud__chip.is-squad`). This is that same number at the
+  // end of the run, so it is the same object and it gets the same identity;
+  // wearing a different colour here made the result screen look like it was
+  // reporting somebody else's statistic.
+  //
+  // Kept to this screen's quieter weight, the way `is-rank` is: a tint and a
+  // rule, not the HUD's solid plate and bloom. That glow exists to catch an eye
+  // aimed at a moving road, and nothing on a result screen is competing for it.
   &.is-squad
-    color: #8fd6ff
+    color: #e5d4ff
+    border-color: rgba(190, 140, 255, 0.5)
+    background-color: rgba(64, 30, 112, 0.55)
   &.is-kills
     color: #ff9a8f
   // Gold, and a gold rule, because a placing is the one number on this screen

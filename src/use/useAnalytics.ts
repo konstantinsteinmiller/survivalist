@@ -37,11 +37,16 @@
 // this project is either statically bundled behind an alias stub or dynamically
 // imported behind its env flag; an import here would pull one portal's loader
 // into every other portal's bundle for the sake of a probe that reads a global
-// anyway. `window` is the only surface this module touches.
+// anyway. `window` is the only surface the probe touches — and the probe now
+// lives in its own module (`@/use/analyticsSink`) so that the ONE build which
+// may not have a sink at all, Playgama/YouTube Playables, can alias it away
+// entirely rather than carrying four dead SDK names in its string table.
 //
 // ⚠️ Never call this from inside the frame loop for anything that happens per
 // entity. `gate_pass` is the highest-frequency event in the list and fires a
 // handful of times a stage; anything hotter belongs in `deathBreakdown()`.
+
+import { probeSink, type Sink } from '@/use/analyticsSink'
 
 export type AnalyticsEvent =
   | 'stage_start'
@@ -124,42 +129,14 @@ export const dominantCause = (breakdown: Record<string, number>): string | undef
 // Probed once and cached, because the answer cannot change after boot and the
 // probe walks four globals. `null` means "asked, nobody was listening" and is a
 // perfectly ordinary result — most portals we ship to have no event API.
-
-type Sink = (event: AnalyticsEvent, props: Record<string, AnalyticsValue>) => void
+//
+// The probe itself lives in `@/use/analyticsSink` so the Playgama build can
+// alias the whole module away (`analyticsSink.stub.ts`) — see the note there.
+// It names other portals' SDK globals plus `gtag`, and that archive is also
+// the YouTube Playables submission, where those are exactly what a reviewer
+// greps for.
 
 let sink: Sink | null | undefined
-
-const probeSink = (): Sink | null => {
-  if (typeof window === 'undefined') return null
-  const w = window as any
-
-  // Poki — the only portal SDK in the set with a first-class custom event.
-  const poki = w.PokiSDK
-  if (poki && typeof poki.customEvent === 'function') {
-    return (event, props) => { poki.customEvent('survivalist', event, props) }
-  }
-
-  // GamePix publishes a generic reporter under a couple of spellings depending
-  // on SDK vintage; take whichever exists.
-  const gamepix = w.GamePix
-  if (gamepix) {
-    const fn = typeof gamepix.event === 'function'
-      ? gamepix.event
-      : typeof gamepix.trackEvent === 'function' ? gamepix.trackEvent : null
-    if (fn) return (event, props) => { fn.call(gamepix, event, props) }
-  }
-
-  // A host page carrying its own analytics (portals frequently wrap the game
-  // in one). Both spellings are the same pipe; prefer the tag API.
-  if (typeof w.gtag === 'function') {
-    return (event, props) => { w.gtag('event', event, props) }
-  }
-  if (w.dataLayer && typeof w.dataLayer.push === 'function') {
-    return (event, props) => { w.dataLayer.push({ event, ...props }) }
-  }
-
-  return null
-}
 
 /**
  * Record one event.

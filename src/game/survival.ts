@@ -710,9 +710,30 @@ export interface CrushRamp { rate: number; floor: number; bite: number }
 
 export const DIVIDER_GRIND_FULL = 0.35
 
+/**
+ * ─── …and the ramp is one stage shorter than it was ─────────────────────────
+ *
+ * The shape is unchanged and so is stage 1; what moved is that stages 2 and 3
+ * now pay what stages 3 and 4 used to. The reason is the door beside the
+ * pillar, not the pillar itself.
+ *
+ * The opening five's doors are now priced against the crowd that reaches them
+ * (`liveDoor`) instead of against the stage, which is what makes a bank a
+ * question — and it also means a bank pays a crowd of fifteen something worth
+ * having. A pillar billing 10 % of the crowd a second could not keep up with
+ * that: measured, a run that never touched the screen went from failing stage 2
+ * to CLEARING stages 2, 3 and 5, because three survivors a bank is nothing next
+ * to a door worth twenty-two. The cost of refusing to choose has to scale with
+ * what is on offer for choosing, or not choosing becomes a strategy.
+ *
+ * It costs a player who steers exactly nothing, which is the whole reason this
+ * is the dial that moved: measured over the same runs, `average` — a policy
+ * with a 250 ms thumb that clips pillars — loses no survivors to dividers on
+ * stages 2 and 3 either side of the change, and `good` loses one.
+ */
 export const dividerCrushFor = (stage: number): CrushRamp => ({
-  rate: Math.min(DIVIDER_GRIND_FULL, 0.1 + Math.max(0, stage - 2) * 0.09),
-  floor: Math.min(1, 0.2 + Math.max(0, stage - 2) * 0.27),
+  rate: Math.min(DIVIDER_GRIND_FULL, 0.1 + Math.max(0, stage - 1) * 0.09),
+  floor: Math.min(1, 0.2 + Math.max(0, stage - 1) * 0.27),
   // Never softened: one body, every time, at every stage.
   bite: 1
 })
@@ -786,6 +807,39 @@ export const earlyObstacleKeep = (stage: number): number =>
   stage < HARD_OBSTACLE_FROM_STAGE ? 0 : stage <= 5 ? 0.5 : 1
 
 /**
+ * ─── …and then the two kinds stopped arriving on the same stage ─────────────
+ *
+ * `earlyObstacleKeep` above treats a boulder and a barricade as one thing, and
+ * they are not: **a barricade can be shot and a boulder cannot.** That is the
+ * whole difference between an obstacle that teaches and an obstacle that only
+ * punishes, and putting both behind stage 4 is most of why stage 4 reads as a
+ * wall while 1-3 read as a cutscene. Measured on the shipped build, a competent
+ * run lost 1-4 % of its crowd on stages 2, 3 and 5 and **70 % on stage 4**.
+ *
+ * So they are split:
+ *
+ *   BOULDERS  unchanged. Unshootable, so they stay behind
+ *             `HARD_OBSTACLE_FROM_STAGE` — a beginner meeting one before they
+ *             can steer is a death with nothing to learn from, which is the
+ *             finding the original curve was built on and it still holds.
+ *   BARRICADES from stage 2, thinned. A crowd that meets one can shoot it down,
+ *             steer round it, or split the difference and pay a little — three
+ *             legible answers, which is a lesson rather than a tax. Stages 2
+ *             and 3 already AUTHOR them (`barricadeRow` on 2, `chicane` and
+ *             `gauntlet` on 3); the relief was deleting every one and leaving
+ *             those stages with nothing on the road but bodies.
+ *
+ * Stage 4 keeps the lower barricade share ON PURPOSE, which is why this curve
+ * is not monotonic: stage 4 is the stage the boulders arrive on, and the room
+ * they need comes out of the barricade budget rather than out of the player.
+ */
+export const earlyBarricadeKeep = (stage: number): number =>
+  stage <= 1 ? 0 : stage <= 2 ? 0.5 : stage <= 3 ? 0.67 : stage <= 5 ? 0.5 : 1
+
+/** Boulders — the half of `earlyObstacleKeep` that cannot be shot. */
+export const earlyRockKeep = (stage: number): number => earlyObstacleKeep(stage)
+
+/**
  * Ordinary foes are softer while the player is learning to shoot them.
  *
  * Stages 1 and 2 are the two the relief was too generous on — they play as
@@ -826,19 +880,58 @@ export const earlyObstacleKeep = (stage: number): number =>
  * is inert. Stage 2 keeps its 0.805, because stage 2 fields two husks at once
  * and no pumped opener — there the number still does something.
  */
+/*
+ * ─── …and stage 3 stops being softer than stage 2 ──────────────────────────
+ *
+ * The 0.7 was reasoned from body COUNT — "the stage-3 road has fewer bodies on
+ * it than the stage-2 road, so the two land on near-identical total health" —
+ * and that stopped being true when `earlyPackCap` stopped cutting both roads to
+ * two bodies a pack. Stage 3 now fields the four-hound and five-husk packs it
+ * was written with, so a discount aimed at a road of two creeps would make it
+ * the softest stage of the five.
+ *
+ * Both move to 0.85, which is a body that takes a beat to kill and cannot end a
+ * first session. Stage 4 keeps its 0.8.
+ *
+ * Taking stage 4 further — to 0.72, to buy back some of the 56 % of a competent
+ * run’s crowd that road costs — was tried and MEASURED AS INERT: survivors lost
+ * to foes moved from 31 to 31 across three seeds. A body on stage 4 does not
+ * live long enough for its health to matter; what takes the crowd is the foe
+ * REACHING it, which is spawn geometry and the room the scenery leaves to route
+ * around them. That is a beat to move, not a dial to turn, and a dial that reads
+ * as tuned while doing nothing is worse than no dial.
+ */
 export const earlyFoeHpMul = (stage: number): number =>
-  stage <= 1 ? 1 : stage <= 2 ? 0.805 : stage <= 3 ? 0.7 : stage <= 4 ? 0.8 : 1
+  stage <= 1 ? 1 : stage <= 3 ? 0.85 : stage <= 4 ? 0.8 : 1
 
-/** …and there are fewer of them per pack. A hard cap, not a scale: stage 1
- *  shows ONE monster at a time so the verb is unmistakable. */
+/**
+ * …and there are fewer of them per pack. A hard cap, not a scale: stage 1 shows
+ * ONE monster at a time so the verb is unmistakable.
+ *
+ * ─── Stages 2 and 3 were cut down to something they were not written as ─────
+ *
+ * A cap of two is the right number for the stage that is teaching what a
+ * monster IS. It was also being applied to stages 2 and 3, which author a
+ * three-husk pack, a four-hound pack and a five-husk pack — so the roads the
+ * player actually met had two bodies in each, and every other beat on them was
+ * a door. Measured, a competent run finished stages 2 and 3 having lost **1-4 %
+ * of its crowd**: not a difficulty setting, an absence of content. The stages
+ * either side of them (1 loses 21 % to its elite, 4 loses 70 %) show what the
+ * curve is supposed to look like.
+ *
+ * So the cap now lets the authored packs through from stage 2 and lets go
+ * entirely at stage 4. The bodies a beginner meets are still small, slow and
+ * discounted (`earlyFoeHpMul`) — what changed is that there is now something on
+ * the road between the banks.
+ */
 export const earlyPackCap = (stage: number): number =>
-  stage <= 1 ? 1 : stage <= 3 ? 2 : Number.POSITIVE_INFINITY
+  stage <= 1 ? 1 : stage <= 2 ? 3 : stage <= 3 ? 5 : Number.POSITIVE_INFINITY
 
 /** Stages 4-6 keep real packs, thinned — hardest on 4, where the roster and the
  *  road both step up at once, and nearly gone by 6. */
 export const earlyPackMul = (stage: number): number =>
   stage < HARD_OBSTACLE_FROM_STAGE ? 1
-    : stage <= 4 ? 0.5 : stage <= 5 ? 0.6 : stage <= 6 ? 0.8 : 1
+    : stage <= 4 ? 0.5 : stage <= 6 ? 0.8 : 1
 
 /**
  * Crates come apart in well under half the shots.
@@ -897,8 +990,14 @@ export const earlyMinibossHpMul = (stage: number): number =>
  * biggest hit in the game, landing on the same road that introduces the first
  * boulder. Stages 4-5 pay 80 % of it and stage 6 pays the lot.
  */
+/*
+ * …and stage 4 keeps a step of its own, because it is the one stage where the
+ * slam was measurably the wall. Stages 1-3 pay 60 %, stage 4 pays 70 %, stage 5
+ * pays 80 % and stage 6 pays the lot — the same staircase, one tread longer, on
+ * the stage that was losing 28 survivors a run to it.
+ */
 export const earlyBigHitMul = (stage: number): number =>
-  stage <= 3 ? 0.6 : stage <= 5 ? 0.8 : 1
+  stage <= 3 ? 0.6 : stage <= 4 ? 0.7 : stage <= 5 ? 0.8 : 1
 
 export const BOSS_GUARD_GATES = [0.66, 0.33] as const
 
@@ -1620,6 +1719,50 @@ export const rewardDeclineFactor = (declines: number): number =>
  * repeated failures — a difficulty floor, not a slide into triviality.
  */
 export const RETRY_HP_RELIEF = 0.8
+
+/**
+ * ─── …and the relief that arrives BEFORE the first loss ─────────────────────
+ *
+ * `RETRY_HP_RELIEF` and everything under it is paid out on a FAILURE, and a
+ * failure is a late signal. A beginner who finishes stage 1 with four survivors
+ * out of a possible forty has not lost anything, so the ledger has nothing to
+ * read — and stage 2 opens at exactly the difficulty built for the player who
+ * finished stage 1 thirty strong. That player is the one the funnel loses, and
+ * the game had no way of noticing them until they were already gone.
+ *
+ * So the stage after a badly-played one is softer, in proportion. The signal is
+ * the one the adaptive boss already trusts — the share of a road's yardstick
+ * the crowd actually reached (`perfectSquadFor`, less `ROAD_ATTRITION`) — and it
+ * is read exactly once, by the next stage, from `LAST_PERF_KEY`.
+ *
+ *   perf >= 0.55   played it about as well as it can be played. No concession,
+ *                  and the ordinary autobalancer takes over.
+ *   perf <= 0.20   scraped through. A quarter off every enemy on the next road,
+ *                  which is the owner's number and lands between one retry
+ *                  (0.80) and two (0.72) — a player who is visibly drowning
+ *                  gets the help a player who has already drowned once gets,
+ *                  without having to drown first.
+ *
+ * Between the two it is a straight line, so there is no threshold worth gaming
+ * and no cliff to feel. It MULTIPLIES the rest of the autobalancer rather than
+ * replacing it, exactly like every other term in `hpRelief`, and — like the
+ * retry relief — it is never shown in the HUD. A player being quietly met
+ * halfway must not be told they are being handled.
+ *
+ * Scoped to the opening five, for the same reason the adaptive boss is: past
+ * them the shop is the answer to a hard stage, and a road that softens itself
+ * every time a player has an off day is a road that never gets anywhere.
+ */
+export const CARRY_RELIEF_FLOOR = 0.75
+export const CARRY_PERF_FINE = 0.55
+export const CARRY_PERF_POOR = 0.20
+
+export const carryReliefFor = (perf: number): number => {
+  if (!Number.isFinite(perf) || perf >= CARRY_PERF_FINE) return 1
+  if (perf <= CARRY_PERF_POOR) return CARRY_RELIEF_FLOOR
+  const t = (perf - CARRY_PERF_POOR) / (CARRY_PERF_FINE - CARRY_PERF_POOR)
+  return CARRY_RELIEF_FLOOR + (1 - CARRY_RELIEF_FLOOR) * t
+}
 
 /**
  * …and it DEEPENS if the same stage keeps beating them.

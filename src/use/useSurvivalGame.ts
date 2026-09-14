@@ -28,7 +28,7 @@ import {
   rewardDeclineFactor,
   contactReliefFor,
   BARREL_R, BARREL_FUSE_MS, BARREL_BLAST_R, BARREL_BLAST_BOSS_FRACTION, barrelHp,
-  funnelRadius, reliefFor, slamReliefFor,
+  carryReliefFor, funnelRadius, reliefFor, slamReliefFor,
   retrySquadScaleFor, startBonusFor, stageReward, stageSpeed, wipeReward,
   type Barrel, type Barricade, type Boss, type Bulwark, type Bullet, type Cage, type Crate,
   type Divider, type Foe,
@@ -44,7 +44,8 @@ import {
 import { BOSS_REWARD_KEY, GAZE_TAUGHT_KEY, WEAPON_PICK_KEY } from '@/keys'
 import { buildTrack, perfectSquadFor, type Track } from '@/game/track'
 import {
-  adaptiveBigHitMul, adaptiveBossHp, adaptiveBossSeconds, adaptiveBossStage,
+  adaptiveBigHitMul, adaptiveBossHp, adaptiveBossSeconds, adaptiveBossStage, adaptiveYardstick,
+  ADAPTIVE_BOSS_STAGES,
   clampAdaptiveSeconds, meltFloorStage, BOSS_MIN_FIRE_SECONDS, BOSS_FLOOR_GRENADE_MULT,
   type AdaptiveFight
 } from '@/game/adaptive'
@@ -191,6 +192,7 @@ import {
 import { track as sendAnalytics, dominantCause } from '@/use/useAnalytics'
 import {
   BEST_PROGRESS_KEY, BEST_SQUAD_KEY, BEST_STAGE_KEY, CHALLENGE_KEY, FAILED_STAGES_KEY,
+  LAST_PERF_KEY,
   GRENADE_TAUGHT_KEY, MILESTONES_KEY,
   REWARD_DECLINE_KEY, RUNS_KEY,
   STAGE_KEY, TOTAL_KILLS_KEY
@@ -1109,6 +1111,21 @@ const readFails = (): FailMap => {
  *  relief — the more a stage beats somebody, the more it gives back. */
 export const failureCount = (n: number): number => readFails()[String(n)] ?? 0
 
+/**
+ * How well stage `n` went, as a share of its yardstick — or 1 ("fine") when the
+ * save has no reading for that stage.
+ *
+ * Fine is the right default for every way this can be missing: a fresh save, a
+ * stage reached by any route other than clearing the one before it, or a record
+ * left by some other stage. None of those is evidence that the player is
+ * struggling, and relief handed out on no evidence is just a difficulty cut.
+ */
+export const lastPerfFor = (n: number): number => {
+  const rec = getState<{ stage?: number; perf?: number } | null>(LAST_PERF_KEY, null)
+  if (!rec || rec.stage !== n || typeof rec.perf !== 'number') return 1
+  return Number.isFinite(rec.perf) ? rec.perf : 1
+}
+
 /** Has the player already lost on this stage? */
 export const hasFailedStage = (n: number): boolean => failureCount(n) > 0
 
@@ -1425,11 +1442,20 @@ export const startStage = (n?: number, seed?: number): void => {
   // Three forces, one number: the streak winds it up, the decline lean winds it
   // up further, and a history of losing THIS stage winds it back down.
   declines.value = Math.max(0, Math.min(DECLINE_MAX, Number(getState(REWARD_DECLINE_KEY, 0)) || 0))
+  // ── …and a fourth: how the stage BEFORE this one went ──
+  //
+  // The only one of the four that can fire before a player has lost anything.
+  // See `carryReliefFor`; the record is written at the end of every cleared
+  // stage and read here, once, by the stage immediately after it.
+  const carry = expedition || target <= 1 || target > ADAPTIVE_BOSS_STAGES
+    ? 1
+    : carryReliefFor(lastPerfFor(target - 1))
   hpRelief = expedition
     ? 1
     : reliefFor(failures)
       * challengeFactor(challenge.value)
       * rewardDeclineFactor(declines.value)
+      * carry
   slamRelief = slamReliefFor(failures)
   contactRelief = contactReliefFor(failures)
 
@@ -1437,7 +1463,10 @@ export const startStage = (n?: number, seed?: number): void => {
   // from the shop's value at this moment. `syncMetaToRun` can grow the crowd
   // mid-stage; it must not also grow the crowd the run is being compared to, or
   // buying Squad halfway down the road would retroactively demote the run.
-  perfectSquad = perfectSquadFor(target, startSquadAt(target), gatePayoutBonus.value)
+  // …less what this road takes back off even a flawless run (`ROAD_ATTRITION`).
+  perfectSquad = adaptiveYardstick(
+    target, perfectSquadFor(target, startSquadAt(target), gatePayoutBonus.value)
+  )
   // Re-read at `spawnBoss` from the crowd that actually arrives; until then the
   // stage's authored value, so nothing can read a stale fight's number.
   bossSwingMul = earlyBigHitMul(target)
@@ -1896,6 +1925,24 @@ const finishRun = (cleared: boolean): void => {
       // Bank the NEXT stage immediately: a player who closes the tab on the
       // victory screen has earned the stage they just cleared.
       patch[STAGE_KEY] = stage.value + 1
+      // …and how well it went, for the stage that is about to open. PEAK
+      // rather than the crowd left standing: this is a reading of how the ROAD
+      // was played, and the boss has already been paid for out of the same
+      // crowd by the time `endStage` runs. Written only on a clear — a loss is
+      // the failure ledger's business, and it pays better relief than this.
+      // …and ONLY for a run somebody played. An idle tab clears stage 1 often
+      // enough (the tutorial is meant to be survivable without steering), and
+      // without this it would bank a terrible score, collect a quarter off
+      // stage 2, clear that too, and walk down the campaign on concessions it
+      // never earned — measured, exactly that took a zero-input career from
+      // stage 3 to stage 4. Same rule, same reason, as `recordFailure` below.
+      if (wasPlayed()) {
+        patch[LAST_PERF_KEY] = {
+          stage: stage.value,
+          perf: perfectSquad > 0 ? Math.max(0, peakSquad.value / perfectSquad) : 1
+        }
+      }
+
     }
   }
   setStates(patch)

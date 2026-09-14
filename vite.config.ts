@@ -589,7 +589,21 @@ export default defineConfig(({ mode, command }) => {
   // is the wrong fix too — the list rotates with Poki's ad partners. Emit no
   // meta tag and let P4D own the policy.
   const isPokiBuild = env.VITE_APP_POKI === 'true'
-  const skipCspMeta = isYandexBuild || isGamepixBuild || isPokiBuild
+  // PLAYGAMA / YOUTUBE PLAYABLES: same exception again, and the reason is the
+  // strongest of the four. This archive is also the YouTube Playables
+  // submission, and Playables runs the game under YOUTUBE'S OWN CSP inside a
+  // document it shares with YouTube's runtime. A game-authored policy fights
+  // the host's, and CSP violations are a named Playables rejection reason
+  // (YT-FAQ) — dynamically created script tags that lack YouTube's nonce get
+  // blocked at runtime, which is invisible to every local test.
+  //
+  // It also removes the last place in the bundle that names every OTHER
+  // portal's hosts: the meta tag is a single string listing crazygames,
+  // gamedistribution, wavedash, clarity.ms, jsonbin.io and the rest, and a
+  // reviewer grepping the archive finds all of them there and nowhere else.
+  // Dropping the tag takes those strings out with it.
+  const isPlaygamaBuild = env.VITE_APP_PLAYGAMA === 'true'
+  const skipCspMeta = isYandexBuild || isGamepixBuild || isPokiBuild || isPlaygamaBuild
   const cspValue = buildCsp(env)
 
   plugins.push({
@@ -624,6 +638,28 @@ export default defineConfig(({ mode, command }) => {
   // runtime if missing (some QA wrappers serve their own index.html) —
   // but on other portals we don't want an extra DNS lookup to playgama.com.
   const isPlaygama = env.VITE_APP_PLAYGAMA === 'true'
+
+  // Strip YouTube's Playables SDK tag from every build EXCEPT Playgama's.
+  //
+  // This is the inverse of the other strips in spirit: the tag is not a perf
+  // shave we can take or leave, it is mandatory on the one build that reaches
+  // Playables. `build:playgama` IS the Playables submission — Playgama is an
+  // official partner and forwards that single archive to YouTube — so the tag
+  // must survive exactly there and nowhere else. On other portals a foreign
+  // SDK URL in index.html is at best a stray DNS lookup and at worst a
+  // moderation flag (Yandex rejects absolute foreign service URLs outright).
+  if (!isPlaygama) {
+    plugins.push({
+      name: 'strip-youtube-sdk',
+      transformIndexHtml(html: string) {
+        return html.replace(
+          /<!--\s*YouTube Playables SDK[^]*?-->\s*<script[^>]*youtube\.com\/game_api[^>]*><\/script>\s*/,
+          ''
+        )
+      }
+    })
+  }
+
   if (!isPlaygama) {
     plugins.push({
       name: 'strip-playgama-sdk',
@@ -804,8 +840,27 @@ export default defineConfig(({ mode, command }) => {
           // `resolveAdProvider` statically imports the provider, so those hosts
           // were landing in EVERY other platform's bundle (found in the Poki
           // entry chunk). Same stub-swap fix as the four providers above.
-          '@/use/ads/YandexProvider': fileURLToPath(new URL('./src/use/ads/YandexProvider.stub.ts', import.meta.url))
+          '@/use/ads/YandexProvider': fileURLToPath(new URL('./src/use/ads/YandexProvider.stub.ts', import.meta.url)),
+          // The provider stub above only closed the STATIC path. `main.ts` and
+          // `FLogoProgress.vue` still `await import('@/utils/yandexPlugin')`,
+          // and a dynamic import is a chunk — so every build was emitting a
+          // `yandexPlugin-*.js` carrying the `yandex.ru/ads/system` URL even
+          // though nothing called it. Found in the Playgama archive, which is
+          // also the YouTube Playables submission, where another portal's ad
+          // stack in the bundle is a certification finding. Same stub-swap.
+          '@/utils/yandexPlugin': fileURLToPath(new URL('./src/utils/yandexPlugin.stub.ts', import.meta.url))
         }),
+        // INVERTED POLARITY versus every other alias here: this one swaps out
+        // ON a platform rather than off it. The analytics probe walks other
+        // portals' globals (`PokiSDK`, `GamePix`) plus `gtag` / `dataLayer`,
+        // and the Playgama archive is also the YouTube Playables submission —
+        // where external analytics are banned outright and those names are
+        // precisely what a reviewer greps for. A guard inside the probe was
+        // measured and did NOT keep the literals out (stringArray hoists before
+        // the env fold), so the whole module is aliased away instead.
+        ...(env.VITE_APP_PLAYGAMA === 'true' ? {
+          '@/use/analyticsSink': fileURLToPath(new URL('./src/use/analyticsSink.stub.ts', import.meta.url))
+        } : {}),
         ...(env.VITE_APP_POKI === 'true' ? {} : {
           '@/use/ads/PokiProvider': fileURLToPath(new URL('./src/use/ads/PokiProvider.stub.ts', import.meta.url)),
           // pokiPlugin is STATICALLY imported by `useGameplayLifecycle.ts` (which
@@ -826,8 +881,16 @@ export default defineConfig(({ mode, command }) => {
     },
     build: {
       minify: 'esbuild',
-      // Disable source maps in production if you want maximum protection
-      sourcemap: !shouldObfuscate
+      // Source maps follow the obfuscator EXCEPT on production platform builds.
+      //
+      // `!shouldObfuscate` alone conflates two different questions. Turning the
+      // obfuscator off for a portal is a QA decision — Playgama and YouTube
+      // review by hand, and an obfuscated stack trace cannot be mapped back to
+      // a source line — but it must not have the side effect of PUBLISHING the
+      // source: a portal build is served from a public URL, so shipping maps
+      // hands over the original files and adds megabytes to an archive that is
+      // measured against a size budget.
+      sourcemap: !shouldObfuscate && !isProduction
     }
   }
 })

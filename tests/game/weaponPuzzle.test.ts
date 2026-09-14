@@ -32,7 +32,7 @@ import {
   BULLET_RANGE, CROWD_MAX_R, CROWD_SCREEN_Y, LANE_HALF, UNIT_R, VIEW_HEIGHT, stageSpeed
 } from '@/game/survival'
 import {
-  LEVER_R, LEVER_STAGGER, LEVER_STONE_HP_MUL, LEVER_STONE_LEAD, LEVER_STONE_W,
+  LEVER_R, LEVER_STAGGER, LEVER_STONE_LEAD, LEVER_STONE_W, leverStoneHp,
   LEVER_X, ROCKET_SPLASH_SHARE, WEAPONS, WEAPON_BOX_AHEAD,
   WEAPON_BOX_X, WEAPON_EVERY, WEAPON_FREE_LANE, WEAPON_GUARD_LEAD, WEAPON_STAGE,
   stageHasWeapon, stageHasWeaponBox, stageHasWeaponGift, weaponDpsMul, weaponForStage,
@@ -317,22 +317,53 @@ describe('the shape of the beat', () => {
     }
   })
 
-  it('prices the stone at a share of the stage\'s own wall, and under it', () => {
+  it('prices the stone against the lever it covers, not against the wall', () => {
     // The stone is cover on an optional bonus, so it may not cost more than the
     // walls the road is already charging for — and it may not become a second
     // health check on the beat that is supposed to charge attention.
-    expect(LEVER_STONE_HP_MUL).toBeLessThan(1)
     for (const stage of [WEAPON_STAGE, 12, 30, 90]) {
       const p = puzzleOf(stage)!
       const wall = barricadeHp(stage)
       for (const stone of p.stones) {
-        expect(stone.hp, `stage ${stage}`).toBe(Math.round(wall * LEVER_STONE_HP_MUL))
+        expect(stone.hp, `stage ${stage}`).toBe(leverStoneHp(stage))
         expect(stone.hp).toBeLessThan(wall)
         // …and a long way under the armour, which is the thing the player is
         // supposed to route around rather than shoot.
         expect(stone.hp).toBeLessThan(p.guards[0]!.hp)
       }
     }
+  })
+
+  it('lets an opening run actually open the first box', () => {
+    // The regression this exists for: the stone was priced off the stage's
+    // WALL while the lever behind it was priced for a beginner, so the cover
+    // cost seven times the thing it covered and the first puzzle in the game
+    // was arithmetically shut — one shoulder wanted more seconds of perfect
+    // fire than the window has, and it has to be paid twice. Nothing caught it,
+    // because every check here was about geometry or about the stone's price in
+    // terms of the wall it was derived from, which is circular.
+    //
+    // The measured opening: a no-upgrade run reaches the first stone with a
+    // squad of 14 at 1.0 damage and 1.9 shots a second — 26.6 dps, and the sim
+    // returns the same figure on every seed because nothing before this beat is
+    // random. Of the fourteen streams a player who commits to the shoulder
+    // lands most but never all, so the budget below is well under the total.
+    const OPENING_DPS = 26.6
+    const ON_TARGET = 0.6
+    // Half the window, so it can be paid twice and still leave fire for the road.
+    const BUDGET = 0.5
+
+    const stage = WEAPON_STAGE
+    const p = puzzleOf(stage)!
+    const window = weaponReactionS(stage) + LEVER_STONE_LEAD / stageSpeed(stage)
+    const shoulder = p.stones[0]!.hp + p.levers[0]!.hp
+    const seconds = shoulder / (OPENING_DPS * ON_TARGET)
+
+    expect(
+      seconds,
+      `a shoulder costs ${shoulder} hp = ${seconds.toFixed(2)}s of an opening run's ` +
+      `aimed fire, against a ${window.toFixed(2)}s window`
+    ).toBeLessThan(window * BUDGET)
   })
 
   it('leaves the stones out of the road a player is ignoring', () => {

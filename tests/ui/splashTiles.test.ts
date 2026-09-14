@@ -24,7 +24,8 @@ const html = readFileSync(join(ROOT, 'index.html'), 'utf8')
 const vue = readFileSync(join(ROOT, 'src/components/atoms/FLogoProgress.vue'), 'utf8')
 const tool = readFileSync(join(ROOT, 'tools/bg-tile.mjs'), 'utf8')
 
-const TILE = join(ROOT, 'public/images/bg/bg-tile_800x800.webp')
+const TILE = join(ROOT, 'public/images/bg/bg-tile.svg')
+const tile = readFileSync(TILE, 'utf8')
 
 /** Everything inside the inline `<style>` of index.html. */
 const inlineStyle = html.slice(html.indexOf('<style>'), html.indexOf('</style>'))
@@ -36,8 +37,8 @@ describe('the two splashes pan the same tile', () => {
     // Relative in the HTML because Vite does not rewrite `url()` inside an
     // inline style; through `prependBaseUrl` in the component because Vite
     // does not rewrite a runtime string either.
-    expect(inlineStyle).toContain('url(./images/bg/bg-tile_800x800.webp)')
-    expect(vue).toContain("prependBaseUrl('images/bg/bg-tile_800x800.webp')")
+    expect(inlineStyle).toContain('url(./images/bg/bg-tile.svg)')
+    expect(vue).toContain("prependBaseUrl('images/bg/bg-tile.svg')")
   })
 
   it('drift by one whole tile, so the loop has no seam', () => {
@@ -81,60 +82,54 @@ describe('the two splashes pan the same tile', () => {
 })
 
 describe('the tile itself', () => {
-  it('is authored above the CSS tile size, and keeps its alpha', async () => {
-    const meta = await sharp(TILE).metadata()
-    // Square, and a whole multiple of the 400px CSS tile.
-    //
-    // The multiple is what keeps it sharp: this layer covers the whole screen,
-    // so a 1:1 tile is resampled up by the device pixel ratio on every phone
-    // and every motif arrives soft — which is exactly how it shipped first.
-    // A fractional multiple would be worse than either, since the pan then
-    // lands the tile on half-pixel boundaries.
-    expect(meta.width).toBe(meta.height)
-    expect(meta.width! % 400).toBe(0)
-    expect(meta.width! / 400).toBeGreaterThanOrEqual(2)
+  it('is a vector on a 400-unit grid, with no ground baked into it', () => {
+    // Vector, and that is the point rather than a preference. This layer covers
+    // the whole screen, so a raster tile is resampled by the device pixel ratio
+    // on every phone — and thin strokes, which is all this drawing is, are
+    // exactly what that ruins. Two raster versions of this file were rejected
+    // for looking blurry before it became an SVG.
+    expect(tile.startsWith('<svg')).toBe(true)
+    // The viewBox has to match the CSS tile, or the pan no longer travels
+    // exactly one repeat and the loop jumps.
+    expect(tile).toContain('viewBox="0 0 400 400"')
 
-    // And the name says what the pixels are, like every other sized asset in
-    // `public/images`. The generator builds the filename out of the dimensions
-    // for this reason; the check is here because the two splashes spell the
-    // name out by hand and would go on loading a file whose name had stopped
-    // being true.
-    expect(TILE).toContain(`bg-tile_${meta.width}x${meta.height}.webp`)
-    // The layer composites over the splash's radial gradient. A tile with the
-    // ground baked in would flatten it, and there would be nothing the CSS
-    // `opacity` could do about it.
-    expect(meta.hasAlpha).toBe(true)
+    // No opaque ground. The layer composites over the splash's radial gradient,
+    // and a background rect would flatten it with nothing the CSS `opacity`
+    // could do about it.
+    expect(tile).not.toMatch(/<rect[^>]*width="100%"/)
   })
 
   it('carries at most eight motifs', async () => {
     // Past eight the tile stops being a set of things you recognise and turns
     // into wallpaper — see the header of `tools/bg-tile.mjs`.
     const cast = tool.slice(tool.indexOf('const CAST = ['), tool.indexOf(']', tool.indexOf('const CAST = [')))
-    const motifs = [...cast.matchAll(/file: '/g)].length
+    const motifs = [...cast.matchAll(/icon: '/g)].length
     expect(motifs).toBeGreaterThan(0)
     expect(motifs).toBeLessThanOrEqual(8)
   })
 
-  it('is seamless: opposite edges meet', async () => {
-    // Every motif is drawn again on the far side of the tile, so the column of
-    // pixels one step past the right edge IS the left edge. Compare the two
-    // borders after a copy has been shifted by a whole tile: if a motif had
-    // been clipped instead of wrapped, the seam would show as a hard cut here.
-    const { data, info } = await sharp(TILE).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  it('is seamless: every motif is drawn on all nine neighbours', async () => {
+    // Each emblem is defined once and `<use>`d nine times — its own tile plus
+    // the eight around it — so a motif crossing an edge is already drawn on the
+    // far side and the viewBox clips the remainder. Anything less than nine
+    // means some edge has a half-emblem on it.
+    const defs = [...tile.matchAll(/<g id="([es]\d+)"/g)].map((m) => m[1]!)
+    expect(defs.length).toBeGreaterThan(0)
+    for (const id of defs) {
+      const uses = [...tile.matchAll(new RegExp(`<use href="#${id}"`, 'g'))].length
+      expect(uses, `${id} is not tiled on all nine neighbours`).toBe(9)
+    }
+
+    // And prove it on actual pixels: rasterise, then compare the two vertical
+    // borders. A motif that had been clipped rather than wrapped would show up
+    // here as a hard cut that its partner edge does not have.
+    const { data, info } = await sharp(TILE, { density: 144 })
+      .resize(400, 400)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
     const px = (x: number, y: number, c: number): number => data[(y * info.width + x) * 4 + c]!
 
-    // A motif crossing an edge leaves ink on both sides of it. Confirm the
-    // wrap actually happens somewhere, so a blank-edged tile cannot pass this
-    // by having nothing to compare.
-    let inkOnEdges = 0
-    for (let y = 0; y < info.height; y++) {
-      if (px(0, y, 3) > 24 && px(info.width - 1, y, 3) > 24) inkOnEdges++
-    }
-    expect(inkOnEdges).toBeGreaterThan(0)
-
-    // And the two edges belong to the same drawing: a pixel on the left edge
-    // and its partner on the right differ only by the one-pixel step between
-    // them, never by a whole motif.
     let jumps = 0
     for (let y = 0; y < info.height; y++) {
       for (let c = 0; c < 4; c++) {

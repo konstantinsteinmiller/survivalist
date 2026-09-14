@@ -165,6 +165,19 @@ describe('the people in it walk over and join the squad', () => {
     const r = await rescue()
     expect(r.broke).toBeGreaterThanOrEqual(0)
     // No joiner is left walking alone forever: the window is the backstop.
-    for (const j of r.joiners) expect(j.u.join, 'a survivor was still walking over').toBe(0)
+    //
+    // A joiner that DIED on the way over is not one of those, and the two are
+    // only distinguishable here: a dying body stops counting its join window
+    // down, so its `join` sits wherever it was when the foe reached it. The
+    // difference matters because the road between a cage and the crowd is a
+    // real road — the onboarding pass put bodies back on stage 2, and one of
+    // the three freed survivors now sometimes does not make it. That is the
+    // rescue costing something, which is the point of putting it off the line;
+    // what the window promises is that a survivor who is still ALIVE is in
+    // formation by the end of it.
+    const arrived = r.joiners.filter((j) => j.u.dying <= 0)
+    expect(arrived.length, 'not one freed survivor reached the crowd').toBeGreaterThan(0)
+    for (const j of arrived) expect(j.u.join, 'a survivor was still walking over').toBe(0)
+
   })
 })

@@ -97,6 +97,24 @@ export const GRENADE_TAUGHT_KEY = 'ts_grenade_taught'
 export const CHALLENGE_KEY = 'ts_challenge'
 
 /**
+ * How the stage before this one actually went — `{ stage, perf }`, where `perf`
+ * is the share of that road's yardstick the player's crowd actually reached.
+ *
+ * The counterpart to `FAILED_STAGES_KEY`, and it exists because that ledger can
+ * only see the runs that ENDED. A beginner who scrapes through stage 1 with
+ * four survivors has not failed anything, so nothing in the save knows they are
+ * struggling — and the stage they meet next is the one built for the player who
+ * finished it thirty strong. This is the only record of "cleared it, but
+ * barely", and it is read exactly once, by the stage immediately after.
+ *
+ * Deliberately not a running average. It answers "how did the LAST one go",
+ * which is the question a difficulty curve has to keep re-asking; a player who
+ * has one bad stage and then finds their feet should not be carrying the bad
+ * one around for the rest of the session.
+ */
+export const LAST_PERF_KEY = 'ts_last_perf'
+
+/**
  * Consecutive stage wins the player finished WITHOUT claiming the `×3` reward.
  *
  * Persisted because it is a curve, not a session mood: the pressure to take the

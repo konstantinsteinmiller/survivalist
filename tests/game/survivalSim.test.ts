@@ -726,7 +726,18 @@ describe('losing a stage makes it 20 % softer, once', () => {
     const relieved = firstFoeHp(game, 2)
     expect(game.reliefActive.value).toBe(true)
     // The real multiplier, measured off a real enemy — within a rounding step.
-    expect(Math.abs(relieved - full * RETRY_HP_RELIEF)).toBeLessThanOrEqual(0.5)
+    //
+    // The step is ONE, not a half, because both sides are rounded and only one
+    // of them is rounded here: the game computes `round(hp * stageScale *
+    // relief)` while this compares against `round(hp * stageScale) * relief`.
+    // Those differ by up to 0.5 + 0.5 * relief with no change in behaviour at
+    // all, and the half-step bound was passing only because the stage-2 foe
+    // multiplier of the day happened to round favourably - the onboarding pass
+    // moved it from 0.805 to 0.85 and the same correct code started failing.
+    // The contract is "the enemy really is a fifth softer", and that is what a
+    // one-HP tolerance says.
+    expect(Math.abs(relieved - full * RETRY_HP_RELIEF)).toBeLessThanOrEqual(1)
+
   })
 
   it('gives MORE back the longer a stage keeps beating the player, down to a floor', async () => {
