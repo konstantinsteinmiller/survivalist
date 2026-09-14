@@ -94,6 +94,25 @@ export default {
     'gatling': 'Gatling Gun'
   },
 
+  // ─── The mid-run weapon offer ─────────────────────────────────────────────
+  //
+  // Two strings for a control that is otherwise two drawings — see
+  // `AdWeaponOffer.vue`. `confirm` is the pill that appears over the armed chip
+  // and is the only one of the pair a player SEES, so it has to fit above a
+  // 2.5 rem button on a 320 px phone: translate it as a button caption, not as
+  // a sentence. `available` is the `aria-label`, read aloud and never drawn, so
+  // it is allowed to be a full phrase — and it names the weapon, which is the
+  // half a screen reader cannot get from the glyph.
+  //
+  // `{weapon}` interpolates `weapons.rocket` / `weapons.gatling`. It is phrased
+  // WITHOUT an article on purpose: the two weapons do not share a gender in
+  // half the languages here, and "un {weapon}" would be wrong for one of them
+  // in every one of those.
+  'offer': {
+    'confirm': 'Watch ad',
+    'available': 'Watch a video for a free {weapon}'
+  },
+
   // ─── Control hints ────────────────────────────────────────────────────────
   // Each has a touch and a pointer phrasing — a wrong verb reads as a bug.
   // These render in a single pill at the top of a phone screen: keep every

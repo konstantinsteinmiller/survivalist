@@ -49,6 +49,11 @@ export default {
     'gatling': 'Ametralladora Gatling'
   },
 
+  'offer': {
+    'confirm': 'Ver anuncio',
+    'available': 'Mira un vídeo y consigue {weapon} gratis'
+  },
+
   'tutorial': {
     'touch': 'Desliza para mover tu escuadrón',
     'desktop': 'Mueve el ratón para dirigir tu escuadrón'

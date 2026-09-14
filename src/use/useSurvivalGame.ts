@@ -5375,30 +5375,67 @@ const unlockPuzzle = (box: WeaponBox): void => {
   pushFx({ kind: 'weaponOpen', x: box.x, y: box.y, weapon: box.weapon })
 }
 
-/** The box breaks and the stage's weapon comes out of it. */
-const takeWeaponBox = (box: WeaponBox): void => {
-  if (box.dead) return
-  box.dead = true
+/**
+ * Put a weapon in the crowd's hands.
+ *
+ * The whole handover, in one place, because there are now two things that can
+ * give a weapon — the box on the road and the rewarded-ad offer on the HUD —
+ * and they must hand over the SAME thing. A second copy of these six lines is
+ * how one giver quietly keeps the old gun and the other does not.
+ */
+const handOverWeapon = (id: WeaponId): void => {
   // Already holding a DIFFERENT weapon — the stage-1 boss's launcher, on stage
-  // 2 — and the box does not take it away: it drops to the side gun and keeps
-  // firing at its own power. See `sideWeapon`. The same weapon again is simply
-  // the full version of it.
+  // 2 — and the new one does not take it away: it drops to the side gun and
+  // keeps firing at its own power. See `sideWeapon`. The same weapon again is
+  // simply the full version of it.
   const held = activeWeapon.value
-  if (held && held !== box.weapon) {
+  if (held && held !== id) {
     sideWeapon.value = held
     sideWeaponPower.value = weaponPower.value
     sideAccum = 0
   }
-  activeWeapon.value = box.weapon
-  // A box always hands over the full weapon, whatever the stage opened with.
+  activeWeapon.value = id
+  // A handover is always the FULL weapon, whatever the stage opened with.
   weaponPower.value = 1
-  puzzleWeapon.value = null
-  puzzleGift.value = false
   // A weapon is a bigger moment than a crate, and the crowd should show it —
   // the same full-squad flash a supply crate fires, which is the game's
   // established "everyone just got better" beat.
   for (const u of units) u.flash = 260
+}
+
+/** The box breaks and the stage's weapon comes out of it. */
+const takeWeaponBox = (box: WeaponBox): void => {
+  if (box.dead) return
+  box.dead = true
+  handOverWeapon(box.weapon)
+  puzzleWeapon.value = null
+  puzzleGift.value = false
   pushFx({ kind: 'weaponTake', x: box.x, y: box.y, weapon: box.weapon })
+}
+
+/**
+ * ─── The rewarded offer's payout ────────────────────────────────────────────
+ *
+ * A weapon handed to the crowd where it stands, because the player watched a
+ * video for it rather than because they read the road. Same handover, same
+ * flash, same sound as a box — the thing received has to be the thing the road
+ * gives, or the ad bought something second-rate.
+ *
+ * It is NOT `debugGiveWeapon`: that seam clears `sideWeapon` so a test starts
+ * from a known state, which here would silently confiscate the gun the player
+ * already earned.
+ *
+ * Refuses unless a run is actually live. The ad takes half a minute and the
+ * road does not wait politely — a squad that wiped while the video played would
+ * otherwise be handed a launcher that `startStage` throws away a second later,
+ * which is an ad paid for and nothing received. The caller reads the return and
+ * leaves the offer unspent when it is false.
+ */
+export const grantOfferWeapon = (id: WeaponId): boolean => {
+  if (phase.value !== 'run') return false
+  handOverWeapon(id)
+  pushFx({ kind: 'weaponTake', x: anchorX, y: anchorY, weapon: id })
+  return true
 }
 
 /**

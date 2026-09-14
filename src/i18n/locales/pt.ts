@@ -49,6 +49,11 @@ export default {
     'gatling': 'Metralhadora Gatling'
   },
 
+  'offer': {
+    'confirm': 'Ver anúncio',
+    'available': 'Assista a um vídeo e ganhe {weapon} grátis'
+  },
+
   'tutorial': {
     'touch': 'Deslize para mover seu esquadrão',
     'desktop': 'Mova o mouse para guiar seu esquadrão'

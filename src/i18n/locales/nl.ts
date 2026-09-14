@@ -49,6 +49,11 @@ export default {
     'gatling': 'Gatling'
   },
 
+  'offer': {
+    'confirm': 'Video kijken',
+    'available': 'Bekijk een video en krijg {weapon} gratis'
+  },
+
   'tutorial': {
     'touch': 'Veeg om je team te bewegen',
     'desktop': 'Beweeg de muis om je team te sturen'

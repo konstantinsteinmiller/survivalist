@@ -49,6 +49,11 @@ export default {
     'gatling': 'Senapan Gatling'
   },
 
+  'offer': {
+    'confirm': 'Tonton iklan',
+    'available': 'Tonton video dan dapatkan {weapon} gratis'
+  },
+
   'tutorial': {
     'touch': 'Geser untuk menggerakkan pasukanmu',
     'desktop': 'Gerakkan mouse untuk mengarahkan pasukan'

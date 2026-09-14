@@ -49,6 +49,11 @@ export default {
     'gatling': 'Gatling'
   },
 
+  'offer': {
+    'confirm': 'Reklamı izle',
+    'available': 'Video izle, {weapon} bedava kazan'
+  },
+
   'tutorial': {
     'touch': 'Takımını hareket ettirmek için kaydır',
     'desktop': 'Takımını yönlendirmek için fareyi oynat'

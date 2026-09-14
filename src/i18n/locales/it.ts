@@ -49,6 +49,11 @@ export default {
     'gatling': 'Gatling'
   },
 
+  'offer': {
+    'confirm': 'Guarda video',
+    'available': 'Guarda un video e ottieni {weapon} gratis'
+  },
+
   'tutorial': {
     'touch': 'Scorri per muovere la squadra',
     'desktop': 'Muovi il mouse per guidare la squadra'

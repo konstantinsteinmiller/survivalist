@@ -22,7 +22,7 @@ const seed = JSON.parse(
 ) as {
   source: string
   total: number
-  entries: { rank: number; name: string; score: number; flair: number }[]
+  entries: { rank: number; name: string; score: number; squad: number }[]
   dist: [number, number][]
 }
 
@@ -87,12 +87,37 @@ describe('the seeded board matches the retention curve it claims', () => {
     expect(at(2)).toBeLessThan(at(3))
   })
 
-  it('lands the published hundred at stage 40+', () => {
+  it('publishes a hundred rows spread across a band of stages', () => {
+    // ── This used to read "lands the published hundred at stage 40+" ──
+    //
+    // `entries[99].score >= 40` looks like a contract and is really one
+    // board's arithmetic written down. The published hundred is a FRACTION of
+    // the population, and that fraction moves by orders of magnitude for a
+    // change that feels small: 100 of 154 331 is the top 0.065 %, 100 of 7 831
+    // is the top 1.28 % — twentyfold — so the same curve publishes rows from
+    // the last two stages at one size and from a wide band at the other. It
+    // went red on a reseed with nothing whatsoever wrong, which teaches the
+    // next reader to edit the number instead of looking at it.
+    //
+    // So the extremes are held against what the GAME says about itself (its
+    // best players reach 40+) and the middle against shape.
     expect(seed.entries).toHaveLength(100)
-    expect(seed.entries[99]!.score).toBeGreaterThanOrEqual(40)
-    // …and the very best are deeper still, without being absurd.
-    expect(seed.entries[0]!.score).toBeGreaterThan(seed.entries[99]!.score)
-    expect(seed.entries[0]!.score).toBeLessThan(100)
+
+    const scores = seed.entries.map((e) => e.score)
+    expect(scores[0], 'the top of the board no longer reaches the depth the brief claims')
+      .toBeGreaterThanOrEqual(40)
+    expect(scores[0], 'the best player is on an absurd stage').toBeLessThan(100)
+
+    // Ordered, and a real spread rather than a hundred players piled on the
+    // deepest stage — which is what a curve with too steep a tail produces,
+    // and it reads as generated at a glance.
+    for (let i = 1; i < scores.length; i++) {
+      expect(scores[i], 'the published rows are not in order').toBeLessThanOrEqual(scores[i - 1]!)
+    }
+    expect(new Set(scores).size, 'the whole published board sits on one stage')
+      .toBeGreaterThan(5)
+    expect(scores[0]! - scores[99]!, 'the published band is too narrow to be a board')
+      .toBeGreaterThan(3)
   })
 
   it('publishes rows its own histogram agrees with', () => {
@@ -113,8 +138,12 @@ describe('the seeded board matches the retention curve it claims', () => {
       expect(e.name.length).toBeGreaterThan(2)
       expect(e.name.length).toBeLessThanOrEqual(16)
       expect(e.name).toMatch(/^[A-Za-z0-9][A-Za-z0-9.]*[A-Za-z0-9]$/)
-      expect(e.flair).toBeGreaterThan(0)
-      expect(e.flair).toBeLessThanOrEqual(4000)
+      // `squad`, not `flair`: the template's name for the tie-break column is
+      // not this game's, and a board publishing the wrong key renders a column
+      // of zeros while every assertion about it still passes.
+      expect(e.squad, 'the tie-break column is published under the wrong name')
+        .toBeGreaterThan(0)
+      expect(e.squad).toBeLessThanOrEqual(4000)
     }
     expect(new Set(seed.entries.map((e) => e.name)).size, 'the board lists the same name twice')
       .toBe(seed.entries.length)

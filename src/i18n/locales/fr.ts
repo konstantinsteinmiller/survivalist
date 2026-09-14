@@ -49,6 +49,11 @@ export default {
     'gatling': 'Gatling'
   },
 
+  'offer': {
+    'confirm': 'Voir la pub',
+    'available': 'Regarde une vidéo et obtiens {weapon} gratuitement'
+  },
+
   'tutorial': {
     'touch': 'Glisse pour déplacer ton escouade',
     'desktop': 'Bouge la souris pour diriger ton escouade'

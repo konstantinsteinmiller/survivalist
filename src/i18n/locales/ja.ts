@@ -49,6 +49,11 @@ export default {
     'gatling': 'ガトリングガン'
   },
 
+  'offer': {
+    'confirm': '広告を見る',
+    'available': '動画を見て{weapon}を無料でゲット'
+  },
+
   'tutorial': {
     'touch': 'スワイプして部隊を動かそう',
     'desktop': 'マウスを動かして部隊を操作しよう'

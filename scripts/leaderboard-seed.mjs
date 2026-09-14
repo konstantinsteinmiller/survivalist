@@ -35,7 +35,7 @@ export const SEED_FILE = resolve(
 )
 
 /** How many players the board claims. */
-const TOTAL = 154_331
+const TOTAL = 7_831
 
 /** Rows the board publishes, matching the Worker's `TOP_N`. */
 const TOP_N = 100
@@ -206,7 +206,15 @@ export const buildSeed = () => {
         // Squad is only loosely tied to depth on the real board (rank 10 has
         // 4 000, rank 25 has 43), so this is a wide band with a mild upward
         // trend rather than a function of the score.
-        flair: Math.min(4000, Math.round(120 + score * 34 * (0.35 + r() * 1.5)))
+        //
+        // ⚠ THE KEY IS `squad`, which is this game's name for the template's
+        // `flair` — and it was still `flair` here while every reader of a board
+        // (`useLeaderboard`'s `Number(e.squad) || 0`, the modal's Squad column,
+        // the snapshot written from the live Worker) had long been renamed.
+        // Nothing failed: the column simply rendered 0 for all hundred rows, on
+        // exactly the builds where this file IS the whole leaderboard for the
+        // life of the build.
+        squad: Math.min(4000, Math.round(120 + score * 34 * (0.35 + r() * 1.5)))
       })
     }
     if (entries.length >= TOP_N) break

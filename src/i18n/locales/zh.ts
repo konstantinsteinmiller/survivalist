@@ -49,6 +49,11 @@ export default {
     'gatling': '加特林机枪'
   },
 
+  'offer': {
+    'confirm': '观看广告',
+    'available': '观看视频，免费获得{weapon}'
+  },
+
   'tutorial': {
     'touch': '滑动来移动你的小队',
     'desktop': '移动鼠标来操控你的小队'

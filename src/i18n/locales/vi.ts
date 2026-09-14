@@ -49,6 +49,11 @@ export default {
     'gatling': 'Súng Gatling'
   },
 
+  'offer': {
+    'confirm': 'Xem quảng cáo',
+    'available': 'Xem video và nhận {weapon} miễn phí'
+  },
+
   'tutorial': {
     'touch': 'Vuốt để di chuyển đội của bạn',
     'desktop': 'Di chuyển chuột để điều khiển đội'

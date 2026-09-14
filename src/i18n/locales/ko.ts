@@ -49,6 +49,11 @@ export default {
     'gatling': '개틀링건'
   },
 
+  'offer': {
+    'confirm': '광고 보기',
+    'available': '영상을 보고 {weapon} 무료 획득'
+  },
+
   'tutorial': {
     'touch': '밀어서 부대를 움직이세요',
     'desktop': '마우스를 움직여 부대를 조종하세요'

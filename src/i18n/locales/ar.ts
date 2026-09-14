@@ -49,6 +49,11 @@ export default {
     'gatling': 'رشاش غاتلينغ'
   },
 
+  'offer': {
+    'confirm': 'شاهد الإعلان',
+    'available': 'شاهد فيديو واحصل على {weapon} مجانًا'
+  },
+
   'tutorial': {
     'touch': 'اسحب لتحريك فريقك',
     'desktop': 'حرّك الفأرة لتوجيه فريقك'

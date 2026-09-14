@@ -49,6 +49,11 @@ export default {
     'gatling': 'ปืนแกตลิง'
   },
 
+  'offer': {
+    'confirm': 'ดูโฆษณา',
+    'available': 'ดูวิดีโอแล้วรับ {weapon} ฟรี'
+  },
+
   'tutorial': {
     'touch': 'ปัดเพื่อขยับหน่วยของคุณ',
     'desktop': 'ขยับเมาส์เพื่อบังคับหน่วยของคุณ'

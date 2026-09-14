@@ -49,6 +49,11 @@ export default {
     'gatling': 'Gatling'
   },
 
+  'offer': {
+    'confirm': 'Obejrzyj reklamę',
+    'available': 'Obejrzyj wideo i zdobądź {weapon} za darmo'
+  },
+
   'tutorial': {
     'touch': 'Przesuń palcem, by ruszyć oddziałem',
     'desktop': 'Poruszaj myszą, by kierować oddziałem'

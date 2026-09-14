@@ -1,850 +1,806 @@
 {
   "source": "seeded:retention-curve",
-  "fetchedAt": 1788819321831,
-  "updatedAt": 1788819321831,
-  "total": 154331,
+  "fetchedAt": 1789410831142,
+  "updatedAt": 1789410831142,
+  "total": 7831,
   "entries": [
     {
       "rank": 1,
       "name": "Sashila",
-      "score": 60,
-      "flair": 3348
+      "score": 49,
+      "squad": 2756
     },
     {
       "rank": 2,
       "name": "FrostRocket",
-      "score": 59,
-      "flair": 3293
+      "score": 48,
+      "squad": 2702
     },
     {
       "rank": 3,
       "name": "RustyFalcon.Jbql",
-      "score": 58,
-      "flair": 1092
+      "score": 47,
+      "squad": 908
     },
     {
       "rank": 4,
       "name": "Tarrossi",
-      "score": 57,
-      "flair": 2300
+      "score": 46,
+      "squad": 1880
     },
     {
       "rank": 5,
       "name": "IronTurtle",
-      "score": 56,
-      "flair": 2102
+      "score": 46,
+      "squad": 1748
     },
     {
       "rank": 6,
       "name": "GoldenMilkshake",
-      "score": 55,
-      "flair": 934
+      "score": 45,
+      "squad": 786
     },
     {
       "rank": 7,
       "name": "Strider408112",
-      "score": 55,
-      "flair": 1614
+      "score": 45,
+      "squad": 1343
     },
     {
       "rank": 8,
       "name": "RapidGoblin.Jbql",
-      "score": 54,
-      "flair": 1344
+      "score": 44,
+      "squad": 1117
     },
     {
       "rank": 9,
       "name": "Kakkonix",
-      "score": 54,
-      "flair": 1249
+      "score": 44,
+      "squad": 1040
     },
     {
       "rank": 10,
       "name": "Scout381610",
-      "score": 53,
-      "flair": 3415
+      "score": 43,
+      "squad": 2793
     },
     {
       "rank": 11,
       "name": "LuckyViper",
-      "score": 53,
-      "flair": 1697
+      "score": 43,
+      "squad": 1400
     },
     {
       "rank": 12,
       "name": "JuicyComet.TV",
-      "score": 53,
-      "flair": 1638
+      "score": 43,
+      "squad": 1351
     },
     {
       "rank": 13,
       "name": "Leliathas",
-      "score": 52,
-      "flair": 941
+      "score": 42,
+      "squad": 783
     },
     {
       "rank": 14,
       "name": "SilentBishop.Jbq",
-      "score": 52,
-      "flair": 2946
+      "score": 42,
+      "squad": 2402
     },
     {
       "rank": 15,
       "name": "TurboYeti.kk",
-      "score": 52,
-      "flair": 1978
+      "score": 42,
+      "squad": 1621
     },
     {
       "rank": 16,
       "name": "MOPPIMI",
-      "score": 52,
-      "flair": 1211
+      "score": 42,
+      "squad": 1002
     },
     {
       "rank": 17,
       "name": "FeralCloud",
-      "score": 52,
-      "flair": 2925
+      "score": 41,
+      "squad": 2332
     },
     {
       "rank": 18,
       "name": "BrilliantBishop",
-      "score": 51,
-      "flair": 1972
+      "score": 41,
+      "squad": 1609
     },
     {
       "rank": 19,
       "name": "SaltyCloud.Q",
-      "score": 51,
-      "flair": 1488
+      "score": 41,
+      "squad": 1220
     },
     {
       "rank": 20,
       "name": "RapidBadger.io",
-      "score": 51,
-      "flair": 2732
+      "score": 41,
+      "squad": 2220
     },
     {
       "rank": 21,
       "name": "RapidTurtle",
-      "score": 51,
-      "flair": 1407
+      "score": 41,
+      "squad": 1155
     },
     {
       "rank": 22,
       "name": "GoldenKoala",
-      "score": 51,
-      "flair": 3087
+      "score": 40,
+      "squad": 2447
     },
     {
       "rank": 23,
       "name": "Kazela",
-      "score": 51,
-      "flair": 1825
+      "score": 40,
+      "squad": 1458
     },
     {
       "rank": 24,
       "name": "Sazela",
-      "score": 51,
-      "flair": 2396
+      "score": 40,
+      "squad": 1905
     },
     {
       "rank": 25,
       "name": "QuietGremlin",
-      "score": 50,
-      "flair": 1821
+      "score": 40,
+      "squad": 1481
     },
     {
       "rank": 26,
       "name": "GoldenDemon.x",
-      "score": 50,
-      "flair": 2403
+      "score": 40,
+      "squad": 1947
     },
     {
       "rank": 27,
       "name": "GoldenPhantom",
-      "score": 50,
-      "flair": 1293
+      "score": 40,
+      "squad": 1058
     },
     {
       "rank": 28,
       "name": "Voppirashi",
-      "score": 50,
-      "flair": 1895
+      "score": 40,
+      "squad": 1540
     },
     {
       "rank": 29,
       "name": "Dondara",
-      "score": 50,
-      "flair": 2498
+      "score": 39,
+      "squad": 1975
     },
     {
       "rank": 30,
       "name": "BrilliantMuffin",
-      "score": 50,
-      "flair": 732
+      "score": 39,
+      "squad": 597
     },
     {
       "rank": 31,
       "name": "Scout168450",
-      "score": 50,
-      "flair": 1578
+      "score": 39,
+      "squad": 1257
     },
     {
       "rank": 32,
       "name": "KARROSSI",
-      "score": 50,
-      "flair": 2029
+      "score": 39,
+      "squad": 1609
     },
     {
       "rank": 33,
       "name": "CrimsonCloud",
-      "score": 50,
-      "flair": 2788
+      "score": 39,
+      "squad": 2201
     },
     {
       "rank": 34,
       "name": "RapidRaven",
-      "score": 49,
-      "flair": 2131
+      "score": 39,
+      "squad": 1721
     },
     {
       "rank": 35,
       "name": "Rappila",
-      "score": 49,
-      "flair": 2200
+      "score": 39,
+      "squad": 1776
     },
     {
       "rank": 36,
       "name": "Kappiriot",
-      "score": 49,
-      "flair": 1064
+      "score": 38,
+      "squad": 852
     },
     {
       "rank": 37,
       "name": "LEKKORASHI",
-      "score": 49,
-      "flair": 988
+      "score": 38,
+      "squad": 793
     },
     {
       "rank": 38,
       "name": "TurboPanda.RX",
-      "score": 49,
-      "flair": 1335
+      "score": 38,
+      "squad": 1062
     },
     {
       "rank": 39,
       "name": "LuckyBadger.io",
-      "score": 49,
-      "flair": 1041
+      "score": 38,
+      "squad": 834
     },
     {
       "rank": 40,
       "name": "NeonPanda",
-      "score": 49,
-      "flair": 1134
+      "score": 38,
+      "squad": 906
     },
     {
       "rank": 41,
       "name": "VelvetTurtle.Jbq",
-      "score": 49,
-      "flair": 1417
+      "score": 38,
+      "squad": 1126
     },
     {
       "rank": 42,
       "name": "ShadowCloud",
-      "score": 49,
-      "flair": 2052
+      "score": 38,
+      "squad": 1618
     },
     {
       "rank": 43,
       "name": "NeonPixel",
-      "score": 49,
-      "flair": 2041
+      "score": 38,
+      "squad": 1610
     },
     {
       "rank": 44,
       "name": "PrimeBishop",
-      "score": 49,
-      "flair": 3134
+      "score": 37,
+      "squad": 2396
     },
     {
       "rank": 45,
       "name": "Nivenko",
-      "score": 49,
-      "flair": 2114
+      "score": 37,
+      "squad": 1626
     },
     {
       "rank": 46,
       "name": "RealOtter",
-      "score": 49,
-      "flair": 2664
+      "score": 37,
+      "squad": 2041
     },
     {
       "rank": 47,
       "name": "ZULIAKO",
-      "score": 48,
-      "flair": 945
+      "score": 37,
+      "squad": 756
     },
     {
       "rank": 48,
       "name": "NeonMuffin",
-      "score": 48,
-      "flair": 2512
+      "score": 37,
+      "squad": 1964
     },
     {
       "rank": 49,
       "name": "HyperComet",
-      "score": 48,
-      "flair": 3139
+      "score": 37,
+      "squad": 2447
     },
     {
       "rank": 50,
       "name": "Strider257112",
-      "score": 48,
-      "flair": 787
+      "score": 37,
+      "squad": 634
     },
     {
       "rank": 51,
       "name": "RAPPIKO",
-      "score": 48,
-      "flair": 2328
+      "score": 37,
+      "squad": 1822
     },
     {
       "rank": 52,
       "name": "Lezedor",
-      "score": 48,
-      "flair": 1652
+      "score": 37,
+      "squad": 1301
     },
     {
       "rank": 53,
       "name": "Vozenix",
-      "score": 48,
-      "flair": 1972
+      "score": 37,
+      "squad": 1548
     },
     {
       "rank": 54,
       "name": "Sandariot",
-      "score": 48,
-      "flair": 787
+      "score": 36,
+      "squad": 620
     },
     {
       "rank": 55,
       "name": "RealKoala",
-      "score": 48,
-      "flair": 1551
+      "score": 36,
+      "squad": 1193
     },
     {
       "rank": 56,
       "name": "IronFalcon",
-      "score": 48,
-      "flair": 2195
+      "score": 36,
+      "squad": 1676
     },
     {
       "rank": 57,
       "name": "Nirrossi",
-      "score": 48,
-      "flair": 2853
+      "score": 36,
+      "squad": 2170
     },
     {
       "rank": 58,
       "name": "YUGANNIX",
-      "score": 48,
-      "flair": 1228
+      "score": 36,
+      "squad": 951
     },
     {
       "rank": 59,
       "name": "CrimsonKoala",
-      "score": 48,
-      "flair": 2422
+      "score": 36,
+      "squad": 1847
     },
     {
       "rank": 60,
       "name": "Doliala",
-      "score": 48,
-      "flair": 948
+      "score": 36,
+      "squad": 741
     },
     {
       "rank": 61,
       "name": "LuckyTurtle.RX",
-      "score": 48,
-      "flair": 1574
+      "score": 36,
+      "squad": 1210
     },
     {
       "rank": 62,
       "name": "VelvetOtter",
-      "score": 48,
-      "flair": 1838
+      "score": 36,
+      "squad": 1408
     },
     {
       "rank": 63,
       "name": "PrimeDemon",
-      "score": 48,
-      "flair": 1685
+      "score": 36,
+      "squad": 1294
     },
     {
       "rank": 64,
       "name": "GoldenComet",
-      "score": 48,
-      "flair": 1979
+      "score": 36,
+      "squad": 1514
     },
     {
       "rank": 65,
       "name": "YUMBALA",
-      "score": 47,
-      "flair": 3066
+      "score": 36,
+      "squad": 2377
     },
     {
       "rank": 66,
       "name": "MOSHISSI",
-      "score": 47,
-      "flair": 1554
+      "score": 35,
+      "squad": 1188
     },
     {
       "rank": 67,
       "name": "Yukkodor",
-      "score": 47,
-      "flair": 1724
+      "score": 35,
+      "squad": 1315
     },
     {
       "rank": 68,
       "name": "VelvetWolf",
-      "score": 47,
-      "flair": 1062
+      "score": 35,
+      "squad": 821
     },
     {
       "rank": 69,
       "name": "HyperNomad.x",
-      "score": 47,
-      "flair": 985
+      "score": 35,
+      "squad": 764
     },
     {
       "rank": 70,
       "name": "BrilliantRocket",
-      "score": 47,
-      "flair": 2753
+      "score": 35,
+      "squad": 2081
     },
     {
       "rank": 71,
       "name": "Lezela",
-      "score": 47,
-      "flair": 1338
+      "score": 35,
+      "squad": 1027
     },
     {
       "rank": 72,
       "name": "NINDASSI",
-      "score": 47,
-      "flair": 2022
+      "score": 35,
+      "squad": 1536
     },
     {
       "rank": 73,
       "name": "BrilliantBandit",
-      "score": 47,
-      "flair": 2591
+      "score": 35,
+      "squad": 1960
     },
     {
       "rank": 74,
       "name": "WildYeti.x",
-      "score": 47,
-      "flair": 2161
+      "score": 35,
+      "squad": 1640
     },
     {
       "rank": 75,
       "name": "FeralComet",
-      "score": 47,
-      "flair": 787
+      "score": 35,
+      "squad": 616
     },
     {
       "rank": 76,
       "name": "CosmicKoala",
-      "score": 47,
-      "flair": 1907
+      "score": 35,
+      "squad": 1451
     },
     {
       "rank": 77,
       "name": "MadHydra.zz",
-      "score": 47,
-      "flair": 2348
+      "score": 35,
+      "squad": 1779
     },
     {
       "rank": 78,
       "name": "CrimsonPixel",
-      "score": 47,
-      "flair": 1259
+      "score": 35,
+      "squad": 968
     },
     {
       "rank": 79,
       "name": "Scout339648",
-      "score": 47,
-      "flair": 2927
+      "score": 35,
+      "squad": 2210
     },
     {
       "rank": 80,
       "name": "RapidViper",
-      "score": 47,
-      "flair": 911
+      "score": 35,
+      "squad": 709
     },
     {
       "rank": 81,
       "name": "NeonCloud",
-      "score": 47,
-      "flair": 1530
+      "score": 34,
+      "squad": 1140
     },
     {
       "rank": 82,
       "name": "CosmicOtter",
-      "score": 47,
-      "flair": 1736
+      "score": 34,
+      "squad": 1289
     },
     {
       "rank": 83,
       "name": "LEVENRIOT",
-      "score": 47,
-      "flair": 1569
+      "score": 34,
+      "squad": 1168
     },
     {
       "rank": 84,
       "name": "QuietViper",
-      "score": 47,
-      "flair": 2181
+      "score": 34,
+      "squad": 1611
     },
     {
       "rank": 85,
       "name": "MadGoblin.Jbql",
-      "score": 47,
-      "flair": 1362
+      "score": 34,
+      "squad": 1018
     },
     {
       "rank": 86,
       "name": "HISHILA",
-      "score": 47,
-      "flair": 932
+      "score": 34,
+      "squad": 708
     },
     {
       "rank": 87,
       "name": "Tazedor",
-      "score": 47,
-      "flair": 1220
+      "score": 34,
+      "squad": 916
     },
     {
       "rank": 88,
       "name": "SaltyNomad",
-      "score": 47,
-      "flair": 1152
+      "score": 34,
+      "squad": 867
     },
     {
       "rank": 89,
       "name": "Roamer683799",
-      "score": 47,
-      "flair": 2590
+      "score": 34,
+      "squad": 1907
     },
     {
       "rank": 90,
       "name": "Higanko",
-      "score": 46,
-      "flair": 711
+      "score": 34,
+      "squad": 557
     },
     {
       "rank": 91,
       "name": "HyperPanda",
-      "score": 46,
-      "flair": 1811
+      "score": 34,
+      "squad": 1370
     },
     {
       "rank": 92,
       "name": "VelvetPanda.Q",
-      "score": 46,
-      "flair": 1638
+      "score": 34,
+      "squad": 1242
     },
     {
       "rank": 93,
       "name": "Dogannix",
-      "score": 46,
-      "flair": 783
+      "score": 34,
+      "squad": 610
     },
     {
       "rank": 94,
       "name": "MadTurtle.y",
-      "score": 46,
-      "flair": 2330
+      "score": 34,
+      "squad": 1753
     },
     {
       "rank": 95,
       "name": "Nomad940203",
-      "score": 46,
-      "flair": 1194
+      "score": 34,
+      "squad": 914
     },
     {
       "rank": 96,
       "name": "NeonBishop",
-      "score": 46,
-      "flair": 1332
+      "score": 33,
+      "squad": 989
     },
     {
       "rank": 97,
       "name": "Trekker567578",
-      "score": 46,
-      "flair": 2773
+      "score": 33,
+      "squad": 2024
     },
     {
       "rank": 98,
       "name": "HyperGremlin.GG",
-      "score": 46,
-      "flair": 2624
+      "score": 33,
+      "squad": 1916
     },
     {
       "rank": 99,
       "name": "Kakkorashi",
-      "score": 46,
-      "flair": 2269
+      "score": 33,
+      "squad": 1662
     },
     {
       "rank": 100,
       "name": "HyperTurtle",
-      "score": 46,
-      "flair": 1688
+      "score": 33,
+      "squad": 1245
     }
   ],
   "dist": [
     [
-      60,
-      1
-    ],
-    [
-      59,
-      1
-    ],
-    [
-      58,
-      1
-    ],
-    [
-      57,
-      1
-    ],
-    [
-      56,
-      1
-    ],
-    [
-      55,
-      2
-    ],
-    [
-      54,
-      2
-    ],
-    [
-      53,
-      3
-    ],
-    [
-      52,
-      5
-    ],
-    [
-      51,
-      7
-    ],
-    [
-      50,
-      9
-    ],
-    [
       49,
-      13
+      1
     ],
     [
       48,
-      18
+      1
     ],
     [
       47,
-      25
+      1
     ],
     [
       46,
-      34
+      2
     ],
     [
       45,
-      48
+      2
     ],
     [
       44,
-      48
+      2
     ],
     [
       43,
-      61
+      3
     ],
     [
       42,
-      78
+      4
     ],
     [
       41,
-      101
+      5
     ],
     [
       40,
-      129
+      7
     ],
     [
       39,
-      132
+      7
     ],
     [
       38,
-      162
+      8
     ],
     [
       37,
-      199
+      10
     ],
     [
       36,
-      243
+      12
     ],
     [
       35,
-      298
+      15
     ],
     [
       34,
-      291
+      15
     ],
     [
       33,
-      344
+      17
     ],
     [
       32,
-      406
+      21
     ],
     [
       31,
-      478
+      24
     ],
     [
       30,
-      564
+      29
     ],
     [
       29,
-      581
+      29
     ],
     [
       28,
-      673
+      34
     ],
     [
       27,
-      778
+      39
     ],
     [
       26,
-      900
+      46
     ],
     [
       25,
-      881
+      45
     ],
     [
       24,
-      998
+      51
     ],
     [
       23,
-      1130
+      57
     ],
     [
       22,
-      1267
+      64
     ],
     [
       21,
-      1434
+      73
     ],
     [
       20,
-      1490
+      76
     ],
     [
       19,
-      1670
+      85
     ],
     [
       18,
-      1871
+      95
     ],
     [
       17,
-      2097
+      106
     ],
     [
       16,
-      2350
+      119
     ],
     [
       15,
-      2634
+      134
     ],
     [
       14,
-      2952
+      150
     ],
     [
       13,
-      3308
+      168
     ],
     [
       12,
-      3708
+      188
     ],
     [
       11,
-      4155
+      211
     ],
     [
       10,
-      6306
+      320
     ],
     [
       9,
-      7336
+      372
     ],
     [
       8,
-      8535
+      433
     ],
     [
       7,
-      9930
+      504
     ],
     [
       6,
-      11553
+      586
     ],
     [
       5,
-      13441
+      682
     ],
     [
       4,
-      21505
+      1091
     ],
     [
       3,
-      26339
+      1339
     ],
     [
       2,
-      5304
+      269
     ],
     [
       1,
-      5500
+      279
     ]
   ]
 }

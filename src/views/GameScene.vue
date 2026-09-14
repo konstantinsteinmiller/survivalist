@@ -123,6 +123,7 @@ import FReward from '@/components/atoms/FReward.vue'
 import FButton from '@/components/atoms/FButton.vue'
 import CoinBadge from '@/components/organisms/CoinBadge.vue'
 import DailyExpedition from '@/components/organisms/DailyExpedition.vue'
+import AdWeaponOffer from '@/components/organisms/AdWeaponOffer.vue'
 import TreasureChest from '@/components/organisms/TreasureChest.vue'
 import OptionsModal from '@/components/organisms/OptionsModal.vue'
 import UpgradeModal from '@/components/organisms/UpgradeModal.vue'
@@ -447,7 +448,17 @@ const onPointerMove = (e: PointerEvent): void => {
       if (Math.abs(wx) <= LANE_HALF + 0.75) {
         // Hovering over the road IS playing, on a desktop — the crowd is already
         // following the cursor, so the player has had the lesson.
+        //
+        // …and the primer is retired here BECAUSE of that, which it was not.
+        // The note above has always been true and the line below was missing,
+        // so "Click to move" sat over the road for the whole run of every
+        // desktop player who steered the way desktop players steer: the crowd
+        // followed their cursor while the game went on telling them to click.
+        // Nothing else could clear it — `markHintDone` was only reachable from
+        // a pointer press, a key press, or the end of a tutorial a returning
+        // player never sees.
         noteFirstInput()
+        markHintDone('move')
         steerTo(wx)
       }
     }
@@ -549,6 +560,25 @@ const hudTopPx = ref(0)
 const steerHintDone = ref(false)
 const steerHintArmed = ref(false)
 let steerHintTimer: number | null = null
+
+/**
+ * …and the same five seconds for the running "tap/click to move" PILL.
+ *
+ * Its own constant rather than a second use of `STEER_HINT_MS`, because they
+ * are two different elements with two different jobs — the glyph above is
+ * touch-only and sits on the canvas, this is a line of prose in the HUD strip —
+ * and tuning one should not silently move the other. They start on the same
+ * event and currently hold the same value.
+ *
+ * The clock is the BACKSTOP, not the mechanism. A player who steers retires the
+ * pill by steering, which is the honest way for it to go; this is what stops it
+ * hanging over the road for somebody who has not touched anything yet, and it
+ * is measured from the moment the road actually starts moving — so on a first
+ * run it is five seconds of GAMEPLAY, beginning where the controls lightbox
+ * ends rather than at mount, behind it.
+ */
+const MOVE_HINT_MS = 5000
+let moveHintTimer: number | null = null
 
 /** Touch-ish device. A mouse player has a cursor that already steers on hover. */
 const isTouchDevice = mobileCheck()
@@ -2543,9 +2573,21 @@ watch(isLiveGameplay, syncGameplayLifecycle, { immediate: true })
 // splash. Five seconds of gameplay is what was asked for, so it is five seconds
 // of gameplay that it counts.
 watch(isLiveGameplay, (live) => {
-  if (!live || steerHintArmed.value || steerHintDone.value) return
-  steerHintArmed.value = true
-  steerHintTimer = window.setTimeout(retireSteerHint, STEER_HINT_MS)
+  if (!live) return
+  if (!steerHintArmed.value && !steerHintDone.value) {
+    steerHintArmed.value = true
+    steerHintTimer = window.setTimeout(retireSteerHint, STEER_HINT_MS)
+  }
+  // The pill's own clock, armed once. `isLiveGameplay` goes false and true
+  // again for every modal, ad and paused tab, so the guards matter: a timer
+  // that re-armed on each of those would keep resetting the five seconds, and
+  // one that armed twice would leave a stray callback behind.
+  if (moveHintTimer === null && !hintsDone.value.has('move')) {
+    moveHintTimer = window.setTimeout(() => {
+      moveHintTimer = null
+      markHintDone('move')
+    }, MOVE_HINT_MS)
+  }
 })
 
 // ─── Boot ───────────────────────────────────────────────────────────────────
@@ -2660,6 +2702,11 @@ onUnmounted(() => {
   if (crowdCashTimer !== null) clearTimeout(crowdCashTimer)
   if (guardianTimer !== null) clearTimeout(guardianTimer)
   if (musicWipeTimer !== null) clearTimeout(musicWipeTimer)
+  // Both hint clocks. `steerHintTimer` was never torn down here — it only ever
+  // cleared itself from `retireSteerHint`, so a scene left before its five
+  // seconds were up fired a callback into a dead component.
+  if (moveHintTimer !== null) clearTimeout(moveHintTimer)
+  if (steerHintTimer !== null) clearTimeout(steerHintTimer)
   cancelAnimationFrame(rafId)
   window.removeEventListener('resize', resize)
   window.removeEventListener('orientationchange', onOrientationChange)
@@ -2855,38 +2902,52 @@ onUnmounted(() => {
 
       //- ── Bottom bar ────────────────────────────────────────────────────
       div.scene__bottom(ref="bottomBarRef")
-        div.scene__meta
-          FMuteButton
-          //- Gone entirely — not disabled — on a build with no endpoint. A
-          //- button that opens an empty board is worse than no button.
-          FHudButton(
-            v-if="leaderboardEnabled"
-            tone="slate"
-            icon="leaderboard"
-            :aria-label="t('leaderboard.title')"
-            @click="showLeaderboard = true"
-          )
-          FHudButton(
-            tone="slate"
-            icon="settings"
-            :aria-label="t('options.title')"
-            @click="showOptions = true"
-          )
-          //- ── The daily expedition ──────────────────────────────────────
+        div.scene__left
+          //- ── The rewarded weapon ─────────────────────────────────────────
           //-
-          //- On the HUD rather than in a menu, because this game HAS no menu:
-          //- it boots straight into a stage and there is always a run in
-          //- flight, so the bottom meta cluster is the only home a
-          //- between-runs control could ever have had. It closes that cluster
-          //- rather than opening it — the three buttons to its left are
-          //- established positions and a feature that arrives later does not
-          //- get to move them — and it is the only gold thing in a row of grey
-          //- glyphs on the days it has something to offer.
+          //- Above the mute button rather than beside it, and that is the whole
+          //- of the placement decision. The meta row is four established
+          //- positions the player reaches for without looking; a control that
+          //- costs thirty seconds of video does not get to join a row where a
+          //- thumb lands by habit. Its own line, its own colour.
           //-
-          //- It hides itself entirely below the unlock and states its own
-          //- cooldown when it is spent, so it never needs a popup to explain
-          //- itself. See `DailyExpedition.vue`.
-          DailyExpedition(@start="onStartExpedition")
+          //- Gone while gameplay is not live, which includes the ad it
+          //- requests. Everything that has to outlive that — spent-ness, the
+          //- attention cadence, the claim in flight — is at module scope in
+          //- `useWeaponOffer.ts`.
+          AdWeaponOffer(v-if="isLiveGameplay")
+          div.scene__meta
+            FMuteButton
+            //- Gone entirely — not disabled — on a build with no endpoint. A
+            //- button that opens an empty board is worse than no button.
+            FHudButton(
+              v-if="leaderboardEnabled"
+              tone="slate"
+              icon="leaderboard"
+              :aria-label="t('leaderboard.title')"
+              @click="showLeaderboard = true"
+            )
+            FHudButton(
+              tone="slate"
+              icon="settings"
+              :aria-label="t('options.title')"
+              @click="showOptions = true"
+            )
+            //- ── The daily expedition ──────────────────────────────────────
+            //-
+            //- On the HUD rather than in a menu, because this game HAS no menu:
+            //- it boots straight into a stage and there is always a run in
+            //- flight, so the bottom meta cluster is the only home a
+            //- between-runs control could ever have had. It closes that cluster
+            //- rather than opening it — the three buttons to its left are
+            //- established positions and a feature that arrives later does not
+            //- get to move them — and it is the only gold thing in a row of grey
+            //- glyphs on the days it has something to offer.
+            //-
+            //- It hides itself entirely below the unlock and states its own
+            //- cooldown when it is spent, so it never needs a popup to explain
+            //- itself. See `DailyExpedition.vue`.
+            DailyExpedition(@start="onStartExpedition")
 
         div.scene__shop
           span.scene__spotlight(v-if="showShopSpotlight") {{ t('upgrades.spotlight') }}
@@ -3215,6 +3276,15 @@ onUnmounted(() => {
   justify-content: space-between
   gap: clamp(0.3rem, 2vw, 0.7rem)
   padding: 0 calc(clamp(0.35rem, 2vw, 0.7rem) + env(safe-area-inset-right, 0px)) calc(clamp(0.4rem, 2.4vw, 0.8rem) + env(safe-area-inset-bottom, 0px)) calc(clamp(0.35rem, 2vw, 0.7rem) + env(safe-area-inset-left, 0px))
+
+// The bottom-left stack: the rewarded weapon offer on top, the meta row under
+// it. A column rather than a fifth chip in the row — see the template.
+.scene__left
+  display: flex
+  flex-direction: column
+  align-items: flex-start
+  gap: clamp(0.3rem, 1.6vw, 0.5rem)
+  pointer-events: none
 
 .scene__meta
   display: flex

@@ -49,6 +49,11 @@ export default {
     'gatling': 'Gatling'
   },
 
+  'offer': {
+    'confirm': 'Video ansehen',
+    'available': 'Video ansehen und {weapon} gratis erhalten'
+  },
+
   'tutorial': {
     'touch': 'Wische, um deinen Trupp zu bewegen',
     'desktop': 'Bewege die Maus, um deinen Trupp zu lenken'

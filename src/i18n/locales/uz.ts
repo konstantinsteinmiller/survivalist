@@ -49,6 +49,11 @@ export default {
     'gatling': 'Gatling pulemyoti'
   },
 
+  'offer': {
+    'confirm': 'Reklamani koʻrish',
+    'available': 'Videoni koʻring va {weapon} ni bepul oling'
+  },
+
   'tutorial': {
     'touch': 'Otryadni harakatlantirish uchun suring',
     'desktop': 'Otryadni boshqarish uchun sichqonchani suring'
