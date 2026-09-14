@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Harakat uchun bosing', 'desktop': 'Harakat uchun bosing' },
-    'gate': { 'touch': 'Darvozaga otishda davom eting: har yarim soniyada +1', 'desktop': 'Darvozaga otishda davom eting: har yarim soniyada +1' },
     'trap': { 'touch': 'Qizil darvoza guruhni KAMAYTIRADI — boshqasini tanlang!', 'desktop': 'Qizil darvoza guruhni KAMAYTIRADI — boshqasini tanlang!' },
     'divider': { 'touch': 'Darvozalar orasidagi ustunga hech tegmang', 'desktop': 'Darvozalar orasidagi ustunga hech tegmang' },
     'crate': { 'touch': 'Yashil sandiq: hamma kuchliroq uradi', 'desktop': 'Yashil sandiq: hamma kuchliroq uradi' },
     'rate': { 'touch': 'Ko‘k sandiq: hamma tezroq otadi', 'desktop': 'Ko‘k sandiq: hamma tezroq otadi' },
-    'boss': { 'touch': 'Qizil doiradan uzoqroq turing!', 'desktop': 'Qizil doiradan uzoqroq turing!' },
     'lever': { 'touch': 'Yo‘l chetidagi IKKALA richagni ham ot — ular qurol sandig‘ini ochadi', 'desktop': 'Yo‘l chetidagi IKKALA richagni ham ot — ular qurol sandig‘ini ochadi' },
-    'guard': { 'touch': 'Qalqon yoqilgan — o‘qlaring hozircha o‘tmaydi', 'desktop': 'Qalqon yoqilgan — o‘qlaring hozircha o‘tmaydi' },
     'cage': { 'touch': 'Qafaslarni otib och — mahbuslar otryadingga qo‘shiladi', 'desktop': 'Qafaslarni otib och — mahbuslar otryadingga qo‘shiladi' },
     'shieldBox': { 'touch': 'Qalqon quti — kutadi va bitta kuchli zarbani to‘xtatadi', 'desktop': 'Qalqon quti — kutadi va bitta kuchli zarbani to‘xtatadi' }
   },

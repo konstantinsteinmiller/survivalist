@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Dotknij, aby się ruszyć', 'desktop': 'Kliknij, aby się ruszyć' },
-    'gate': { 'touch': 'Strzelaj w bramę: +1 co pół sekundy', 'desktop': 'Strzelaj w bramę: +1 co pół sekundy' },
     'trap': { 'touch': 'Czerwone bramy ZMNIEJSZAJĄ oddział — wybierz drugą!', 'desktop': 'Czerwone bramy ZMNIEJSZAJĄ oddział — wybierz drugą!' },
     'divider': { 'touch': 'Nigdy nie dotykaj filaru między bramami', 'desktop': 'Nigdy nie dotykaj filaru między bramami' },
     'crate': { 'touch': 'Zielone skrzynie: każdy bije mocniej', 'desktop': 'Zielone skrzynie: każdy bije mocniej' },
     'rate': { 'touch': 'Niebieskie skrzynie: każdy strzela szybciej', 'desktop': 'Niebieskie skrzynie: każdy strzela szybciej' },
-    'boss': { 'touch': 'Trzymaj się z dala od czerwonego kręgu!', 'desktop': 'Trzymaj się z dala od czerwonego kręgu!' },
     'lever': { 'touch': 'Zestrzel OBIE dźwignie przy krawędziach — otwierają skrzynię z bronią', 'desktop': 'Zestrzel OBIE dźwignie przy krawędziach — otwierają skrzynię z bronią' },
-    'guard': { 'touch': 'Tarcza w górze — strzały jeszcze go nie ranią', 'desktop': 'Tarcza w górze — strzały jeszcze go nie ranią' },
     'cage': { 'touch': 'Strzelaj do klatek — więźniowie dołączą do oddziału', 'desktop': 'Strzelaj do klatek — więźniowie dołączą do oddziału' },
     'shieldBox': { 'touch': 'Skrzynia tarczy — czeka i blokuje jeden duży cios', 'desktop': 'Skrzynia tarczy — czeka i blokuje jeden duży cios' }
   },

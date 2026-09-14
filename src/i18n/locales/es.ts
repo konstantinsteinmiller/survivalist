@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Toca para moverte', 'desktop': 'Haz clic para moverte' },
-    'gate': { 'touch': 'Sigue disparando a la puerta: +1 cada medio segundo', 'desktop': 'Sigue disparando a la puerta: +1 cada medio segundo' },
     'trap': { 'touch': 'Las puertas rojas RESTAN gente: ¡ve por la otra!', 'desktop': 'Las puertas rojas RESTAN gente: ¡ve por la otra!' },
     'divider': { 'touch': 'Nunca toques el pilar entre las puertas', 'desktop': 'Nunca toques el pilar entre las puertas' },
     'crate': { 'touch': 'Cajas verdes: todos golpean más fuerte', 'desktop': 'Cajas verdes: todos golpean más fuerte' },
     'rate': { 'touch': 'Cajas azules: todos disparan más rápido', 'desktop': 'Cajas azules: todos disparan más rápido' },
-    'boss': { 'touch': '¡Mantente fuera del círculo rojo!', 'desktop': '¡Mantente fuera del círculo rojo!' },
     'lever': { 'touch': 'Dispara a las DOS palancas de los bordes: abren la caja de armas', 'desktop': 'Dispara a las DOS palancas de los bordes: abren la caja de armas' },
-    'guard': { 'touch': 'Escudo activo: tus disparos aún no le hacen daño', 'desktop': 'Escudo activo: tus disparos aún no le hacen daño' },
     'cage': { 'touch': 'Dispara a las jaulas: los prisioneros se unen a tu escuadra', 'desktop': 'Dispara a las jaulas: los prisioneros se unen a tu escuadra' },
     'shieldBox': { 'touch': 'Caja escudo: espera y bloquea un gran golpe', 'desktop': 'Caja escudo: espera y bloquea un gran golpe' }
   },

@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': '点击移动', 'desktop': '点击移动' },
-    'gate': { 'touch': '持续射击闸门：每半秒 +1', 'desktop': '持续射击闸门：每半秒 +1' },
     'trap': { 'touch': '红色闸门会减少人数——走另一边！', 'desktop': '红色闸门会减少人数——走另一边！' },
     'divider': { 'touch': '千万别碰闸门之间的柱子', 'desktop': '千万别碰闸门之间的柱子' },
     'crate': { 'touch': '绿色箱子：全队伤害提升', 'desktop': '绿色箱子：全队伤害提升' },
     'rate': { 'touch': '蓝色箱子：全队射速提升', 'desktop': '蓝色箱子：全队射速提升' },
-    'boss': { 'touch': '远离红圈！', 'desktop': '远离红圈！' },
     'lever': { 'touch': '击中路两侧的两个拉杆 —— 它们会打开武器箱', 'desktop': '击中路两侧的两个拉杆 —— 它们会打开武器箱' },
-    'guard': { 'touch': '护盾开启——射击暂时无效', 'desktop': '护盾开启——射击暂时无效' },
     'cage': { 'touch': '射击囚笼——被救的人会加入队伍', 'desktop': '射击囚笼——被救的人会加入队伍' },
     'shieldBox': { 'touch': '护盾箱——待命并挡下一次重击', 'desktop': '护盾箱——待命并挡下一次重击' }
   },

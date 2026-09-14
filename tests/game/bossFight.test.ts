@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   BOSS_GUARD_GATES, BOSS_MIN_KILL, ELITE_HOLD_AHEAD, ELITE_HOLD_MAX,
   ELITE_SWEEP_FRACTION, SLAM_CD_BASE, SLAM_CD_MIN, SLAM_MAX_FRACTION, SLAM_RADIUS,
-  SLAM_RADIUS_MAX, biteShareFor
+  SLAM_RADIUS_MAX, biteShareFor, CROWD_MAX_R, LANE_HALF
 } from '@/game/survival'
-import { minibossKindFor } from '@/game/threats'
+import { chargeHalfW, minibossKindFor } from '@/game/threats'
 import { drainFx, type FxEvent } from '@/use/useVfx'
 import { bossKindFor } from '@/game/threats'
 
@@ -54,6 +54,9 @@ beforeEach(async () => {
 })
 
 /** Fast-forward to the boss with a squad big enough to delete it instantly. */
+/** `steerTo`'s own clamp — how far the crowd's centre can actually go. */
+const STEER_REACH = LANE_HALF - 0.4
+
 const reachBoss = async (game: Game, units = 900, dmg = 400): Promise<FxEvent[]> => {
   game.startStage(SLAM_STAGE)
   game.debugAddUnits(units)
@@ -66,6 +69,22 @@ const reachBoss = async (game: Game, units = 900, dmg = 400): Promise<FxEvent[]>
   drainFx()
   const seen: FxEvent[] = []
   for (let i = 0; i < 9000; i++) {
+    // ── It steps OUT OF THE COLUMN while a charge is wound up ──
+    //
+    // It used to stand still, which was fine while a charge was priced at a
+    // slam's share of the crowd. It is now priced at three quarters of the
+    // bodies it runs over (`CHARGE_KILL_SHARE`), so a crowd that never moves
+    // loses most of itself at each of the two swings the guard gates owe and
+    // wipes before it can pay them off — which would read here as "the boss
+    // skipped a guard phase" when what actually happened is the thing this
+    // change was made to cause. The subject of this spec is the GATES; a crowd
+    // that answers the swing is the one that gets to watch both of them.
+    const b = game.getBoss()
+    if (b && game.bossIsCharging()) {
+      const need = chargeHalfW(b.slams) + CROWD_MAX_R + 0.3
+      const left = b.slamX - need
+      game.steerTo(Math.abs(left) <= STEER_REACH ? left : b.slamX + need)
+    }
     game.step(STEP_MS)
     seen.push(...drainFx())
     if (game.phase.value === 'clear' || game.phase.value === 'wipe') break

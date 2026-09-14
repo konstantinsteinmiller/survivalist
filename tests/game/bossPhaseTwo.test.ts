@@ -31,7 +31,8 @@ import {
   SLAM_MAX_FRACTION, endlessPressure
 } from '@/game/survival'
 import {
-  BOSS_ENRAGE_AT, BOSS_ENRAGE_FROM_STAGE, CHARGE_OVERRUN, CHARGE_TELEGRAPH_MIN,
+  BOSS_ENRAGE_AT, BOSS_ENRAGE_FROM_STAGE, CHARGE_KILL_SHARE, CHARGE_OVERRUN,
+  CHARGE_TELEGRAPH_MIN,
   ENRAGED_CD_MUL, HEALER_CAST_CD, HEALER_TELEGRAPH, SUMMON_CD, SUMMON_TELEGRAPH,
   THREAT_POOL_FROM_STAGE,
   bossCharges, bossKindFor, chargeHalfW, enragedSpan, type BossKind
@@ -461,11 +462,22 @@ describe('the lane charge is a dodge and not a tax', () => {
       .toBeLessThan(stood.share * 0.25)
   })
 
-  it('never bills more than the swing it replaced', async () => {
-    // A charge is a change of SHAPE, not a second damage number: it takes the
-    // cycle it arrives on instead of adding one, and it is priced at exactly a
-    // slam's share with no unbudgeted core under it. Measured against the ceiling
-    // the design already set on what one attack may take.
+  it('never bills more of the crowd than it ran over', async () => {
+    // ── This used to read "never bills more than the swing it replaced" ──
+    //
+    // It pinned a charge to a slam's share of the CROWD, and that was the bug
+    // rather than the contract: a charge is a column the crowd either is or is
+    // not standing in, so a third of everybody meant a crowd could eat one
+    // head-on, pay a third, and keep the DPS that dodging costs. Standing in it
+    // was the better line, which makes a 1.5 s telegraph decoration.
+    //
+    // The price is now `CHARGE_KILL_SHARE` of the bodies IN THE LANE — see
+    // `tests/game/bossChargeLethality.test.ts`, which measures that directly
+    // against the swathe the fx event reports. What is still true here, and is
+    // what this spec is for, is the SHAPE: a charge takes the cycle it arrives
+    // on rather than adding one, and it cannot bill a body it did not run over.
+    // With the crowd parked in the column its share of the crowd is therefore
+    // bounded by its share of the lane, and that is the ceiling below.
     const { ticks } = await watch({
       stage: METEOR_STAGE,
       squad: 400,
@@ -478,7 +490,7 @@ describe('the lane charge is a dodge and not a tax', () => {
     for (const t of hits) {
       const share = (t.before - t.after) / Math.max(1, t.before)
       expect(share, `one charge took ${(share * 100).toFixed(0)}% of the crowd`)
-        .toBeLessThanOrEqual(SLAM_MAX_FRACTION * endlessPressure(METEOR_STAGE) + 0.02)
+        .toBeLessThanOrEqual(CHARGE_KILL_SHARE + 0.02)
     }
   })
 })

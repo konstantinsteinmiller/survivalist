@@ -182,16 +182,6 @@ export const SKILL_REVEALED_KEY = 'ts_skills_revealed'
  * save that crossed stage 4 before the trial existed still gets its one use.
  */
 export const FROST_TRIAL_KEY = 'ts_frost_trial'
-/**
- * One-time "the boss shielded and your fire stopped working" primer.
- *
- * Deliberately NOT covered by `ONBOARDED_KEY`. Onboarding retires after the
- * first cleared stage, which is fine for the primers that teach the controls —
- * but the boss guard is a rule that arrived after players already had saves,
- * and every one of them is `onboarded`. Without its own flag the mechanic most
- * likely to read as a bug is the one mechanic nobody is ever told about.
- */
-export const GUARD_HINT_KEY = 'ts_guard_hint_seen'
 
 /**
  * The lever-puzzle primer has been shown.

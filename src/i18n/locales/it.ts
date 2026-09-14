@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Tocca per muoverti', 'desktop': 'Clicca per muoverti' },
-    'gate': { 'touch': 'Continua a sparare al cancello: +1 ogni mezzo secondo', 'desktop': 'Continua a sparare al cancello: +1 ogni mezzo secondo' },
     'trap': { 'touch': 'I cancelli rossi RIDUCONO la squadra: prendi l’altro!', 'desktop': 'I cancelli rossi RIDUCONO la squadra: prendi l’altro!' },
     'divider': { 'touch': 'Non toccare mai il pilastro tra i cancelli', 'desktop': 'Non toccare mai il pilastro tra i cancelli' },
     'crate': { 'touch': 'Casse verdi: tutti colpiscono più forte', 'desktop': 'Casse verdi: tutti colpiscono più forte' },
     'rate': { 'touch': 'Casse blu: tutti sparano più veloce', 'desktop': 'Casse blu: tutti sparano più veloce' },
-    'boss': { 'touch': 'Stai fuori dal cerchio rosso!', 'desktop': 'Stai fuori dal cerchio rosso!' },
     'lever': { 'touch': 'Colpisci ENTRAMBE le leve ai bordi: aprono la cassa delle armi', 'desktop': 'Colpisci ENTRAMBE le leve ai bordi: aprono la cassa delle armi' },
-    'guard': { 'touch': 'Scudo attivo: i tuoi colpi non lo feriscono ancora', 'desktop': 'Scudo attivo: i tuoi colpi non lo feriscono ancora' },
     'cage': { 'touch': 'Spara alle gabbie: i prigionieri si uniscono alla squadra', 'desktop': 'Spara alle gabbie: i prigionieri si uniscono alla squadra' },
     'shieldBox': { 'touch': 'Cassa scudo: aspetta, poi blocca un colpo grosso', 'desktop': 'Cassa scudo: aspetta, poi blocca un colpo grosso' }
   },

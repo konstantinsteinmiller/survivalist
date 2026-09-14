@@ -7,10 +7,15 @@ import en from '@/i18n/locales/en'
  * ─── Two instructions may never share a frame ───────────────────────────────
  *
  * At the first boss, the gaze attack raises "Hold still" in the warning badge
- * while the control primer's guard pill explains that the boss's shield is up.
- * In the build a first-contact playtest saw, those two were telling the player
- * opposite things in the first minute of the game, on the frame that decides the
- * fight; one tester lost 38 of 41 survivors standing in the middle of it.
+ * while a control primer underneath explains something about the road. In the
+ * build a first-contact playtest saw, those two were telling the player opposite
+ * things in the first minute of the game, on the frame that decides the fight;
+ * one tester lost 38 of 41 survivors standing in the middle of it.
+ *
+ * The boss's own primers are gone now — the badge says everything a swing
+ * leaves time to read — but the rule is not about the boss. Any warning
+ * outranks any primer, and the pill it outranks is whichever one the road
+ * happened to raise, so the sample here is an ordinary roadside one.
  *
  * The fix has two halves in two files. The scene decides WHEN a primer is
  * outranked — a warning is about this second, a primer is about the game — and
@@ -34,19 +39,19 @@ const mountHint = async (props: Record<string, unknown>) => {
 
 describe('a hint can be held quiet from outside', () => {
   it('shows the pill by default — the flag has to be asked for', async () => {
-    const hint = await mountHint({ hint: 'guard' })
+    const hint = await mountHint({ hint: 'lever' })
     expect(hint.find('.control-hint').exists()).toBe(true)
     expect(hint.find('.control-hint__text').text().length).toBeGreaterThan(0)
   })
 
   it('hides the pill while suppressed and gives back the SAME one after', async () => {
-    const hint = await mountHint({ hint: 'guard' })
+    const hint = await mountHint({ hint: 'lever' })
     const said = hint.find('.control-hint__text').text()
 
     await hint.setProps({ suppressed: true })
     expect(hint.find('.control-hint').exists(), 'the pill stayed up next to the warning').toBe(false)
     // The lesson is still the run's — nothing was taught and nothing retired.
-    expect(hint.props('hint')).toBe('guard')
+    expect(hint.props('hint')).toBe('lever')
 
     await hint.setProps({ suppressed: false })
     expect(hint.find('.control-hint').exists(), 'the hint did not come back').toBe(true)
@@ -64,9 +69,9 @@ describe('a hint can be held quiet from outside', () => {
     // Both paths go through the one `v-if` inside the component's own
     // `Transition`, which is the whole reason they cannot diverge: there is a
     // single condition, so there is a single way off the screen.
-    const retired = await mountHint({ hint: 'guard' })
+    const retired = await mountHint({ hint: 'lever' })
     await retired.setProps({ hint: null })
-    const quieted = await mountHint({ hint: 'guard' })
+    const quieted = await mountHint({ hint: 'lever' })
     await quieted.setProps({ suppressed: true })
     expect(quieted.html()).toBe(retired.html())
   })
@@ -103,7 +108,7 @@ describe('the pill is timed off its transition, not its infinite animation', () 
     }
     const ControlHint = (await import('@/components/game/ControlHint.vue')).default
     mount(ControlHint, {
-      props: { hint: 'guard' },
+      props: { hint: 'lever' },
       global: { plugins: [i18n], stubs: { transition: TransitionSpy } }
     })
     expect(seen.length, 'the pill stopped being wrapped in a Transition').toBe(1)

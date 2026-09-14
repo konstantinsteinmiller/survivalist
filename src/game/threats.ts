@@ -904,6 +904,39 @@ export const CHARGE_DASH_S = 0.38
  */
 export const CHARGE_OVERRUN = 1.2
 
+/**
+ * ─── What standing in a charge costs ────────────────────────────────────────
+ *
+ * Three quarters of everybody it runs over, and this is the ONE attack in the
+ * game whose price is a share of the bodies HIT rather than a share of the
+ * crowd.
+ *
+ * Every other swing is priced by `bossHitShare` — about a third of the whole
+ * squad, whoever it reaches — and for a ring that is right: a ring is a place,
+ * the crowd is partly in it, and "a third of your people" is what being caught
+ * in one means. Applied to a charge it produces the opposite of an attack. The
+ * charge is a COLUMN the crowd either is or is not standing in, so a crowd that
+ * eats it head-on has every body inside the swathe and still loses only the
+ * third the whole-squad share allows. Measured on the shipped build, the
+ * dominant reading of phase two was therefore: hold the lane, keep firing, pay
+ * a third, and take the DPS you gave up by dodging instead. The dodge — the
+ * 3.55-unit lateral commitment the whole 1.5 s telegraph is built around — was
+ * the worse line.
+ *
+ * At three quarters of those hit, standing in it costs most of the run and the
+ * telegraph is worth reading. A crowd that is only clipped by the edge of the
+ * swathe still pays three quarters OF THE CLIPPED BODIES, which is the other
+ * half of the point: the price scales with how wrong the line was, so a late
+ * half-dodge is worth making.
+ *
+ * ⚠ It is still scaled by every relief the game applies to a big hit
+ * (`bossSwingMul`, `slamRelief`) — the onboarding discount and the stuck-player
+ * concession both reach it, exactly as they reach the slam. A first-timer on
+ * stage 1 meets 45 % of those hit, not 75 %. This is the ceiling, not a
+ * constant, for the same reason `SLAM_FRACTION_MAX` is.
+ */
+export const CHARGE_KILL_SHARE = 0.75
+
 // ─── The claw ───────────────────────────────────────────────────────────────
 //
 // Three parallel gouges down the road with clear pockets between them. Not a

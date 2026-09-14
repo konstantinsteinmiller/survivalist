@@ -92,3 +92,6 @@ __screenshots__/
 # Recorded preview clips (tools/preview-video) — build artifacts, and a
 # lossless 30 s 1080p master runs to well over a hundred megabytes.
 /preview-videos/
+
+# Written by `pnpm deploy:poki` (tools/poki-deploy) — one run’s QA evidence.
+/poki-qa-report.json

@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Touche pour te déplacer', 'desktop': 'Clique pour te déplacer' },
-    'gate': { 'touch': 'Continue de tirer sur la porte : +1 toutes les demi-secondes', 'desktop': 'Continue de tirer sur la porte : +1 toutes les demi-secondes' },
     'trap': { 'touch': 'Les portes rouges RÉDUISENT ton escouade : prends l’autre !', 'desktop': 'Les portes rouges RÉDUISENT ton escouade : prends l’autre !' },
     'divider': { 'touch': 'Ne touche jamais le pilier entre les portes', 'desktop': 'Ne touche jamais le pilier entre les portes' },
     'crate': { 'touch': 'Caisses vertes : tous frappent plus fort', 'desktop': 'Caisses vertes : tous frappent plus fort' },
     'rate': { 'touch': 'Caisses bleues : tous tirent plus vite', 'desktop': 'Caisses bleues : tous tirent plus vite' },
-    'boss': { 'touch': 'Reste hors du cercle rouge !', 'desktop': 'Reste hors du cercle rouge !' },
     'lever': { 'touch': 'Tire sur les DEUX leviers au bord de la route — ils ouvrent la caisse', 'desktop': 'Tire sur les DEUX leviers au bord de la route — ils ouvrent la caisse' },
-    'guard': { 'touch': 'Bouclier levé — tes tirs ne l’atteignent pas encore', 'desktop': 'Bouclier levé — tes tirs ne l’atteignent pas encore' },
     'cage': { 'touch': 'Tire sur les cages — les prisonniers rejoignent ta troupe', 'desktop': 'Tire sur les cages — les prisonniers rejoignent ta troupe' },
     'shieldBox': { 'touch': 'Caisse bouclier — elle attend, puis bloque un gros coup', 'desktop': 'Caisse bouclier — elle attend, puis bloque un gros coup' }
   },

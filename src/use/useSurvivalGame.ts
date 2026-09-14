@@ -138,7 +138,7 @@ import {
   bossKindFor,
   bossPatternSeed,
   bossVerbPool,
-  chargeHalfW,
+  chargeHalfW, CHARGE_KILL_SHARE,
   chargeWindup,
   clawCoreHalfW,
   clawFurrowHalfW,
@@ -8487,15 +8487,29 @@ const throwBossCharge = (b: Boss): void => {
     fromY: bossChargeFromY
   })
 
-  let budget = bossHitBudget(bossHitShare())
+  // ── Priced on the bodies it RUNS OVER, not on the crowd ──
+  //
+  // The one attack in the game that is billed this way, and `CHARGE_KILL_SHARE`
+  // carries the whole argument: a charge is a column the crowd either is or is
+  // not standing in, so the whole-squad share every other swing uses let a crowd
+  // eat one head-on for a third of itself and keep firing. Three quarters of
+  // whoever is in the lane, scaled by the same reliefs as any other big hit.
+  const inLane = (u: Unit): boolean =>
+    u.y <= bossChargeFromY && Math.abs(u.x - bossChargeLane) <= bossChargeHalfW
+  let caught = 0
+  for (const u of units) if (u.dying <= 0 && inLane(u)) caught++
+  // The FLOOR is still the crowd-wide one: it exists so a thinned-out squad
+  // still feels a hit, and it is bounded by the shape either way — the loop
+  // below can only ever kill bodies the lane test already matched.
+  let budget = Math.max(
+    bossHitFloor(),
+    Math.ceil(caught * CHARGE_KILL_SHARE * bossSwingMul * slamRelief)
+  )
   // Same lane test the kill loop uses, not the swept rectangle — see the note
   // above on why the kill is the column. The pickup has to price the attack the
   // sim actually resolves, or it would veto a charge on bodies the charge was
   // never going to bill.
-  if (absorbedBlow(
-    budget, bossChargeLane, bossChargeToY,
-    (u) => u.y <= bossChargeFromY && Math.abs(u.x - bossChargeLane) <= bossChargeHalfW
-  )) return
+  if (absorbedBlow(budget, bossChargeLane, bossChargeToY, inLane)) return
   for (const u of units) {
     if (budget <= 0) break
     if (u.dying > 0) continue

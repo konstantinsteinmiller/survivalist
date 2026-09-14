@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Chạm để di chuyển', 'desktop': 'Nhấp để di chuyển' },
-    'gate': { 'touch': 'Bắn liên tục vào cổng: +1 mỗi nửa giây', 'desktop': 'Bắn liên tục vào cổng: +1 mỗi nửa giây' },
     'trap': { 'touch': 'Cổng đỏ LÀM GIẢM quân — chọn bên kia!', 'desktop': 'Cổng đỏ LÀM GIẢM quân — chọn bên kia!' },
     'divider': { 'touch': 'Đừng bao giờ chạm cột giữa hai cổng', 'desktop': 'Đừng bao giờ chạm cột giữa hai cổng' },
     'crate': { 'touch': 'Thùng xanh lá: cả đội đánh mạnh hơn', 'desktop': 'Thùng xanh lá: cả đội đánh mạnh hơn' },
     'rate': { 'touch': 'Thùng xanh dương: cả đội bắn nhanh hơn', 'desktop': 'Thùng xanh dương: cả đội bắn nhanh hơn' },
-    'boss': { 'touch': 'Tránh xa vòng tròn đỏ!', 'desktop': 'Tránh xa vòng tròn đỏ!' },
     'lever': { 'touch': 'Bắn CẢ HAI cần gạt ở hai bên đường — chúng mở hòm vũ khí', 'desktop': 'Bắn CẢ HAI cần gạt ở hai bên đường — chúng mở hòm vũ khí' },
-    'guard': { 'touch': 'Khiên bật — đạn chưa xuyên được', 'desktop': 'Khiên bật — đạn chưa xuyên được' },
     'cage': { 'touch': 'Bắn vào lồng — tù nhân sẽ gia nhập đội', 'desktop': 'Bắn vào lồng — tù nhân sẽ gia nhập đội' },
     'shieldBox': { 'touch': 'Hộp khiên — chờ sẵn rồi chặn một đòn lớn', 'desktop': 'Hộp khiên — chờ sẵn rồi chặn một đòn lớn' }
   },

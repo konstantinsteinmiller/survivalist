@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Hareket için dokun', 'desktop': 'Hareket için tıkla' },
-    'gate': { 'touch': 'Kapıya ateş etmeye devam et: her yarım saniyede +1', 'desktop': 'Kapıya ateş etmeye devam et: her yarım saniyede +1' },
     'trap': { 'touch': 'Kırmızı kapı ekibi AZALTIR — diğerine geç!', 'desktop': 'Kırmızı kapı ekibi AZALTIR — diğerine geç!' },
     'divider': { 'touch': 'Kapılar arasındaki direğe asla dokunma', 'desktop': 'Kapılar arasındaki direğe asla dokunma' },
     'crate': { 'touch': 'Yeşil sandık: herkes daha sert vurur', 'desktop': 'Yeşil sandık: herkes daha sert vurur' },
     'rate': { 'touch': 'Mavi sandık: herkes daha hızlı ateş eder', 'desktop': 'Mavi sandık: herkes daha hızlı ateş eder' },
-    'boss': { 'touch': 'Kırmızı halkanın dışında kal!', 'desktop': 'Kırmızı halkanın dışında kal!' },
     'lever': { 'touch': 'Yol kenarındaki HER İKİ kolu da vur — silah sandığını açarlar', 'desktop': 'Yol kenarındaki HER İKİ kolu da vur — silah sandığını açarlar' },
-    'guard': { 'touch': 'Kalkan açık — atışların henüz işlemiyor', 'desktop': 'Kalkan açık — atışların henüz işlemiyor' },
     'cage': { 'touch': 'Kafeslere ateş et — tutsaklar takımına katılır', 'desktop': 'Kafeslere ateş et — tutsaklar takımına katılır' },
     'shieldBox': { 'touch': 'Kalkan sandığı — bekler, sonra bir büyük darbeyi engeller', 'desktop': 'Kalkan sandığı — bekler, sonra bir büyük darbeyi engeller' }
   },

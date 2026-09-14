@@ -1,6 +1,6 @@
 {
   "name": "survivalist",
-  "version": "3.0.0",
+  "version": "3.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,6 +18,7 @@
     "build:gamemonetize": "vite build --mode gamemonetize --base=./ && cd dist && tar -a -cf ../survivalist-gamemonetize.zip * && cd .. && move survivalist-gamemonetize.zip dist\\",
     "build:yandex": "vite build --mode yandex --base=./ && cd dist && tar -a -cf ../survivalist-yandex.zip * && cd .. && move survivalist-yandex.zip dist\\",
     "build:poki": "vite build --mode poki --base=./ && cd dist && tar -a -cf ../survivalist-poki.zip * && cd .. && move survivalist-poki.zip dist\\",
+    "deploy:poki": "node tools/poki-deploy/deploy.mjs",
     "build-github-main": "vite build --base=/survivalist/ --outDir=dist",
     "build-github-develop": "vite build --base=/survivalist/develop/ --outDir=dist/develop",
     "deploy": "vite build && surge dist/ --domain survivalist.surge.sh",

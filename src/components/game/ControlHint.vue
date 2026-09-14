@@ -62,8 +62,7 @@ import { mobileCheck } from '@/utils/function'
  */
 
 export type HintId =
-  | 'move' | 'gate' | 'crate' | 'rate' | 'trap' | 'divider' | 'boss' | 'guard' | 'lever'
-  | 'cage' | 'shieldBox'
+  | 'move' | 'crate' | 'rate' | 'trap' | 'divider' | 'lever' | 'cage' | 'shieldBox'
 
 interface Props {
   hint: HintId | null

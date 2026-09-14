@@ -8,7 +8,7 @@ import {
   startStage, advanceStage, retryStage, step, steerTo, steerBy, steerOnly, runSummary,
   attackIncoming,
   incomingWord,
-  isChargingGate, getCrates, getGates, getDividers, getBoss, getLevers, anchor, crowdRadius,
+  getCrates, getGates, getDividers, getBoss, getLevers, anchor, crowdRadius,
   getCages, getBulwarks,
   throwGrenade, raiseShield, shieldActive as isShieldUp,
   castFrostNova, throwDecoy, frostActive, getDecoy,
@@ -61,7 +61,7 @@ import { getState, setState } from '@/use/useTowerState'
 import { flushSaveNow } from '@/use/useSaveStatus'
 import {
   BOSS_REWARD_KEY, BULWARK_HINT_KEY, CAGE_HINT_KEY,
-  GUARD_HINT_KEY, LEVER_HINT_KEY, ONBOARDED_KEY, RESULTS_SEEN_KEY, REWARD_DECLINE_KEY,
+  LEVER_HINT_KEY, ONBOARDED_KEY, RESULTS_SEEN_KEY, REWARD_DECLINE_KEY,
   SHOP_SPOTLIGHT_KEY, TUTORIAL_KEY, WEAPON_PICK_KEY
 } from '@/keys'
 import useTowerEconomy from '@/use/useTowerEconomy'
@@ -674,11 +674,6 @@ const activeHint = computed<HintId | null>(() => {
   // gesture. `pending` rather than `active` so the pill never flashes in the
   // gap between mount and the overlay going up.
   if (tutorialPending.value) return null
-  // The shield outranks onboarding itself — see `GUARD_HINT_KEY`. It is the one
-  // moment the game deliberately stops responding to the only verb the player
-  // has, so "my bullets do nothing" needs a word attached to it exactly once,
-  // whenever the player first meets it, onboarded or not.
-  if (bossGuarding.value && !guardHintSeen.value) return 'guard'
   // The lever primer, on the same footing as the guard one and for the same
   // reason: it arrives on stage 4, long after the onboarding ladder below has
   // switched itself off, and a bonus nobody explains is a bonus nobody takes.
@@ -693,12 +688,15 @@ const activeHint = computed<HintId | null>(() => {
   if (cageHintDue.value) return 'cage'
   if (onboarded.value) return null
   if (!hintsDone.value.has('move')) return 'move'
-  if (phase.value === 'boss') return hintsDone.value.has('boss') ? null : 'boss'
+  // Nothing is primed inside the arena. The boss owns the screen, and what it
+  // owns it with is the warning badge — a glyph and one word, read in the time
+  // a swing gives you. A pill of prose in the same frame is a second
+  // instruction competing with the one that is about to be tested.
+  if (phase.value === 'boss') return null
   // Teach whatever is actually coming, once each. A hint for something the
   // player cannot currently see is noise they will scroll past.
   const warn = laneWarning.value
   if (warn && !hintsDone.value.has(warn)) return warn
-  if (!hintsDone.value.has('gate')) return 'gate'
   return null
 })
 
@@ -718,16 +716,8 @@ watch(laneWarning, (warn, before) => {
   markHintDone(before)
 })
 
-// The gate hint retires itself the moment the player actually holds fire on a
-// gate — which is the behaviour it was asking for. Not during the lightbox,
-// though: the opening doorway pumps under the crowd's fire while the road is
-// held, and a lesson the player watched happen is not one they have had.
-watch(isChargingGate, (charging) => {
-  if (charging && !tutorialActive.value) markHintDone('gate')
-})
 watch(damage, (now, before) => { if (now > before) markHintDone('crate') })
 watch(runFireRate, (now, before) => { if (now > before) markHintDone('rate') })
-watch(phase, (p) => { if (p === 'boss') markHintDone('boss') })
 
 /**
  * The lever primer, shown exactly once in a player's life.
@@ -879,34 +869,25 @@ const attackAnswer = computed(() => {
  * nothing on this path touches `markHintDone` or `hintsDone`, and `activeHint`
  * still resolves to the same hint underneath — `ControlHint`'s `suppressed` prop
  * takes the pill down without unmounting it. The retirement watchers
- * (`laneWarning`, `isChargingGate`, `damage`, `runFireRate`, `phase`) are all
+ * (`laneWarning`, `damage`, `runFireRate`) are all
  * driven by the WORLD rather than by whether the pill was on screen, so a hint
  * suppressed through its whole window is neither shown nor spent.
  */
 const hintSuppressed = computed(() =>
   // An inbound attack takes the pill DOWN rather than un-choosing it — see the
   // note on the template — and so do the two moments that own the screen with
-  // type of their own. Measured: "BOSS FELLED!" landed straight across a primer
-  // reading "Keep shooting a gate — it grows +1 every half second", and neither
-  // was readable. A hint the player never got to read is still owed to them
-  // afterwards, which is exactly what suppression (rather than selection) means.
+  // type of their own. Measured, back when a primer could still be up in an
+  // arena: "BOSS FELLED!" landed straight across one and neither was readable.
+  // A hint the player never got to read is still owed to them afterwards, which
+  // is exactly what suppression (rather than selection) means.
   //
   // The grenade lesson is the same rule for a stronger reason: it dims the whole
   // screen down to one button and refuses to start again until that button is
-  // pressed, and the pill rides ABOVE the lightbox. A primer reading "keep
-  // shooting a gate" over a lesson that will not accept anything but a grenade
-  // is the game giving two instructions and honouring one.
+  // pressed, and the pill rides ABOVE the lightbox. A primer over a lesson that
+  // will not accept anything but a grenade is the game giving two instructions
+  // and honouring one.
   attackWarning.value || bossFelledShown.value || wastedShown.value || grenadeTeachHeld.value
 )
-// Retire it the moment the shield drops: the lesson has landed by then, and the
-// swing that follows is the part the player needs to be looking at. Persisted,
-// because a primer that reappears every boss is nagging rather than teaching.
-const guardHintSeen = ref(getState<boolean>(GUARD_HINT_KEY, false) === true)
-watch(bossGuarding, (now, before) => {
-  if (!before || now || guardHintSeen.value) return
-  guardHintSeen.value = true
-  setState(GUARD_HINT_KEY, true)
-})
 
 // ─── Result flow ────────────────────────────────────────────────────────────
 
@@ -2745,7 +2726,7 @@ onUnmounted(() => {
       //- got to read is still owed to them once the road is safe — see
       //- `hintSuppressed` for why it is every warning and not only the one that
       //- literally contradicts.
-      div.scene__hint(:class="{ 'scene__hint--low': activeHint === 'guard' }")
+      div.scene__hint
         ControlHint(:hint="activeHint" :suppressed="hintSuppressed")
 
       //- First-run controls lightbox. Sits inside the HUD layer, which is
@@ -3207,20 +3188,6 @@ onUnmounted(() => {
   justify-content: center
   margin-top: clamp(0.35rem, 2vw, 0.7rem)
   padding-inline: 0.5rem
-
-// The guard primer is the one hint that fires while the boss is on screen, and
-// the boss's barrier — with its shield crest — is drawn exactly where this row
-// normally sits, so the toast landed on top of the crest at the single moment
-// both most need to be read.
-//
-// `margin-top: auto` against the `.scene__bottom` auto margin below splits the
-// free space evenly, parking the hint mid-screen: under the barrier, above the
-// crowd. Deliberately not a `vh` offset — the barrier's screen position moves
-// with the camera and the viewport, and a fixed nudge would only be correct on
-// the aspect ratio it was measured on. Doubled class so it also outranks the
-// landscape-phone `.scene__hint` override further down this file.
-.scene__hint.scene__hint--low
-  margin-top: auto
 
 // ─── Bottom bar ─────────────────────────────────────────────────────────────
 

@@ -112,10 +112,6 @@ export default {
       'touch': 'Tap to move',
       'desktop': 'Click to move'
     },
-    'gate': {
-      'touch': 'Keep shooting a gate — it grows +1 every half second',
-      'desktop': 'Keep shooting a gate — it grows +1 every half second'
-    },
     'trap': {
       'touch': 'Red gates SHRINK your squad — take the other side!',
       'desktop': 'Red gates SHRINK your squad — take the other side!'
@@ -133,10 +129,6 @@ export default {
       'touch': 'Blue crates make everyone shoot faster',
       'desktop': 'Blue crates make everyone shoot faster'
     },
-    'boss': {
-      'touch': 'Stay out of the red ring!',
-      'desktop': 'Stay out of the red ring!'
-    },
     // The weapon puzzle, shown once ever, while an unshot lever is on screen.
     // The two things it must carry are BOTH and WHERE: a player who shoots one
     // post and stops has done nothing, and a player looking down the middle of
@@ -144,20 +136,6 @@ export default {
     'lever': {
       'touch': 'Shoot BOTH levers at the road edges — they open the weapon box',
       'desktop': 'Shoot BOTH levers at the road edges — they open the weapon box'
-    },
-    // Fires the first time the boss shields. Without it the phase reads as a
-    // broken hitbox — the player IS still shooting, and it IS doing nothing.
-    // ── A FACT, not a command ──
-    //
-    // This read "Shield up — your fire does nothing. MOVE!" and the playtest
-    // caught it contradicting the incoming-attack badge in the same frame: the
-    // badge said HOLD STILL while this said MOVE, at the very first boss, in the
-    // first minute. One tester lost 38 of 41 survivors there. The badge owns the
-    // verb now; this pill only says what is true. Keep every translation a
-    // statement — no imperative.
-    'guard': {
-      'touch': 'Shield up — your shots can’t hurt it yet',
-      'desktop': 'Shield up — your shots can’t hurt it yet'
     },
     // The rescue cage, shown once ever, while one is still ahead of the crowd.
     // The word that has to survive translation is FREE/JOIN: at a glance a cage

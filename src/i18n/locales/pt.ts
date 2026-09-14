@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Toque para mover', 'desktop': 'Clique para mover' },
-    'gate': { 'touch': 'Continue atirando no portão: +1 a cada meio segundo', 'desktop': 'Continue atirando no portão: +1 a cada meio segundo' },
     'trap': { 'touch': 'Portões vermelhos DIMINUEM o esquadrão: pegue o outro!', 'desktop': 'Portões vermelhos DIMINUEM o esquadrão: pegue o outro!' },
     'divider': { 'touch': 'Nunca toque no pilar entre os portões', 'desktop': 'Nunca toque no pilar entre os portões' },
     'crate': { 'touch': 'Caixas verdes: todos batem mais forte', 'desktop': 'Caixas verdes: todos batem mais forte' },
     'rate': { 'touch': 'Caixas azuis: todos atiram mais rápido', 'desktop': 'Caixas azuis: todos atiram mais rápido' },
-    'boss': { 'touch': 'Fique fora do círculo vermelho!', 'desktop': 'Fique fora do círculo vermelho!' },
     'lever': { 'touch': 'Atire nas DUAS alavancas nas bordas: elas abrem a caixa de arma', 'desktop': 'Atire nas DUAS alavancas nas bordas: elas abrem a caixa de arma' },
-    'guard': { 'touch': 'Escudo ativo: seus tiros ainda não o ferem', 'desktop': 'Escudo ativo: seus tiros ainda não o ferem' },
     'cage': { 'touch': 'Atire nas jaulas: os prisioneiros entram no seu esquadrão', 'desktop': 'Atire nas jaulas: os prisioneiros entram no seu esquadrão' },
     'shieldBox': { 'touch': 'Caixa escudo: espera e bloqueia um golpe grande', 'desktop': 'Caixa escudo: espera e bloqueia um golpe grande' }
   },

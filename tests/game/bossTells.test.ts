@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { bossOwnsCast, type CastKind } from '@/game/bossTells'
+import { chargeHalfW } from '@/game/threats'
+import { CROWD_MAX_R, LANE_HALF } from '@/game/survival'
 
 /**
  * ─── A dead boss stops promising things ─────────────────────────────────────
@@ -80,6 +82,19 @@ const killTheBoss = (game: Game, stage: number): void => {
   game.debugAddFireRate(8)
   game.debugSkipToArena()
   for (let i = 0; i < 12_000; i++) {
+    // Step out of a charge's column while it is wound up. This helper used to
+    // stand still, which was survivable while a charge cost a slam's share of
+    // the crowd; it is now three quarters of the bodies it runs over
+    // (`CHARGE_KILL_SHARE`), so a stationary 700 wipes on the charging kinds
+    // before the boss is down and this helper throws "the boss never died".
+    // What is under test is what the boss ANNOUNCES once it is a corpse, so the
+    // crowd is given the answer the attack has.
+    const live = game.getBoss()
+    if (live && game.bossIsCharging()) {
+      const need = chargeHalfW(live.slams) + CROWD_MAX_R + 0.3
+      const left = live.slamX - need
+      game.steerTo(Math.abs(left) <= LANE_HALF - 0.4 ? left : live.slamX + need)
+    }
     game.step(STEP_MS)
     const b = game.getBoss()
     if (b && b.dead) return

@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Tik om te bewegen', 'desktop': 'Klik om te bewegen' },
-    'gate': { 'touch': 'Blijf op de poort schieten: elke halve seconde +1', 'desktop': 'Blijf op de poort schieten: elke halve seconde +1' },
     'trap': { 'touch': 'Rode poorten VERKLEINEN je team — neem de andere!', 'desktop': 'Rode poorten VERKLEINEN je team — neem de andere!' },
     'divider': { 'touch': 'Raak nooit de pilaar tussen de poorten aan', 'desktop': 'Raak nooit de pilaar tussen de poorten aan' },
     'crate': { 'touch': 'Groene kisten: iedereen slaat harder', 'desktop': 'Groene kisten: iedereen slaat harder' },
     'rate': { 'touch': 'Blauwe kisten: iedereen schiet sneller', 'desktop': 'Blauwe kisten: iedereen schiet sneller' },
-    'boss': { 'touch': 'Blijf uit de rode ring!', 'desktop': 'Blijf uit de rode ring!' },
     'lever': { 'touch': 'Schiet op BEIDE hendels aan de rand — ze openen de wapenkist', 'desktop': 'Schiet op BEIDE hendels aan de rand — ze openen de wapenkist' },
-    'guard': { 'touch': 'Schild op — je schoten raken hem nog niet', 'desktop': 'Schild op — je schoten raken hem nog niet' },
     'cage': { 'touch': 'Schiet op kooien — de gevangenen sluiten zich aan', 'desktop': 'Schiet op kooien — de gevangenen sluiten zich aan' },
     'shieldBox': { 'touch': 'Schildkist — wacht en blokkeert één grote klap', 'desktop': 'Schildkist — wacht en blokkeert één grote klap' }
   },

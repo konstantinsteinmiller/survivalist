@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Ketuk untuk bergerak', 'desktop': 'Klik untuk bergerak' },
-    'gate': { 'touch': 'Terus tembak gerbang: +1 tiap setengah detik', 'desktop': 'Terus tembak gerbang: +1 tiap setengah detik' },
     'trap': { 'touch': 'Gerbang merah MENGURANGI regu — ambil yang lain!', 'desktop': 'Gerbang merah MENGURANGI regu — ambil yang lain!' },
     'divider': { 'touch': 'Jangan sentuh pilar di antara gerbang', 'desktop': 'Jangan sentuh pilar di antara gerbang' },
     'crate': { 'touch': 'Peti hijau: semua memukul lebih keras', 'desktop': 'Peti hijau: semua memukul lebih keras' },
     'rate': { 'touch': 'Peti biru: semua menembak lebih cepat', 'desktop': 'Peti biru: semua menembak lebih cepat' },
-    'boss': { 'touch': 'Jauhi lingkaran merah!', 'desktop': 'Jauhi lingkaran merah!' },
     'lever': { 'touch': 'Tembak KEDUA tuas di tepi jalan — keduanya membuka kotak senjata', 'desktop': 'Tembak KEDUA tuas di tepi jalan — keduanya membuka kotak senjata' },
-    'guard': { 'touch': 'Perisai aktif — tembakanmu belum melukainya', 'desktop': 'Perisai aktif — tembakanmu belum melukainya' },
     'cage': { 'touch': 'Tembak kandang — tawanannya bergabung ke pasukanmu', 'desktop': 'Tembak kandang — tawanannya bergabung ke pasukanmu' },
     'shieldBox': { 'touch': 'Kotak perisai — menunggu, lalu menahan satu pukulan besar', 'desktop': 'Kotak perisai — menunggu, lalu menahan satu pukulan besar' }
   },

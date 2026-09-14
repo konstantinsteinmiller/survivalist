@@ -55,14 +55,11 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Zum Bewegen tippen', 'desktop': 'Zum Bewegen klicken' },
-    'gate': { 'touch': 'Weiter aufs Tor schießen – alle 0,5 s +1', 'desktop': 'Weiter aufs Tor schießen – alle 0,5 s +1' },
     'trap': { 'touch': 'Rote Tore VERKLEINERN den Trupp – nimm das andere!', 'desktop': 'Rote Tore VERKLEINERN den Trupp – nimm das andere!' },
     'divider': { 'touch': 'Nie die Säule zwischen den Toren berühren', 'desktop': 'Nie die Säule zwischen den Toren berühren' },
     'crate': { 'touch': 'Grüne Kisten: alle treffen härter', 'desktop': 'Grüne Kisten: alle treffen härter' },
     'rate': { 'touch': 'Blaue Kisten: alle schießen schneller', 'desktop': 'Blaue Kisten: alle schießen schneller' },
-    'boss': { 'touch': 'Bleib aus dem roten Ring!', 'desktop': 'Bleib aus dem roten Ring!' },
     'lever': { 'touch': 'Triff BEIDE Hebel am Straßenrand – sie öffnen die Waffenkiste', 'desktop': 'Triff BEIDE Hebel am Straßenrand – sie öffnen die Waffenkiste' },
-    'guard': { 'touch': 'Schild oben — deine Schüsse wirken noch nicht', 'desktop': 'Schild oben — deine Schüsse wirken noch nicht' },
     'cage': { 'touch': 'Schieß auf Käfige — die Gefangenen schließen sich an', 'desktop': 'Schieß auf Käfige — die Gefangenen schließen sich an' },
     'shieldBox': { 'touch': 'Schildkiste — sie wartet und blockt einen großen Treffer', 'desktop': 'Schildkiste — sie wartet und blockt einen großen Treffer' }
   },
