@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Жұмсаңыз!',
     'level': 'Дең. {n}',
     'maxed': 'Макс',
+    'peekLabel': 'Жақсартулар: {name}',
+    'peekLabelReady': 'Жақсартулар: {name} — {n} сатып алуға дайын',
     'names': {
       'squad': 'Жасақ',
       'power': 'Оқ күші',

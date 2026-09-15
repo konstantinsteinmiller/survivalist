@@ -219,6 +219,8 @@ export default {
     'spotlight': 'ใช้เลย!',
     'level': 'Lv {n}',
     'maxed': 'สูงสุด',
+    'peekLabel': 'อัปเกรด: {name}',
+    'peekLabelReady': 'อัปเกรด: {name} — ซื้อได้ {n} รายการ',
     'names': {
       'squad': 'หน่วย',
       'power': 'พลังยิง',

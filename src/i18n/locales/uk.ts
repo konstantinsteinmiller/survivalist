@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Витратити!',
     'level': 'Рів. {n}',
     'maxed': 'Макс',
+    'peekLabel': 'Покращення: {name}',
+    'peekLabelReady': 'Покращення: {name} — {n} можна купити',
     'names': {
       'squad': 'Загін',
       'power': 'Вогнева міць',

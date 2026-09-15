@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Spendi!',
     'level': 'Lv {n}',
     'maxed': 'Max',
+    'peekLabel': 'Potenziamenti: {name}',
+    'peekLabelReady': 'Potenziamenti: {name} — {n} pronti all’acquisto',
     'names': {
       'squad': 'Squadra',
       'power': 'Potenza',

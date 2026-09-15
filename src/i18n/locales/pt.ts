@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Gaste!',
     'level': 'Nv {n}',
     'maxed': 'Máx',
+    'peekLabel': 'Melhorias: {name}',
+    'peekLabelReady': 'Melhorias: {name} — {n} prontas para comprar',
     'names': {
       'squad': 'Esquadrão',
       'power': 'Poder de fogo',

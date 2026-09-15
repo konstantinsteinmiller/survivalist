@@ -4,12 +4,12 @@ import { useI18n } from 'vue-i18n'
 import FModal from '@/components/molecules/FModal.vue'
 import IconCoin from '@/components/icons/IconCoin.vue'
 import GameIcon from '@/components/icons/GameIcon.vue'
-import type { GameIconName } from '@/components/icons/iconNames'
+import { UPGRADE_ICONS } from '@/components/icons/upgradeIcons'
 import useSounds from '@/use/useSound'
 import useTowerEconomy from '@/use/useTowerEconomy'
 import {
   UPGRADES, UPGRADE_ORDER, applyUpgrade, isMaxed, upgradeCost, upgradeLevel,
-  type UpgradeId
+  upgradeSuffix, type UpgradeId
 } from '@/use/useUpgrades'
 import { playFx } from '@/use/useGameAudio'
 import { stage } from '@/use/useSurvivalGame'
@@ -33,48 +33,11 @@ const { coins, spendCoins } = useTowerEconomy()
 const { playSound } = useSounds()
 
 /**
- * Which glyph fronts each track. The names come from the shared set, and four
- * of the five are the SAME glyph the run HUD shows for that stat — the shop is
- * where you buy the number you spent the last stage watching, so it must not be
- * a second drawing of it. Scavenging has no HUD chip, so it falls back to the
- * generic `star`.
- */
-const TRACK_ICONS: Partial<Record<UpgradeId, GameIconName>> = {
-  squad: 'squad',
-  power: 'bolt',
-  rate: 'rate',
-  range: 'range',
-  // The two ACTIVE tracks, wearing the same glyphs the in-run buttons fall back
-  // to, so the thing bought here and the thing pressed there are recognisably
-  // one object. The run's buttons may swap in a painting of that glyph once the
-  // pipeline has one (`SkillBar.vue`); this list never does — see below.
-  grenade: 'bomb',
-  shield: 'shield',
-  // …and the two weapons, wearing the glyph that is painted on the box they
-  // come out of and on the badge that appears when they do. Same rule again:
-  // one object, one drawing, wherever the player meets it.
-  rocket: 'rocket',
-  gatling: 'gatling'
-}
-
-/**
- * ─── Why this list is glyphs all the way down ───────────────────────────────
- *
- * The two skills used to draw through `ArtIcon`, so a painting replaced their
- * glyph once the pipeline produced one. In a HUD button that is right: the
- * button is alone, and a painted bomb is simply a better bomb.
- *
- * In THIS list it is wrong, and it is wrong structurally rather than because a
- * file is missing. `ART_CATALOGUE.ui` has four paintable ids — the idle chest,
- * the shop's own forge and the two skills — and there is no `ui/squad`,
- * `ui/rate`, `ui/range` or `ui/gatling`, nor any reason to paint one: they are
- * stat glyphs, not objects. So the shop can only ever show two painted rows
- * above six drawn ones, in a single column, at the same size, side by side.
- * That does not read as "these two are nicer", it reads as a half-finished
- * screen.
- *
- * One list, one hand. If the skills ever want their paintings back here, every
- * track needs one first.
+ * Which glyph fronts each track lives in `@/components/icons/upgradeIcons` —
+ * the shop is no longer the only screen that draws a track. The result screen's
+ * peek plate teases ONE of these rows, and a track that wears one drawing there
+ * and another here is a track the player has to recognise twice. That module
+ * also carries the reason every one of them is a glyph rather than a painting.
  */
 
 /** Bumped on every purchase so the computed rows re-read the level refs. */
@@ -129,15 +92,10 @@ const buy = (row: Row): void => {
 }
 
 /**
- * The suffix a track's value carries.
- *
- * Every track whose readout is a PERCENTAGE wears it: a bare `100 → 112` reads
- * as a count of something, which neither Reach nor a weapon multiplier is.
+ * The suffix a track's value carries — `upgradeSuffix`, shared with the result
+ * screen's peek plate so a percentage is a percentage on both screens.
  */
-const PERCENT_TRACKS: ReadonlySet<UpgradeId> = new Set<UpgradeId>([
-  'scavenge', 'range', 'rocket', 'gatling'
-])
-const suffix = (id: UpgradeId): string => (PERCENT_TRACKS.has(id) ? '%' : '')
+const suffix = upgradeSuffix
 </script>
 
 <template lang="pug">
@@ -159,8 +117,8 @@ const suffix = (id: UpgradeId): string => (PERCENT_TRACKS.has(id) ? '%' : '')
             //- Every one of these is the glyph the HUD already draws for the
             //- same stat during a run — the shop is where you buy the number
             //- you have been watching, so it must not be a second drawing of it.
-            //- Drawn, never painted: see the note on TRACK_ICONS above.
-            GameIcon(:name="TRACK_ICONS[row.id] ?? 'star'")
+            //- Drawn, never painted: see the note in `upgradeIcons.ts`.
+            GameIcon(:name="UPGRADE_ICONS[row.id]")
 
           div.upgrade__body
             span.upgrade__name {{ t(`upgrades.names.${row.id}`) }}

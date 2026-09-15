@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Dépense !',
     'level': 'Niv {n}',
     'maxed': 'Max',
+    'peekLabel': 'Améliorations : {name}',
+    'peekLabelReady': 'Améliorations : {name} — {n} disponibles à l’achat',
     'names': {
       'squad': 'Escouade',
       'power': 'Puissance',

@@ -219,6 +219,8 @@ export default {
     'spotlight': 'खर्च करें!',
     'level': 'लेव {n}',
     'maxed': 'अधिकतम',
+    'peekLabel': 'अपग्रेड: {name}',
+    'peekLabelReady': 'अपग्रेड: {name} — {n} खरीदने के लिए तैयार',
     'names': {
       'squad': 'दस्ता',
       'power': 'मारक क्षमता',

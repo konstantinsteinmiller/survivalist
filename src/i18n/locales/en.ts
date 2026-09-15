@@ -415,6 +415,13 @@ export default {
     'spotlight': 'Spend!',
     'level': 'Lv {n}',
     'maxed': 'Maxed',
+    // ─── The result screen's peek plate ─────────────────────────────────────
+    // Never seen: an `aria-label` on a button replaces everything inside it, so
+    // these are the only way a screen reader learns what the plate says. Two
+    // whole sentences rather than one plus an appended clause — "3 ready to buy"
+    // is not a fragment every language can glue onto a name.
+    'peekLabel': 'Upgrades: {name}',
+    'peekLabelReady': 'Upgrades: {name} — {n} ready to buy',
     'names': {
       'squad': 'Squad',
       'power': 'Firepower',

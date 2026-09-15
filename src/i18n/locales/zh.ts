@@ -219,6 +219,8 @@ export default {
     'spotlight': '去花费！',
     'level': '等级 {n}',
     'maxed': '已满',
+    'peekLabel': '升级：{name}',
+    'peekLabelReady': '升级：{name} — {n} 项可购买',
     'names': {
       'squad': '队伍',
       'power': '火力',

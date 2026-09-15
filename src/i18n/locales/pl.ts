@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Wydaj!',
     'level': 'Poz. {n}',
     'maxed': 'Maks',
+    'peekLabel': 'Ulepszenia: {name}',
+    'peekLabelReady': 'Ulepszenia: {name} — {n} do kupienia',
     'names': {
       'squad': 'Oddział',
       'power': 'Siła ognia',

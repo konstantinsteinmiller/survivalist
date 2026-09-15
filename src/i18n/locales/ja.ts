@@ -219,6 +219,8 @@ export default {
     'spotlight': '使おう！',
     'level': 'Lv {n}',
     'maxed': '最大',
+    'peekLabel': '強化: {name}',
+    'peekLabelReady': '強化: {name} — 購入可能 {n} 件',
     'names': {
       'squad': '部隊',
       'power': '火力',

@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Harca!',
     'level': 'Sv {n}',
     'maxed': 'Maks',
+    'peekLabel': 'Geliştirmeler: {name}',
+    'peekLabelReady': 'Geliştirmeler: {name} — {n} tanesi hemen alınabilir',
     'names': {
       'squad': 'Ekip',
       'power': 'Ateş gücü',

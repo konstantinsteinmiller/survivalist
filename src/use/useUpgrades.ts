@@ -562,6 +562,23 @@ export const __setUpgradeLevel = (id: UpgradeId, level: number): void => {
 export const affordableCount = (coins: number): number =>
   UPGRADE_ORDER.reduce((n, id) => n + (!isMaxed(id) && coins >= upgradeCost(id) ? 1 : 0), 0)
 
+/**
+ * ─── How a track's value is written down ────────────────────────────────────
+ *
+ * Every track whose readout is a PERCENTAGE wears the sign: a bare `100 → 112`
+ * reads as a count of something, which neither Reach nor a weapon multiplier
+ * is. The rest are counts, seconds or multipliers and take nothing.
+ *
+ * Here rather than in the shop modal because the modal is no longer the only
+ * place a `current → next` pair is printed — the result screen's peek plate
+ * prints one too, and a percentage that is a percentage on one screen and a
+ * bare number on the other is a number the player cannot compare.
+ */
+const PERCENT_TRACKS: ReadonlySet<UpgradeId> = new Set<UpgradeId>([
+  'scavenge', 'range', 'rocket', 'gatling'
+])
+export const upgradeSuffix = (id: UpgradeId): string => (PERCENT_TRACKS.has(id) ? '%' : '')
+
 export const useUpgrades = () => ({
   levels,
   startSquadAt,

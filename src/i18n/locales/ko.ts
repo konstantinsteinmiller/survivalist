@@ -219,6 +219,8 @@ export default {
     'spotlight': '사용!',
     'level': 'Lv {n}',
     'maxed': '최대',
+    'peekLabel': '업그레이드: {name}',
+    'peekLabelReady': '업그레이드: {name} — 구매 가능 {n}개',
     'names': {
       'squad': '부대',
       'power': '화력',

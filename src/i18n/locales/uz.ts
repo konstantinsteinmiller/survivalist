@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Sarflang!',
     'level': 'Dar. {n}',
     'maxed': 'Maks',
+    'peekLabel': 'Yaxshilashlar: {name}',
+    'peekLabelReady': 'Yaxshilashlar: {name} — {n} ta sotib olish mumkin',
     'names': {
       'squad': 'Guruh',
       'power': 'Otish kuchi',

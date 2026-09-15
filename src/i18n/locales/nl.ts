@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Uitgeven!',
     'level': 'Lv {n}',
     'maxed': 'Max',
+    'peekLabel': 'Upgrades: {name}',
+    'peekLabelReady': 'Upgrades: {name} — {n} nu te koop',
     'names': {
       'squad': 'Team',
       'power': 'Vuurkracht',

@@ -14,7 +14,7 @@
 //   stage_end     a stage was cleared     { stage, peakSquad, kills, durationMs, coins }
 //   wipe          a stage ended in a loss { stage, progress01, cause, durationMs }
 //   gate_pass     a gate was taken        { op, value, before, after }
-//   shop_open     the shop was opened     { coins, affordable, stage }
+//   shop_open     the shop was opened     { coins, affordable, stage, via }
 //   upgrade_buy   a track was bought      { id, level, cost }
 //
 // ─── What happens to an event ───────────────────────────────────────────────

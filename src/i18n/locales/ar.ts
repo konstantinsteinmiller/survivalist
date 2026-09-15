@@ -219,6 +219,8 @@ export default {
     'spotlight': 'أنفق!',
     'level': 'مستوى {n}',
     'maxed': 'الأقصى',
+    'peekLabel': 'الترقيات: {name}',
+    'peekLabelReady': 'الترقيات: {name} — {n} جاهزة للشراء',
     'names': {
       'squad': 'الفريق',
       'power': 'قوة النيران',

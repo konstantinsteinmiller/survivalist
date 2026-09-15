@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Потратить!',
     'level': 'Ур. {n}',
     'maxed': 'Макс',
+    'peekLabel': 'Улучшения: {name}',
+    'peekLabelReady': 'Улучшения: {name} — {n} можно купить',
     'names': {
       'squad': 'Отряд',
       'power': 'Урон',

@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Tiêu đi!',
     'level': 'Cấp {n}',
     'maxed': 'Tối đa',
+    'peekLabel': 'Nâng cấp: {name}',
+    'peekLabelReady': 'Nâng cấp: {name} — {n} có thể mua ngay',
     'names': {
       'squad': 'Đội',
       'power': 'Sát thương',

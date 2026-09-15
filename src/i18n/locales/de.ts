@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Ausgeben!',
     'level': 'St. {n}',
     'maxed': 'Max',
+    'peekLabel': 'Upgrades: {name}',
+    'peekLabelReady': 'Upgrades: {name} — {n} sofort kaufbar',
     'names': {
       'squad': 'Trupp',
       'power': 'Feuerkraft',

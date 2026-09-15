@@ -1,8 +1,8 @@
 {
   "source": "https://survivalist-leaderboard.hyperg8.workers.dev",
-  "fetchedAt": 1789368605346,
-  "updatedAt": 1789368605271,
-  "total": 4978,
+  "fetchedAt": 1789475143730,
+  "updatedAt": 1789475054090,
+  "total": 5076,
   "entries": [
     {
       "rank": 1,
@@ -36,45 +36,45 @@
     },
     {
       "rank": 6,
+      "name": "Strider355832",
+      "score": 71,
+      "squad": 4000
+    },
+    {
+      "rank": 7,
       "name": "RealMilkshake.RX",
       "score": 69,
       "squad": 4000
     },
     {
-      "rank": 7,
+      "rank": 8,
       "name": "Nomad979249",
       "score": 63,
       "squad": 4000
     },
     {
-      "rank": 8,
+      "rank": 9,
       "name": "_N3XuS_",
       "score": 63,
       "squad": 4000
     },
     {
-      "rank": 9,
+      "rank": 10,
       "name": "jbjdmesndtkjjnmm",
       "score": 59,
       "squad": 711
     },
     {
-      "rank": 10,
+      "rank": 11,
       "name": "Scout734485",
       "score": 58,
       "squad": 2841
     },
     {
-      "rank": 11,
+      "rank": 12,
       "name": "Kazekorashi",
       "score": 57,
       "squad": 1090
-    },
-    {
-      "rank": 12,
-      "name": "Strider355832",
-      "score": 55,
-      "squad": 2079
     },
     {
       "rank": 13,
@@ -623,6 +623,10 @@
       1
     ],
     [
+      71,
+      1
+    ],
+    [
       69,
       1
     ],
@@ -640,10 +644,6 @@
     ],
     [
       57,
-      1
-    ],
-    [
-      55,
       1
     ],
     [
@@ -772,7 +772,7 @@
     ],
     [
       7,
-      167
+      169
     ],
     [
       6,
@@ -780,23 +780,23 @@
     ],
     [
       5,
-      311
+      314
     ],
     [
       4,
-      372
+      376
     ],
     [
       3,
-      1043
+      1068
     ],
     [
       2,
-      796
+      805
     ],
     [
       1,
-      1570
+      1625
     ]
   ]
 }

@@ -126,6 +126,7 @@ import DailyExpedition from '@/components/organisms/DailyExpedition.vue'
 import AdWeaponOffer from '@/components/organisms/AdWeaponOffer.vue'
 import TreasureChest from '@/components/organisms/TreasureChest.vue'
 import OptionsModal from '@/components/organisms/OptionsModal.vue'
+import ShopPeek from '@/components/organisms/ShopPeek.vue'
 import UpgradeModal from '@/components/organisms/UpgradeModal.vue'
 import LeaderboardModal from '@/components/organisms/LeaderboardModal.vue'
 import IconCoin from '@/components/icons/IconCoin.vue'
@@ -2485,25 +2486,40 @@ watch(showResult, (up) => {
 })
 
 /**
- * "Upgrade" from the result screen.
+ * Which door the shop was opened through.
+ *
+ * Three of them now — the HUD's forge, the result screen's forge, and the peek
+ * plate above it — and the whole point of building the plate was that the first
+ * two were not being found. "Did they ever open the shop?" was answerable
+ * before; "did the plate do it?" is only answerable if the door travels with
+ * the event.
+ */
+type ShopDoor = 'hud' | 'result' | 'peek'
+const shopOpenVia = ref<ShopDoor>('hud')
+
+/**
+ * "Upgrade" from the result screen — the forge glyph, or the peek plate above
+ * it, which are the same action with two different amounts of explanation.
  *
  * Deliberately NOT behind an ad, and deliberately not a dead end: closing the
  * shop drops the player straight into the next run, because the only reason
  * they opened it was to change what that run feels like.
  */
-const onUpgradeFromResult = (): void => {
+const onUpgradeFromResult = (via: ShopDoor = 'result'): void => {
   if (adInFlight.value) return
+  shopOpenVia.value = via
   showUpgrades.value = true
 }
 
 watch(showUpgrades, (open, wasOpen) => {
   // One event per opening, whichever door it came through — the HUD chip, the
-  // result screen, the spotlight. What it is for is the question "did they ever
-  // find the shop?", which the Poki fit test could only guess at.
+  // result screen, the peek plate, the spotlight. What it is for is the question
+  // "did they ever find the shop?", which the Poki fit test could only guess at.
   if (open && !wasOpen) {
     track('shop_open', {
       stage: stage.value, coins: coins.value,
-      affordable: affordable.value, onResult: showResult.value
+      affordable: affordable.value, onResult: showResult.value,
+      via: shopOpenVia.value
     })
   }
   if (!open && wasOpen && showResult.value) {
@@ -2534,6 +2550,7 @@ const showShopSpotlight = computed(() =>
 )
 
 const openUpgrades = (): void => {
+  shopOpenVia.value = 'hud'
   showUpgrades.value = true
   if (!shopSpotlightSeen.value) {
     shopSpotlightSeen.value = true
@@ -3108,6 +3125,25 @@ onUnmounted(() => {
           IconCoin(class="result__claimed-icon")
           span {{ t('result.tripleClaimed') }}
 
+        //- ── A look inside the shop ────────────────────────────────────────
+        //-
+        //- Directly above the forge glyph, because it is an explanation OF that
+        //- glyph: one upgrade, its before → after numbers, and the same red
+        //- count the forge on the HUD has been wearing all run. The forge says
+        //- "there is a screen here"; this says what is on it.
+        //-
+        //- Under the ×3 rather than over it. The rewarded button is where the
+        //- game's money comes from and stays the loudest thing on the screen;
+        //- the plate is the second-loudest, and it is placed so that the coins
+        //- the player has just been offered land immediately above the thing to
+        //- spend them on.
+        //-
+        //- `rotation` is the lifetime result-screen count, so consecutive
+        //- screens tease consecutive tracks — see `shopPeek.ts`. It is also
+        //- what makes the plate safe to leave on screen forever: it is never
+        //- the same advert twice.
+        ShopPeek(:rotation="resultsSeen" @open="onUpgradeFromResult('peek')")
+
         //- ── Two glyphs where two captions used to be ──────────────────────
         //-
         //- "Nächstes Level" and "Upgrade" side by side were the widest row on
@@ -3173,7 +3209,7 @@ onUnmounted(() => {
               type="secondary"
               :is-disabled="adInFlight"
               :aria-label="t('result.upgrade')"
-              @click="onUpgradeFromResult"
+              @click="onUpgradeFromResult('result')"
             )
           //- The forward action. After five untouched seconds it starts to
           //- bounce — see "The forward button bounces". The class goes on the

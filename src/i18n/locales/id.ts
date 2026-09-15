@@ -219,6 +219,8 @@ export default {
     'spotlight': 'Belanja!',
     'level': 'Lv {n}',
     'maxed': 'Maks',
+    'peekLabel': 'Peningkatan: {name}',
+    'peekLabelReady': 'Peningkatan: {name} — {n} siap dibeli',
     'names': {
       'squad': 'Regu',
       'power': 'Daya tembak',
