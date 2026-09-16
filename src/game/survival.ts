@@ -834,7 +834,13 @@ export const earlyObstacleKeep = (stage: number): number =>
  * they need comes out of the barricade budget rather than out of the player.
  */
 export const earlyBarricadeKeep = (stage: number): number =>
-  stage <= 1 ? 0 : stage <= 2 ? 0.5 : stage <= 3 ? 0.67 : stage <= 5 ? 0.5 : 1
+  // Stage 2 went from 0.5 to 0.67 with its road, and the number is about DENSITY
+  // rather than about difficulty. It authors two rows; at 0.5 the running quota
+  // kept the first and dropped the second, which was the right answer on 138
+  // units and the wrong one on 226 — one piece of scenery in fifty seconds of
+  // road. Two rows over the longer road is very slightly denser than one was
+  // over the shorter, which is the note act two is written on anyway.
+  stage <= 1 ? 0 : stage <= 3 ? 0.67 : stage <= 5 ? 0.5 : 1
 
 /** Boulders — the half of `earlyObstacleKeep` that cannot be shot. */
 export const earlyRockKeep = (stage: number): number => earlyObstacleKeep(stage)
@@ -1871,7 +1877,11 @@ export const retrySquadScaleFor = (failures: number, stage: number): number =>
 export const stageLength = (stage: number): number =>
   stage <= 1
     ? STAGE_ONE_LENGTH
-    : Math.round(120 + Math.min(stage, 20) * 9 + Math.max(0, stage - 20) * 4)
+    : stage === 2
+      ? STAGE_TWO_LENGTH
+      : stage === 3
+        ? STAGE_THREE_LENGTH
+        : Math.round(120 + Math.min(stage, 20) * 9 + Math.max(0, stage - 20) * 4)
 
 /**
  * ─── …and then stage 1 went the other way ───────────────────────────────────
@@ -1900,6 +1910,40 @@ export const stageLength = (stage: number): number =>
  * something for its whole length.
  */
 export const STAGE_ONE_LENGTH = 320
+
+/**
+ * ─── …and then stages 2 and 3 had the same problem one stage later ──────────
+ *
+ * The block above is about a stranger leaving right after the first boss dies,
+ * and it fixed that by making the first road seventy seconds. What it left in
+ * place was a CLIFF: stage 1 ran 70 s and stage 2 ran 32 — measured, road 25.4 s
+ * plus a 1.3 s elite and a 4.9 s boss — so a player who stayed through the
+ * opening was handed a stage that was over before it had a shape, and then
+ * another one. "The game is over very fast" is the note, and it is about the
+ * two stages immediately after the one that was fixed.
+ *
+ * Both are now authored to a **45-55 s round trip** including the climax, which
+ * is where stage 20 already sits (300 units at 7.19 u/s is 42 s of road) — so
+ * this is not a new pacing target, it is the early road finally being cut to the
+ * one the late road already has.
+ *
+ *   stage 2   226 units → 43.4 s of running + ~1.3 s elite + ~4.9 s boss
+ *   stage 3   234 units → 44.0 s of running + ~2.0 s elite + ~6.0 s boss
+ *
+ * Written as constants beside stage 1's rather than folded into the formula
+ * because they are the same KIND of number: three hand-authored roads whose
+ * length is a consequence of the beats somebody wrote down, not a point on a
+ * curve. `stageFour` onward is still the curve.
+ *
+ * ⚠ THE LENGTH IS THE CHEAP HALF. A road that doubles without gaining beats is
+ * a road with twice as much nothing on it, and two things do NOT scale
+ * themselves: `minRateCrates`/`minDamageCrates` are flat until stages 6 and 9,
+ * so the supply per unit of road would have halved, and `fillGateGaps` would
+ * have papered the new space with filler banks. Both stages therefore gained a
+ * second act by hand — see `stageTwo` and `stageThree`.
+ */
+export const STAGE_TWO_LENGTH = 226
+export const STAGE_THREE_LENGTH = 234
 
 /** Forward speed for a stage. */
 export const stageSpeed = (stage: number): number =>
@@ -2230,12 +2274,189 @@ export interface Cage {
   /** 0..1, decayed by the sim. Drives the rattle a shot puts through the bars. */
   flash: number
   dead: boolean
+  /**
+   * ─── The warden cage: the one behind the boss ───────────────────────────
+   *
+   * Every boss stands in front of a cage, and the people in it are the squad
+   * the player opens the NEXT stage with. It cannot be shot, it cannot be
+   * broken, and it carries no numbers: it is not a pickup, it is the reason the
+   * fight is happening.
+   *
+   * ── What it buys ──
+   *
+   * The game had no answer to "why am I walking toward that". The road's own
+   * cages (`cageSurvivors`) already say that your people are being held along
+   * it, and this finishes the sentence: the thing at the end of every stage is
+   * holding the rest of them, and beating it is how you get them back. The
+   * intro cutscene opens on exactly that picture — a monster, and behind it a
+   * cage — which is a whole story told in one held shot and no words.
+   *
+   * ── How it closes the loop ──
+   *
+   * It breaks on the far side of the win screen, and the survivors that come
+   * out of it ARE the next stage's starting squad (`StageEntry.cage`,
+   * `startStage`). So a career reads as one continuous rescue rather than as a
+   * sequence of unrelated roads, and the count the shop has been buying all
+   * along (`startSquadAt`) is now a count of people you can see in a box before
+   * you have earned them.
+   */
+  warden?: boolean
+  /**
+   * ─── The miniboss's cage: the reason to fight instead of drive past ──────
+   *
+   * A big barred cabinet jammed against the rail beside every elite, holding
+   * survivors. It cannot be shot — not by bullets, not by a rocket's blast, not
+   * by anything — and it opens only when the elite standing beside it dies.
+   *
+   * ── What it fixes ──
+   *
+   * An elite plants, blocks the road for `ELITE_HOLD_MAX` and then breaks off.
+   * Killing it and simply outlasting it were, for a first-time player, the same
+   * outcome: the kill pays coins, and a beginner does not value coins yet
+   * because they have not met the shop. So the game's one mid-road landmark had
+   * no answer to "why would I stop for this".
+   *
+   * Now it has people in a box next to it. That is a reason a seven-year-old can
+   * state, and it is the same currency the rest of the road already deals in.
+   *
+   * ── Why it stands OFF the road ──
+   *
+   * At `REWARD_CAGE_X` it is past the rail, so on a portrait phone its outer
+   * edge is clipped by the screen. That is deliberate on two counts: a prop the
+   * crowd can physically reach is a prop the crowd grinds against, and a reward
+   * that is half out of frame reads as something crammed in beside the road
+   * rather than as another pickup laid out on it.
+   */
+  sealed?: boolean
 }
 
 /** Half-extent of a cage's FOOTPRINT on the road, world units. Slightly wider
  *  than a crate — it is the bigger prop — and square, like every other box: the
  *  drawn body is taller than this, exactly as a barricade's is. */
 export const CAGE_R = 0.68
+
+/**
+ * How far past the ARENA LINE the warden cage stands.
+ *
+ * Measured against the camera AND against the boss's own path, because both
+ * ends of the window are real and neither is negotiable:
+ *
+ *   crowd        `arenaY`         — it stops there; the camera stops with it
+ *   boss holds   `arenaY + 3.8`   — `BOSS_HOLD_AHEAD`, where it turns to fight
+ *   boss SPAWNS  `arenaY + 12`    — `track.bossY` (`length + 8`). Measured: it
+ *                                   takes ~10 s to walk down from there.
+ *   top of play  `arenaY + 14.0`  — the highest row the player can actually
+ *                                   see; measured, not derived (see below)
+ *
+ * The first cut of this stood at 7, reasoned off the hold position alone, and it
+ * was wrong in the way that matters: the boss spends the opening ten seconds of
+ * every fight walking down from 12, so for that whole stretch the cage was IN
+ * FRONT of the monster supposedly guarding it — a box of people parked between
+ * the player and the thing they have to get past. Any lead below `arenaY + 12`
+ * has that bug, whatever it looks like once the fight has settled.
+ *
+ * That leaves a window two thirds of a unit wide, and 12.8 is the far end of it.
+ * It is behind the boss on the frame the boss spawns and behind it for ever
+ * after, and it lands where a prize has to land to be a reason for anything:
+ * pinned to the TOP of the frame with its lid cut off. The drawn body spans
+ * `y - 0.93 … y + 1.94` (`CAGE_R` x `WARDEN_CAGE_SCALE` x `CAGE_DRAW_TALL`), so
+ * on the tightest screen the game fits into about **76 %** of it is visible and
+ * the rest is over the edge. That is the read the whole object is for: a prize
+ * you can see all of is scenery, and one the screen cannot quite contain is a
+ * place you have to get to. It is the only thing on that screen answering "why
+ * am I fighting this".
+ *
+ * ── Where 14.0 comes from ──
+ *
+ * NOT `CROWD_SCREEN_Y` x `VIEW_HEIGHT`. That is what fits above the crowd in the
+ * camera's own terms and it is the wrong number twice over: `setViewport` fits
+ * `VIEW_HEIGHT` into `usableH` — the viewport MINUS the two HUD bars — so the
+ * scale is smaller than the naive one, and then the top of what the player can
+ * read is the bottom of the top bar rather than the top of the canvas. Both
+ * corrections are large and they pull in opposite directions.
+ *
+ * Measured in the browser, `(cssH x CROWD_SCREEN_Y - topInset) / scale`:
+ *
+ *   420x900 phone   14.35     1280x800  desktop   14.28
+ *   360x780 phone   14.11     1600x1000 desktop   14.13
+ *   820x1180 tablet 14.04     1920x1080 desktop   14.08
+ *
+ * — which is not a coincidence but the fit rule working: the lane's width and
+ * the road's height trade off against each other so that the playable band is
+ * the same fourteen units of road on everything. The cage is tuned to the
+ * bottom of that spread.
+ *
+ * ⚠ The exception is a LANDSCAPE PHONE short enough to hit the `scale` floor of
+ * 16 (measured: 900x420 shows 10.96 units). There the fit has already failed and
+ * the road is cropped — the cage goes over the top with everything else that
+ * does not fit, and that is the floor's behaviour, not this constant's.
+ *
+ * Off the arena line rather than off the boss, because the boss MOVES: it walks
+ * down out from in front of the cage as the fight opens, which is the picture.
+ * A cage pinned to the boss would drift with it and stop being the thing the
+ * fight is happening in front of.
+ */
+export const WARDEN_CAGE_LEAD = 12.8
+
+/**
+ * …and the warden cage is drawn BIGGER than a roadside one.
+ *
+ * A stage's own cages hold three to a dozen; this one holds the whole opening
+ * squad of the next road, and at depth that is a crowd. The scale is a
+ * statement about what is in it, and it also keeps the prop readable behind a
+ * boss drawn at 2.5.
+ */
+export const WARDEN_CAGE_SCALE = 1.9
+
+/**
+ * …and it stands OFF the centre line.
+ *
+ * Dead centre was the obvious placement and it does not work: the boss stands at
+ * x = 0 too, so the cage is directly behind it and the sprite covers it
+ * completely — measured, the intro's opening shot was a monster in front of
+ * nothing, which is the entire story missing.
+ *
+ * On the shoulder it is visibly beside-and-behind instead, which reads as
+ * guarding rather than as hiding. It is also the game's own vocabulary: every
+ * roadside cage sits on a shoulder (`CAGE_DETOUR_X`), so the one behind the boss
+ * being there too is the same object in the same place, at a bigger size.
+ *
+ * LEFT, because the boss's charged slam leads the crowd's drift and a player
+ * dodging it tends to end up on one side; either would do, and the point is only
+ * that it is not the middle.
+ */
+export const WARDEN_CAGE_X = -2.4
+
+/**
+ * ─── Where the miniboss's cage stands ───────────────────────────────────────
+ *
+ * Off the road, on the right shoulder, and the number is measured against the
+ * renderer's own fit rather than chosen.
+ *
+ * `setViewport` fits the LANE's width on a portrait phone
+ * (`scale = w / (LANE_HALF * 2 + LANE_MARGIN * 2)`), so the visible world runs
+ * `-5.6 … +5.6` on **every** such device — the shoulder outside each rail is
+ * exactly 1.1 world units wide, whatever the phone. At 5.4 with a drawn
+ * half-width of `CAGE_R * REWARD_CAGE_SCALE` = 1.63, the cage spans 3.77 … 7.03:
+ * a little over half of it is on screen and the rest is cut by the edge.
+ *
+ * It is also out of reach by construction. The crowd is clamped to
+ * `EDGE_X` = 4.2 and `grindAgainst` bites at `CAGE_R + UNIT_R` = 0.98, so the
+ * nearest a survivor can come is 1.20 — outside it, with margin.
+ *
+ * ⚠ On a DESKTOP the height fit wins instead and the visible world is roughly
+ * `-20 … +20`, so nothing at a sane x is clipped there: the cage simply stands
+ * whole in the verge. One world-x cannot be half-cut on both, and pinning it to
+ * the screen edge in the renderer would desync the drawn position from `c.x` —
+ * which is also where the freed survivors walk out of. The phone is the case
+ * that was asked for, so the phone is the case it is tuned to.
+ */
+export const REWARD_CAGE_X = 5.4
+
+/** …and it is the biggest cage in the game. A roadside one holds three to a
+ *  dozen; this one holds a fifth of a stage's crowd, and the size is the only
+ *  thing that says so before it opens. */
+export const REWARD_CAGE_SCALE = 2.4
 
 /**
  * The roadmap's number, and the floor under the curve that replaced it.
@@ -2549,6 +2770,44 @@ export interface Foe {
    * and a wipe at a miniboss costs far less progress than a wipe at the boss.
    */
   elite: boolean
+  /**
+   * This body does not hunt.
+   *
+   * An ordinary monster walks down the road at `speed` AND drifts sideways onto
+   * the crowd's x (`homing`, 0.9 units a second) — so on a long enough run-up it
+   * meets the player wherever the player is, and "avoid it" is not a thing the
+   * road can offer. That is correct for a pack, which is a beat with a price.
+   *
+   * A rooted one stands exactly where the track put it and bites only what walks
+   * into its reach. It is the difference between a monster and a bollard, and it
+   * is what lets the taught stages carry something alive in their dead air
+   * without also carrying a fight — see `stray` in `game/track.ts`, and the
+   * campaign invariant it exists to respect (`balance.test.ts`: stage 1 must be
+   * survivable without steering).
+   */
+  /**
+   * How hard this body steers, as a multiple of the archetype's own homing.
+   *
+   * 1 everywhere except a `stray` — see `game/track.ts`. An ordinary monster
+   * walks down the road AND leans onto the crowd's x at 0.9 units a second,
+   * which is what makes a pack a beat: where it is placed decides when it
+   * arrives, never whether. A stray is not a beat. It is something alive in the
+   * dead stretches between gates, and the whole point is that a player who
+   * steers can go round it.
+   *
+   * So it runs at the squad like anything else and simply steers BADLY: at
+   * `STRAY_HOMING` it corrects a fraction of a unit over the whole approach,
+   * which is nowhere near the two and a half units it would need to cross the
+   * lane. Hold your line and it slides past on its own shoulder. Wander into it
+   * and it is a monster like any other.
+   *
+   * ⚠ This is also what keeps the campaign's oldest invariant true. At full
+   * homing, two strays on stage 1 took a no-input run apart — `balance.test.ts`
+   * requires stage 1 to be clearable WITHOUT STEERING, and 2 of 3 runs died.
+   * A body that cannot cross the lane cannot reach a crowd that never leaves
+   * the middle of it.
+   */
+  homing: number
 }
 
 export interface Boss {

@@ -399,6 +399,32 @@ export default () => {
       ])
     }
 
+    // ── Step 4: the intro cutscene's road, for a first-time player only ──
+    //
+    // The intro flies the whole of stage 1 — the boss in the arena, both cages,
+    // every arch and warden — starting on its first frame. Building that while
+    // the camera is already moving would stutter the one thing in the game that
+    // is not allowed to stutter, so the road is built HERE, behind the splash,
+    // where waiting is what the screen is for.
+    //
+    // ⚠ Gated on `armIntro()` and nothing else. A returning player must not pay
+    // a millisecond of load for a cutscene they will never be shown, which is
+    // why this asks the gate rather than building speculatively — and why the
+    // whole module graph below is reached through a DYNAMIC import: on a
+    // returning player's boot, `game/cutscene` and the simulation are not
+    // pulled into the loader's chunk at all.
+    //
+    // It is also the last step on purpose. Everything above it is something the
+    // game cannot open without; this is something one boot in a career needs,
+    // and if it fails the player simply gets the game.
+    try {
+      const { armIntro } = await import('@/use/useCutscene')
+      if (armIntro()) {
+        const { primeCutsceneWorld } = await import('@/use/useSurvivalGame')
+        primeCutsceneWorld()
+      }
+    } catch { /* no intro rather than no game */ }
+
     loadingProgress.value = 100
     areAllAssetsLoaded.value = true
     scheduleBackgroundWarmup()

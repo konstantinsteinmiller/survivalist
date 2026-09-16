@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Toca para moverte', 'desktop': 'Haz clic para moverte' },
-    'trap': { 'touch': 'Las puertas rojas RESTAN gente: ¡ve por la otra!', 'desktop': 'Las puertas rojas RESTAN gente: ¡ve por la otra!' },
     'divider': { 'touch': 'Nunca toques el pilar entre las puertas', 'desktop': 'Nunca toques el pilar entre las puertas' },
     'crate': { 'touch': 'Cajas verdes: todos golpean más fuerte', 'desktop': 'Cajas verdes: todos golpean más fuerte' },
     'rate': { 'touch': 'Cajas azules: todos disparan más rápido', 'desktop': 'Cajas azules: todos disparan más rápido' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': '¡Nivel superado!',
     'wipedOut': 'Escuadrón aniquilado',
     'reachedStage': 'Nivel {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n} %',
-    'bestReach': 'Mejor {n} %',
-    'newReach': '¡Tu mejor marca!',
     'newRecord': '¡Nuevo récord!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': '¡Jefe abatido!',
     'wasted': 'Liquidado',
-    'cause': {
-      'foe': 'Arrollado por monstruos',
-      'elite': 'Un minijefe te rompió',
-      'barricade': 'Chocaste con barricadas',
-      'crate': 'Chocaste con cajas',
-      'divider': 'Rozaste los separadores',
-      'trap': 'Atrapado en trampas',
-      'slam': 'El jefe te aplastó'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': '¡Hito!',
     'rallied': 'Segundo aire',
@@ -212,6 +197,13 @@ export default {
     'trialTag': '¡Prueba gratis!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Se los llevó a todos.',
+    'alive': 'Siguen vivos.',
+    'go': 'Ve a por ellos.',
+    'skip': 'Saltar'
   },
 
   'upgrades': {

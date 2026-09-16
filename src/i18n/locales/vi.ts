@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Chạm để di chuyển', 'desktop': 'Nhấp để di chuyển' },
-    'trap': { 'touch': 'Cổng đỏ LÀM GIẢM quân — chọn bên kia!', 'desktop': 'Cổng đỏ LÀM GIẢM quân — chọn bên kia!' },
     'divider': { 'touch': 'Đừng bao giờ chạm cột giữa hai cổng', 'desktop': 'Đừng bao giờ chạm cột giữa hai cổng' },
     'crate': { 'touch': 'Thùng xanh lá: cả đội đánh mạnh hơn', 'desktop': 'Thùng xanh lá: cả đội đánh mạnh hơn' },
     'rate': { 'touch': 'Thùng xanh dương: cả đội bắn nhanh hơn', 'desktop': 'Thùng xanh dương: cả đội bắn nhanh hơn' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Qua màn!',
     'wipedOut': 'Đội bị xóa sổ',
     'reachedStage': 'Màn {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': 'Kỷ lục {n}%',
-    'newReach': 'Xa nhất từ trước!',
     'newRecord': 'Kỷ lục mới!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Hạ gục trùm!',
     'wasted': 'Toi đời',
-    'cause': {
-      'foe': 'Bị quái vật tràn ngập',
-      'elite': 'Trùm nhỏ hạ gục bạn',
-      'barricade': 'Đâm vào rào chắn',
-      'crate': 'Đâm vào thùng gỗ',
-      'divider': 'Vướng dải phân cách',
-      'trap': 'Sập bẫy',
-      'slam': 'Trùm nghiền nát bạn'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Cột mốc!',
     'rallied': 'Hồi sức',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Dùng thử miễn phí!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Nó đã bắt tất cả.',
+    'alive': 'Họ vẫn còn sống.',
+    'go': 'Đi cứu họ.',
+    'skip': 'Bỏ qua'
   },
 
   'upgrades': {

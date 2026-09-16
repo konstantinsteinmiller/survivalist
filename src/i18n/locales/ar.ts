@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'اضغط للتحرك', 'desktop': 'انقر للتحرك' },
-    'trap': { 'touch': 'البوابة الحمراء تُنقص فريقك: خذ الأخرى!', 'desktop': 'البوابة الحمراء تُنقص فريقك: خذ الأخرى!' },
     'divider': { 'touch': 'لا تلمس العمود بين البوابتين', 'desktop': 'لا تلمس العمود بين البوابتين' },
     'crate': { 'touch': 'الصناديق الخضراء: الجميع يضرب أقوى', 'desktop': 'الصناديق الخضراء: الجميع يضرب أقوى' },
     'rate': { 'touch': 'الصناديق الزرقاء: الجميع يطلق أسرع', 'desktop': 'الصناديق الزرقاء: الجميع يطلق أسرع' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'اجتزت المرحلة!',
     'wipedOut': 'أُبيد الفريق',
     'reachedStage': 'المرحلة {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}٪',
-    'bestReach': 'الأفضل {n}٪',
-    'newReach': 'أبعد من أي وقت!',
     'newRecord': 'رقم قياسي جديد!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'سقط الزعيم!',
     'wasted': 'مُهدَر',
-    'cause': {
-      'foe': 'اجتاحتك الوحوش',
-      'elite': 'سحقك زعيم صغير',
-      'barricade': 'ارتطمت بالحواجز',
-      'crate': 'ارتطمت بالصناديق',
-      'divider': 'اصطدمت بالفواصل',
-      'trap': 'وقعت في الفخاخ',
-      'slam': 'سحقك الزعيم'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'إنجاز!',
     'rallied': 'نفَس ثانٍ',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'تجربة مجانية!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'لقد أخذ الجميع.',
+    'alive': 'ما زالوا أحياء.',
+    'go': 'اذهب وأنقذهم.',
+    'skip': 'تخطٍّ'
   },
 
   'upgrades': {

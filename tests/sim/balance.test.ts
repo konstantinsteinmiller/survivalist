@@ -195,15 +195,21 @@ describe('the opening is a session, not a demo', () => {
 
   it('ends on a boss worth staying for, not one that falls over', async () => {
     // The exit this whole change is about: measured on the shipped build the
-    // median drop-out landed right after a 4.0 s first boss. The brief is a
-    // fight of six to ten seconds with at least five of them spent shooting it
-    // — see `ADAPTIVE_FIRST_FIGHT_SECONDS`.
+    // median drop-out landed right after a 4.0 s first boss.
+    //
+    // ⚠ THESE NUMBERS ARE THE NO-GRENADE FIGHT, and that is a property of the
+    // harness rather than of the game: no scripted policy presses a button. The
+    // fight a real player gets is about three seconds shorter, because that is
+    // what a grenade is worth against a bar priced in seconds of the crowd's own
+    // fire — so the band here is deliberately ~3 s above the one the player
+    // experiences. `SIM_FIRSTBOSS=1` prints both columns side by side, and
+    // `ADAPTIVE_FIRST_FIGHT_SECONDS` carries the table.
     for (const policy of [optimal, good, average]) {
       const a = aggregate(await runSamples(1, policy, 3))
       expect(a.bossReachRate, `${policy.id} did not reach the stage-1 boss`).toBe(1)
       const said = `the first boss lasted ${a.bossSeconds.med.toFixed(1)}s for ${policy.id}`
-      expect(a.bossSeconds.med, said).toBeGreaterThan(5.5)
-      expect(a.bossSeconds.med, said).toBeLessThan(10)
+      expect(a.bossSeconds.med, said).toBeGreaterThan(9)
+      expect(a.bossSeconds.med, said).toBeLessThan(14)
     }
   }, 300_000)
 

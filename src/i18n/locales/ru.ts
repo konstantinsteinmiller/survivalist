@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Нажмите, чтобы двигаться', 'desktop': 'Кликните, чтобы двигаться' },
-    'trap': { 'touch': 'Красные ворота УМЕНЬШАЮТ отряд — бегите в другие!', 'desktop': 'Красные ворота УМЕНЬШАЮТ отряд — бегите в другие!' },
     'divider': { 'touch': 'Никогда не задевайте столб между воротами', 'desktop': 'Никогда не задевайте столб между воротами' },
     'crate': { 'touch': 'Зелёные ящики: все бьют сильнее', 'desktop': 'Зелёные ящики: все бьют сильнее' },
     'rate': { 'touch': 'Синие ящики: все стреляют быстрее', 'desktop': 'Синие ящики: все стреляют быстрее' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Этап пройден!',
     'wipedOut': 'Отряд уничтожен',
     'reachedStage': 'Этап {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n} %',
-    'bestReach': 'Рекорд {n} %',
-    'newReach': 'Твой рекорд!',
     'newRecord': 'Новый рекорд!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Босс повержен!',
     'wasted': 'Конец',
-    'cause': {
-      'foe': 'Смяли монстры',
-      'elite': 'Минибосс сломал вас',
-      'barricade': 'Влетели в баррикады',
-      'crate': 'Влетели в ящики',
-      'divider': 'Задели разделители',
-      'trap': 'Попались в ловушки',
-      'slam': 'Босс вас раздавил'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Рубеж!',
     'rallied': 'Второе дыхание',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Попробуй бесплатно!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Оно забрало всех.',
+    'alive': 'Они ещё живы.',
+    'go': 'Верни их.',
+    'skip': 'Пропустить'
   },
 
   'upgrades': {

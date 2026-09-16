@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': '点击移动', 'desktop': '点击移动' },
-    'trap': { 'touch': '红色闸门会减少人数——走另一边！', 'desktop': '红色闸门会减少人数——走另一边！' },
     'divider': { 'touch': '千万别碰闸门之间的柱子', 'desktop': '千万别碰闸门之间的柱子' },
     'crate': { 'touch': '绿色箱子：全队伤害提升', 'desktop': '绿色箱子：全队伤害提升' },
     'rate': { 'touch': '蓝色箱子：全队射速提升', 'desktop': '蓝色箱子：全队射速提升' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': '通关！',
     'wipedOut': '小队全灭',
     'reachedStage': '第 {n} 关',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': '最佳 {n}%',
-    'newReach': '新纪录！',
     'newRecord': '新纪录！',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': '首领已倒下！',
     'wasted': '全灭',
-    'cause': {
-      'foe': '被怪物淹没',
-      'elite': '被小头目击溃',
-      'barricade': '撞上路障',
-      'crate': '撞上木箱',
-      'divider': '刮到隔离墩',
-      'trap': '踩中陷阱',
-      'slam': '被首领砸扁'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': '里程碑！',
     'rallied': '重整旗鼓',
@@ -212,6 +197,13 @@ export default {
     'trialTag': '免费试用！',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': '它带走了所有人。',
+    'alive': '他们还活着。',
+    'go': '去把他们救回来。',
+    'skip': '跳过'
   },
 
   'upgrades': {

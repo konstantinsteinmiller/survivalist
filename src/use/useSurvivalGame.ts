@@ -32,7 +32,10 @@ import {
   retrySquadScaleFor, startBonusFor, stageReward, stageSpeed, wipeReward,
   type Barrel, type Barricade, type Boss, type Bulwark, type Bullet, type Cage, type Crate,
   type Divider, type Foe,
-  type Gate, type Pickup, type Rock, type Unit
+  type Gate, type Pickup, type Rock, type Unit,
+  squadBaseAt,
+  WARDEN_CAGE_LEAD,
+  WARDEN_CAGE_X
 } from '@/game/survival'
 import { arenaKit, bossDesign, bossHpScale, foeDef, foeHpScale } from '@/game/foes'
 import {
@@ -42,13 +45,16 @@ import {
   type Guard, type Lever, type Stone, type WeaponBox, type WeaponId
 } from '@/game/weapons'
 import { BOSS_REWARD_KEY, GAZE_TAUGHT_KEY, WEAPON_PICK_KEY } from '@/keys'
-import { buildTrack, perfectSquadFor, type Track } from '@/game/track'
+import { buildTrack, perfectSquadFor, type Track, MINIBOSS_CAGE_TUTORIAL } from '@/game/track'
+import { CUTSCENE_STAGE } from '@/game/cutscene'
 import {
   adaptiveBigHitMul, adaptiveBossHp, adaptiveBossSeconds, adaptiveBossStage, adaptiveEliteHp,
   adaptiveYardstick,
   ADAPTIVE_BOSS_STAGES,
   clampAdaptiveSeconds, meltFloorStage, BOSS_MIN_FIRE_SECONDS, BOSS_FLOOR_GRENADE_MULT,
-  type AdaptiveFight
+  type AdaptiveFight,
+  ELITE_FIRE_SECONDS,
+  tutorialEliteFireSeconds
 } from '@/game/adaptive'
 import {
   BOLT_BLAST_R,
@@ -175,7 +181,8 @@ import { difficultyFactor } from '@/use/useUser'
 import {
   __setUpgradeLevel,
   coinMagnetBonus, coinMultiplier, fireRate as metaFireRate, gatePayoutBonus, rangeBonus,
-  startSquadAt, unitDamage, weaponPowerMul
+  startSquadAt, unitDamage, weaponPowerMul,
+  grenadeMult
 } from '@/use/useUpgrades'
 import { getState, setStates } from '@/use/useTowerState'
 import {
@@ -680,7 +687,7 @@ export const FOE_BLANK: Readonly<Foe> = {
   bite: 0, biteShare: 0, biteCd: 0, scale: 1, flash: 0, phase: 0, dead: false,
   flying: false, hold: 0, hitCd: 0, sweepCd: 0, sweepSpan: 0, sweepDir: 1,
   sweepTold: false, kind: 'scythe', lane: 1, fuse: 0, reload: 0, kindTicks: 0,
-  markX: 0, markY: 0, swayPhase: 0, elite: false
+  markX: 0, markY: 0, swayPhase: 0, elite: false, homing: 1
 }
 
 export const BULLET_BLANK: Readonly<Bullet> = {
@@ -713,7 +720,7 @@ const resetFoe = (f: Foe): Foe => {
   f.sweepCd = 0; f.sweepSpan = 0; f.sweepDir = 1; f.sweepTold = false
   f.kind = 'scythe'; f.lane = 1; f.fuse = 0; f.reload = 0; f.kindTicks = 0
   f.markX = 0; f.markY = 0
-  f.swayPhase = 0; f.elite = false
+  f.swayPhase = 0; f.elite = false; f.homing = 1
   return f
 }
 
@@ -873,6 +880,15 @@ interface StageEntry {
    * start only: a retry opens on the ordinary formation.
    */
   formation: Array<{ x: number; y: number }> | null
+  /**
+   * Where the beaten boss's warden cage stood, re-based like everything else.
+   *
+   * The next stage's squad comes OUT of it — see `Cage.warden` and the opening
+   * block in `startStage`. Null on any advance that did not come off a boss
+   * kill (a dev skip, a test, an expedition), and the opening then falls back
+   * to the formation it always used.
+   */
+  cage: { x: number; y: number; hold: number } | null
 }
 
 /** Where the stage in flight began, if it began where the last one ended. */
@@ -1280,6 +1296,9 @@ const resetWorld = (): void => {
   // about to be recycled into something else on the new road.
   teachingGrenade = false
   teachEliteId = null
+  sealedCageEliteId = null
+  lessonEliteId = null
+  lessonRepriced = false
   teachMs = 0
   grenadeTeachHeld.value = false
   firingAtGate = false
@@ -1374,7 +1393,174 @@ export const isExpedition = ref(false)
  * gets the stage's own learnable layout. Passing it also flips this run out of
  * the campaign's bookkeeping — see `isExpedition`.
  */
+/**
+ * ─── The intro cutscene's world ─────────────────────────────────────────────
+ *
+ * Builds the WHOLE of stage 1 into the live arrays at once — every arch, crate,
+ * cage and warden at its real y, the three survivors on the start line, and a
+ * still boss in the arena — so the camera can fly the road without waiting for
+ * anything. See `cutscenes.md` and `game/cutscene.ts`.
+ *
+ * ── Why the live world and not a parallel one ──
+ *
+ * Every painter in the renderer reads these arrays. Drawing the cutscene from
+ * the track instead would mean a second set of painters for gates, crates,
+ * cages and monsters, which would drift from the real ones and make the intro
+ * look like a different game than the one it is introducing. Populating the
+ * real arrays and never stepping them costs nothing and is exact.
+ *
+ * ── Why it is safe ──
+ *
+ * `step()` is never called while the cutscene runs, so nothing moves, nothing
+ * hunts and nothing bites: a monster on this road is furniture that happens to
+ * have a walk cycle. And the scene calls the ordinary `startStage(1)` when the
+ * cutscene ends, which runs `resetWorld` over all of it — so the run the player
+ * actually plays cannot inherit a single entity from here.
+ *
+ * ⚠ It deliberately does NOT go through `startStage`. That function fires
+ * `stage_start`, and a cutscene that opened the stage would put two of them in
+ * the funnel for one stage — one of them before the player had touched
+ * anything.
+ */
+/**
+ * Stand the warden cage behind this stage's boss.
+ *
+ * One helper rather than two call sites, because the intro cutscene has to show
+ * EXACTLY the cage the fight will show — the whole point of the opening shot is
+ * that the player recognises it forty seconds later. See `Cage.warden`.
+ *
+ * What it holds is the next stage's opening squad (`startSquadAt`), which is the
+ * number the shop has been buying all along: the player can now see it standing
+ * in a box before they have earned it.
+ */
+const placeWardenCage = (forStage: number): void => {
+  cages.push({
+    id: entityId++,
+    x: WARDEN_CAGE_X,
+    // Three units behind where the boss turns to fight, and three inside the
+    // top of the screen. See `WARDEN_CAGE_LEAD` for the arithmetic — the window
+    // is narrow and the obvious placement (off `bossY`) is off screen.
+    y: track.arenaY + WARDEN_CAGE_LEAD,
+    // Never read — nothing can damage it (`Cage.warden`) — but not Infinity
+    // either: `hp / maxHp` feeds the hurt tint in `drawCages`, and NaN there
+    // would paint a cage that is permanently on fire.
+    hp: 1,
+    maxHp: 1,
+    hold: startSquadAt(forStage + 1),
+    flash: 0,
+    dead: false,
+    warden: true
+  })
+}
+
+let cutsceneWorldReady = false
+
+/** Built already? The loader primes it behind the splash; the scene asks again
+ *  on boot in case it mounted first, and pays nothing when it did not. */
+export const ensureCutsceneWorld = (): void => {
+  if (!cutsceneWorldReady) primeCutsceneWorld()
+}
+
+export const primeCutsceneWorld = (): void => {
+  cutsceneWorldReady = true
+  stage.value = CUTSCENE_STAGE
+  track = buildTrack(CUTSCENE_STAGE)
+  resetWorld()
+
+  // Neutral difficulty. These scale the HP that crates PRINT ON THEMSELVES, so
+  // a leftover relief from a previous session would show the player numbers the
+  // stage they are about to play does not have.
+  hpRelief = 1
+  slamRelief = 1
+  contactRelief = 1
+  challenge.value = 0
+
+  anchorX = 0
+  targetX = 0
+  squadCount.value = 0
+
+  // ── The whole road, in one pass ──
+  //
+  // `streamTrack` spawns everything within `LOOKAHEAD` of the anchor, so the
+  // anchor is parked past the end of the road for exactly one call and then put
+  // back. Cheaper and far less brittle than a second copy of the spawn switch.
+  anchorY = track.bossY + LOOKAHEAD + 1
+  streamTrack()
+  anchorY = 0
+  // …and the cage the opening shot is actually about.
+  placeWardenCage(CUTSCENE_STAGE)
+
+  // ── The three ──
+  //
+  // Stage 1 opens on three (`squadBaseAt(1)`), and the last shot of the
+  // cutscene is the scale contrast between them and everything the camera has
+  // just flown past. Placed in the same formation `startStage` uses, so the
+  // hand-off to the real stage does not visibly re-arrange anybody.
+  const start = squadBaseAt(CUTSCENE_STAGE)
+  for (let i = 0; i < start; i++) {
+    const p = slotPos(i, start, CROWD_MAX_R)
+    spawnUnit(p.x, p.y)
+  }
+  funnelR = CROWD_MAX_R
+
+  // ── A still boss in the arena ──
+  //
+  // Written directly rather than through `spawnBoss`, which prices the fight
+  // against the run that arrived (`game/adaptive.ts`), draws from the pattern
+  // rng and arms an opening attack. None of that means anything to a body that
+  // will never take a swing, and consuming the rng here would change the fight
+  // the player gets thirty seconds later.
+  boss = {
+    kind: bossKindFor(CUTSCENE_STAGE),
+    attacks: 0, summonCd: SUMMON_OPENING_CD, mercyCd: SUMMON_MERCY_GRACE,
+    mercySpawns: 0, healCd: 0,
+    design: bossDesign(CUTSCENE_STAGE),
+    x: 0,
+    // ── Staged where it FIGHTS, not where it spawns ──
+    //
+    // The live boss spawns at `arenaY + 12` and walks down to
+    // `arenaY + BOSS_HOLD_AHEAD` to fight. The cutscene never steps anything, so
+    // a boss parked at its spawn would stand BEHIND the warden cage — which is
+    // the whole composition backwards. Staged at the fighting position, the
+    // opening shot is the picture the player meets for real half a minute later:
+    // a monster, and behind it a cage with people in it.
+    y: track.arenaY + BOSS_HOLD_AHEAD,
+    hp: 1, maxHp: 1,
+    speed: 0,
+    flash: 0,
+    phase: 0,
+    // ── More than twice the size it fights at, and that is the camera's job ──
+    //
+    // The playing camera fits the LANE — 13.7 units of road on screen — which
+    // makes a 2.5-unit boss about a fifth of the frame. That is right for a game
+    // where the player has to see what is coming, and wrong for a shot whose
+    // whole point is that the thing at the end of the road is enormous.
+    //
+    // Zooming the camera would be the film answer and it is not available here:
+    // every baked strip, the lane tile and the backdrop are rasterised at
+    // `scale`, so moving it mid-flight is a full re-bake per frame on a game
+    // that is already fill-bound. Scaling the BODY costs nothing, because this
+    // one is a prop that will never take a swing — the real fight builds its own
+    // from `spawnBoss` half a minute later.
+    scale: 4.4,
+    // Every clock parked out of reach. Nothing steps it, but a number that
+    // reads as "about to attack" would be a trap for whoever wires the next
+    // cutscene onto this rig.
+    slamCd: 9e9, slamSpan: 9e9, slams: 0, primaries: 0,
+    aimed: false, guarded: 0, guard: 0, slamX: 0, slamY: 0,
+    charging: false, dead: false, dying: 0
+  }
+  // No health bar over a boss nobody is fighting.
+  bossHp01.value = 0
+  phase.value = 'run'
+  progress01.value = 0
+}
+
 export const startStage = (n?: number, seed?: number): void => {
+  // Whatever the cutscene left on the road goes here, with everything else:
+  // `resetWorld` below clears every array, so the run the player actually plays
+  // cannot inherit an entity from the intro.
+  cutsceneWorldReady = false
   const target = Math.max(1, Math.floor(n ?? (Number(getState(STAGE_KEY, 1)) || 1)))
   const expedition = seed !== undefined
   isExpedition.value = expedition
@@ -1500,17 +1686,53 @@ export const startStage = (n?: number, seed?: number): void => {
     (startSquadAt(target) + startBonusFor(failures, target))
     * retrySquadScaleFor(failures, target)
   ))
-  // Walking on, the new squad is the survivors nearest the middle of the old
-  // one, standing exactly where they stood — so nobody visibly jumps. It is still
-  // `start` of them: every stage opens on the squad the shop bought, and a crowd
-  // carried across the handover would re-price every road after it. The rest
-  // fall back, and the renderer sees them off (`takeDepartedSurvivors`).
+  // ── Where this stage's squad comes from ──────────────────────────────────
+  //
+  // THE CAGE BEHIND THE BOSS, when there is one: the people the thing the
+  // player just killed was holding. They come out of it and run to their slots
+  // (`CAGE_JOIN_SPEED`, the same walk a roadside rescue does), which is the beat
+  // that turns a career into one continuous rescue instead of a sequence of
+  // unrelated roads. See `Cage.warden`.
+  //
+  // It costs the run nothing: the COUNT is still `start`, priced by the shop
+  // exactly as before. What changed is where they are standing when the stage
+  // opens, which is a story, not a number.
+  //
+  // Otherwise the old opening, unchanged: walking on with no cage — a dev skip,
+  // an expedition — the new squad is the survivors nearest the middle of the old
+  // one, standing exactly where they stood, so nobody visibly jumps. And a fresh
+  // road opens on the plain formation.
   const formation = opening?.formation ?? null
+  const fromCage = opening?.cage ?? null
   for (let i = 0; i < start; i++) {
+    if (fromCage) {
+      // Dealt around the cage's mouth rather than all from one pixel, so what
+      // the player sees is a group coming out of a box and not a single body
+      // cloning itself.
+      const a = (i / Math.max(1, start)) * Math.PI * 2
+      spawnUnit(
+        fromCage.x + Math.cos(a) * 0.5,
+        fromCage.y + Math.sin(a) * 0.3,
+        CAGE_JOIN_MAX_S
+      )
+      continue
+    }
     const p = formation?.[i] ?? slotPos(i, start, CROWD_MAX_R)
     spawnUnit(anchorX + p.x, p.y)
   }
+  if (fromCage) {
+    // The bars coming apart, at the cage's own position — the same event a
+    // roadside rescue fires, because it is the same thing happening.
+    pushFx({ kind: 'cageBreak', x: fromCage.x, y: fromCage.y, count: start })
+    opening!.cage = null
+  }
   departed = []
+  // The crowd that won the fight is STILL seen off, cage or no cage — and this
+  // was briefly written the other way, which was wrong. Measured on a stage-1
+  // clear: 191 survivors walk into the arena and 3 come out of the cage, so
+  // suppressing the see-off meant a hundred and eighty-eight people vanished
+  // between two frames with nothing said about it. The full beat is the honest
+  // one: the ones who fought disperse, the ones who were freed take up the road.
   if (opening && formation) {
     const step = Math.max(1, Math.ceil((formation.length - start) / DEPARTED_MAX))
     for (let i = start; i < formation.length; i += step) {
@@ -1519,6 +1741,10 @@ export const startStage = (n?: number, seed?: number): void => {
     }
     opening.formation = null
   }
+
+  // Every boss stands in front of one. Placed after the squad so a stage that
+  // opens on a cage-break has already consumed the LAST one — see `Cage.warden`.
+  placeWardenCage(target)
 
   worldVersion.value++
   // `STAGE_KEY` is the campaign's resume point and an expedition must not move
@@ -1711,11 +1937,16 @@ const entryFrom = (next: number, shift: number): StageEntry => {
   const alive = units.filter((u) => u.dying <= 0)
   const dist = (u: Unit): number => (u.x - anchorX) ** 2 + ((u.y - anchorY) / CROWD_SQUASH) ** 2
   alive.sort((p, q) => dist(p) - dist(q))
+  // The cage the boss was standing in front of, carried across only when the
+  // boss actually died — the same test the corpse takes, and for the same
+  // reason: a dev skip did not free anybody.
+  const wc = body ? cages.find((c) => c.warden && !c.dead) : null
   return {
     stage: next,
     x: anchorX,
     corpse: body,
-    formation: alive.map((u) => ({ x: u.x - anchorX, y: u.y - shift }))
+    formation: alive.map((u) => ({ x: u.x - anchorX, y: u.y - shift })),
+    cage: wc ? { x: wc.x, y: wc.y - shift, hold: wc.hold } : null
   }
 }
 
@@ -2124,7 +2355,8 @@ const streamTrack = (): void => {
           const hp = Math.max(1, Math.round(c.hp * diff * hpRelief))
           cages.push({
             id: entityId++, x: c.x, y: e.y, hp, maxHp: hp,
-            hold: c.hold, flash: 0, dead: false
+            hold: c.hold, flash: 0, dead: false,
+            ...(c.sealed ? { sealed: true } : {})
           })
         }
         break
@@ -2186,6 +2418,24 @@ const streamTrack = (): void => {
           f.phase = Math.random()
           f.flying = def.flying
           f.swayPhase = Math.random() * Math.PI * 2
+          // ── A stray: runs at the squad, steers badly ──────────────────────
+          //
+          // Everything else about it is an ordinary creep. See `Foe.homing` for
+          // why the steering is the one thing turned down, and `stray` in
+          // `game/track.ts` for what the beat is for.
+          const isStray = e.stray === true
+          if (isStray) f.homing = STRAY_HOMING
+          // ── A stray's mouthful never scales with the run ──────────────────
+          //
+          // Every other monster takes `max(bite, share of the squad)`, which is
+          // what stops a thousand-strong crowd walking through a brute unharmed.
+          // A stray is not balance, it is entertainment with teeth: measured with
+          // the share left on, driving into the stage-3 one cost FOUR survivors
+          // because the share owns any crowd worth the name, and the brief for
+          // this beat is one or two. Dropping the share pins it to the
+          // archetype's flat `bite` — one, twice if you sit on it — on stage 1
+          // and on stage 300 alike.
+          if (isStray) f.biteShare = 0
           foes.push(f)
         }
         break
@@ -2226,9 +2476,28 @@ const streamTrack = (): void => {
         // the price was struck. That makes the fight shorter than its target,
         // never longer, which is the safe direction for a landmark.
         const adaptiveElite = stage.value <= ADAPTIVE_BOSS_STAGES
+        // ── The tutorial elite is priced against the GRENADE, not the guns ──
+        //
+        // Every other elite is worth `ELITE_FIRE_SECONDS` of the crowd's fire.
+        // This one is about to be hit by a bomb worth `grenadeMult` seconds of
+        // that same fire, so pricing it the ordinary way makes the lesson a
+        // delete key: measured, the default grenade does exactly 200 % of an
+        // ordinary elite's bar, for every squad size, on every seed.
+        //
+        // `tutorialEliteFireSeconds` sizes the bar so three quarters of it goes
+        // and the player has to shoot the rest down. See `TUTORIAL_ELITE_REMAIN`.
+        //
+        // ⚠ `teaches` is the gate, and that is what keeps this out of every
+        // balance spec in the repo: it requires `tutorialAllowed`, which only
+        // `GameScene` and `grenadeLesson.test.ts` ever switch on. The sim
+        // harness drives `step()` with it off, so the elite the balance suite
+        // measures is the ordinary one it has always measured.
+        const seconds = teaches
+          ? tutorialEliteFireSeconds(grenadeMult.value, GRENADE_FLIGHT_MS / 1000)
+          : ELITE_FIRE_SECONDS
         const hp = adaptiveElite
           ? Math.round(
-            adaptiveEliteHp(squadDps.value * weaponDamageMul())
+            adaptiveEliteHp(squadDps.value * weaponDamageMul(), seconds)
             * diff * hpRelief
           )
           : Math.max(
@@ -2295,6 +2564,25 @@ const streamTrack = (): void => {
         // which `throwGrenade` correctly refuses. That is a softlock, and it was
         // only visible in a browser.
         if (teaches) teachEliteId = el.id
+        // ── Bind the elite to the cage beside it ──
+        //
+        // The track pushes the cage first at the same y (see `miniboss` in
+        // `game/track.ts`), so it is already live on this same streaming pass.
+        // The ID is held rather than the object: `releaseFoe` recycles a dead
+        // body's struct into the pool within a frame, so a reference kept across
+        // frames would come back as something else entirely.
+        const beside = cages.find(
+          (c) => c.sealed === true && !c.dead && Math.abs(c.y - e.y) < 1
+        )
+        if (beside) {
+          sealedCageEliteId = el.id
+          // The grenade lesson hands this kill over for free — three quarters
+          // of the bar in one button — so it cannot pay like a fought elite.
+          // Keyed off `teaches` rather than off the stage, which means a
+          // returning player who already knows the grenade gets no lesson, no
+          // free kill, and the ordinary payout.
+          if (teaches) beside.hold = MINIBOSS_CAGE_TUTORIAL
+        }
         break
       }
 
@@ -2414,6 +2702,8 @@ export const step = (dtMs: number): void => {
     timeScale = stopped ? 0 : GRENADE_TUTORIAL_SCALE
     timeScaleTarget = timeScale
     grenadeTeachHeld.value = stopped
+    // The world has stopped — strike the bar now, while nothing can move it.
+    if (stopped) repriceLessonElite()
   }
 
   // Cap the step: a backgrounded tab that returns with a 4-second delta must
@@ -3130,6 +3420,13 @@ const collectSolids = (): void => {
   // `stepCages` for the contact rule they share with one.
   for (const c of cages) {
     if (c.dead || Math.abs(c.y - anchorY) > 6) continue
+    // The warden cage is scenery the fight happens in front of; the crowd never
+    // reaches past the boss, and a solid there would only ever be something for
+    // the formation to squash against off screen.
+    // The elite's cage is off the road entirely (`REWARD_CAGE_X`), past the
+    // rail the crowd is clamped to, so a solid there could only ever be
+    // something for the formation to squash against out of reach.
+    if (c.warden || c.sealed) continue
     solids.push({ x: c.x, y: c.y, halfW: CAGE_R + UNIT_R, halfH: CAGE_R + UNIT_R })
   }
   for (const w of bulwarks) {
@@ -3320,8 +3617,19 @@ const stepUnits = (dt: number): void => {
     }
     // Hard backstop for anything that moved a survivor outside the road behind
     // the formation's back — an obstacle shove, a gate spawn near the rail.
-    if (u.x < -EDGE_X) u.x = -EDGE_X
-    else if (u.x > EDGE_X) u.x = EDGE_X
+    //
+    // ⚠ NOT while a rescued survivor is still walking in. The elite's cage
+    // stands OFF the road (`REWARD_CAGE_X` = 5.4, past the rail at 4.2), so
+    // everyone it frees starts outside this clamp — and an unconditional
+    // backstop teleports every one of them into the lane on their first frame,
+    // which deletes the one thing the beat exists to show: people coming out of
+    // a box beside the road and running over. The exclusion is safe because the
+    // TARGET is clamped regardless (above), so a joiner is always heading back
+    // into the lane and the clamp re-arms the moment it arrives.
+    if (u.join <= 0) {
+      if (u.x < -EDGE_X) u.x = -EDGE_X
+      else if (u.x > EDGE_X) u.x = EDGE_X
+    }
     // Gait phase advances with actual speed, so a halted crowd stops running on
     // the spot during the boss fight.
     u.phase += dt * (phase.value === 'run' ? 1.7 : 0.55)
@@ -4281,11 +4589,63 @@ export const grenadeTeaching = (): boolean => teachingGrenade
 /** Has this player already been taught, or already thrown one of their own? */
 export const grenadeTaught = (): boolean => getState<boolean>(GRENADE_TAUGHT_KEY, false) === true
 
-const teachGrenade = (): void => {
+const teachGrenade = (el: Foe): void => {
   if (teachingGrenade) return
   teachingGrenade = true
   teachMs = 0
+  lessonEliteId = el.id
+  lessonRepriced = false
   grenadeTeachHeld.value = false
+}
+
+/**
+ * The elite whose death opens the sealed cage beside it.
+ *
+ * Mirrors `teachEliteId` exactly, and for the same reason: a `Foe` reference
+ * cannot be held across frames because `releaseFoe` recycles the struct.
+ */
+let sealedCageEliteId: number | null = null
+
+/** The elite the lesson is holding the world for, and whether its bar has been
+ *  struck yet. See `repriceLessonElite`. */
+let lessonEliteId: number | null = null
+let lessonRepriced = false
+
+/**
+ * ─── Strike the tutorial elite's bar the moment the world stops ─────────────
+ *
+ * The bar is first priced at SPAWN, thirty units up the road (`LOOKAHEAD`), and
+ * that is too early to be exact: the crowd keeps growing between the price and
+ * the throw, so the grenade lands harder than the bar was sized for. Measured on
+ * stage 1 — a bar of 91 against a grenade of 90 at the throw — the elite still
+ * died outright, which is the whole bug this was meant to fix.
+ *
+ * So it is priced AGAIN at the one instant nothing can move it: the frame the
+ * lesson stops the world (`timeScale = 0`). From here to the throw the crowd
+ * cannot grow, cannot fire and cannot lose anybody, so the `squadDps` read here
+ * IS the one the grenade will use — and the fraction left standing is exact
+ * rather than hopeful.
+ *
+ * `hp` is reset to the new `maxHp` too, deliberately. The screen is dimming to a
+ * lightbox on this very frame, and a full bar under it reads as the game framing
+ * a duel; carrying the approach's chip damage across would instead show a bar
+ * already part-spent for reasons the player never saw.
+ */
+const repriceLessonElite = (): void => {
+  if (lessonRepriced || lessonEliteId === null) return
+  lessonRepriced = true
+  const el = foes.find((f) => f.id === lessonEliteId)
+  lessonEliteId = null
+  if (!el || el.dead) return
+  const hp = Math.max(20, Math.round(
+    adaptiveEliteHp(
+      squadDps.value * weaponDamageMul(),
+      tutorialEliteFireSeconds(grenadeMult.value, GRENADE_FLIGHT_MS / 1000)
+    ) * difficultyFactor() * hpRelief
+  ))
+  el.maxHp = hp
+  el.hp = hp
+  eliteHp01.value = 1
 }
 
 /**
@@ -4311,7 +4671,7 @@ const pollGrenadeLesson = (): void => {
   if (!el || el.dead) { teachEliteId = null; return }
   if (el.y - anchorY > GRENADE_TUTORIAL_RANGE) return
   teachEliteId = null
-  teachGrenade()
+  teachGrenade(el)
 }
 
 /**
@@ -5040,7 +5400,14 @@ const resolveBullet = (b: Bullet): boolean => {
   // its exception, so a round can never be stolen from the thing the player has
   // been shooting since stage 1 by the thing they met last week.
   for (const c of cages) {
-    if (c.dead) continue
+    // The warden cage is not a target. It is behind the boss, it holds the next
+    // stage's squad, and it opens when that stage opens — see `Cage.warden`.
+    // Rounds pass through rather than being absorbed: a round stopped by an
+    // indestructible box is a round the player watched do nothing.
+    // …and the elite's cage is not a target either. Rounds pass through both
+    // rather than being absorbed: a round stopped by an indestructible box is a
+    // round the player watched do nothing.
+    if (c.dead || c.warden || c.sealed) continue
     const dy = c.y - b.y
     if (dy < -CAGE_R || dy > CAGE_R + 0.4) continue
     if (Math.abs(c.x - b.x) > CAGE_R + BULLET_R) continue
@@ -5255,7 +5622,10 @@ const detonateRound = (b: Bullet, direct: Foe | null = null, hitBoss = false): v
   // except the two worth crossing it for would be teaching the player that the
   // weapon they earned does not work on the things they earned it for.
   for (const c of cages) {
-    if (c.dead) continue
+    // …and a blast cannot open either of the locked ones. The rocket cannot
+    // even AIM at one — `aimTarget` acquires monsters and the boss and nothing
+    // else — so this closes the only remaining door, an incidental splash.
+    if (c.dead || c.warden || c.sealed) continue
     const dx = c.x - b.x
     const dy = c.y - b.y
     if (dx * dx + dy * dy > rr) continue
@@ -5654,6 +6024,30 @@ const takeBulwark = (w: Bulwark): void => {
   for (const u of units) u.flash = 220
 }
 
+/**
+ * How hard a stray steers, as a multiple of an ordinary body's homing.
+ *
+ * The one number that makes this beat work, and it was found by measurement
+ * rather than by taste.
+ *
+ * An ordinary creep leans onto the crowd's x at 0.9 units a second. Over the
+ * four seconds of approach a stray gets — it walks at 2.1 into a crowd closing
+ * at 5.1 — that is more than three units of correction, and a stray stands two
+ * and a half units off the centre line. So at full homing it always arrives,
+ * wherever the player is: two of them took a no-input stage-1 run apart, which
+ * is the campaign's oldest invariant (`balance.test.ts`).
+ *
+ * At 0.15 it can correct about half a unit in the same window. That is enough
+ * to read as a monster coming for you — it visibly leans — and nowhere near
+ * enough to cross the lane. Hold your line and it slides past on its own
+ * shoulder; steer into it and it is an ordinary creep with an ordinary bite.
+ *
+ * The lower bound is not zero on purpose: a body that walks dead straight reads
+ * as scenery on rails, and the point of putting something alive in the empty
+ * stretches is that it is alive.
+ */
+export const STRAY_HOMING = 0.15
+
 const damageFoe = (f: Foe, amount: number): void => {
   // Frozen is brittle — see `FROST_BRITTLE`.
   f.hp -= frostLeft > 0 ? amount * FROST_BRITTLE : amount
@@ -5666,6 +6060,18 @@ const damageFoe = (f: Foe, amount: number): void => {
   const coins = f.elite ? def.coins * 8 : def.coins
   runCoins.value += coins
   if (f.elite) pushFx({ kind: 'eliteDie', x: f.x, y: f.y })
+  // ── The reward for stopping to fight it ──
+  //
+  // `damageFoe` is the single choke point for a foe dying OF DAMAGE, which is
+  // exactly the condition: outlasting the elite's leash must not pay, or the
+  // cage is a timer rather than a prize. (The one other place a foe is marked
+  // dead — a bomber finishing its fuse — deliberately routes around this
+  // function for the same reason.)
+  if (f.elite && f.id === sealedCageEliteId) {
+    sealedCageEliteId = null
+    const won = cages.find((c) => c.sealed === true && !c.dead)
+    if (won) breakCage(won)
+  }
   else pushFx({ kind: 'foeDie', x: f.x, y: f.y, big: def.scale > 1.1 })
   pushFx({ kind: 'coin', x: f.x, y: f.y, value: coins })
 
@@ -6919,6 +7325,7 @@ const stepFoes = (dt: number): void => {
     // A flare in reach: an ordinary body forgets the crowd and goes to the
     // light; the scythe turns to it but keeps its own fight (below).
     const lure = lureFor(f)
+
     if (!pool && lure && !f.elite) {
       swarmDecoy(f, dt, lure)
     } else if (!pool) {
@@ -6935,7 +7342,14 @@ const stepFoes = (dt: number): void => {
       }
       // Home in on the crowd, but lazily — a foe that tracks perfectly is
       // unavoidable, and unavoidable is not the same as difficult.
-      const homing = f.flying ? 1.5 : 0.9
+      //
+      // `f.homing` scales it, and is 1 for everything but a stray. That one
+      // multiplier is the whole difference between a beat and a distraction:
+      // at 1 a body crosses the lane and meets you wherever you are, and at
+      // `STRAY_HOMING` it corrects a fraction of a unit over its whole approach
+      // and slides past on its own shoulder unless you steer into it. See
+      // `Foe.homing`.
+      const homing = (f.flying ? 1.5 : 0.9) * f.homing
       const aimX = lure ? lure.x : anchorX
       f.x += Math.max(-homing * dt, Math.min(homing * dt, (aimX - f.x) * dt * 0.9))
       if (f.flying) f.x += Math.sin(clock / 700 + f.swayPhase) * dt * 1.1
@@ -7478,6 +7892,11 @@ const stepCages = (dt: number): void => {
       continue
     }
     if (c.y > anchorY + 6) continue
+    // Neither locked cage bills contact. The warden one is past the arena and
+    // never meets the crowd; the elite's is off the road and out of reach — but
+    // it passes through this window every stage, so the guard is stated rather
+    // than left to the geometry.
+    if (c.warden || c.sealed) continue
 
     grindAgainst(c.id, {
       x: c.x, halfW: CAGE_R, y: c.y, halfH: CAGE_R,
@@ -9552,6 +9971,11 @@ export const debugSkipToArena = (): void => {
   weaponBoxes.length = 0
   bolts.length = 0
   pickups.length = 0
+  // …and put the warden cage back. It was just cleared with the roadside ones,
+  // and it is not roadside furniture: a skip that arrives at an arena with no
+  // cage in it arrives at a different arena from the one the game ships, and the
+  // handover it feeds (`entryFrom`) would quietly take the old formation path.
+  placeWardenCage(stage.value)
   for (const u of units) u.y = anchorY
 }
 /**

@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Ketuk untuk bergerak', 'desktop': 'Klik untuk bergerak' },
-    'trap': { 'touch': 'Gerbang merah MENGURANGI regu — ambil yang lain!', 'desktop': 'Gerbang merah MENGURANGI regu — ambil yang lain!' },
     'divider': { 'touch': 'Jangan sentuh pilar di antara gerbang', 'desktop': 'Jangan sentuh pilar di antara gerbang' },
     'crate': { 'touch': 'Peti hijau: semua memukul lebih keras', 'desktop': 'Peti hijau: semua memukul lebih keras' },
     'rate': { 'touch': 'Peti biru: semua menembak lebih cepat', 'desktop': 'Peti biru: semua menembak lebih cepat' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Tahap selesai!',
     'wipedOut': 'Regu habis',
     'reachedStage': 'Tahap {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': 'Rekor {n}%',
-    'newReach': 'Terjauh sejauh ini!',
     'newRecord': 'Rekor baru!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Bos tumbang!',
     'wasted': 'Tamat',
-    'cause': {
-      'foe': 'Dibanjiri monster',
-      'elite': 'Minibos menghabisimu',
-      'barricade': 'Menabrak barikade',
-      'crate': 'Menabrak peti',
-      'divider': 'Menyerempet pembatas',
-      'trap': 'Terjebak perangkap',
-      'slam': 'Bos meremukkanmu'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Pencapaian!',
     'rallied': 'Napas kedua',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Coba gratis!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Ia mengambil semua orang.',
+    'alive': 'Mereka masih hidup.',
+    'go': 'Pergi jemput mereka.',
+    'skip': 'Lewati'
   },
 
   'upgrades': {

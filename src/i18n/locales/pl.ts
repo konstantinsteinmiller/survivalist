@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Dotknij, aby się ruszyć', 'desktop': 'Kliknij, aby się ruszyć' },
-    'trap': { 'touch': 'Czerwone bramy ZMNIEJSZAJĄ oddział — wybierz drugą!', 'desktop': 'Czerwone bramy ZMNIEJSZAJĄ oddział — wybierz drugą!' },
     'divider': { 'touch': 'Nigdy nie dotykaj filaru między bramami', 'desktop': 'Nigdy nie dotykaj filaru między bramami' },
     'crate': { 'touch': 'Zielone skrzynie: każdy bije mocniej', 'desktop': 'Zielone skrzynie: każdy bije mocniej' },
     'rate': { 'touch': 'Niebieskie skrzynie: każdy strzela szybciej', 'desktop': 'Niebieskie skrzynie: każdy strzela szybciej' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Etap ukończony!',
     'wipedOut': 'Oddział wybity',
     'reachedStage': 'Etap {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': 'Rekord {n}%',
-    'newReach': 'Najdalej jak dotąd!',
     'newRecord': 'Nowy rekord!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Boss powalony!',
     'wasted': 'Koniec',
-    'cause': {
-      'foe': 'Zalany przez potwory',
-      'elite': 'Miniboss cię złamał',
-      'barricade': 'Wjazd w barykady',
-      'crate': 'Wjazd w skrzynie',
-      'divider': 'Zahaczone separatory',
-      'trap': 'Złapany w pułapki',
-      'slam': 'Boss cię zmiażdżył'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Kamień milowy!',
     'rallied': 'Drugi oddech',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Darmowa próba!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Zabrało wszystkich.',
+    'alive': 'Wciąż żyją.',
+    'go': 'Idź po nich.',
+    'skip': 'Pomiń'
   },
 
   'upgrades': {

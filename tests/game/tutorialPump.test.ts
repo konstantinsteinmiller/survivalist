@@ -340,11 +340,30 @@ describe('the tutorial hold, priced', () => {
         `s1 ${policy}: the tutorial stopped being clearable after the hold`
       ).toBe(rs.length)
     }
+    // ── …and the floor for the run that never steers is SOME, not most ──
+    //
+    // Loosened from `> idle.length / 2` to the promise the paragraph above
+    // actually states, and that `balance.test.ts` states too: "still sees the
+    // first boss die". The old bound could not discriminate. Measured by
+    // sweeping the elite-cage payout and re-running this file, clears out of
+    // three seeds went:
+    //
+    //   +2 -> 2    +4 -> 1    +5 -> 2    +6 -> 1    +7 -> 2
+    //
+    // Non-monotonic in both directions, because a careless crowd holds the
+    // centre line and stage 1 has a `/2` and a `-3` on it: which seeds walk into
+    // which door is a coin flip, and three of them cannot resolve it. A bound
+    // that flips on the third decimal place of an unrelated feature is not
+    // protecting onboarding, it is taxing every change that goes near stage 1.
+    //
+    // The real guarantee lives in `balance.test.ts` ("lets a careless run reach
+    // the closing elite on every seed", `progress01 > 0.8`), which is measured
+    // on progress rather than on a binary and does not flip.
     const idle = rows('s1 careless hold')
     expect(
       idle.filter((r) => r.cleared).length,
       'a run that never steers stopped seeing the first boss die at all'
-    ).toBeGreaterThan(idle.length / 2)
+    ).toBeGreaterThan(0)
 
     // ── Stage 2 is not in this at all, and that is the finding ──
     //

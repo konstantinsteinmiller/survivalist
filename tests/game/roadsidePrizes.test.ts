@@ -43,10 +43,20 @@ beforeEach(async () => {
   __resetTowerState()
 })
 
+/**
+ * The ROADSIDE cages — the prizes this file is about.
+ *
+ * Deliberately excludes the sealed one beside every elite (`Cage.sealed`). That
+ * is not a roadside prize and every rule in this file would be wrong about it:
+ * it is not on the road (`REWARD_CAGE_X` puts it past the rail), it is not
+ * rolled by `placeRescues`, it cannot be shot open at any price, and it is not
+ * one-per-stage. It is the elite's reward, and it has its own spec.
+ */
 const cagesOf = (stage: number): Array<Extract<TrackEvent, { kind: 'cages' }>> =>
-  buildTrack(stage).events.filter(
-    (e): e is Extract<TrackEvent, { kind: 'cages' }> => e.kind === 'cages'
-  )
+  buildTrack(stage).events
+    .filter((e): e is Extract<TrackEvent, { kind: 'cages' }> => e.kind === 'cages')
+    .map((e) => ({ ...e, cages: e.cages.filter((c) => c.sealed !== true) }))
+    .filter((e) => e.cages.length > 0)
 
 const bulwarksOf = (stage: number): Array<Extract<TrackEvent, { kind: 'bulwarks' }>> =>
   buildTrack(stage).events.filter(
@@ -250,7 +260,11 @@ describe('breaking a cage', () => {
     let lostOnBreak = 0
     for (let i = 0; i < 6000 && paid < 0 && game.phase.value === 'run'; i++) {
       // Steer at whichever cage is on the road; hold the middle until one shows.
-      const cage = game.getCages().find((c) => !c.dead)
+      // `!c.warden`: every boss now stands in front of an unbreakable cage
+      // holding the next stage's squad (`Cage.warden`), and it is the first
+      // entry in the array. Steering at THAT is steering at something three
+      // hundred units away that can never be opened.
+      const cage = game.getCages().find((c) => !c.dead && !c.warden)
       game.steerTo(cage ? cage.x : 0)
       const before = game.squadCount.value
       game.step(STEP_MS)

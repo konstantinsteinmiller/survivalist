@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Tik om te bewegen', 'desktop': 'Klik om te bewegen' },
-    'trap': { 'touch': 'Rode poorten VERKLEINEN je team — neem de andere!', 'desktop': 'Rode poorten VERKLEINEN je team — neem de andere!' },
     'divider': { 'touch': 'Raak nooit de pilaar tussen de poorten aan', 'desktop': 'Raak nooit de pilaar tussen de poorten aan' },
     'crate': { 'touch': 'Groene kisten: iedereen slaat harder', 'desktop': 'Groene kisten: iedereen slaat harder' },
     'rate': { 'touch': 'Blauwe kisten: iedereen schiet sneller', 'desktop': 'Blauwe kisten: iedereen schiet sneller' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Level gehaald!',
     'wipedOut': 'Team weggevaagd',
     'reachedStage': 'Level {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': 'Record {n}%',
-    'newReach': 'Nog nooit zo ver!',
     'newRecord': 'Nieuw record!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Baas geveld!',
     'wasted': 'Afgemaakt',
-    'cause': {
-      'foe': 'Overlopen door monsters',
-      'elite': 'Een minibaas brak je',
-      'barricade': 'Op barricades gereden',
-      'crate': 'Op kratten gereden',
-      'divider': 'De scheidingen geraakt',
-      'trap': 'In vallen gelopen',
-      'slam': 'De baas verpletterde je'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Mijlpaal!',
     'rallied': 'Tweede adem',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Gratis proberen!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Het nam iedereen mee.',
+    'alive': 'Ze leven nog.',
+    'go': 'Haal ze terug.',
+    'skip': 'Overslaan'
   },
 
   'upgrades': {

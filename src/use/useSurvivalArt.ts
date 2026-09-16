@@ -5,7 +5,9 @@ import {
   gateTickMs, gatePumpCap, gateValueLabel, isScaleOp,
   LANE_HALF, MAX_FIRE_RATE, SLAM_RADIUS, SLAM_RADIUS_GROWTH, slamRadiusFor,
   SLAM_RADIUS_MAX, VIEW_HEIGHT, UNIT_R,
-  type Divider, type GateOp
+  type Divider, type GateOp,
+  WARDEN_CAGE_SCALE,
+  REWARD_CAGE_SCALE
 } from '@/game/survival'
 import { BOLT_R, ROLLER_R, ROLLER_SPEED, ROLLER_WARN_AHEAD, flankXs } from '@/game/threats'
 import {
@@ -3003,7 +3005,11 @@ export const drawScene = (
   // these instead of rebuilding the anchor object per call.
   const a = anchor()
   camX = a.x
-  camY = a.y
+  // The intro flies its own camera down the road while the crowd stands still
+  // at y = 0 — see `setCutsceneCam`. `camX` stays the crowd's, because the
+  // cutscene never leaves the lane and a sideways drift would only make the
+  // rails wobble.
+  camY = cutsceneCam ?? a.y
   roadY = camY + roadScrollY()
   measureCrowd(dtMs)
   // The late skills draw from their own module, through this frame's camera.
@@ -3197,6 +3203,138 @@ export const drawScene = (
   // Frost on the glass, over the grades: it is the one full-screen pass that
   // is a place rather than a mood.
   drawSkillScreen(ctx, w, h)
+  // The intro's own two passes, over everything and only while it runs.
+  if (cutsceneCam !== null) drawCutsceneAir(ctx, w, h)
+}
+
+// ─── The intro cutscene's camera and light ──────────────────────────────────
+//
+// The cutscene is `drawScene` with a different camera and no `step` — see
+// `cutscenes.md` and `primeCutsceneWorld`. Everything it draws is the ordinary
+// scene; the only things this section adds are the two passes that are ABOUT
+// the camera rather than about the world: the crowned one's bloom, and the
+// streaks that sell the speed.
+
+let cutsceneCam: number | null = null
+let cutsceneBloom = 0
+let cutsceneSpeed = 0
+
+/**
+ * Point the camera at a world-y for the cutscene, or hand it back to the crowd.
+ *
+ * One number and two decorations. The camera is a single `camY` (see
+ * `worldToScreenY`), so a cutscene needs no second camera and no second
+ * projection — which is the whole reason the intro can fly the real road for
+ * the cost of an assignment.
+ */
+export const setCutsceneCam = (
+  y: number | null, bloom = 0, speed = 0
+): void => {
+  cutsceneCam = y
+  cutsceneBloom = bloom
+  cutsceneSpeed = speed
+}
+
+
+/**
+ * The bloom and the streaks.
+ *
+ * THE LIGHT RULE: the crowned one is the only light source on the road, so its
+ * glow shrinks toward the top of the frame as the camera retreats until, at the
+ * start line, it is a single warm point on the horizon — which is exactly where
+ * the player is about to run. The last frame of the cutscene is the first frame
+ * of the game and it contains a small distant light the player now understands.
+ *
+ * The streaks are speed, and they are drawn rather than blurred: a real motion
+ * blur over a full-screen canvas is a per-pixel pass on a game that is already
+ * fill-bound (`PERF-LEDGER.md`), and the lane already has vertical furniture
+ * for the eye to smear along.
+ */
+/**
+ * ─── The bloom's own step, and why it has one ───────────────────────────────
+ *
+ * The bloom is the only thing in the cutscene that costs a FULL SCREEN of fill
+ * every frame, composited `lighter`, and this game is fill-bound on the devices
+ * the stutter was reported from — pixel work, not CPU (`PERF-LEDGER.md`). Two
+ * things follow, and neither is about how it looks:
+ *
+ *   THE GRADIENT IS CACHED. `createRadialGradient` plus three colour stops was
+ *     being rebuilt on every frame of a ten-second sequence for a value that
+ *     moves smoothly and imperceptibly. Quantised to `BLOOM_STEPS` rungs it is
+ *     built at most that many times per viewport and then reused — and because
+ *     it is keyed through `getRamp`, the cutscene pre-render in `GameScene.vue`
+ *     builds every rung of it behind the splash along with everything else.
+ *   AND THE `min` TIER DOES NOT PAY IT AT ALL. The streaks below already opt
+ *     out there; the bloom is the more expensive of the two and was not. A
+ *     device on the bottom rung is one that cannot afford a screen of
+ *     additive fill, and the shot still reads without it: the boss is still lit
+ *     from the front, the cage still glows, and what is lost is an atmosphere
+ *     that device was never going to render smoothly anyway.
+ *
+ * Sixteen rungs, not more, and the ceiling is the cache rather than the eye.
+ * `useGradientRamps` holds 256 entries and CLEARS THE LOT when it fills, so a
+ * generous quantisation would buy smoothness at the top of the flight by
+ * evicting every cage glow and crate body at the bottom of it — trading one
+ * stutter for a worse one. Sixteen is a change of 1.25 % of the bloom per step,
+ * which is under what an 8-bit channel can show at this alpha and far under what
+ * an eye catches on a camera moving at eleven times run speed.
+ */
+const BLOOM_STEPS = 16
+
+const drawCutsceneAir = (ctx: CanvasRenderingContext2D, w: number, h: number): void => {
+  // ── The bloom ──
+  if (cutsceneBloom > 0.001 && !minFx) {
+    // Tuned DOWN hard from the first pass, which used 0.55 over the whole frame
+    // and turned the opening shot into a sheet of amber with a monster
+    // somewhere in it. A light source is read from its falloff, not from its
+    // brightness: a tight core and a long tail says "something is burning up
+    // there", a wide flat wash says "the exposure is wrong".
+    const q = Math.round(cutsceneBloom * BLOOM_STEPS) / BLOOM_STEPS
+    const r = Math.max(w, h) * (0.20 + 0.34 * q)
+    const cx = w / 2
+    // Sinks toward the horizon as the glow weakens, so the light does not merely
+    // dim — it recedes.
+    const cy = h * (0.26 - 0.20 * (1 - q))
+    const key = `bloom|${w}|${h}|${q}`
+    let g = getRamp(key)
+    if (!g) {
+      g = putRamp(key, ctx.createRadialGradient(cx, cy, 0, cx, cy, r))
+      const a = 0.20 * q
+      g.addColorStop(0, `rgba(255,205,0,${a.toFixed(3)})`)
+      g.addColorStop(0.35, `rgba(247,160,0,${(a * 0.30).toFixed(3)})`)
+      g.addColorStop(1, 'rgba(247,160,0,0)')
+    }
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, w, h)
+    ctx.restore()
+  }
+
+  // ── The streaks ──
+  //
+  // Off entirely at the `min` tier and below walking pace, so a held shot is
+  // perfectly clean — shot 3 is two seconds of stillness and nothing may move
+  // in it.
+  if (minFx || cutsceneSpeed < 14) return
+  const k = Math.min(1, (cutsceneSpeed - 14) / 90)
+  const n = cheapFx ? 10 : 22
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.strokeStyle = `rgba(190,205,255,${(0.05 + 0.10 * k).toFixed(3)})`
+  ctx.lineWidth = 1
+  for (let i = 0; i < n; i++) {
+    // Deterministic placement off the index: a streak field that re-rolls per
+    // frame flickers, and flicker at 21x road speed reads as a dropped frame.
+    const x = ((i * 97) % 100) / 100 * w
+    const len = h * (0.10 + 0.30 * k) * (0.6 + ((i * 37) % 40) / 100)
+    const y = ((i * 149) % 100) / 100 * h
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+    ctx.lineTo(x, y + len)
+    ctx.stroke()
+  }
+  ctx.restore()
 }
 
 // ─── Layer 1–3: backdrop ────────────────────────────────────────────────────
@@ -5704,6 +5842,11 @@ const drawCrates = (ctx: CanvasRenderingContext2D): void => {
  *  than the strip of road it occupies. */
 const CAGE_DRAW_TALL = 1.5
 
+/** Breathing room, in CSS px, between a clamped cage label and the screen edge.
+ *  Small on purpose: the label is meant to look like it is hanging off the side
+ *  of the lid, not like it fled into the lane. */
+const LABEL_EDGE_PAD = 8
+
 const drawCages = (ctx: CanvasRenderingContext2D): void => {
   const t = nowMs()
   for (const c of getCages()) {
@@ -5711,9 +5854,15 @@ const drawCages = (ctx: CanvasRenderingContext2D): void => {
     const sx = worldToScreenX(c.x)
     const sy = worldToScreenY(c.y)
     if (sy < -60 || sy > viewH + 60) continue
+    // The warden cage — the one behind the boss — is drawn bigger, because of
+    // what is in it: a stage's roadside cages hold three to a dozen and this one
+    // holds the whole opening squad of the next road. See `Cage.warden`.
     const r = CAGE_R * scale
+      * (c.warden ? WARDEN_CAGE_SCALE : c.sealed ? REWARD_CAGE_SCALE : 1)
     const hh = r * CAGE_DRAW_TALL
-    const hurt = 1 - c.hp / c.maxHp
+    // …and it is never hurt: nothing can touch it, so the damage tint is a
+    // channel it does not have.
+    const hurt = c.warden || c.sealed ? 0 : 1 - c.hp / c.maxHp
 
     // ── The lamp inside ──
     //
@@ -5821,6 +5970,20 @@ const drawCages = (ctx: CanvasRenderingContext2D): void => {
     // the gates use. The HP underneath in the crate's exact position and style:
     // what it COSTS. Two numbers on one prop is only legible because they never
     // move and never swap places.
+    //
+    // …and NEITHER of them during the intro cutscene. Shot 3 holds on a cage for
+    // two silent seconds and it is the only beat in the game that has to land
+    // emotionally; a payout and a hit-point total floating over it turn the
+    // people in the box back into a pickup. The cage is still lit, still
+    // rattling, still unmistakably a cage — it simply is not a price yet. See
+    // `cutscenes.md` §2.3 shot 3.
+    //
+    // The warden cage never carries them at all, on any screen. It cannot be
+    // broken and it cannot be bought: a `+N` over it would be a price on the one
+    // object in the game that is not for sale, and an HP bar would promise a
+    // fight the player is not allowed to have with it.
+    if (cutsceneCam !== null || c.warden) { ctx.restore(); continue }
+
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.lineJoin = 'round'
@@ -5828,20 +5991,49 @@ const drawCages = (ctx: CanvasRenderingContext2D): void => {
     const pay = `+${c.hold}`
     const pf = Math.max(9, r * 0.66)
     ctx.font = `900 ${pf}px Angry, sans-serif`
-    ctx.lineWidth = Math.max(2, r * 0.16)
-    ctx.strokeStyle = 'rgba(0,0,0,0.9)'
-    ctx.strokeText(pay, 0, top - r * 0.18)
-    ctx.fillStyle = '#fff'
-    ctx.fillText(pay, 0, top - r * 0.18)
 
-    const label = formatCount(Math.ceil(c.hp))
-    const fs = Math.max(9, r * 0.62)
-    ctx.font = `900 ${fs}px Angry, sans-serif`
+    // ── …and the one place the number leaves the middle of the lid ─────────
+    //
+    // The elite's cage stands OFF the road, past the rail, and on a portrait
+    // phone the screen edge cuts it in half — which is the look it was asked
+    // for and must not be undone. The `+N` is a different matter: it is the
+    // only thing on screen that says what the fight beside it is worth, and a
+    // reward the player cannot read is not a reward. So it slides back along
+    // the lid until it clears the edge, and not one pixel further — on a
+    // desktop, where the whole cage fits, `slide` is exactly 0 and the number
+    // sits centred as it does on every other cage in the game.
+    let payX = 0
+    if (c.sealed) {
+      const half = ctx.measureText(pay).width / 2 + LABEL_EDGE_PAD
+      const lo = half - sx
+      const hi = viewW - half - sx
+      if (lo <= hi) payX = Math.max(lo, Math.min(hi, 0))
+    }
+
     ctx.lineWidth = Math.max(2, r * 0.16)
     ctx.strokeStyle = 'rgba(0,0,0,0.9)'
-    ctx.strokeText(label, 0, bot + r * 0.42)
-    ctx.fillStyle = '#ffd7a1'
-    ctx.fillText(label, 0, bot + r * 0.42)
+    ctx.strokeText(pay, payX, top - r * 0.18)
+    ctx.fillStyle = '#fff'
+    ctx.fillText(pay, payX, top - r * 0.18)
+
+    // ── The elite's cage keeps its `+N` and loses its price ────────────────
+    //
+    // The two labels answer different questions. `+N` is "what is in here",
+    // which is the whole reason to fight the thing standing next to it — so it
+    // stays, and it is the only thing on screen that says the elite is worth
+    // stopping for. The HP underneath is "what it costs to open", and this one
+    // cannot be opened by shooting at any price: printing a number there would
+    // invite the player to spend a stage's ammunition on a box that ignores it.
+    if (!c.sealed) {
+      const label = formatCount(Math.ceil(c.hp))
+      const fs = Math.max(9, r * 0.62)
+      ctx.font = `900 ${fs}px Angry, sans-serif`
+      ctx.lineWidth = Math.max(2, r * 0.16)
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)'
+      ctx.strokeText(label, 0, bot + r * 0.42)
+      ctx.fillStyle = '#ffd7a1'
+      ctx.fillText(label, 0, bot + r * 0.42)
+    }
 
     ctx.restore()
   }
@@ -7131,6 +7323,7 @@ const drawFoes = (ctx: CanvasRenderingContext2D): void => {
     // points at an elite the player cannot see — which is the one case that
     // marker exists for.
     if (f.kind === 'burrower' && f.fuse > 0) continue
+
     const size = f.scale * scale * 1.25
 
     ctx.save()

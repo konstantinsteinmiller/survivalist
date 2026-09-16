@@ -140,6 +140,19 @@ export const ONBOARDED_KEY = 'ts_onboarded'
  * whose save predates it — a gate in front of stage 1 for someone on stage 20.
  */
 export const TUTORIAL_KEY = 'ts_tutorial_seen'
+/**
+ * The intro cutscene has been shown — see `cutscenes.md`.
+ *
+ * Written the moment the cutscene STARTS, not when it finishes, and that is
+ * deliberate: a player who closes the tab four seconds in has already seen the
+ * crowned one and the cage, and opening with the same nine seconds on their
+ * next visit is a worse welcome than opening with the game.
+ *
+ * Its own key rather than `TUTORIAL_KEY`, for the same reason that key is not
+ * `ONBOARDED_KEY`: they retire different things at different moments, and
+ * folding them together would replay one of them for every existing save.
+ */
+export const INTRO_SEEN_KEY = 'ts_intro_seen'
 /** One-time "you can afford an upgrade" spotlight on the shop button. */
 export const SHOP_SPOTLIGHT_KEY = 'ts_shop_spotlight_seen'
 

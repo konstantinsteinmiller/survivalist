@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Hareket için dokun', 'desktop': 'Hareket için tıkla' },
-    'trap': { 'touch': 'Kırmızı kapı ekibi AZALTIR — diğerine geç!', 'desktop': 'Kırmızı kapı ekibi AZALTIR — diğerine geç!' },
     'divider': { 'touch': 'Kapılar arasındaki direğe asla dokunma', 'desktop': 'Kapılar arasındaki direğe asla dokunma' },
     'crate': { 'touch': 'Yeşil sandık: herkes daha sert vurur', 'desktop': 'Yeşil sandık: herkes daha sert vurur' },
     'rate': { 'touch': 'Mavi sandık: herkes daha hızlı ateş eder', 'desktop': 'Mavi sandık: herkes daha hızlı ateş eder' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Bölüm tamamlandı!',
     'wipedOut': 'Ekip yok edildi',
     'reachedStage': 'Bölüm {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '%{n}',
-    'bestReach': 'Rekor %{n}',
-    'newReach': 'En uzağı!',
     'newRecord': 'Yeni rekor!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Patron devrildi!',
     'wasted': 'Bitti',
-    'cause': {
-      'foe': 'Canavarlar ezip geçti',
-      'elite': 'Bir minipatron devirdi',
-      'barricade': 'Barikatlara çarptın',
-      'crate': 'Sandıklara çarptın',
-      'divider': 'Ayırıcılara takıldın',
-      'trap': 'Tuzaklara yakalandın',
-      'slam': 'Patron seni ezdi'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Dönüm noktası!',
     'rallied': 'İkinci nefes',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Ücretsiz dene!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Herkesi götürdü.',
+    'alive': 'Hâlâ hayattalar.',
+    'go': 'Git ve onları kurtar.',
+    'skip': 'Atla'
   },
 
   'upgrades': {

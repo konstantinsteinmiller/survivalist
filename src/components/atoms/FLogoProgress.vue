@@ -66,6 +66,7 @@ import { useI18n } from 'vue-i18n'
 import useAssets from '@/use/useAssets'
 import { stopLoading } from '@/use/useCrazyGames'
 import { armFirstLoadInterstitial, notifySplashGone } from '@/use/useFirstLoadInterstitial'
+import { introHoldsSplash, notifyIntroReady } from '@/use/useCutscene'
 import { prependBaseUrl } from '@/utils/function'
 
 const { t } = useI18n()
@@ -249,20 +250,61 @@ onMounted(() => {
   greetTimerId = window.setTimeout(() => runGreeting('boo'), LURK_MS)
 })
 onUnmounted(() => {
+  if (introWaitId !== null) clearTimeout(introWaitId)
   if (settleFallbackId !== null) clearTimeout(settleFallbackId)
   if (stuckHintId !== null) clearTimeout(stuckHintId)
   if (greetTimerId !== null) clearTimeout(greetTimerId)
 })
+
+/**
+ * ─── …and one more thing the splash waits for, on one boot in a career ──────
+ *
+ * A first-time player's boot opens on the intro cutscene, and the cutscene is
+ * drawn by the scene BEHIND this screen. Everything it rasterises is sized to
+ * the renderer's `scale`, which does not exist until the scene has measured the
+ * viewport — so none of it can be built by the asset loader, and all of it used
+ * to land on the first shots of the flight. That is where the stutter reports
+ * came from.
+ *
+ * So the scene pre-draws the whole camera path and says when it is done, and
+ * this holds for it (`introHoldsSplash` → `notifyIntroWarm`). It is the mirror
+ * of `notifyIntroReady` below: this screen waits for the cutscene, then the
+ * cutscene waits for this screen to leave.
+ *
+ * ⚠ It is FALSE for everybody else. `introHoldsSplash` gates on the intro being
+ * armed at all, so a returning player's splash closes on `progress` alone,
+ * exactly as it did before — nobody pays loading time for a cutscene they will
+ * never be shown.
+ *
+ * Bounded twice over: `INTRO_WARM_WAIT_MAX_MS` here, and the scene's own budget
+ * inside the warm-up. `settleFallbackId` sits past both as the last resort.
+ */
+const INTRO_WARM_WAIT_MAX_MS = 3500
+let introWaitId: number | null = null
+
+const settle = (): void => {
+  if (done.value) return
+  if (introWaitId !== null) { clearTimeout(introWaitId); introWaitId = null }
+  setTimeout(() => { done.value = true }, 100)
+}
 
 // `immediate: true` fires the handler with the current value the moment
 // the watcher is set up. Without it, an asset loader that already reports
 // 100% (instant boots, especially on localhost) never trips the watcher
 // and the splash sits around for the full 4s `settleFallbackId` window.
 watch(progress, (val) => {
-  if (val >= 100 && !done.value) {
-    setTimeout(() => { done.value = true }, 100)
+  if (val < 100 || done.value) return
+  if (!introHoldsSplash.value) { settle(); return }
+  // Held for the pre-render. The watcher below releases it; this is only the
+  // ceiling on how long that may take.
+  if (introWaitId === null) {
+    introWaitId = window.setTimeout(() => { introWaitId = null; settle() }, INTRO_WARM_WAIT_MAX_MS)
   }
 }, { immediate: true })
+
+watch(introHoldsSplash, (holds) => {
+  if (!holds && progress.value >= 100) settle()
+})
 
 let cgLoadSignaled = false
 const signalGameReadyToCG = () => {
@@ -365,6 +407,11 @@ watch(done, (isDone) => {
       // is still initialising this only ARMS the fire, and the readiness watcher
       // in the orchestrator lands it a moment later.
       notifySplashGone()
+      // …and the intro cutscene, which has been holding on its opening frame
+      // rather than playing to a screen the splash is covering. See
+      // `useCutscene`'s splash handshake — without this the first shot is
+      // two-thirds over before anyone can see it.
+      notifyIntroReady()
     }, 150)
   }
 })

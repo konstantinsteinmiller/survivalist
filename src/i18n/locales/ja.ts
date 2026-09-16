@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'タップで移動', 'desktop': 'クリックで移動' },
-    'trap': { 'touch': '赤いゲートは仲間が減る！反対側へ', 'desktop': '赤いゲートは仲間が減る！反対側へ' },
     'divider': { 'touch': 'ゲートの間の柱に触れるな', 'desktop': 'ゲートの間の柱に触れるな' },
     'crate': { 'touch': '緑の箱：全員の攻撃力アップ', 'desktop': '緑の箱：全員の攻撃力アップ' },
     'rate': { 'touch': '青い箱：全員の連射が速くなる', 'desktop': '青い箱：全員の連射が速くなる' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'ステージクリア！',
     'wipedOut': '部隊全滅',
     'reachedStage': 'ステージ {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': '最高 {n}%',
-    'newReach': '自己ベスト！',
     'newRecord': '新記録！',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'ボス撃破！',
     'wasted': '撃沈',
-    'cause': {
-      'foe': 'モンスターに押し切られた',
-      'elite': 'ミニボスに崩された',
-      'barricade': 'バリケードに激突',
-      'crate': '木箱に激突',
-      'divider': '仕切りに接触',
-      'trap': 'トラップにかかった',
-      'slam': 'ボスに押し潰された'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'マイルストーン！',
     'rallied': '巻き返し',
@@ -212,6 +197,13 @@ export default {
     'trialTag': '無料お試し！',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'みんな連れて行かれた。',
+    'alive': 'まだ生きている。',
+    'go': '助けに行こう。',
+    'skip': 'スキップ'
   },
 
   'upgrades': {

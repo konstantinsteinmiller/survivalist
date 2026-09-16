@@ -45,7 +45,13 @@ const bodiesOf = (e: TrackEvent): Box[] => {
       }
       break
     case 'cages':
-      for (const c of e.cages) out.push({ tag: 'cage', x: c.x, y: e.y, hw: CAGE_R, hh: CAGE_R })
+      for (const c of e.cages) {
+        // The elite's sealed cage stands OFF the road on purpose — past the
+        // rail, partly clipped by a portrait screen — so every lane rule in this
+        // file is one it is meant to break. See `REWARD_CAGE_X`.
+        if (c.sealed === true) continue
+        out.push({ tag: 'cage', x: c.x, y: e.y, hw: CAGE_R, hh: CAGE_R })
+      }
       break
     case 'bulwarks':
       for (const w of e.bulwarks) {

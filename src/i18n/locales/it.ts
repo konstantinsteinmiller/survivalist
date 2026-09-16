@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Tocca per muoverti', 'desktop': 'Clicca per muoverti' },
-    'trap': { 'touch': 'I cancelli rossi RIDUCONO la squadra: prendi l’altro!', 'desktop': 'I cancelli rossi RIDUCONO la squadra: prendi l’altro!' },
     'divider': { 'touch': 'Non toccare mai il pilastro tra i cancelli', 'desktop': 'Non toccare mai il pilastro tra i cancelli' },
     'crate': { 'touch': 'Casse verdi: tutti colpiscono più forte', 'desktop': 'Casse verdi: tutti colpiscono più forte' },
     'rate': { 'touch': 'Casse blu: tutti sparano più veloce', 'desktop': 'Casse blu: tutti sparano più veloce' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Livello superato!',
     'wipedOut': 'Squadra annientata',
     'reachedStage': 'Livello {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': 'Record {n}%',
-    'newReach': 'Mai così lontano!',
     'newRecord': 'Nuovo record!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Boss abbattuto!',
     'wasted': 'Eliminato',
-    'cause': {
-      'foe': 'Travolto dai mostri',
-      'elite': 'Un miniboss ti ha spezzato',
-      'barricade': 'Finito sulle barricate',
-      'crate': 'Finito sulle casse',
-      'divider': 'Preso i separatori',
-      'trap': 'Caduto nelle trappole',
-      'slam': 'Il boss ti ha schiacciato'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Traguardo!',
     'rallied': 'Secondo fiato',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Prova gratis!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Ha preso tutti.',
+    'alive': 'Sono ancora vivi.',
+    'go': 'Vai a riprenderli.',
+    'skip': 'Salta'
   },
 
   'upgrades': {

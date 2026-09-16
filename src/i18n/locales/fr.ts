@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Touche pour te déplacer', 'desktop': 'Clique pour te déplacer' },
-    'trap': { 'touch': 'Les portes rouges RÉDUISENT ton escouade : prends l’autre !', 'desktop': 'Les portes rouges RÉDUISENT ton escouade : prends l’autre !' },
     'divider': { 'touch': 'Ne touche jamais le pilier entre les portes', 'desktop': 'Ne touche jamais le pilier entre les portes' },
     'crate': { 'touch': 'Caisses vertes : tous frappent plus fort', 'desktop': 'Caisses vertes : tous frappent plus fort' },
     'rate': { 'touch': 'Caisses bleues : tous tirent plus vite', 'desktop': 'Caisses bleues : tous tirent plus vite' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Niveau terminé !',
     'wipedOut': 'Escouade anéantie',
     'reachedStage': 'Niveau {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n} %',
-    'bestReach': 'Record {n} %',
-    'newReach': 'Jamais aussi loin !',
     'newRecord': 'Nouveau record !',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Boss terrassé !',
     'wasted': 'Éliminé',
-    'cause': {
-      'foe': 'Submergé par les monstres',
-      'elite': 'Un mini-boss vous a brisé',
-      'barricade': 'Foncé dans les barricades',
-      'crate': 'Foncé dans les caisses',
-      'divider': 'Accroché les séparateurs',
-      'trap': 'Pris dans les pièges',
-      'slam': 'Le boss vous a écrasé'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Palier !',
     'rallied': 'Second souffle',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Essai gratuit !',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Il a pris tout le monde.',
+    'alive': 'Ils sont encore en vie.',
+    'go': 'Va les chercher.',
+    'skip': 'Passer'
   },
 
   'upgrades': {

@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'चलने के लिए टैप करें', 'desktop': 'चलने के लिए क्लिक करें' },
-    'trap': { 'touch': 'लाल गेट दस्ता घटाते हैं — दूसरा चुनें!', 'desktop': 'लाल गेट दस्ता घटाते हैं — दूसरा चुनें!' },
     'divider': { 'touch': 'गेटों के बीच का खंभा कभी न छुएँ', 'desktop': 'गेटों के बीच का खंभा कभी न छुएँ' },
     'crate': { 'touch': 'हरे बक्से: सबकी मार बढ़ेगी', 'desktop': 'हरे बक्से: सबकी मार बढ़ेगी' },
     'rate': { 'touch': 'नीले बक्से: सब तेज़ी से गोली चलाएँगे', 'desktop': 'नीले बक्से: सब तेज़ी से गोली चलाएँगे' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'चरण पूरा!',
     'wipedOut': 'दस्ता खत्म',
     'reachedStage': 'चरण {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': 'सर्वश्रेष्ठ {n}%',
-    'newReach': 'अब तक सबसे दूर!',
     'newRecord': 'नया रिकॉर्ड!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'बॉस गिरा!',
     'wasted': 'ख़त्म',
-    'cause': {
-      'foe': 'राक्षसों ने घेर लिया',
-      'elite': 'मिनीबॉस ने तोड़ दिया',
-      'barricade': 'बैरिकेड से टकराए',
-      'crate': 'बक्सों से टकराए',
-      'divider': 'डिवाइडर से टकराए',
-      'trap': 'जाल में फँस गए',
-      'slam': 'बॉस ने कुचल दिया'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'पड़ाव!',
     'rallied': 'नया जोश',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'मुफ़्त आज़माएँ!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'यह सबको ले गया।',
+    'alive': 'वे अब भी ज़िंदा हैं।',
+    'go': 'जाओ, उन्हें लाओ।',
+    'skip': 'छोड़ें'
   },
 
   'upgrades': {

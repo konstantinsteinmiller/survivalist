@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Жылжу үшін түртіңіз', 'desktop': 'Жылжу үшін басыңыз' },
-    'trap': { 'touch': 'Қызыл қақпа жасақты АЗАЙТАДЫ — екіншісін таңдаңыз!', 'desktop': 'Қызыл қақпа жасақты АЗАЙТАДЫ — екіншісін таңдаңыз!' },
     'divider': { 'touch': 'Қақпалар арасындағы бағанаға тиюге болмайды', 'desktop': 'Қақпалар арасындағы бағанаға тиюге болмайды' },
     'crate': { 'touch': 'Жасыл жәшік: бәрі күштірек соғады', 'desktop': 'Жасыл жәшік: бәрі күштірек соғады' },
     'rate': { 'touch': 'Көк жәшік: бәрі жылдамырақ атады', 'desktop': 'Көк жәшік: бәрі жылдамырақ атады' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Кезең өтті!',
     'wipedOut': 'Жасақ жойылды',
     'reachedStage': '{n}-кезең',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n} %',
-    'bestReach': 'Рекорд {n} %',
-    'newReach': 'Ең алысы!',
     'newRecord': 'Жаңа рекорд!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Босс құлады!',
     'wasted': 'Құрыды',
-    'cause': {
-      'foe': 'Құбыжықтар басып қалды',
-      'elite': 'Шағын босс күйретті',
-      'barricade': 'Бөгеттерге соғылдың',
-      'crate': 'Жәшіктерге соғылдың',
-      'divider': 'Бөлгіштерге ілікті',
-      'trap': 'Қақпанға түсті',
-      'slam': 'Босс жаныштап тастады'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Белес!',
     'rallied': 'Екінші тыныс',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Тегін сынап көр!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Ол бәрін алып кетті.',
+    'alive': 'Олар әлі тірі.',
+    'go': 'Барып құтқар.',
+    'skip': 'Өткізу'
   },
 
   'upgrades': {

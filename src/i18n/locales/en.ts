@@ -131,10 +131,6 @@ export default {
       'touch': 'Tap to move',
       'desktop': 'Click to move'
     },
-    'trap': {
-      'touch': 'Red gates SHRINK your squad — take the other side!',
-      'desktop': 'Red gates SHRINK your squad — take the other side!'
-    },
     'divider': {
       'touch': 'Never touch the pillar between gates',
       'desktop': 'Never touch the pillar between gates'
@@ -237,11 +233,6 @@ export default {
     'stageClear': 'Stage Clear!',
     'wipedOut': 'Squad Wiped Out',
     'reachedStage': 'Stage {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': 'Best {n}%',
-    'newReach': 'Furthest yet!',
     'newRecord': 'New record!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
@@ -251,20 +242,13 @@ export default {
     // doing the job the result screen could not: marking the loss as an EVENT
     // rather than as a transition into a menu.
     'wasted': 'Wasted',
-    // ─── What stopped the run ───────────────────────────────────────────────
-    // One line per cause, shown in an info box on a loss and billed to whatever
-    // took the most survivors (`dominantCause`). Every one of these has to stay
-    // three or four words: the finding they answer is that nobody knew what
-    // killed them, and the reason nobody knew is that nobody reads.
-    'cause': {
-      'foe': 'Overrun by monsters',
-      'elite': 'A miniboss broke you',
-      'barricade': 'Ran into barricades',
-      'crate': 'Ran into crates',
-      'divider': 'Clipped the dividers',
-      'trap': 'Caught in traps',
-      'slam': 'The boss flattened you'
-    },
+    // NOTE: there is deliberately no `cause.*` here and no near-miss `reach`
+    // readout. Both were on this screen until 2026-09-15 and both were removed
+    // — a death is told by the three-second wipe hold, textlessly, and a
+    // percentage through a stage is not a number this game is about. The
+    // simulation still bills every death to a cause; it rides the `wipe`
+    // analytics event instead of the card. See GameScene's "Two readouts this
+    // screen no longer carries".
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Milestone!',
     // Badge for a retried stage whose enemies came back weakened.
@@ -410,6 +394,21 @@ export default {
     'trialTag': 'Free try!',
     'uses': '×{n}'
   },
+  // ─── The intro cutscene ───────────────────────────────────────────────────
+  //
+  // Three lines, sixty characters, over nine seconds — see `cutscenes.md`. No
+  // proper nouns (nothing is named, because naming things is what makes an
+  // intro feel like homework) and no mechanics (the tutorial teaches steering
+  // six hundred milliseconds later). Every one has to stay short enough to sit
+  // on one line on a 320 px phone in all 21 languages.
+  'intro': {
+    'took': 'It took everyone.',
+    'alive': 'They are still alive.',
+    'go': 'Go and get them.',
+    // The skip button, bottom-right. One word wherever one word exists.
+    'skip': 'Skip'
+  },
+
   'upgrades': {
     'title': 'Upgrades',
     'spotlight': 'Spend!',

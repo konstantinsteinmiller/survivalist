@@ -25,7 +25,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  ADAPTIVE_FIRST_FIGHT_SECONDS, ADAPTIVE_MAX_SECONDS, ADAPTIVE_MIN_SECONDS,
+  ADAPTIVE_FIRST_FIGHT_SECONDS, ADAPTIVE_FIRST_MAX_SECONDS, ADAPTIVE_MAX_SECONDS,
+  ADAPTIVE_MIN_SECONDS, adaptiveCeilingSeconds,
   ELITE_FIRE_SECONDS, adaptiveEliteHp, adaptiveFloorSeconds, clampAdaptiveSeconds
 } from '@/game/adaptive'
 import { BASE_FIRE_RATE, STAGE_ONE_LENGTH, stageLength, stageSpeed } from '@/game/survival'
@@ -122,23 +123,40 @@ describe('an elite is priced in seconds of the crowd it meets', () => {
 })
 
 describe('the first boss has a floor the others do not', () => {
-  it('is worth five seconds of fire at the very least', () => {
+  it('is worth ten seconds of fire at the very least', () => {
     expect(adaptiveFloorSeconds(1)).toBe(ADAPTIVE_FIRST_FIGHT_SECONDS)
+    // Ten, not five. The original brief was "five seconds of straight fire" and
+    // the fight that bought met it and still did not read as a boss, because the
+    // player throws a grenade worth three of those seconds the moment it starts
+    // — see `ADAPTIVE_FIRST_FIGHT_SECONDS` for the measured table.
     expect(ADAPTIVE_FIRST_FIGHT_SECONDS, 'the first fight no longer clears the brief')
-      .toBeGreaterThanOrEqual(5)
+      .toBeGreaterThanOrEqual(10)
     // Even a run that arrives with nothing gets the full first fight.
     expect(clampAdaptiveSeconds(0.1, 1)).toBe(ADAPTIVE_FIRST_FIGHT_SECONDS)
     expect(clampAdaptiveSeconds(3.0 * 0.35, 1)).toBe(ADAPTIVE_FIRST_FIGHT_SECONDS)
   })
 
-  it('does not raise the floor anywhere else, or lift the ceiling anywhere', () => {
+  it('does not raise the floor or the ceiling anywhere else', () => {
     // The anti-melt floor is the right one for a stage the player has already
     // decided to be on; this is only about the fight the session is decided on.
     for (const stage of [2, 3, 4, 5, 9]) {
       expect(adaptiveFloorSeconds(stage)).toBe(ADAPTIVE_MIN_SECONDS)
+      expect(adaptiveCeilingSeconds(stage)).toBe(ADAPTIVE_MAX_SECONDS)
       expect(clampAdaptiveSeconds(0.1, stage)).toBe(ADAPTIVE_MIN_SECONDS)
+      expect(clampAdaptiveSeconds(999, stage)).toBe(ADAPTIVE_MAX_SECONDS)
     }
-    // A hopeless crowd is not handed a longer fight just because it is first.
-    expect(clampAdaptiveSeconds(6.8 * 12.7, 1)).toBe(ADAPTIVE_MAX_SECONDS)
+  })
+
+  it('gives the first fight a ceiling ABOVE its own floor', () => {
+    // The failure this guards is silent rather than loud. `clampAdaptiveSeconds`
+    // is `max(floor, min(ceiling, x))`, so a floor raised past a shared ceiling
+    // does not throw — it just makes `min` win, and every first boss comes out
+    // at the ceiling instead of at the length it was tuned to. The stage-1 band
+    // has to be a band.
+    expect(ADAPTIVE_FIRST_MAX_SECONDS).toBeGreaterThan(ADAPTIVE_FIRST_FIGHT_SECONDS)
+    // A hopeless crowd is still not handed an unbounded fight just because it is
+    // their first: the autobalancer reaches x12.7 on a clear streak and the
+    // ceiling is what stops that reaching the bar.
+    expect(clampAdaptiveSeconds(6.8 * 12.7, 1)).toBe(ADAPTIVE_FIRST_MAX_SECONDS)
   })
 })

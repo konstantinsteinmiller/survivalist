@@ -260,10 +260,18 @@ describe('the -N door, and the bank with no right answer', () => {
     expect(seen, 'the campaign never bills anybody').toBeGreaterThan(0)
   })
 
-  it('rations the dilemma: one a stage, never back to back, never before 4', () => {
+  it('rations the dilemma: one a stage, never back to back, never on stage 1', () => {
     // A bank with no right answer is the hardest read in the game. It has to be
     // rare enough to stay a shock and regular enough to be learnable, and it
     // must never be the last thing between the player and the boss.
+    //
+    // The floor was stage 4 and is now stage 2, because the rule it encoded —
+    // "meet `−N` beside something worth having before meeting it beside a trap"
+    // — moved from ACROSS stages to WITHIN one. Stages 2 and 3 run ~50 s and
+    // eleven banks each; both introduce their bill beside a fat add sixty units
+    // before the dilemma arrives, so the order is intact and the back half of
+    // the road gets a question. Stage 1 still never poses one: it is the stage
+    // that teaches what a door is.
     let total = 0
     for (const stage of STAGES) {
       const banks = gateBanks(stage)
@@ -271,7 +279,21 @@ describe('the -N door, and the bank with no right answer', () => {
       const count = flags.filter(Boolean).length
       total += count
       expect(count, `stage ${stage} prints ${count} dilemmas`).toBeLessThanOrEqual(1)
-      if (stage < 4) expect(count, `stage ${stage} is too early for a dilemma`).toBe(0)
+      if (stage < 2) expect(count, `stage ${stage} is too early for a dilemma`).toBe(0)
+      // …and where one is posed EARLIER THAN STAGE 4, that stage must have shown
+      // a bill beside an offer first. This is the onboarding order the old
+      // stage-4 floor was standing in for, restated as the thing it was actually
+      // protecting. From stage 4 it is the previous stages that have taught it,
+      // which is why stage 4's own dilemma may be its first `−N`.
+      if (stage < 4 && count > 0) {
+        const dilemmaY = banks.find((bk) => bk.leaves.every((l) => l.op === 'div' || l.op === 'sub'))!.y
+        const kindSub = banks.find((bk) =>
+          bk.leaves.some((l) => l.op === 'sub') && bk.leaves.some((l) => l.op === 'add'))
+        expect(kindSub, `stage ${stage} poses a dilemma having never billed beside an offer`)
+          .toBeDefined()
+        expect(kindSub!.y, `stage ${stage} poses its dilemma before its teaching bill`)
+          .toBeLessThan(dilemmaY)
+      }
       for (let i = 1; i < flags.length; i++) {
         expect(flags[i] && flags[i - 1], `stage ${stage} stacked two dilemmas`).toBeFalsy()
       }

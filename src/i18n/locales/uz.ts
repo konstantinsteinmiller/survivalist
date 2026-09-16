@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Harakat uchun bosing', 'desktop': 'Harakat uchun bosing' },
-    'trap': { 'touch': 'Qizil darvoza guruhni KAMAYTIRADI — boshqasini tanlang!', 'desktop': 'Qizil darvoza guruhni KAMAYTIRADI — boshqasini tanlang!' },
     'divider': { 'touch': 'Darvozalar orasidagi ustunga hech tegmang', 'desktop': 'Darvozalar orasidagi ustunga hech tegmang' },
     'crate': { 'touch': 'Yashil sandiq: hamma kuchliroq uradi', 'desktop': 'Yashil sandiq: hamma kuchliroq uradi' },
     'rate': { 'touch': 'Ko‘k sandiq: hamma tezroq otadi', 'desktop': 'Ko‘k sandiq: hamma tezroq otadi' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Bosqich tugadi!',
     'wipedOut': 'Guruh yo‘q qilindi',
     'reachedStage': '{n}-bosqich',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': 'Rekord {n}%',
-    'newReach': 'Eng uzoq!',
     'newRecord': 'Yangi rekord!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Boss quladi!',
     'wasted': 'Tamom',
-    'cause': {
-      'foe': 'Maxluqlar bosib ketdi',
-      'elite': 'Miniboss sindirdi',
-      'barricade': 'To‘siqlarga urildingiz',
-      'crate': 'Yashiklarga urildingiz',
-      'divider': 'Ajratgichlarga ilindingiz',
-      'trap': 'Tuzoqqa tushdingiz',
-      'slam': 'Boss yanchib tashladi'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Bosqich!',
     'rallied': 'Ikkinchi nafas',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Bepul sinab koʻr!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'U hammani olib ketdi.',
+    'alive': 'Ular hali tirik.',
+    'go': 'Borib qutqar.',
+    'skip': 'Oʻtkazish'
   },
 
   'upgrades': {

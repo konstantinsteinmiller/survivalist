@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': '탭하여 이동', 'desktop': '클릭하여 이동' },
-    'trap': { 'touch': '빨간 게이트는 부대가 줄어요 — 반대쪽으로!', 'desktop': '빨간 게이트는 부대가 줄어요 — 반대쪽으로!' },
     'divider': { 'touch': '게이트 사이 기둥에 절대 닿지 마세요', 'desktop': '게이트 사이 기둥에 절대 닿지 마세요' },
     'crate': { 'touch': '초록 상자: 모두의 공격력 상승', 'desktop': '초록 상자: 모두의 공격력 상승' },
     'rate': { 'touch': '파란 상자: 모두 더 빨리 사격', 'desktop': '파란 상자: 모두 더 빨리 사격' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': '스테이지 클리어!',
     'wipedOut': '부대 전멸',
     'reachedStage': '스테이지 {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': '최고 {n}%',
-    'newReach': '최고 기록!',
     'newRecord': '신기록!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': '보스 격파!',
     'wasted': '전멸',
-    'cause': {
-      'foe': '몬스터에게 밀렸다',
-      'elite': '미니보스에게 당했다',
-      'barricade': '바리케이드에 충돌',
-      'crate': '상자에 충돌',
-      'divider': '분리대에 걸렸다',
-      'trap': '함정에 걸렸다',
-      'slam': '보스에게 짓밟혔다'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': '마일스톤!',
     'rallied': '기사회생',
@@ -212,6 +197,13 @@ export default {
     'trialTag': '무료 체험!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': '모두 끌려갔다.',
+    'alive': '아직 살아 있다.',
+    'go': '구하러 가자.',
+    'skip': '건너뛰기'
   },
 
   'upgrades': {

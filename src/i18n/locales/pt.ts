@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Toque para mover', 'desktop': 'Clique para mover' },
-    'trap': { 'touch': 'Portões vermelhos DIMINUEM o esquadrão: pegue o outro!', 'desktop': 'Portões vermelhos DIMINUEM o esquadrão: pegue o outro!' },
     'divider': { 'touch': 'Nunca toque no pilar entre os portões', 'desktop': 'Nunca toque no pilar entre os portões' },
     'crate': { 'touch': 'Caixas verdes: todos batem mais forte', 'desktop': 'Caixas verdes: todos batem mais forte' },
     'rate': { 'touch': 'Caixas azuis: todos atiram mais rápido', 'desktop': 'Caixas azuis: todos atiram mais rápido' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Fase concluída!',
     'wipedOut': 'Esquadrão dizimado',
     'reachedStage': 'Fase {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': 'Recorde {n}%',
-    'newReach': 'Nunca tão longe!',
     'newRecord': 'Novo recorde!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Chefe derrubado!',
     'wasted': 'Liquidado',
-    'cause': {
-      'foe': 'Dominado por monstros',
-      'elite': 'Um minichefe te quebrou',
-      'barricade': 'Bateu nas barricadas',
-      'crate': 'Bateu nas caixas',
-      'divider': 'Raspou nos separadores',
-      'trap': 'Preso nas armadilhas',
-      'slam': 'O chefe te esmagou'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Marco!',
     'rallied': 'Segundo fôlego',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Teste grátis!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Levou toda a gente.',
+    'alive': 'Ainda estão vivos.',
+    'go': 'Vai buscá-los.',
+    'skip': 'Saltar'
   },
 
   'upgrades': {

@@ -824,8 +824,17 @@ describe('the stage-2 gift box', () => {
 // "consistency" pass that opens both would sail past every test in this file
 // without these.
 
-/** Stage 2, stepped until the gift box is on the road. */
-const atGift = async (boost = 0): Promise<Game> => {
+/**
+ * Stage 2, stepped until the gift box is on the road.
+ *
+ * The default boost is not padding. The gift sits AFTER the elite by design
+ * (see the layout note in `stageTwo`), and on the lengthened stage 2 the elite
+ * plants at ~117 against a road that now runs fifty seconds — so a run that
+ * never steers and never grows dies to it, which is exactly what that placement
+ * is for. A squad big enough to walk through the landmark is the cheapest way to
+ * put the box on the road; none of the assertions below are about difficulty.
+ */
+const atGift = async (boost = 40): Promise<Game> => {
   const game = await importGame()
   game.startStage(WEAPON_GIFT_STAGE)
   if (boost > 0) {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CROWD_SQUASH } from '@/game/survival'
+import { CAGE_JOIN_MAX_S, CROWD_SQUASH, WARDEN_CAGE_LEAD } from '@/game/survival'
+import { buildTrack } from '@/game/track'
 import {
   BOSS_REWARD_DAMAGE_MUL, BOSS_REWARD_STAGE, BOSS_REWARD_WEAPON, WEAPON_PICK_STAGE
 } from '@/game/weapons'
@@ -44,6 +45,78 @@ const clearStage = (game: Game, stage: number): void => {
 
 const spot = (x: number, y: number): string => `${x.toFixed(4)}|${y.toFixed(4)}`
 
+/**
+ * ─── Where the cage stands, and why it is not a matter of taste ─────────────
+ *
+ * The warden cage is the only thing on the boss screen that answers "why am I
+ * fighting this", so its position has exactly one job: be visibly BEHIND the
+ * monster, at the far edge of what the player can see, for the whole fight.
+ *
+ * It shipped at `arenaY + 7` and did neither. The bug is worth restating because
+ * it is invisible in a still: the boss does not stand where it fights. It SPAWNS
+ * at `arenaY + 12` and walks down to `arenaY + 3.8` over about ten seconds, so a
+ * cage anywhere below 12 spends the opening of every fight in FRONT of the thing
+ * guarding it — a box of people parked between the player and the boss, which is
+ * the composition backwards and reads as a pickup somebody left in the road.
+ */
+describe('the cage the boss is standing in front of', () => {
+  it('stands behind where the boss SPAWNS, not merely where it settles', () => {
+    // Checked against the built track rather than against a literal, because
+    // `bossY` is `length + 8` and `arenaY` is `length - 4`: the gap is a
+    // property of the road's shape and a change to either end moves it.
+    for (const stage of [1, 4, 9, 20]) {
+      const t = buildTrack(stage)
+      const spawnLead = t.bossY - t.arenaY
+      expect(WARDEN_CAGE_LEAD, `stage ${stage}: the cage is in front of the boss`)
+        .toBeGreaterThan(spawnLead)
+    }
+  })
+
+  it('stays inside the fourteen units of road the player can actually see', () => {
+    // `CROWD_SCREEN_Y` x `VIEW_HEIGHT` is NOT this number. `setViewport` fits
+    // `VIEW_HEIGHT` into the viewport MINUS the two HUD bars, and the top of
+    // what can be read is the bottom of the top bar — so the honest figure is
+    // `(cssH x CROWD_SCREEN_Y - topInset) / scale`, measured in a browser:
+    //
+    //   420x900 phone   14.35     1280x800  desktop   14.28
+    //   360x780 phone   14.11     1600x1000 desktop   14.13
+    //   820x1180 tablet 14.04     1920x1080 desktop   14.08
+    //
+    // The spread is tight because the fit rule trades width against height to
+    // keep it so. 14.04 is the floor across every shape the game fits into.
+    const SEEN_AHEAD = 14.04
+    expect(WARDEN_CAGE_LEAD).toBeLessThan(SEEN_AHEAD)
+    // …and near enough to the edge that it is cut rather than centred. Its lid
+    // reaches roughly a unit above its ground, so anything more than two units
+    // of clearance is a cage sitting comfortably in frame — which is scenery.
+    expect(SEEN_AHEAD - WARDEN_CAGE_LEAD).toBeLessThan(2)
+  })
+
+  it('is never passed by the boss on its way down', async () => {
+    // The behavioural half: not "the constant is bigger" but "no frame of a real
+    // fight ever draws the boss above its own cage".
+    const game = await importGame()
+    game.startStage(1)
+    game.debugAddUnits(400)
+    game.debugSkipToArena()
+    let sawBoss = false
+    for (let i = 0; i < 2000; i++) {
+      game.steerTo(0)
+      game.step(STEP_MS)
+      const b = game.getBoss()
+      if (!b || b.dead) continue
+      // Unkillable, so the fight lasts long enough to cover the whole walk-in.
+      b.hp = 1e9
+      b.maxHp = 1e9
+      sawBoss = true
+      const cage = game.getCages().find((c) => c.warden && !c.dead)
+      expect(cage, 'the boss fight had no cage behind it').toBeTruthy()
+      expect(cage!.y, `frame ${i}: the boss was above its own cage`).toBeGreaterThan(b.y)
+    }
+    expect(sawBoss, 'never reached the boss').toBe(true)
+  })
+})
+
 describe('the next road opens where the boss fell', () => {
   it('carries the corpse, the column and the survivors across, re-based to the new origin', async () => {
     const game = await importGame()
@@ -74,11 +147,21 @@ describe('the next road opens where the boss fell', () => {
     // Ahead of the crowd, where the boss stood over it.
     expect(body.y).toBeGreaterThan(0)
 
-    // Every survivor the new stage kept is standing on a spot somebody stood on,
-    // shifted by exactly `moved` — nobody jumps.
-    const spots = new Set(stood.map((u) => spot(u.x, u.y - moved)))
-    for (const u of game.getUnits()) expect(spots.has(spot(u.x, u.y))).toBe(true)
-    // …but it is the shop's squad, not the one that won the fight.
+    // ── The new squad comes OUT OF THE CAGE the boss was standing over ──
+    //
+    // This used to assert the opposite — that every survivor kept was standing
+    // on a spot somebody already stood on, so nobody jumped — and that contract
+    // was deliberately replaced. The people who open a stage are now the ones
+    // the beaten boss was holding (`Cage.warden`), which is what turns a career
+    // into one continuous rescue instead of a sequence of unrelated roads.
+    //
+    // So they start AT the cage and run to their slots on the rescue walk.
+    const fresh = game.getUnits()
+    expect(fresh.every((u) => u.join > 0), 'the new squad did not walk out of anything').toBe(true)
+    // …from the cage's own re-based ground, ahead of the crowd where the boss
+    // stood over it — the same shift the corpse took.
+    for (const u of fresh) expect(u.y).toBeGreaterThan(0)
+    // …and it is still the shop's squad, not the one that won the fight.
     expect(game.squadCount.value).toBeLessThan(stood.length)
 
     // The rest are handed to the renderer to see off — once.
@@ -87,20 +170,50 @@ describe('the next road opens where the boss fell', () => {
     expect(game.takeDepartedSurvivors()).toBeNull()
   })
 
-  it('keeps the innermost survivors, so the squad shrinks toward its own middle', async () => {
+  it('frees exactly the squad the next stage opens on', async () => {
     const game = await importGame()
     clearStage(game, 4)
-    const a = game.anchor()
-    // The formation's own metric: the sunflower is squashed in y.
-    const reach = (x: number, y: number): number =>
-      (x - a.x) ** 2 + ((y - a.y) / CROWD_SQUASH) ** 2
-    const all = game.getUnits().filter((u) => u.dying <= 0)
-      .map((u) => reach(u.x, u.y)).sort((p, q) => p - q)
-    const moved = game.advanceStage()
-    const kept = game.getUnits().map((u) => reach(u.x, u.y + moved))
-    // Nobody kept stands further out than the n-th nearest of the old crowd.
-    const bound = all[kept.length - 1]! + 1e-9
-    for (const r of kept) expect(r).toBeLessThanOrEqual(bound)
+    // The cage the boss was standing in front of holds the NEXT stage's opening
+    // squad — the number the shop has been buying all along, now a number of
+    // people the player can see in a box before they have earned them.
+    const cage = game.getCages().find((c) => c.warden && !c.dead)
+    expect(cage, 'the stage-4 boss had no cage behind it').toBeTruthy()
+    const held = cage!.hold
+    game.advanceStage()
+    expect(game.stage.value).toBe(5)
+    expect(game.squadCount.value).toBe(held)
+  })
+
+  it('gets them all into formation despite the longer walk', async () => {
+    // The cage moved from `arenaY + 7` to `arenaY + 12.8` to get behind the
+    // boss, which nearly doubled the run the freed squad has to make at the top
+    // of every stage. `CAGE_JOIN_MAX_S` is a hard backstop — a joiner still
+    // walking when it expires is handed to the formation spring and SNAPS the
+    // rest of the way, which is exactly the pop the walk exists to avoid.
+    //
+    // The budget is `CAGE_JOIN_SPEED` plus the road's own speed, so 12.8 units
+    // is covered in well under the window; this pins that it still is.
+    const game = await importGame()
+    clearStage(game, 4)
+    game.advanceStage()
+    const fresh = game.getUnits()
+    expect(fresh.length).toBeGreaterThan(0)
+    const budget = Math.ceil((CAGE_JOIN_MAX_S * 1000) / STEP_MS)
+    for (let i = 0; i < budget; i++) game.step(STEP_MS)
+    for (const u of game.getUnits()) {
+      expect(u.join, 'a freed survivor was snapped into place by the backstop').toBe(0)
+    }
+  })
+
+  it('stands a fresh cage behind the next boss', async () => {
+    const game = await importGame()
+    clearStage(game, 4)
+    game.advanceStage()
+    // Every boss has one, all the way down the campaign — the loop only closes
+    // if the next road also ends in a reason to walk it.
+    const next = game.getCages().filter((c) => c.warden && !c.dead)
+    expect(next.length).toBe(1)
+    expect(next[0]!.hold).toBeGreaterThan(0)
   })
 
   it('retries from the same ground, with the corpse back where it lay', async () => {

@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'แตะเพื่อเคลื่อนที่', 'desktop': 'คลิกเพื่อเคลื่อนที่' },
-    'trap': { 'touch': 'ประตูแดงลดจำนวนคน — ไปอีกฝั่ง!', 'desktop': 'ประตูแดงลดจำนวนคน — ไปอีกฝั่ง!' },
     'divider': { 'touch': 'อย่าชนเสาระหว่างประตูเด็ดขาด', 'desktop': 'อย่าชนเสาระหว่างประตูเด็ดขาด' },
     'crate': { 'touch': 'ลังเขียว: ทุกคนตีแรงขึ้น', 'desktop': 'ลังเขียว: ทุกคนตีแรงขึ้น' },
     'rate': { 'touch': 'ลังน้ำเงิน: ทุกคนยิงเร็วขึ้น', 'desktop': 'ลังน้ำเงิน: ทุกคนยิงเร็วขึ้น' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'ผ่านด่าน!',
     'wipedOut': 'หน่วยถูกกวาดล้าง',
     'reachedStage': 'ด่าน {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n}%',
-    'bestReach': 'สถิติ {n}%',
-    'newReach': 'ไกลที่สุด!',
     'newRecord': 'สถิติใหม่!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'ล้มบอสได้!',
     'wasted': 'จบเห่',
-    'cause': {
-      'foe': 'ถูกมอนสเตอร์ถล่ม',
-      'elite': 'มินิบอสเล่นงานคุณ',
-      'barricade': 'ชนแผงกั้น',
-      'crate': 'ชนลังไม้',
-      'divider': 'เกี่ยวแนวแบ่งถนน',
-      'trap': 'ติดกับดัก',
-      'slam': 'บอสทุบคุณจม'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'หมุดหมาย!',
     'rallied': 'ฮึดสู้อีกครั้ง',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'ลองฟรี!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'มันพาทุกคนไป',
+    'alive': 'พวกเขายังมีชีวิตอยู่',
+    'go': 'ไปช่วยพวกเขา',
+    'skip': 'ข้าม'
   },
 
   'upgrades': {

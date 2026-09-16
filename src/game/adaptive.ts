@@ -406,28 +406,73 @@ export const adaptiveBossHp = (fight: AdaptiveFight, seconds: number): number =>
  * boss and far too short to be a climax worth staying for. A first boss that
  * falls over in four seconds teaches a stranger that the game is over.
  *
- * So the first fight has a floor of its own. The brief is five seconds of
- * straight fire and 6-10 s on a stopwatch, and the number here is SIX because
- * the two are not the same measurement: this is a target handed to
- * `expectedDamage`, which integrates the crowd shrinking under the boss's
- * swings, so the bar it buys is cleared by the real fight a little faster than
- * the target says. Measured at a target of 5.0 the realised fight was 4.7 s of
- * fire and 5.7 s on the clock — both under the brief. At 6.0 it lands at
- * 5.5-6 s of fire and 6.5-7.5 s wall, which is the band with a margin.
+ * So the first fight has a floor of its own, and it binds for EVERY stage-1 run:
+ * the ladder's own rungs top out at 6.8 s, so whatever `perf` a first road
+ * scores, this number is the fight. That is the property the brief below leans
+ * on — one constant moves every squad size at once.
  *
- * The ceiling does not move — `ADAPTIVE_MAX_SECONDS` is still 7.5 s of fire —
- * so a hopeless crowd is not handed a longer fight than the brief allows just
- * because it is their first one.
+ * ── Six seconds was still not a boss ──────────────────────────────────────
+ *
+ * The first cut of this was 6.0, and the brief it was written against was "five
+ * seconds of straight fire, 6-10 s on a stopwatch". It hit that and the fight
+ * still did not read as one, for a reason the balance tables structurally could
+ * not show: **no scripted policy presses a button.** The 6.5 s in every table is
+ * a player who never throws the grenade, and the actual first boss is met by
+ * somebody who was taught the grenade on the elite two thirds down the same road
+ * and presses it again on reflex. A grenade is worth `grenadeMult` SECONDS of
+ * the crowd's fire (3 at level 0) against a bar priced in exactly that unit, so
+ * the fight the player really got was **4.5 s**, and about a second of that is
+ * the boss walking in. Three seconds of shooting, no dodging, seven to ten
+ * survivors lost. That is a speed bump wearing a crown.
+ *
+ * Measured across all four scripted players (`SIM_FIRSTBOSS=1`), at 11.0:
+ *
+ *   squad   bar      no bomb          + one grenade
+ *      63   8 698    6.5 → 10.9 s     4.5 → 7.6 s
+ *      98   4 100    6.6 → 10.9 s     4.5 → 7.7 s
+ *      51   1 226    6.7 → 11.6 s     4.5 → 8.2 s
+ *      26     497    6.3 → 11.1 s     4.5 → 7.3 s
+ *
+ * — between **+62 % and +82 %** on both columns and at every squad size, which
+ * is the brief ("at least 60-70 % longer on all final squad sizes"). The length
+ * is not the point on its own: the slam cadence is a fixed clock, so a fight
+ * two thirds longer throws two thirds more swings, and a player who stands still
+ * in front of it now pays for standing still.
+ *
+ * ⚠ The ceiling had to move with it — see `ADAPTIVE_FIRST_MAX_SECONDS`. A floor
+ * of 11 under a ceiling of 7.5 is a band with its bottom above its top, and
+ * `clampAdaptiveSeconds` would resolve it silently in the wrong direction.
  */
-export const ADAPTIVE_FIRST_FIGHT_SECONDS = 6.0
+export const ADAPTIVE_FIRST_FIGHT_SECONDS = 11.0
+
+/**
+ * …and stage 1 needs its own CEILING as well, which it did not before.
+ *
+ * `ADAPTIVE_MAX_SECONDS` is 7.5, so a floor of 10.5 with the shared ceiling
+ * would be a band whose bottom is above its top — `Math.min` would win and the
+ * first fight would come out at 7.5 for everybody, which is the bug the
+ * `clampAdaptiveSeconds` ordering makes silent rather than loud.
+ *
+ * It is also a real number and not merely arithmetic bookkeeping. The shared
+ * ceiling exists so a hopeless crowd on a deep stage is not handed a longer
+ * fight than the brief allows; stage 1's brief is now a longer fight, so its
+ * ceiling has to move with its floor or the ladder above the floor (`perf`
+ * below 0.20 buys 6.8 s, scaled by the difficulty dial and the autobalancer)
+ * gets flattened against a wall 3 s under the floor.
+ */
+export const ADAPTIVE_FIRST_MAX_SECONDS = 13.0
 
 /** The smallest fight this stage is allowed to hand out. */
 export const adaptiveFloorSeconds = (stage: number): number =>
   stage <= 1 ? ADAPTIVE_FIRST_FIGHT_SECONDS : ADAPTIVE_MIN_SECONDS
 
+/** …and the longest. */
+export const adaptiveCeilingSeconds = (stage: number): number =>
+  stage <= 1 ? ADAPTIVE_FIRST_MAX_SECONDS : ADAPTIVE_MAX_SECONDS
+
 /** Clamp a target into the band the fight is allowed to occupy. */
 export const clampAdaptiveSeconds = (seconds: number, stage = 2): number =>
-  Math.max(adaptiveFloorSeconds(stage), Math.min(ADAPTIVE_MAX_SECONDS, seconds))
+  Math.max(adaptiveFloorSeconds(stage), Math.min(adaptiveCeilingSeconds(stage), seconds))
 
 /**
  * ─── …and the elites on those stages are priced the same way ────────────────
@@ -469,6 +514,74 @@ export const adaptiveEliteHp = (squadDps: number, seconds = ELITE_FIRE_SECONDS):
   // The same floor the authored path carries: a landmark with a sliver of a bar
   // is a landmark the player never sees have one.
   Math.max(20, Math.round(Math.max(0, squadDps) * seconds))
+
+/**
+ * ─── The one elite the grenade is thrown at ─────────────────────────────────
+ *
+ * What the tutorial elite must have left AFTER the lesson's grenade lands.
+ *
+ * ── The problem ──
+ *
+ * The lesson stops the world, dims the screen to one button and refuses to
+ * start again until the player throws a grenade. Then the grenade deletes the
+ * thing outright — and measured, it is not close: a grenade lands
+ * `squadDps x mult` and the elite is priced at `squadDps x ELITE_FIRE_SECONDS`,
+ * so at the default `GRENADE_BASE_MULT` of 3 against 1.5 seconds it does
+ * **exactly 200 % of the whole bar, for every squad size, on every seed**. The
+ * overkill is structural rather than a tuning accident.
+ *
+ * A first-timer therefore learns the wrong lesson twice over: the button is a
+ * delete key, and the landmark the road built up to was never a fight. It reads
+ * as being handed a cheat rather than a tool.
+ *
+ * ── The fix, and why it is a fraction rather than a number ──
+ *
+ * Leave a quarter of the bar standing. The grenade still does the spectacular
+ * thing — three quarters of a health bar in one hit is the most damage the
+ * player has ever seen — and then they have to finish it with the guns they
+ * already had, which is the sentence the lesson should end on.
+ *
+ * It is expressed as REMAINING FRACTION and not as a health number because the
+ * grenade is not a constant: `GRENADE_BASE_MULT` is 3 at level 0 and 6 at level
+ * 20, and a player can reach the shop before stage 1 is cleared. Pricing the
+ * bar off the multiplier the player actually throws is what keeps the outcome
+ * identical for both of them — see `tutorialEliteFireSeconds`.
+ */
+export const TUTORIAL_ELITE_REMAIN = 0.25
+
+/**
+ * Seconds of the crowd's own fire the tutorial elite is worth, given the grenade
+ * that is about to hit it and the flight time it has to survive first.
+ *
+ * ```
+ *   bar            = squadDps x seconds
+ *   flight chip    = squadDps x flightSeconds     (the crowd keeps firing)
+ *   grenade        = squadDps x mult
+ *   remaining      = 1 - (flightSeconds + mult) / seconds
+ *   => seconds     = (mult + flightSeconds) / (1 - remaining)
+ * ```
+ *
+ * `squadDps` cancels out completely, which is the point: the fraction left
+ * standing is the same whether the crowd is three strong or three hundred.
+ *
+ * ⚠ THE FLIGHT TERM IS NOT OPTIONAL and was missed on the first pass. A thrown
+ * grenade takes `GRENADE_FLIGHT_MS` to land and the world is back at full speed
+ * for all of it, so the crowd shoots the elite the whole way down. Measured
+ * without the term: 12.5 % left instead of 25 %, i.e. the guns were quietly
+ * taking half of what the bomb was supposed to leave.
+ *
+ * At the default multiplier of 3 and a 0.42 s flight that is 4.56 seconds
+ * against the ordinary elite's 1.5 — so this landmark is deliberately the
+ * beefiest thing on stage 1, and it has to be, because three quarters of it is
+ * about to evaporate in one hit.
+ */
+export const tutorialEliteFireSeconds = (
+  grenadeMult: number, flightSeconds = 0
+): number =>
+  Math.max(
+    ELITE_FIRE_SECONDS,
+    (grenadeMult + Math.max(0, flightSeconds)) / (1 - TUTORIAL_ELITE_REMAIN)
+  )
 
 /**
  * ─── …and the swing stops being soft ────────────────────────────────────────

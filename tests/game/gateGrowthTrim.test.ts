@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { gateAddBase } from '@/game/track'
+import {
+  GATE_CUT_FROM, GATE_CUT_MAX, gateAddBase, gateSubBase, gateValueCut
+} from '@/game/track'
 import { GATE_GROWTH_TRIM, START_SQUAD, STAGE_SQUAD_FLOOR } from '@/game/survival'
 import {
   UPGRADES, gatePayoutBonusAt, gatePayoutStepPct, squadPerLevel
@@ -29,13 +31,50 @@ describe('doors grow a tenth slower past stage 14', () => {
     expect(before.map((_, i) => gateAddBase(i + 1))).toEqual(before)
   })
 
-  it('prints the trimmed curve past it', () => {
-    // Was 24 / 33 / 41 / 49 / 63.
-    expect(gateAddBase(30)).toBe(23)
-    expect(gateAddBase(40)).toBe(31)
-    expect(gateAddBase(60)).toBe(38)
-    expect(gateAddBase(100)).toBe(46)
-    expect(gateAddBase(300)).toBe(58)
+  it('prints the trimmed curve past it, less the depth cut', () => {
+    // Was 24 / 33 / 41 / 49 / 63 before the trim, then 23 / 31 / 38 / 46 / 58
+    // after it. These are the trimmed numbers less `gateValueCut`, which pays
+    // for the survivors the elites' cages now hand out (`minibossCageHold`):
+    // -2 by stage 30, -3 by 60, and the full -4 from 60 on.
+    expect(gateAddBase(30)).toBe(21)
+    expect(gateAddBase(40)).toBe(29)
+    expect(gateAddBase(60)).toBe(35)
+    expect(gateAddBase(100)).toBe(42)
+    expect(gateAddBase(300)).toBe(54)
+  })
+
+  it('takes nothing at all from the onboarding band, and ramps to four', () => {
+    // The shape that matters more than the values: the measured ladder in
+    // `gateAddBase` records that a flat -3 walls a competent player at stage 6,
+    // because at stage 1 it is three quarters of a door. So the cut is zero for
+    // every stage the retention studies covered and only bites at the top.
+    for (let s = 1; s < GATE_CUT_FROM; s++) {
+      expect(gateValueCut(s), `stage ${s} was cut`).toBe(0)
+    }
+    expect(gateValueCut(GATE_CUT_FROM)).toBe(1)
+    expect(gateValueCut(30)).toBeCloseTo(2, 6)
+    expect(gateValueCut(45)).toBeCloseTo(3, 6)
+    expect(gateValueCut(60)).toBeCloseTo(4, 6)
+    // …and never more, however deep the road goes.
+    for (const s of [61, 100, 300, 1000]) expect(gateValueCut(s)).toBe(GATE_CUT_MAX)
+  })
+
+  it('makes the bill bigger where the door got smaller', () => {
+    // A `-N` is the mirror of the `+N` beside it. Inheriting the cut through
+    // `gateAddBase` would make subs LESS negative at depth, which is the exact
+    // opposite of what the cut is for — so `gateSubBase` adds it back.
+    //
+    // Asserted on the function rather than on a leaf pulled out of a built
+    // track: which stages roll a bill is a generator decision, and `legalise`
+    // may rewrite one after the fact, so fishing for a leaf tests the roll
+    // rather than the price.
+    //
+    // Below the cut the two are untouched and the ratio is the plain 0.75.
+    expect(gateSubBase(10) / gateAddBase(10)).toBeCloseTo(0.75, 1)
+    // Past it the bill is a LARGER share of a door that has itself shrunk.
+    for (const s of [40, 60, 100]) {
+      expect(gateSubBase(s) / gateAddBase(s), `stage ${s}`).toBeGreaterThan(0.78)
+    }
   })
 
   it('still never stops climbing', () => {
@@ -50,9 +89,13 @@ describe('a Squad level is a sixth of the stage\'s door', () => {
   it('is one survivor early and grows with the road', () => {
     for (const s of [1, 2, 3, 4, 5, 6]) expect(squadPerLevel(s), `stage ${s}`).toBe(1)
     expect(squadPerLevel(7)).toBe(2)
+    // A Squad level is priced in DOORS (`gateAddBase / 6`), so it rides the
+    // depth cut down with them — deliberately. The track's whole claim is that
+    // a level is worth a sixth of the stage's own door; de-coupling it would
+    // make the shop quietly better than the road it is priced against.
     expect(squadPerLevel(40)).toBe(5)
     expect(squadPerLevel(60)).toBe(6)
-    expect(squadPerLevel(100)).toBe(8)
+    expect(squadPerLevel(100)).toBe(7)
     for (let s = 1; s < 300; s++) {
       expect(squadPerLevel(s + 1), `stage ${s + 1}`).toBeGreaterThanOrEqual(squadPerLevel(s))
     }

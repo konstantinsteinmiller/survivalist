@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import {
   stage, phase, squadCount, damage, runFireRate, progress01, bossHp01, bestStage,
   eliteAlive, eliteHp01, challenge, declines,
-  startStage, advanceStage, retryStage, step, steerTo, steerBy, steerOnly, runSummary,
+  startStage, ensureCutsceneWorld, advanceStage, retryStage, step, steerTo, steerBy, steerOnly, runSummary,
   attackIncoming,
   incomingWord,
   getCrates, getGates, getDividers, getBoss, getLevers, anchor, crowdRadius,
@@ -29,6 +29,7 @@ import WeaponChoice from '@/components/organisms/WeaponChoice.vue'
 import BossReward from '@/components/organisms/BossReward.vue'
 import {
   drawScene, setViewport, screenToWorldX, screenDeltaToWorld, invalidateArt,
+  setCutsceneCam,
   worldToScreenX, worldToScreenY, getScale
 } from '@/use/useSurvivalArt'
 /**
@@ -127,6 +128,13 @@ import AdWeaponOffer from '@/components/organisms/AdWeaponOffer.vue'
 import TreasureChest from '@/components/organisms/TreasureChest.vue'
 import OptionsModal from '@/components/organisms/OptionsModal.vue'
 import ShopPeek from '@/components/organisms/ShopPeek.vue'
+import CutsceneSkip from '@/components/game/CutsceneSkip.vue'
+import {
+  beginIntro, endIntro, armIntro, introClock, introRunning, notifyIntroWarm, stepIntro
+} from '@/use/useCutscene'
+import {
+  CUTSCENE_CAPTIONS, CUTSCENE_SHOTS, CUTSCENE_START_Y, bloomAt, captionAlpha
+} from '@/game/cutscene'
 import UpgradeModal from '@/components/organisms/UpgradeModal.vue'
 import LeaderboardModal from '@/components/organisms/LeaderboardModal.vue'
 import IconCoin from '@/components/icons/IconCoin.vue'
@@ -269,12 +277,46 @@ const resize = (): void => {
   invalidateArt()
 }
 
+/**
+ * True while `warmIntro` owns the canvas. The loop yields the frame to it rather
+ * than drawing its own: both would be pushing `setCutsceneCam` at the same
+ * camera on alternate frames, and the warm-up's whole job is to be the only
+ * thing choosing which slice of road gets rasterised next.
+ */
+let introWarming = false
+
 const loop = (t: number): void => {
   rafId = requestAnimationFrame(loop)
   // Performance probe. No-ops unless `?perfprobe=1` — see `usePerfProbe`.
   frameStart(t)
   const dt = lastT ? Math.min(t - lastT, 120) : 16
   lastT = t
+
+  if (introWarming) { frameEnd(); return }
+
+  // ── The intro owns the camera, and nothing steps ──
+  //
+  // The simulation is not merely paused here, it has never started: the road
+  // was built by `primeCutsceneWorld` and `step` is not called once, so every
+  // monster on it is furniture with a walk cycle. See `cutscenes.md`.
+  if (introRunning.value) {
+    if (!isGamePaused.value) {
+      const f = stepIntro(dt)
+      setCutsceneCam(f.camY, bloomAt(f.camY), f.speed)
+      // Cheap enough to rebuild per frame — three entries — and it keeps the
+      // captions a pure function of the clock rather than a second timeline
+      // that could drift out of step with the one the camera is on.
+      introCaptions.value = CUTSCENE_CAPTIONS
+        .map((c) => ({ key: c.key, a: captionAlpha(c, introClock.value) }))
+        .filter((c) => c.a > 0.001)
+      if (f.done) leaveIntro()
+    }
+    phaseStart('draw')
+    if (ctx) drawScene(ctx, cssW, cssH, dt, dpr)
+    phaseEnd('draw')
+    frameEnd()
+    return
+  }
 
   // The pause gate covers ads, hidden tabs, platform SDK pauses and open
   // modals. The RENDER loop keeps running (so the frame under an ad isn't a
@@ -639,6 +681,43 @@ const finishTutorial = (completed: boolean): void => {
   markHintDone('move')
 }
 
+// ─── The intro cutscene ─────────────────────────────────────────────────────
+//
+// "THREE LEFT" — the camera flies stage 1 backwards, from the crowned one in
+// the arena to the three survivors on the start line. The full design is in
+// `cutscenes.md`; `game/cutscene.ts` is the shot list and `useCutscene` owns
+// the clock and the gate.
+//
+// The scene's whole part in it is three lines: do not step the simulation, point
+// the camera at what the shot list says, and hand over to the ordinary opening
+// when it is done. It costs nothing structural because the cutscene IS the
+// scene — same canvas, same renderer, same road, a different `camY`.
+
+/** Captions, and how strongly each is showing right now. */
+const introCaptions = ref<Array<{ key: string; a: number }>>([])
+/** Ended this frame — drives the one-shot hand-off in `loop`. */
+let introHandedOver = false
+
+/**
+ * Leave the cutscene and open the game.
+ *
+ * The single exit, used by the skip button and by the last frame running out
+ * alike, so there is no path into gameplay that skips half the setup.
+ */
+const leaveIntro = (): void => {
+  if (introHandedOver) return
+  introHandedOver = true
+  endIntro()
+  // The camera goes back to the crowd BEFORE the stage is built, so no frame
+  // can be drawn with the intro's camera over the real stage's world.
+  setCutsceneCam(null)
+  introCaptions.value = []
+  // …and now the ordinary opening, exactly as a returning player gets it.
+  // `startStage` runs `resetWorld` over everything the cutscene put on the
+  // road, so the run cannot inherit a single entity from it.
+  openStage()
+}
+
 /** Drives the movement clock. Called from the render loop, after `step`. */
 const driveTutorial = (dtMs: number): void => {
   if (!tutorialActive.value) return
@@ -688,12 +767,15 @@ const laneWarning = computed<HintId | null>(() => {
     if (ahead < 0.5 || ahead > 9) continue
     if (Math.abs(a.x - d.x) < crowdRadius() + 0.4) return 'divider'
   }
-  for (const g of getGates()) {
-    if (g.used) continue
-    const ahead = g.y - a.y
-    if (ahead < 0 || ahead > 12) continue
-    if (g.op === 'div') return 'trap'
-  }
+  // ── No trap hint ──
+  //
+  // "Red gates SHRINK your squad — take the other side!" used to live here, on
+  // any `÷N` within twelve units. It is gone rather than retuned: a red door
+  // printing `÷2` beside a blue one printing `+14` is already the whole lesson,
+  // and a player who can read the two numbers does not need a pill telling them
+  // which is bigger. The colour, the glyph and the arithmetic all say it at
+  // once — a fourth voice saying it in words is the game not trusting its own
+  // vocabulary.
   for (const c of getCrates()) {
     const ahead = c.y - a.y
     if (ahead < 0 || ahead > 12) continue
@@ -798,7 +880,15 @@ const cageHintDue = computed(() => {
   void hintTick.value
   if (cageHintSeen.value) return false
   const a = anchor()
-  return getCages().some((c) => !c.dead && c.y - a.y > 0 && c.y - a.y < 13)
+  // ⚠ SHOOTABLE cages only. The primer says "shoot the cage", and there are now
+  // two kinds on the road that ignore fire entirely: the warden cage behind
+  // every boss and the sealed one beside every elite. Teaching the lesson off
+  // one of those teaches it against the single counter-example — and the warden
+  // cage in particular sits inside this 13-unit window for the whole boss
+  // fight, so it would have fired there every stage.
+  return getCages().some(
+    (c) => !c.dead && !c.warden && !c.sealed && c.y - a.y > 0 && c.y - a.y < 13
+  )
 })
 watch(cageHintDue, (now, before) => {
   if (!before || now || cageHintSeen.value) return
@@ -963,63 +1053,25 @@ const overlayUp = computed(() => showResult.value || showWeaponPick.value || sho
  * is Pug interpolation and a literal `#` in front of a mustache is a parse
  * error, not a hash sign.
  */
-// ─── The near-miss readout ──────────────────────────────────────────────────
+// ─── Two readouts this screen no longer carries ─────────────────────────────
 //
-// Whole percent, floored rather than rounded: a boss taken to a sliver must not
-// print "100 %" over a wipe, and 99 is the honest ceiling for a stage nobody
-// finished. Floor also keeps "you beat your best" strictly true — two attempts
-// a fraction apart cannot both read 74.
+// The near-miss rail ("37 % — furthest yet!") and the cause box ("Overrun by
+// monsters") were both removed on 2026-09-15, and both for the same reason:
+// they were written to answer AI-playtester findings, and on a real screen they
+// cost two rows out of a card that already has to fit a phone.
 //
-// The scale is `reach01`, not `progress01`: the road's own number hits 1 the
-// moment the arena opens, so every boss death would otherwise read as a
-// hundred percent. See `reachOf`.
-
-const pct01 = (v: number): number =>
-  Math.max(0, Math.min(99, Math.floor((Number.isFinite(v) ? v : 0) * 100)))
-
-const reachPct = computed(() => pct01(summary.value.reach01))
-const bestReachPct = computed(() => pct01(summary.value.bestReach01))
-
-/** A campaign loss the player actually played. Nothing to say about a clear (it
- *  reached the end), an expedition (one attempt, nothing to beat) or an idle tab
- *  — `bestProgress01` is only ever written for a run that was steered. */
-const showReach = computed(() =>
-  showResult.value && !summary.value.cleared && !summary.value.expedition
-)
-
-/** This run went further than every attempt before it — including the first
- *  attempt, which has nothing behind it and is therefore always a best. */
-const isNewReach = computed(() => reachPct.value > bestReachPct.value)
-
-/** Draw the ghost tick only where it is still visible and still means
- *  something: behind the fill it is invisible, at the far edges it is a mark
- *  sitting on the rail's own cap. */
-const showReachMark = computed(() =>
-  bestReachPct.value > 2 && bestReachPct.value > reachPct.value
-)
-
-/**
- * ─── What stopped the run, in one line ──────────────────────────────────────
- *
- * The oldest open finding in the file, carried from Playtest 01 into Playtest 02
- * word for word: "Still nothing says what killed you." The simulation has known
- * all along — every death is billed to a cause and the `wipe` analytics event
- * has been reporting it for months — so this is only ever a matter of putting
- * the number the game already has on the screen the player is already reading.
- *
- * TWO rules decide the shape of it, both from the owner:
- *
- *   • it is an INFO BOX, not a paragraph — a bordered strip with a glyph, so it
- *     is recognisably a note about the run rather than more of the result;
- *   • it is SHORT. "Players hate to read." Every line in `result.cause.*` is
- *     three or four words and names one noun: the thing to avoid next time.
- *
- * Null on a clear (nothing to explain) and null on a run with no deaths billed
- * at all, which is not a case the game can normally produce but is exactly what
- * a dev skip or a first frame looks like — and an empty box is a question the
- * screen cannot answer.
- */
-const deathCause = computed(() => (summary.value.cleared ? null : summary.value.cause))
+// Neither is a loss worth mourning. A percentage through a stage is not a number
+// this game is about — stages are short, the campaign is the progression, and
+// "you got 66 % of the way" is a consolation prize nobody asked for. And the
+// cause box was explaining, in words, something the road had just spent three
+// seconds showing: the wipe hold leans the camera in on the bodies and puts
+// WASTED over them (`holdOnWipe`), which is where a death is supposed to be
+// legible. If a player cannot tell what killed them, the fix belongs in the
+// three seconds before this card, not in a caption on it.
+//
+// `reach01` / `bestReach01` / `cause` stay on the run summary: they price
+// `wipeReward` and they ride the `wipe` analytics event, which is where the
+// question "what is killing people on stage 9" is actually answerable.
 
 /** Stages left until the next milestone pays. Null on an expedition, which is
  *  not on the campaign's counter at all. */
@@ -2160,8 +2212,10 @@ const presentClear = (s: ReturnType<typeof runSummary>): void => {
  *   • the light goes out of the frame, from the edges in;
  *   • the word lands.
  *
- * Then the result screen arrives, and the cause it names (`result__cause`) is a
- * caption for something the player has just spent three seconds looking at.
+ * Then the result screen arrives — and since 2026-09-15 it says nothing at all
+ * about what killed them. These three seconds are the whole answer now: a death
+ * has to be legible from the road, textless, or it is not legible. A caption on
+ * the card was the version of this that did not work.
  */
 
 const wastedShown = ref(false)
@@ -2580,7 +2634,10 @@ const isLiveGameplay = computed(() => isGameplayLive({
   // portal: the world is held and the player is being asked for one specific
   // act, so nobody is playing. The bracket has to close, or a player who leaves
   // the lesson open on a bus counts as minutes of playtime that never happened.
-  tutorialActive: tutorialActive.value || grenadeTeachHeld.value
+  // …and so is the intro cutscene, for the same reason and one more: the
+  // portal grades playtime, and nine seconds of camera flight before the player
+  // has touched anything would be nine seconds of playtime nobody played.
+  tutorialActive: tutorialActive.value || grenadeTeachHeld.value || introRunning.value
 }))
 watch(isLiveGameplay, syncGameplayLifecycle, { immediate: true })
 
@@ -2620,6 +2677,125 @@ let booting = false
  * "treated as a fresh user" bug the save layer's boot-sanity guard exists to
  * prevent.
  */
+/**
+ * Open the stage the player actually plays, and put the tutorial in front of it.
+ *
+ * Lifted out of `boot` so the intro can call it too: whether the opening is
+ * reached directly (a returning player) or through nine seconds of cutscene,
+ * the thing that happens next has to be identical, and the only way to
+ * guarantee that is for it to be the same code.
+ */
+const openStage = (): void => {
+  startStage()
+  // The lightbox goes up BEFORE the first frame of the first stage a new
+  // player ever sees, and holds the road until they have steered. Ordered
+  // after `startStage` because the squad it teaches them to move is spawned
+  // there — and because `startStage` is what a resuming player calls too, the
+  // saved flag is the only thing standing between them and a tutorial they
+  // finished months ago.
+  if (tutorialPending.value) {
+    tutorialActive.value = true
+    steerOnly.value = true
+    tutorialClock = newTutorialClock(anchor().x)
+    tutorialProgress.value = 0
+  }
+}
+
+/** `prefers-reduced-motion` — the cutscene cuts between its four positions
+ *  instead of flying between them. Read once, at the moment it starts. */
+const prefersReducedMotion = (): boolean => {
+  try {
+    return typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  } catch { return false }
+}
+
+/**
+ * ─── Pre-render the whole cutscene, once, behind the splash ─────────────────
+ *
+ * Reported on real hardware: the intro stutters on some phones. It is not the
+ * simulation — nothing is stepped during the cutscene — and it is not the sprite
+ * strips, which the loader already bakes and waits for. It is everything the
+ * renderer rasterises AT `scale`, and `scale` does not exist until this scene
+ * has mounted and measured the viewport, so none of it can be built by the
+ * loader: the lane tile, the backdrop texture, the radial ramps every lit prop
+ * caches by its own radius, and the intro's boss — a body built at `scale: 4.4`,
+ * nearly twice the size of anything the road will put on screen again.
+ *
+ * All of that used to land during the flight. Shot 2 covers ninety units in
+ * 1.7 s, so a cache miss there is not a hitch, it is a dropped frame in the one
+ * sequence that exists to make a first impression.
+ *
+ * The fix is the cheapest one available and needs no new machinery: DRAW IT.
+ * The camera walks its own path from the opening shot to the start line in
+ * strides shorter than the visible window, so every strip, tile and ramp the
+ * flight will ask for is asked for here instead — in front of a splash screen,
+ * which is what a splash screen is for.
+ *
+ * Three properties matter:
+ *
+ *   IT IS ADAPTIVE. It sweeps until a whole pass costs less than
+ *     `INTRO_WARM_SETTLED_MS` at its worst frame, which is the definition of
+ *     "nothing is baking any more". A fast device does one pass and leaves; a
+ *     slow one does as many as its budget allows.
+ *   IT IS BOUNDED. `INTRO_WARM_BUDGET_MS` caps the whole thing, and the splash
+ *     has its own fallback behind that. A device too slow to warm up in two and
+ *     a half seconds gets the cutscene it would have got anyway — and the stall
+ *     detector in `useCutscene` is still there to end it if it really cannot.
+ *   IT BREATHES. Four draws, then a frame back to the browser, so the splash's
+ *     own animation keeps running and the page never reads as hung.
+ *
+ * ⚠ FIRST-TIME PLAYERS ONLY, and that is not a detail. It is called from the
+ * `armIntro()` branch of `boot`, so a returning player — who never sees the
+ * cutscene — does not draw a single one of these frames and their splash closes
+ * exactly as it did before. See `introHoldsSplash`.
+ */
+const INTRO_WARM_BUDGET_MS = 2600
+/** A pass whose worst frame is under this has nothing left to bake. */
+const INTRO_WARM_SETTLED_MS = 12
+/** World units between sample cameras — comfortably under the ~14 units of road
+ *  the frame shows, so consecutive samples overlap and nothing is stepped over. */
+const INTRO_WARM_STRIDE = 9
+const INTRO_WARM_MAX_PASSES = 4
+/** Draws between yields. */
+const INTRO_WARM_BREATH = 4
+
+const nextFrame = (): Promise<void> =>
+  new Promise<void>((r) => requestAnimationFrame(() => r()))
+
+const warmIntro = async (): Promise<void> => {
+  const openY = CUTSCENE_SHOTS[0]?.fromY ?? 0
+  if (!ctx || cssW === 0 || openY <= CUTSCENE_START_Y) return
+  introWarming = true
+  const started = performance.now()
+  try {
+    for (let pass = 0; pass < INTRO_WARM_MAX_PASSES; pass++) {
+      let worst = 0
+      let since = 0
+      // Pass 0 warms the still frames; every pass after it carries a speed, so
+      // the streak layer is exercised too rather than first appearing when the
+      // camera starts moving.
+      const speed = pass === 0 ? 0 : 80
+      for (let y = openY; y >= CUTSCENE_START_Y; y -= INTRO_WARM_STRIDE) {
+        const at = performance.now()
+        setCutsceneCam(y, bloomAt(y), speed)
+        drawScene(ctx, cssW, cssH, 16, dpr)
+        worst = Math.max(worst, performance.now() - at)
+        if (performance.now() - started > INTRO_WARM_BUDGET_MS) return
+        if (++since >= INTRO_WARM_BREATH) { since = 0; await nextFrame() }
+      }
+      if (worst < INTRO_WARM_SETTLED_MS) break
+    }
+  } catch { /* a warm-up that fails is a cutscene that stutters, not no game */ } finally {
+    introWarming = false
+    // Leave the canvas holding the opening composition, which is the frame the
+    // splash is about to fade off — see the splash handshake in `useCutscene`.
+    setCutsceneCam(openY, bloomAt(openY), 0)
+    if (ctx) drawScene(ctx, cssW, cssH, 16, dpr)
+    notifyIntroWarm()
+  }
+}
+
 const boot = async (): Promise<void> => {
   if (booting) return
   booting = true
@@ -2629,21 +2805,32 @@ const boot = async (): Promise<void> => {
     // (`useFirstLoadInterstitial`), which watches SDK readiness instead of
     // sampling it once at boot — a check made here loses the race to the ad
     // SDK's own load and fires nothing. See that module's header.
-    startStage()
-    // The lightbox goes up BEFORE the first frame of the first stage a new
-    // player ever sees, and holds the road until they have steered. Ordered
-    // after `startStage` because the squad it teaches them to move is spawned
-    // there — and because `startStage` is what a resuming player calls too, the
-    // saved flag is the only thing standing between them and a tutorial they
-    // finished months ago.
-    if (tutorialPending.value) {
-      tutorialActive.value = true
-      steerOnly.value = true
-      tutorialClock = newTutorialClock(anchor().x)
-      tutorialProgress.value = 0
+    // ── The intro, for a first-time player, before anything else ──
+    //
+    // Its road is already built (the loader does it behind the splash — see
+    // `useAssets`), so this starts on the next frame with nothing to wait for.
+    // `openStage` is deliberately NOT called yet: the stage the player plays is
+    // opened by `leaveIntro`, once, whichever way the cutscene ends.
+    // ⚠ `armIntro()` and not `introArmed`, and the difference is a race that
+    // cost a debugging round. The loader arms it in its last step, but nothing
+    // orders that step against this scene mounting — measured, the scene
+    // sometimes boots first, read `introArmed` as false and opened stage 1 with
+    // the cutscene silently skipped. The predicate is pure and cheap, so the
+    // SCENE decides and the loader's arming is only what tells it whether to
+    // pre-build the road. Two callers, one answer, no ordering to get wrong.
+    const intro = armIntro()
+    if (intro) {
+      ensureCutsceneWorld()
+      introHandedOver = false
+      beginIntro({ reduced: prefersReducedMotion() })
+    } else {
+      openStage()
     }
     await nextTick()
     resize()
+    // …and only now, with the canvas sized, is there a `scale` to bake against.
+    // The splash is held for the duration — see `warmIntro`.
+    if (intro) await warmIntro()
     startBattleMusic()
     // Loading is genuinely finished here: the stage exists, the canvas is
     // sized, and the first frame is about to draw.
@@ -2747,9 +2934,51 @@ onUnmounted(() => {
       @contextmenu.prevent
     )
 
+    //- ── The intro cutscene's own two layers ─────────────────────────────
+    //-
+    //- Nothing else: the cutscene IS the scene, drawn by the same renderer
+    //- through a different camera (`setCutsceneCam`), so there is no picture
+    //- here to put on top of it. What the DOM owns is the two things the
+    //- canvas should not: a button, and type.
+    template(v-if="introRunning")
+      //- Captions. `pointer-events: none` all the way down, so the one
+      //- interactive thing on screen during the intro is the skip button —
+      //- a player reaching for it must never hit a word instead.
+      div.intro-caps(aria-live="polite")
+        div.intro-cap(
+          v-for="c in introCaptions"
+          :key="c.key"
+          :style="{ opacity: c.a }"
+        ) {{ t(c.key) }}
+
+      CutsceneSkip(@skip="leaveIntro")
+
     //- ── HUD overlay ───────────────────────────────────────────────────────
     //- Non-interactive by default; individual controls opt back in.
-    div.scene__hud
+    //-
+    //- ⚠ GONE ENTIRELY DURING THE INTRO. Every readout in here is a statement
+    //- about a run that has not started — a stage number, a squad of one, a
+    //- wallet of zero, a chest, four skill buttons, the shop — and a cinematic
+    //- with a game's HUD over it is not a cinematic, it is a screenshot of a
+    //- paused game. It also frees the bottom-right corner, which the HUD's shop
+    //- button and the intro's skip button would otherwise share.
+    //-
+    //- `v-if`, not a class: the point is that none of it exists, so none of it
+    //- can take a tap meant for the one control that should.
+    //-
+    //- ⚠ It costs the intro its INSETS, and that was measured rather than
+    //- assumed. `measureInsets` reads these two bars, so while they do not exist
+    //- the camera fits the whole viewport: on a 1280x800 boot `scale` is 42.1
+    //- during the cutscene and 31.4 in play, and the pre-render in `warmIntro`
+    //- therefore warms sizes the game will not use. Mounting the HUD hidden
+    //- (`visibility`, the way the preview recorder does it) fixes the mismatch
+    //- exactly — and, measured on both viewports, moved the handover cost by
+    //- nothing at all. So the trade is not worth the risk of a live HUD behind a
+    //- cinematic, and the mismatch is recorded here instead of traded away. On a
+    //- PORTRAIT PHONE — the case the stutter was reported from — it does not
+    //- arise at all: the width fit wins either way and `scale` is 37.5 with the
+    //- HUD and without it.
+    div.scene__hud(v-if="!introRunning")
       div.scene__top(ref="topBarRef")
         div.scene__top-main
           //- Readouts that would be FALSE on an expedition are suppressed here,
@@ -3017,38 +3246,8 @@ onUnmounted(() => {
           //- game went easy on them takes the win away from them.
           span.result__relief(v-else-if="summary.relieved") {{ t('result.rallied') }}
 
-        //- ── How close they came ───────────────────────────────────────────
-        //-
-        //- A loss used to end on "Stage 9" and nothing else, which is a full
-        //- stop dressed as a statistic. The road knew how far the run got all
-        //- along — `wipeReward` is priced off it — so the number simply travels
-        //- to the screen now: a rail filled to where the crowd fell, a ghost
-        //- tick at the best any previous attempt managed, and the percentage
-        //- said out loud.
-        //-
-        //- Only on a campaign LOSS. A clear reached the end by definition, and
-        //- an expedition is one attempt a day with nothing to beat.
-        div.result__reach(v-if="showReach")
-          div.result__reach-rail
-            div.result__reach-fill(:style="{ width: reachPct + '%' }")
-            //- The mark is only drawn when there is a previous attempt to
-            //- compare with, and never when this run has already passed it —
-            //- a tick buried under the fill reads as a bug, not as a record.
-            div.result__reach-mark(
-              v-if="showReachMark"
-              :style="{ left: bestReachPct + '%' }"
-            )
-          div.result__reach-line
-            span.result__reach-now {{ t('result.reach', { n: reachPct }) }}
-            span.result__reach-best(v-if="isNewReach") {{ t('result.newReach') }}
-            span.result__reach-prev(v-else-if="bestReachPct > 0") {{ t('result.bestReach', { n: bestReachPct }) }}
-
-        //- ── What stopped it ───────────────────────────────────────────────
-        //- One glyph, one short line, and a border that says "this is a note".
-        //- See `deathCause` for why it is this short and why it is a box.
-        div.result__cause(v-if="deathCause")
-          GameIcon.result__cause-icon(name="warning")
-          span.result__cause-text {{ t(`result.cause.${deathCause}`) }}
+        //- The near-miss rail and the cause box used to sit here. Both are
+        //- gone — see "Two readouts this screen no longer carries".
 
         //- ── Three chips on ONE line ───────────────────────────────────────
         //-
@@ -3612,6 +3811,46 @@ onUnmounted(() => {
     animation: boss-felled-fade 400ms ease-out 600ms both
 
 
+// ─── The intro cutscene's captions ──────────────────────────────────────────
+//
+// Three lines, sixty characters in total, each up for about a second and a half.
+// Placed HIGH, and 15 % rather than the 30 % it was first drawn at: the crowned
+// one is scaled to loom (`primeCutsceneWorld`) and at a third down the frame the
+// opening line landed across its forehead. A caption over the thing it is
+// describing is a caption that hides it — and the three subjects this cutscene
+// has all sit in the middle or the lower half, so the top of the sky is the one
+// band that is empty in every shot.
+//
+// `pointer-events: none`, like every other non-interactive overlay in this
+// scene: during the intro there is exactly one thing on screen that answers a
+// finger, and it is the skip button.
+.intro-caps
+  position: absolute
+  inset: 0 0 auto 0
+  top: 15%
+  z-index: 35
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: 0.4rem
+  padding-inline: 1.5rem
+  pointer-events: none
+
+.intro-cap
+  max-width: 22rem
+  color: #fff
+  text-align: center
+  font-weight: 900
+  text-transform: uppercase
+  letter-spacing: 0.02em
+  line-height: 1.15
+  font-size: clamp(1.05rem, 5.2vmin, 1.9rem)
+  // Two shadows: the hard black offset the rest of the game's type wears, and a
+  // soft wide one under it — the cutscene's backgrounds run from a lit arena to
+  // a near-black road, and a single offset shadow disappears against the first.
+  text-shadow: 3px 3px 0 #000, 0 0 18px rgba(0, 0, 0, 0.75)
+  transition: opacity 120ms linear
+
 // ─── Result screen ──────────────────────────────────────────────────────────
 
 // The ribbon caption is TYPED BY THE RIBBON, not by this screen: `FReward`
@@ -3692,105 +3931,6 @@ onUnmounted(() => {
 .teach-enter-from,
 .teach-leave-to
   opacity: 0
-
-// ─── The near-miss rail ─────────────────────────────────────────────────────
-//
-// Reads as a piece of road, because that is what it is: the same dark plate the
-// HUD wears, filled left-to-right in the crowd's own green, with a pale tick
-// standing where the last attempt stopped. Deliberately thin — it sits between
-// the stage name and the stat chips and must not become the loudest thing on a
-// screen whose job is to start the next run.
-.result__reach
-  display: flex
-  flex-direction: column
-  align-items: center
-  gap: 0.35em
-  width: min(100%, 22rem)
-
-.result__reach-rail
-  position: relative
-  width: 100%
-  height: clamp(6px, 1.6vmin, 10px)
-  border-radius: 999px
-  background: rgba(0, 0, 0, 0.55)
-  border: 1px solid rgba(0, 0, 0, 0.85)
-  overflow: hidden
-
-.result__reach-fill
-  position: absolute
-  inset: 0 auto 0 0
-  min-width: 2px
-  border-radius: 999px
-  background: linear-gradient(90deg, #4f8f3a, #7ad14f)
-
-// In front of the fill, and never wider than the tick it is meant to be: this
-// is a mark on a scale, not a second bar.
-.result__reach-mark
-  position: absolute
-  top: -1px
-  bottom: -1px
-  width: 2px
-  transform: translateX(-1px)
-  background: #ffffff
-  opacity: 0.75
-
-.result__reach-line
-  display: flex
-  align-items: baseline
-  gap: 0.6em
-  font-weight: 900
-  text-transform: uppercase
-  text-shadow: 2px 2px 0 #000
-  font-size: clamp(0.55rem, 2.6vmin, 0.8rem)
-
-.result__reach-now
-  color: #cfe9b8
-
-.result__reach-best
-  color: #ffd93c
-
-.result__reach-prev
-  color: rgba(255, 255, 255, 0.62)
-
-// ─── The cause box ──────────────────────────────────────────────────────────
-//
-// Deliberately NOT in the result screen's own gold-and-plate vocabulary, and
-// deliberately not red either. It is a note ABOUT the run rather than a part of
-// the scoring, so it wears the one look nothing else on this screen wears: a
-// flat slate strip with a warm amber rule down its leading edge, which is the
-// shape every UI in the world uses for "here is something you should know".
-//
-// Red was tried first and thrown out. The screen already says WIPED OUT on the
-// ribbon; a second red thing underneath it reads as a second failure, and the
-// box is not scolding the player, it is answering their question.
-.result__cause
-  display: flex
-  align-items: center
-  justify-content: center
-  gap: 0.5rem
-  align-self: center
-  max-width: 100%
-  padding: 0.42rem 0.8rem
-  border-radius: 0.6rem
-  border: 1px solid rgba(255, 190, 90, 0.32)
-  // The rule that makes it an info box rather than a chip.
-  border-left: 4px solid rgba(255, 190, 90, 0.85)
-  background-color: rgba(12, 18, 32, 0.78)
-
-.result__cause-icon
-  flex: none
-  width: 1.05rem
-  height: 1.05rem
-  color: #ffbe5a
-
-.result__cause-text
-  color: rgba(255, 255, 255, 0.92)
-  font-weight: 700
-  font-size: clamp(0.82rem, 3.4vw, 1rem)
-  line-height: 1.2
-  // Wraps rather than clipping: four words is short in English and can be six
-  // in German, and a cause that is cut off is worse than no cause at all.
-  text-align: left
 
 // ─── The milestone line ─────────────────────────────────────────────────────
 //

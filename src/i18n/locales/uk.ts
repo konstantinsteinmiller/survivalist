@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Торкніться, щоб рухатись', 'desktop': 'Клацніть, щоб рухатись' },
-    'trap': { 'touch': 'Червоні ворота ЗМЕНШУЮТЬ загін — біжіть в інші!', 'desktop': 'Червоні ворота ЗМЕНШУЮТЬ загін — біжіть в інші!' },
     'divider': { 'touch': 'Ніколи не зачіпайте стовп між воротами', 'desktop': 'Ніколи не зачіпайте стовп між воротами' },
     'crate': { 'touch': 'Зелені ящики: усі б’ють сильніше', 'desktop': 'Зелені ящики: усі б’ють сильніше' },
     'rate': { 'touch': 'Сині ящики: усі стріляють швидше', 'desktop': 'Сині ящики: усі стріляють швидше' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Етап пройдено!',
     'wipedOut': 'Загін знищено',
     'reachedStage': 'Етап {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n} %',
-    'bestReach': 'Рекорд {n} %',
-    'newReach': 'Твій рекорд!',
     'newRecord': 'Новий рекорд!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Бос повалений!',
     'wasted': 'Кінець',
-    'cause': {
-      'foe': 'Зім’яли монстри',
-      'elite': 'Мінібос зламав вас',
-      'barricade': 'Влетіли в барикади',
-      'crate': 'Влетіли в ящики',
-      'divider': 'Зачепили розділювачі',
-      'trap': 'Потрапили в пастки',
-      'slam': 'Бос вас розчавив'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Рубіж!',
     'rallied': 'Друге дихання',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Спробуй безкоштовно!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Воно забрало всіх.',
+    'alive': 'Вони ще живі.',
+    'go': 'Поверни їх.',
+    'skip': 'Пропустити'
   },
 
   'upgrades': {

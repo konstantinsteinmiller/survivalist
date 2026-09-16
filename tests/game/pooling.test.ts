@@ -144,7 +144,8 @@ describe('the reset forgets every field there is', () => {
       scale: 2.4, flash: 1, phase: 0.7, dead: true, flying: true,
       hold: 8, hitCd: 2, sweepCd: 3, sweepSpan: 4, sweepDir: -1,
       sweepTold: true, kind: 'roller' as const, lane: -1, fuse: 2, reload: 3,
-      kindTicks: 5, markX: -2.5, markY: 31, swayPhase: 1.2, elite: true
+      kindTicks: 5, markX: -2.5, markY: 31, swayPhase: 1.2, elite: true,
+      homing: 0.4
     }
     // Every field starts DIFFERENT from the blank, or the comparison below
     // would pass on a reset that does nothing at all.

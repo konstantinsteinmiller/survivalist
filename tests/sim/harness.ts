@@ -233,6 +233,21 @@ export interface RunOptions {
   /** Pre-seed the failure record so the run gets `RETRY_HP_RELIEF`. */
   relief?: boolean
   maxSeconds?: number
+  /**
+   * Called after `steerTo` and before `step`, every tick, with the live module.
+   *
+   * The scripted policies model the ROAD and nothing else — they steer, and they
+   * never press a button (see the `sim-policies-model-only-the-road` note). That
+   * is the right model for a balance harness and the wrong one for any question
+   * about a SKILL, because the boss bar is priced in seconds of the crowd's own
+   * fire and a grenade is worth `grenadeMult` of those seconds. A probe that
+   * wants to ask "what does the first boss feel like to somebody who just
+   * learned the bomb" needs a way in, and this is it.
+   *
+   * It must not steer: the policy owns the lane, and a hook that fights it would
+   * measure neither player.
+   */
+  onTick?: (game: Game) => void
 }
 
 const cratesOnStage = (stage: number): { rate: number; damage: number } => {
@@ -342,6 +357,7 @@ export const playOne = (graph: Graph, o: RunOptions): RunResult => {
 
       const target = o.policy.decide(view)
       if (Number.isFinite(target)) game.steerTo(target)
+      o.onTick?.(game)
       const squadBefore = game.squadCount.value
       game.step(STEP_MS)
       steps++

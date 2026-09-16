@@ -65,9 +65,12 @@ describe('the cage is taught on stage 1 and rolled from stage 2', () => {
     // and has to be committed to. `CAGE_STAGE` still says where the GENERATOR
     // starts placing them — stage 1's are authored in `stageOne`, exactly as
     // its crate wall and its second pickup are.
+    // Roadside cages only — the sealed one beside each elite is a different
+    // prop with a different spec (`Cage.sealed`), and it has no HP to speak of
+    // because nothing can shoot it.
     const hp = buildTrack(1).events
       .filter((e) => e.kind === 'cages')
-      .flatMap((e) => e.cages.map((c) => c.hp))
+      .flatMap((e) => e.cages.filter((c) => c.sealed !== true).map((c) => c.hp))
       .sort((a, b) => a - b)
     expect(hp, 'stage 1 lost its teaching cages').toEqual([4, 12])
 
@@ -96,7 +99,13 @@ describe('what a cage holds, and what it costs to open', () => {
     for (const s of [2, 5, 9, 14]) {
       for (const e of buildTrack(s).events) {
         if (e.kind !== 'cages') continue
-        for (const c of e.cages) expect(c.hp, `stage ${s}`).toBe(cageHp(s))
+        for (const c of e.cages) {
+          // The sealed cage beside an elite carries a placeholder 1 and is never
+          // shot at — it is not priced against a wall because it is not priced
+          // at all. See `Cage.sealed`.
+          if (c.sealed === true) continue
+          expect(c.hp, `stage ${s}`).toBe(cageHp(s))
+        }
       }
     }
   })
@@ -133,7 +142,11 @@ describe('the people in it walk over and join the squad', () => {
     // two strides from the squad as one who never arrived.
     const live = (): boolean => game.phase.value === 'run' || game.phase.value === 'boss'
     for (let i = 0; i < 5000 && live(); i++) {
-      const cage = game.getCages().find((c) => !c.dead)
+      // `!c.warden`: every boss now stands in front of an unbreakable cage
+      // holding the next stage's squad (`Cage.warden`), and it is the first
+      // entry in the array. Steering at THAT is steering at something three
+      // hundred units away that can never be opened.
+      const cage = game.getCages().find((c) => !c.dead && !c.warden)
       if (broke < 0) {
         for (const u of game.getUnits()) before.add(u)
         squadBefore = game.squadCount.value

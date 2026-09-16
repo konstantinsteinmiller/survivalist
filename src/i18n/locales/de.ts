@@ -60,7 +60,6 @@ export default {
   },
   'hints': {
     'move': { 'touch': 'Zum Bewegen tippen', 'desktop': 'Zum Bewegen klicken' },
-    'trap': { 'touch': 'Rote Tore VERKLEINERN den Trupp – nimm das andere!', 'desktop': 'Rote Tore VERKLEINERN den Trupp – nimm das andere!' },
     'divider': { 'touch': 'Nie die Säule zwischen den Toren berühren', 'desktop': 'Nie die Säule zwischen den Toren berühren' },
     'crate': { 'touch': 'Grüne Kisten: alle treffen härter', 'desktop': 'Grüne Kisten: alle treffen härter' },
     'rate': { 'touch': 'Blaue Kisten: alle schießen schneller', 'desktop': 'Blaue Kisten: alle schießen schneller' },
@@ -115,25 +114,11 @@ export default {
     'stageClear': 'Level geschafft!',
     'wipedOut': 'Trupp ausgelöscht',
     'reachedStage': 'Level {n}',
-    // The near-miss readout under a wipe: how far this attempt got,
-    // and the best any previous attempt on this stage managed.
-    'reach': '{n} %',
-    'bestReach': 'Beste {n} %',
-    'newReach': 'So weit wie nie!',
     'newRecord': 'Neuer Rekord!',
     // The two seconds after a boss goes down, above its body. The kill is
     // what the whole stage was for, so this is sold as a reward.
     'bossFelled': 'Boss gefallen!',
     'wasted': 'Erledigt',
-    'cause': {
-      'foe': 'Von Monstern überrannt',
-      'elite': 'Ein Miniboss erwischte dich',
-      'barricade': 'In Barrikaden gerast',
-      'crate': 'In Kisten gerast',
-      'divider': 'Die Trenner gestreift',
-      'trap': 'In Fallen geraten',
-      'slam': 'Vom Boss zerschmettert'
-    },
     // The every-fifth-stage lump the HUD chip counts down to.
     'milestone': 'Meilenstein!',
     'rallied': 'Zweiter Atem',
@@ -212,6 +197,13 @@ export default {
     'trialTag': 'Gratis testen!',
 
     'uses': '×{n}'
+  },
+
+  'intro': {
+    'took': 'Es hat alle geholt.',
+    'alive': 'Sie leben noch.',
+    'go': 'Hol sie zurück.',
+    'skip': 'Überspringen'
   },
 
   'upgrades': {
