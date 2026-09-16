@@ -19,6 +19,15 @@
        A classic (non-module) script here is parser-blocking and modules are
        deferred regardless, so this is guaranteed to run first. -->
   <script src="https://www.youtube.com/game_api/v1"></script>
+  <!-- Web Storage shim. MUST stay the first of OUR scripts and MUST stay a
+       classic (non-module) tag: module scripts are deferred, so a shim installed
+       from inside the module graph runs after the entry chunk's static imports.
+       On YouTube Playables `window.localStorage` is NULL, and `main.ts` hands it
+       straight to `new SaveManager(...)`, which binds its methods in the
+       constructor — a blank screen before the splash clears. Ships on every
+       build: sandboxed iframes and blocked-storage embeds fail the same way.
+       Vite rewrites the path to `./js/storage-shim.js` under `--base=./`. -->
+  <script src="/js/storage-shim.js"></script>
   <meta name="color-scheme" content="dark only">
   <link rel="icon" href="/favicon.ico">
   <!-- CSP meta tag injected by vite.config.ts at build time -->
@@ -230,8 +239,10 @@
 </div>
 <!-- Load the SDK before your game code -->
 <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
-<!-- Load the SDK before your game code -->
-<script src="https://bridge.playgama.com/v1/stable/playgama-bridge.js"></script>
+<!-- No Playgama Bridge tag: v2 is bundled from the @playgama/bridge npm package
+     (src/utils/playgamaBridgeLoader.ts). The v1 CDN script fetched its adapter
+     chunks from bridge.playgama.com at runtime and injected them as script tags,
+     neither of which YouTube Playables allows — and Playgama QA rejects v1. -->
 <!-- Load the SDK before your game code -->
 <script src="https://integration.gamepix.com/sdk/v3/gamepix.sdk.js"></script>
 <!-- Poki SDK - stripped for non-Poki builds by vite.config.ts -->

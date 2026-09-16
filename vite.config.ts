@@ -338,6 +338,7 @@ import VueI18nPlugin from '@intlify/unplugin-vue-i18n/vite'
 import javascriptObfuscator from 'vite-plugin-javascript-obfuscator'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 import { buildCsp } from './src/platforms/csp'
+import { buildPlaygamaBridgeConfig, playgamaLeaderboardEnv } from './src/platforms/playgama/bridgeConfig'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode, command }) => {
@@ -443,6 +444,10 @@ export default defineConfig(({ mode, command }) => {
           // same reason — keeps the ~280 LOC bridge module off non-Playgama
           // builds. The obfuscator would mangle the dynamic-import literal.
           /use[\\/]ads[\\/]PlaygamaProvider\.ts$/,
+          // `playgamaBridgeLoader.ts` is the ONE place `@playgama/bridge`
+          // (Bridge v2, npm) enters the graph, behind an env-literal ternary
+          // around `import('@playgama/bridge')`. Same dynamic-import constraint.
+          /utils[\\/]playgamaBridgeLoader\.ts$/,
           // GamepixProvider lazy-loads `@/utils/gamepixPlugin` so the
           // GamePix SDK glue only ships on GamePix builds. Same
           // obfuscator-vs-dynamic-import constraint as the others.
@@ -633,10 +638,9 @@ export default defineConfig(({ mode, command }) => {
     })
   }
 
-  // Strip the Playgama bridge <script> tag from non-Playgama builds. The
-  // build-time tag is mostly a perf shave — the plugin re-injects it at
-  // runtime if missing (some QA wrappers serve their own index.html) —
-  // but on other portals we don't want an extra DNS lookup to playgama.com.
+  // No Playgama <script> tag to strip any more: Bridge v2 is bundled from the
+  // `@playgama/bridge` npm package behind a build-gated dynamic import
+  // (`src/utils/playgamaBridgeLoader.ts`), so it only exists in this build.
   const isPlaygama = env.VITE_APP_PLAYGAMA === 'true'
 
   // Strip YouTube's Playables SDK tag from every build EXCEPT Playgama's.
@@ -654,18 +658,6 @@ export default defineConfig(({ mode, command }) => {
       transformIndexHtml(html: string) {
         return html.replace(
           /<!--\s*YouTube Playables SDK[^]*?-->\s*<script[^>]*youtube\.com\/game_api[^>]*><\/script>\s*/,
-          ''
-        )
-      }
-    })
-  }
-
-  if (!isPlaygama) {
-    plugins.push({
-      name: 'strip-playgama-sdk',
-      transformIndexHtml(html: string) {
-        return html.replace(
-          /<!-- Load the SDK before your game code -->\s*<script[^>]*bridge\.playgama\.com[^>]*><\/script>\s*/,
           ''
         )
       }
@@ -728,27 +720,51 @@ export default defineConfig(({ mode, command }) => {
     plugins.push(viteSingleFile() as any)
   }
 
-  // Emit `playgama-bridge-config.json` ONLY for the Playgama build. NOT
-  // served from `public/` because Vite would expose it in dev and in every
-  // other platform's `dist/` — which historically baked
+  // Emit `playgama-bridge-config.json` ONLY for the Playgama mode — into the
+  // build, and answered by the dev server under `vite --mode playgama`. NOT
+  // served from `public/` because Vite would expose it in every other
+  // mode's dev server and `dist/` — which historically baked
   // `forciblySetPlatformId: 'playgama'` and made the bridge hang in
   // localhost / QA-tool contexts (which speak different protocols than
   // the production portal). The config here intentionally OMITS
   // `forciblySetPlatformId` so the bridge auto-detects the right protocol.
+  //
+  // The config also switches on Playgama's SaaS leaderboard when `.env.playgama`
+  // carries both its id and the dashboard's public token — see
+  // `src/platforms/playgama/bridgeConfig.ts`.
   if (isPlaygama) {
-    plugins.push({
+    const playgamaBoard = playgamaLeaderboardEnv(env)
+    if ((playgamaBoard.id.length > 0) !== (playgamaBoard.token.length > 0)) {
+      console.warn(
+        '[playgama] VITE_PLAYGAMA_LEADERBOARD_ID and PLAYGAMA_SAAS_PUBLIC_TOKEN must be set together — '
+        + 'building WITHOUT the Playgama leaderboard.'
+      )
+    }
+    const playgamaBridgeConfigJson = JSON.stringify(buildPlaygamaBridgeConfig(env), null, 2)
+    const playgamaBridgeConfigPlugin: Plugin = {
       name: 'emit-playgama-bridge-config',
-      apply: 'build' as const,
+      // The bridge fetches `./playgama-bridge-config.json` on every boot. With
+      // no file there, the dev server's SPA fallback answers with index.html
+      // and the bridge logs "Config parsing error. SyntaxError: Unexpected
+      // token '<'" and boots on its defaults — so the dev server serves the
+      // same bytes the build ships.
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (!(req.url ?? '').split('?')[0].endsWith('/playgama-bridge-config.json')) { next(); return }
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Cache-Control', 'no-cache')
+          res.end(playgamaBridgeConfigJson)
+        })
+      },
       generateBundle() {
-        (this as any).emitFile({
+        this.emitFile({
           type: 'asset',
           fileName: 'playgama-bridge-config.json',
-          source: JSON.stringify({
-            advertisement: { minimumDelayBetweenInterstitial: 120 }
-          }, null, 2)
+          source: playgamaBridgeConfigJson
         })
       }
-    })
+    }
+    plugins.push(playgamaBridgeConfigPlugin)
   }
 
   // Foreign-platform code is kept out of the Yandex bundle via `resolve.alias`

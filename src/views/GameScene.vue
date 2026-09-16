@@ -99,8 +99,9 @@ import { isMobileLandscape, isShortViewport } from '@/use/useUser'
 import { mobileCheck } from '@/utils/function'
 import { formatCount } from '@/utils/localeNumber'
 import {
-  OUTSIDE_BOARD, boardSize, leaderboardEnabled, leaderboardFailed, playerTotal, rankFor, reportRun
+  OUTSIDE_BOARD, boardSize, leaderboardEnabled, leaderboardFailed, playerTotal, rankFor, rankTotalFor, reportRun
 } from '@/use/useLeaderboard'
+import { joinPortalBoard, reportPortalBest } from '@/use/usePortalLeaderboard'
 // The share button is commented out of the result screen — see "The share
 // card" below. The composable and its specs stay as they are.
 // import { shareCardBusy, shareCardOffered, shareRunCard } from '@/use/useShareCard'
@@ -1102,6 +1103,13 @@ const resultRank = computed<string>(() => {
   // rather than showing a permanent "loading" to a player with no connection.
   return leaderboardFailed.value ? '' : '…'
 })
+
+// A first-time player enters the portal's own board (Playgama) as its LAST row
+// — posted once at stage 0 — and a player who predates that board is posted at
+// their current best. Once per player, not per session, and a no-op on every
+// build without a portal board. The save is hydrated by the time the scene is
+// set up, so `bestStage` is the real lifetime best here.
+void joinPortalBoard(bestStage.value)
 
 // ─── The share card ─────────────────────────────────────────────────────────
 //
@@ -2178,6 +2186,12 @@ const endBossFelled = (): void => {
 
 /** The stage is over — the dispatch that used to sit inline in the watcher. */
 const presentClear = (s: ReturnType<typeof runSummary>): void => {
+  // The portal's own board (Playgama) hears about a new best HERE and nowhere
+  // else. Every win path passes through this dispatch — the reward card, the
+  // handover, the result card — and a win is the only moment a new best stage
+  // can exist (`endStage` has already raised it). A loss has nothing to post.
+  // Fire-and-forget: it posts only when the best beats what the portal accepted.
+  if (!s.expedition) void reportPortalBest(bestStage.value)
   // The first boss hands over its launcher instead of a banner — see
   // `presentBossReward`.
   if (s.stage === BOSS_REWARD_STAGE && !s.expedition) {
@@ -3282,7 +3296,9 @@ onUnmounted(() => {
             //- Only once the player count has landed. Before that there is no
             //- "of N" to print, and the word that used to hold the slot is now
             //- said by the trophy.
-            span.result__chip-of(v-if="playerTotal > 0") {{ t('result.rankOf', { n: grouped(playerTotal) }) }}
+            //- `rankTotalFor`, not `playerTotal`: a build that ranks an unplayed
+            //- player last counts them into the population ("#7,832 of 7,832").
+            span.result__chip-of(v-if="playerTotal > 0") {{ t('result.rankOf', { n: grouped(rankTotalFor(bestStage)) }) }}
 
         //- ── The milestone ──────────────────────────────────────────────────
         //-

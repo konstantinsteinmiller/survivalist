@@ -1,245 +1,342 @@
-// ─── Playgama save strategy ────────────────────────────────────────────────
+// ─── Playgama save strategy (Bridge v2) ────────────────────────────────────
 //
-// Mirrors every meaningful `localStorage` write through `bridge.storage`.
-// Prefers cloud (`platform_internal`) and falls back to `local_storage`
-// when the active Playgama context (or QA tool) doesn't expose cloud.
+// Mirrors the consolidated `tower_state` blob and its `__save_meta__` through
+// `bridge.storage`. The same code runs on three backends, because the same
+// archive does:
 //
-// **Two non-obvious rules** baked into this implementation — both are
-// rejection-grade issues on the Playgama QA Tool:
+//   playgama  `PLAYGAMA_SDK.cloudSaveApi` — on whenever the portal reports
+//             cloud save as supported (2.2.0 has no `allowAnonymousCloudSave`
+//             option any more; guests get cloud rows too)
+//   youtube   `ytgame.game.loadData / saveData` — ONE string for the whole save
+//   qa_tool / mock   the Bridge's own localStorage
 //
-//   1. **Never skip the bridge call when storageType === 'local_storage'.**
-//      The "Game Saves" certification check watches `bridge.storage.set` as
-//      its detection signal. A "local-only → skip" optimization breaks the
-//      gate at 0% even when local writes are landing fine.
+// ── Four rules, each one a way the previous version could lose a save ──
 //
-//   2. **Break the SaveManager↔bridge re-entrancy with `writeInFlight`,
-//      NOT a local-mode skip.** The bridge's local adapter calls
-//      `window.localStorage.setItem` internally during `storage.set`. That
-//      hits SaveManager's patched setItem → `strategy.onLocalSet` → us →
-//      another `storage.set` → ∞. The guard short-circuits the re-entrant
-//      `onLocalSet` for the duration of an outbound `set` call.
+// 1. HYDRATE READS THE CLOUD. The v1 strategy's hydrate was a no-op marked
+//    `success-with-data`, so nothing was ever read back: a new device, a wiped
+//    iframe or YouTube's own storage (localStorage is null there) booted at
+//    defaults — and the fake terminal state also switched off the "never push
+//    before a successful read" rule, so those defaults were then uploaded over
+//    the real save. `main.ts` now awaits `playgamaPlugin()` BEFORE
+//    `SaveManager.init()`, so `bridge.storage` is live here.
 //
-// Hydrate is local-only (browser already populated localStorage at boot);
-// the bridge's cloud adapter syncs in the background, but for the
-// progress-merge timing here we treat the local mirror as authoritative.
-// Future enhancement: read `bridge.storage.get` for known keys at hydrate
-// time and merge against local using the same `SaveMergePolicy` the
-// CrazyGames strategy uses.
+// 2. ONE BATCHED WRITE, NEVER CONCURRENT ONES. Both cloud backends above are
+//    read-modify-write of the WHOLE save (`getState` → merge → `setItems`,
+//    `loadData` → merge → `saveData`). Two unawaited `storage.set` calls read
+//    the same snapshot and the second silently drops the first one's keys. The
+//    2.2.0 StorageModule does queue operations internally, but a per-key loop
+//    still costs a full cloud round-trip per key; so the dirty map drains as a
+//    single `storage.set([keys], [values])`, one flight at a time.
+//
+// 3. ONLY THE SAVE CROSSES. `tower_state` + `__save_meta__`, nothing else —
+//    dev toggles, perf flags and ad-tech scribbles stay on the device.
+//
+// 4. THE CALL IS THE CERTIFICATION SIGNAL. The QA Tool's "Game Saves" check
+//    watches `bridge.storage.set`, so writes go through the Bridge even where
+//    its backend is plain localStorage.
+//
+// ── A 2.2.0 behaviour to know about ──
+//
+// After a successful CLOUD write the Bridge removes that key from its own
+// handle on localStorage, and a `get` for a key the cloud lacks uploads the
+// local value and removes it locally too. The Bridge captured that handle when
+// its module loaded — before `SaveManager` installed its proxy — so these are
+// RAW removals the proxy never sees. Nothing is lost in-session:
+// `SaveManager` serves every read from `BlobStorage`'s in-memory state and
+// re-persists raw on the next write. Across a reload the cloud read in rule 1
+// is what brings the save back, which is why that rule is not optional.
 
 import { ref } from 'vue'
 import type {
+  HydrateNotice,
+  HydrateNoticeListener,
   HydrateState,
   LocalStorageAccessor,
   SaveStrategy
 } from './types'
-import {
-  getPlaygamaBridge,
-  isPlaygamaSdkActive
-} from '@/utils/playgamaPlugin'
+import { isInternalKey } from './types'
+import { STATE_KEY } from '@/use/useTowerState'
+import { META_KEY, computeMeta, decideMerge, parseMeta, serializeMeta } from './SaveMergePolicy'
+import { isDebug } from '@/use/useMatch'
+import { getPlaygamaBridge, isPlaygamaSdkActive } from '@/utils/playgamaPlugin'
 
-const FLUSH_POLL_MS = 250
-
-/** Storage types the bridge accepts as the third arg of `set`/`get`. */
-type StorageType = 'platform_internal' | 'local_storage'
-
-/** Subset of `bridge.storage` we touch — defensively typed so future bridge
- *  versions can add fields without us breaking. */
-interface BridgeStorage {
-  defaultType?: StorageType
-  isAvailable?: (type: StorageType) => boolean | Promise<boolean>
-  set?: (key: string, value: string, type?: StorageType) => unknown
-  get?: (key: string | string[], type?: StorageType) => unknown
-  delete?: (key: string | string[], type?: StorageType) => unknown
+const TAG = '[playgama-save]'
+const dlog = (...args: unknown[]): void => {
+  if (isDebug.value) console.info(...args)
 }
 
+/** Debounce for cloud pushes — collapses a burst of state writes (a bank, a
+ *  purchase, a settings drag) into one whole-save round-trip. */
+const WRITE_DEBOUNCE_MS = 600
+/** Retry ladder for a cloud READ that failed. Writes stay queued meanwhile. */
+const RETRY_DELAYS_MS = [1_000, 3_000, 8_000] as const
+
+/** The part of `bridge.storage` touched here, typed defensively. */
+interface BridgeStorage {
+  get?: (key: string | string[], tryParseJson?: boolean) => Promise<unknown>
+  set?: (key: string | string[], value: unknown) => Promise<void>
+  delete?: (key: string | string[]) => Promise<void>
+}
+
+const PORTAL_KEYS: ReadonlySet<string> = new Set([STATE_KEY, META_KEY])
+
+const shouldMirror = (key: string): boolean => !isInternalKey(key) && PORTAL_KEYS.has(key)
+
 const getBridgeStorage = (): BridgeStorage | null => {
-  // Gate on `isPlaygamaSdkActive` first: the bridge's `storage` getter
-  // throws `Before using the SDK you must initialize it` when accessed
-  // before `initialize()` has resolved. Without the gate, hydrate (which
-  // SaveManager calls synchronously at boot) crashes the boot path.
   if (!isPlaygamaSdkActive.value) return null
-  const bridge = getPlaygamaBridge()
   try {
-    const storage = bridge?.storage
-    if (!storage) return null
-    return storage as BridgeStorage
+    return (getPlaygamaBridge()?.storage as BridgeStorage | undefined) ?? null
   } catch {
-    // Belt-and-braces: even with the active gate, some bridge versions
-    // throw on `storage` access during teardown / ad takeover. Return
-    // null and let the dirty-queue retry on the next tick.
+    // The module getters throw before init; defensive after it.
     return null
   }
 }
 
-const resolveStorageType = async (storage: BridgeStorage): Promise<StorageType> => {
-  if (typeof storage.isAvailable !== 'function') {
-    return storage.defaultType ?? 'local_storage'
+/**
+ * A stored value as the string this save layer deals in.
+ *
+ * `get(..., false)` asks for raw strings, but a backend is JSON on the wire and
+ * can still hand back a parsed object. Re-serialize rather than discard: a
+ * `typeof value === 'string'` check alone drops the player's whole save.
+ */
+export const asStoredString = (value: unknown): string | null => {
+  if (typeof value === 'string') return value.length > 0 ? value : null
+  if (value == null) return null
+  if (typeof value === 'object') {
+    try { return JSON.stringify(value) } catch { return null }
   }
-  try {
-    const cloud = await Promise.resolve(storage.isAvailable('platform_internal'))
-    if (cloud) return 'platform_internal'
-  } catch (e) {
-    console.warn('[playgama-save] isAvailable(platform_internal) threw', e)
-  }
-  return 'local_storage'
+  return String(value)
 }
 
 export class PlaygamaStrategy implements SaveStrategy {
   readonly name = 'playgama'
 
-  // ─── Hydrate state ──────────────────────────────────────────────────────
-  // Local-only hydrate for now — the browser already populated localStorage
-  // by the time SaveManager.init runs. Marked `success-with-data` so the
-  // manager's flush guard never engages (no remote to wait on for the
-  // initial paint). The strategy still mirrors WRITES to cloud via
-  // `bridge.storage.set` once the bridge becomes ready.
-  readonly hydrateState: HydrateState = 'success-with-data'
+  hydrateState: HydrateState = 'pending'
+  /** Reactive mirror for the save-status banner. */
+  readonly _state = ref<HydrateState>('pending')
 
-  // Reactive ref so the UI status banner can pick up a future cloud-state
-  // change if we add background hydrate. Today it just tracks the constant
-  // above so subscribers don't need a special case.
-  readonly _state = ref<HydrateState>('success-with-data')
-
-  // Queue of writes that arrived BEFORE the bridge resolved. The bridge
-  // takes ~50 ms (MOCK) to multiple seconds (production cold) to come up,
-  // and SaveManager patches `localStorage.setItem` immediately at boot —
-  // so without this queue the first dozen writes (mirrorRefs flush,
-  // splash-time toggles, etc.) silently miss the cloud.
+  private noticeListeners = new Set<HydrateNoticeListener>()
+  /** Latest value per key; `null` = delete. */
   private dirty = new Map<string, string | null>()
-  private flushTimer: ReturnType<typeof setInterval> | null = null
+  private writeTimer: ReturnType<typeof setTimeout> | null = null
+  private inFlight: Promise<void> | null = null
+  /**
+   * The value each in-flight key is being pushed with. The Bridge's LOCAL
+   * backend writes localStorage inside `set`; if that ever reaches the patched
+   * setter it must not bounce back into another `set`.
+   *
+   * By VALUE, not by key. A key-only guard also swallowed a genuinely NEW value
+   * written while the push was in flight — the player's next bank or purchase
+   * silently never reached the cloud (caught by the concurrent-writes spec).
+   * Only the echo of the value being pushed is skipped.
+   */
+  private writeInFlight = new Map<string, string | null>()
+  private retriesRun = 0
+  private local: LocalStorageAccessor | null = null
 
-  // Re-entrancy guard: any key whose `storage.set` / `storage.delete` is
-  // in flight short-circuits `onLocalSet` / `onLocalRemove`. The bridge's
-  // local adapter calls `localStorage.setItem` synchronously inside its
-  // `set` — that re-enters our onLocalSet through SaveManager's patched
-  // setItem and recurses infinitely without this guard.
-  private writeInFlight = new Set<string>()
+  // ─── Hydrate ────────────────────────────────────────────────────────────
 
-  private storageType: StorageType = 'local_storage'
-  private storageTypeResolved = false
-  private loggedQueueWrite = false
-
-  async hydrate(_local: LocalStorageAccessor): Promise<void> {
-    // No-op. SaveManager calls hydrate synchronously at boot — the bridge
-    // hasn't run `initialize()` yet, and `bridge.storage` throws when
-    // accessed pre-init. The browser already populated localStorage for
-    // us; storage-type resolution + first cloud write happen lazily on
-    // the next `onLocalSet`, by which point the bridge has resolved
-    // (or the dirty-queue poll catches it).
-  }
-
-  onLocalSet(key: string, value: string): void {
-    if (this.writeInFlight.has(key)) return // ← re-entrancy guard
-    this.dirty.set(key, value)
-    if (!isPlaygamaSdkActive.value || !getBridgeStorage()) {
-      this.ensureFlushPoll()
+  async hydrate(local: LocalStorageAccessor): Promise<void> {
+    this.local = local
+    const storage = getBridgeStorage()
+    if (!storage) {
+      // The Bridge never came up (module blocked, init timed out). Nothing can
+      // be pushed without it either, so local-only is safe — and it must not
+      // read as a failure that blocks the game.
+      console.warn(`${TAG} Bridge unavailable — local-only this session`)
+      this.setState('success-empty', { reason: 'no-bridge' })
       return
     }
-    void this.drainDirty()
+    await this.readAndMerge(storage, local)
+  }
+
+  async retryHydrate(local: LocalStorageAccessor): Promise<HydrateState> {
+    this.local = local
+    const storage = getBridgeStorage()
+    if (!storage) return this.hydrateState
+    await this.readAndMerge(storage, local)
+    return this.hydrateState
+  }
+
+  onHydrateNotice(listener: HydrateNoticeListener): () => void {
+    this.noticeListeners.add(listener)
+    return () => this.noticeListeners.delete(listener)
+  }
+
+  private async readAndMerge(storage: BridgeStorage, local: LocalStorageAccessor): Promise<void> {
+    if (typeof storage.get !== 'function') {
+      this.setState('success-empty', { reason: 'no-get-api' })
+      this.seedFromLocal(local)
+      return
+    }
+
+    let remoteState: string | null
+    let remoteMetaRaw: string | null
+    try {
+      // ONE call for both keys: on a whole-blob backend every read is a full
+      // download. `false` = do not JSON-parse, the blob is a string.
+      const raw = await storage.get([STATE_KEY, META_KEY], false)
+      const pair = Array.isArray(raw) ? raw : [raw, null]
+      remoteState = asStoredString(pair[0])
+      remoteMetaRaw = asStoredString(pair[1])
+    } catch (e) {
+      console.warn(`${TAG} hydrate: storage.get failed`, e)
+      this.setState('failed-retrying', { reason: 'get-failed' })
+      this.scheduleRetry(local)
+      return
+    }
+
+    if (remoteState === null && remoteMetaRaw === null) {
+      dlog(`${TAG} hydrate: remote empty → success-empty`)
+      this.setState('success-empty')
+      this.seedFromLocal(local)
+      return
+    }
+
+    const remoteMeta = parseMeta(remoteMetaRaw)
+      ?? (remoteState !== null ? computeMeta({ get: (k) => (k === STATE_KEY ? remoteState : null) }) : null)
+    const localMeta = parseMeta(local.get(META_KEY))
+      ?? (local.get(STATE_KEY) !== null ? computeMeta({ get: (k) => local.get(k) }) : null)
+
+    const resolution = decideMerge(localMeta, remoteMeta)
+    if ((resolution.kind === 'remote-wins' || resolution.kind === 'remote-only') && remoteState !== null) {
+      // Anything queued before the read was written against the pre-hydrate
+      // defaults. The cloud just won, so pushing that queue later would put the
+      // defaults back over the save that won.
+      this.dirty.clear()
+      local.set(STATE_KEY, remoteState)
+      if (remoteMeta) local.set(META_KEY, serializeMeta(remoteMeta))
+      dlog(`${TAG} hydrate: ${resolution.kind} — cloud → local`)
+      this.setState('success-with-data')
+      return
+    }
+
+    dlog(`${TAG} hydrate: ${resolution.kind} — keeping local, queued for push`)
+    this.setState('success-with-data')
+    this.seedFromLocal(local)
+  }
+
+  /** Queue the local snapshot so the cloud catches up with it. */
+  private seedFromLocal(local: LocalStorageAccessor): void {
+    const state = local.get(STATE_KEY)
+    if (state === null) return
+    this.dirty.set(STATE_KEY, state)
+    this.scheduleFlush()
+  }
+
+  private scheduleRetry(local: LocalStorageAccessor): void {
+    const delay = RETRY_DELAYS_MS[this.retriesRun]
+    if (delay === undefined) {
+      this.setState('failed-final', { reason: 'retries-exhausted' })
+      return
+    }
+    this.retriesRun += 1
+    setTimeout(() => {
+      const storage = getBridgeStorage()
+      if (storage) void this.readAndMerge(storage, local)
+      else this.scheduleRetry(local)
+    }, delay)
+  }
+
+  // ─── Writes ─────────────────────────────────────────────────────────────
+
+  onLocalSet(key: string, value: string): void {
+    if (!shouldMirror(key)) return
+    if (this.writeInFlight.has(key) && this.writeInFlight.get(key) === value) return
+    this.dirty.set(key, value)
+    this.scheduleFlush()
   }
 
   onLocalRemove(key: string): void {
-    if (this.writeInFlight.has(key)) return // ← re-entrancy guard
+    if (!shouldMirror(key)) return
+    if (this.writeInFlight.has(key) && this.writeInFlight.get(key) === null) return
     this.dirty.set(key, null)
-    if (!isPlaygamaSdkActive.value || !getBridgeStorage()) {
-      this.ensureFlushPoll()
-      return
-    }
-    void this.drainDirty()
+    this.scheduleFlush()
   }
 
   async flush(): Promise<void> {
-    if (this.dirty.size === 0) return
-    await this.drainDirty()
+    if (this.writeTimer !== null) {
+      clearTimeout(this.writeTimer)
+      this.writeTimer = null
+    }
+    await this.drain()
   }
 
   dispose(): void {
-    if (this.flushTimer != null) {
-      clearInterval(this.flushTimer)
-      this.flushTimer = null
-    }
+    if (this.writeTimer !== null) clearTimeout(this.writeTimer)
+    this.writeTimer = null
+    this.noticeListeners.clear()
   }
 
-  // ─── Internal ───────────────────────────────────────────────────────────
-
-  private ensureFlushPoll(): void {
-    if (this.flushTimer != null) return
-    if (!this.loggedQueueWrite) {
-      this.loggedQueueWrite = true
-      console.info('[playgama-save] queueing writes — bridge not ready yet')
-    }
-    this.flushTimer = setInterval(() => {
-      if (!isPlaygamaSdkActive.value || !getBridgeStorage()) return
-      void this.drainDirty().then(() => {
-        if (this.dirty.size === 0 && this.flushTimer != null) {
-          clearInterval(this.flushTimer)
-          this.flushTimer = null
-        }
-      })
-    }, FLUSH_POLL_MS)
+  private canPush(): boolean {
+    return this.hydrateState === 'success-with-data' || this.hydrateState === 'success-empty'
   }
 
-  private async ensureStorageType(): Promise<void> {
-    if (this.storageTypeResolved) return
+  private setState(state: HydrateState, extra: Partial<HydrateNotice> = {}): void {
+    this.hydrateState = state
+    this._state.value = state
+    const notice: HydrateNotice = { state, ...extra }
+    for (const l of this.noticeListeners) {
+      try { l(notice) } catch (e) { console.warn(`${TAG} notice listener threw`, e) }
+    }
+    // A read that succeeded on a retry releases whatever queued meanwhile.
+    if (this.dirty.size > 0) this.scheduleFlush()
+  }
+
+  private scheduleFlush(): void {
+    // Held, not dropped, until a read has succeeded — rule 1.
+    if (!this.canPush() || this.writeTimer !== null) return
+    this.writeTimer = setTimeout(() => {
+      this.writeTimer = null
+      void this.drain()
+    }, WRITE_DEBOUNCE_MS)
+  }
+
+  private async drain(): Promise<void> {
+    if (!this.canPush() || this.dirty.size === 0) return
+    if (this.inFlight) {
+      await this.inFlight
+      if (this.dirty.size === 0) return
+    }
     const storage = getBridgeStorage()
-    if (!storage) return
-    this.storageType = await resolveStorageType(storage)
-    this.storageTypeResolved = true
-  }
+    if (!storage?.set) return
+    const set = storage.set.bind(storage)
+    const del = storage.delete?.bind(storage)
 
-  private async drainDirty(): Promise<void> {
-    await this.ensureStorageType()
-    if (this.dirty.size === 0) return
-    const snapshot = Array.from(this.dirty.entries())
+    // Stamp the meta from the state being pushed, so the next hydrate's merge
+    // on any device compares like with like.
+    const local = this.local
+    if (local && this.dirty.has(STATE_KEY)) {
+      const meta = serializeMeta(computeMeta({ get: (k) => local.get(k) }))
+      this.dirty.set(META_KEY, meta)
+    }
+
+    const batch = new Map(this.dirty)
     this.dirty.clear()
-    for (const [key, value] of snapshot) {
-      if (value === null) {
-        await this.deleteKey(key)
-      } else {
-        await this.writeKey(key, value)
+    const setKeys: string[] = []
+    const setValues: string[] = []
+    const deleteKeys: string[] = []
+    for (const [k, v] of batch) {
+      if (v === null) deleteKeys.push(k)
+      else { setKeys.push(k); setValues.push(v) }
+    }
+
+    this.inFlight = (async () => {
+      for (const [k, v] of batch) this.writeInFlight.set(k, v)
+      try {
+        if (setKeys.length > 0) await set(setKeys, setValues)
+        if (deleteKeys.length > 0 && del) await del(deleteKeys)
+        dlog(`${TAG} pushed ${setKeys.length} key(s), deleted ${deleteKeys.length}`)
+      } catch (e) {
+        console.warn(`${TAG} push failed — re-queued`, e)
+        // Newer values that arrived mid-flight win; re-queue only the rest.
+        for (const [k, v] of batch) if (!this.dirty.has(k)) this.dirty.set(k, v)
+        this.scheduleFlush()
+      } finally {
+        for (const k of batch.keys()) this.writeInFlight.delete(k)
+        this.inFlight = null
       }
-    }
-  }
-
-  private async writeKey(key: string, value: string): Promise<void> {
-    const storage = getBridgeStorage()
-    if (!storage?.set) {
-      // Bridge went away mid-flight (rare, but defensible). Re-queue.
-      this.dirty.set(key, value)
-      this.ensureFlushPoll()
-      return
-    }
-    this.writeInFlight.add(key)
-    try {
-      // Always call through the bridge — even when storageType is
-      // `local_storage`. The Playgama QA Tool's "Game Saves" check watches
-      // this exact call as its detection signal; skipping breaks cert.
-      await Promise.resolve(storage.set(key, value, this.storageType))
-    } catch (e) {
-      console.warn(`[playgama-save] set(${key}) threw`, e)
-      this.dirty.set(key, value)
-      this.ensureFlushPoll()
-    } finally {
-      this.writeInFlight.delete(key)
-    }
-  }
-
-  private async deleteKey(key: string): Promise<void> {
-    const storage = getBridgeStorage()
-    if (!storage?.delete) {
-      this.dirty.set(key, null)
-      this.ensureFlushPoll()
-      return
-    }
-    this.writeInFlight.add(key)
-    try {
-      await Promise.resolve(storage.delete(key, this.storageType))
-    } catch (e) {
-      console.warn(`[playgama-save] delete(${key}) threw`, e)
-      this.dirty.set(key, null)
-      this.ensureFlushPoll()
-    } finally {
-      this.writeInFlight.delete(key)
-    }
+    })()
+    await this.inFlight
   }
 }

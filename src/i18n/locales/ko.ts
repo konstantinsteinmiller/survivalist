@@ -155,7 +155,8 @@ export default {
     'failed': '리더보드에 연결할 수 없습니다.',
     'loading': '불러오는 중…',
     'you': '나',
-    'yourRank': '{total}명 중 {n}위'
+    'yourRank': '{total}명 중 {n}위',
+    'tabGlobal': '전 세계'
   },
 
   'chest': {

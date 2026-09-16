@@ -155,7 +155,8 @@ export default {
     'failed': 'Não foi possível carregar a classificação.',
     'loading': 'Carregando…',
     'you': 'Você',
-    'yourRank': 'Você é #{n} de {total}'
+    'yourRank': 'Você é #{n} de {total}',
+    'tabGlobal': 'Global'
   },
 
   'chest': {

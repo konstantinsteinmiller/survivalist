@@ -51,6 +51,12 @@ const SECRET: string = import.meta.env.VITE_LEADERBOARD_SECRET ?? ''
 const LIVE: boolean = ENDPOINT.length > 0
 
 /**
+ * Rank a player who has not cleared a stage yet as LAST (`total + 1`) instead
+ * of showing no rank. Per build; on for Playgama. See `rankFor`.
+ */
+const UNPLAYED_LAST: boolean = import.meta.env.VITE_LEADERBOARD_UNPLAYED_LAST === 'true'
+
+/**
  * Does this build have a board at all — live or baked?
  *
  * What the HUD button, the modal and the result screen's rank chip read. With
@@ -110,6 +116,18 @@ const failed = ref(false)
 export const leaderboard: ComputedRef<Board | null> = computed(() => board.value)
 export const playerRank: ComputedRef<number> = computed(() => serverRank.value)
 export const playerTotal: ComputedRef<number> = computed(() => total.value)
+
+/**
+ * The population a `rankFor(score)` answer is "of". Equal to `playerTotal`
+ * except for an unplayed player on a build that ranks them last
+ * (`UNPLAYED_LAST`): they are placed at `total + 1`, so they are counted in —
+ * otherwise the chip would read "#7,832 of 7,831".
+ *
+ * A plain function reading refs, so a computed or a template that calls it
+ * tracks both the score and the board.
+ */
+export const rankTotalFor = (score: number): number =>
+  UNPLAYED_LAST && score <= 0 && board.value !== null && total.value > 0 ? total.value + 1 : total.value
 export const leaderboardPending: ComputedRef<boolean> = computed(() => pending.value)
 export const leaderboardFailed: ComputedRef<boolean> = computed(() => failed.value)
 /** Rows actually published. The result screen needs it to say `#100+` — the
@@ -427,6 +445,10 @@ let lastWriteAt = 0
 export const reportRun = async (
   bestStage: number, bestSquad: number, o: { force?: boolean } = {}
 ): Promise<void> => {
+  // (The portal's own board — Playgama's — is NOT reported from here. It posts
+  // on a stage clear only, from the scene's win paths: see
+  // `reportPortalBest` in `usePortalLeaderboard`.)
+
   // A baked build has nothing to report TO. The rank it shows comes from the
   // snapshot, which no run can change, so this is the one entry point that stays
   // switched off where `leaderboardEnabled` is true.
@@ -512,11 +534,18 @@ export const rankFor = (score: number): number => {
   // two cannot disagree about anything but the age of the population.
   if (serverRank.value > 0 && score === submittedScore.value) return serverRank.value
 
-  // A player who has not finished a stage has no standing to report. Without
+  // A player who has not finished a stage has no standing of their own. Without
   // this the derivation below hands a fresh install `above + 1` = **#1** on an
   // empty board — the game congratulating someone for a run they have not had,
   // on the first screen they ever see.
-  if (score <= 0) return 0
+  //
+  // Where the build opts in (`VITE_LEADERBOARD_UNPLAYED_LAST`, the Playgama
+  // build), they are placed instead: LAST, behind everyone the board knows —
+  // `total + 1`, with `rankTotalFor` counting them into the population so the
+  // chip reads "#7,832 of 7,832" rather than "of 7,831". The very bottom is a
+  // truthful place to start and a number with somewhere to go, which a blank
+  // cell is not. Only with a board in hand: last of nothing is still nothing.
+  if (score <= 0) return UNPLAYED_LAST && board.value !== null && total.value > 0 ? total.value + 1 : 0
 
   // On a baked build the histogram IS the board, and it answers for the whole
   // population: no published cut to fall off, no `OUTSIDE_BOARD`, and a real

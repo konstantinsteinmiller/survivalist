@@ -115,6 +115,7 @@ const bootstrap = async () => {
   let cgLocale: string | null = null
   let yaLocale: string | null = null
   let pkLocale: string | null = null
+  let pgLocale: string | null = null
   if (isCrazyWeb) {
     const cg = await import('@/use/useCrazyGames')
     await cg.initCrazyGames()
@@ -164,6 +165,26 @@ const bootstrap = async () => {
     const { yandexPlugin, yandexLocale } = await import('@/utils/yandexPlugin')
     await yandexPlugin()
     yaLocale = yandexLocale.value
+  } else if (isPlaygama) {
+    // **Awaited** init (Bridge v2) — must finish BEFORE `saveManager.init()`.
+    // `PlaygamaStrategy.hydrate()` reads the cloud save through
+    // `bridge.storage`, whose getter throws until `initialize()` resolved. On
+    // YouTube Playables that read is the ONLY way progress comes back —
+    // `localStorage` is null there — and a hydrate that raced init would boot
+    // at defaults and then upload them over the real save.
+    //
+    // Bounded: the plugin races `initialize()` against 15 s, and on any failure
+    // the strategy degrades to local-only instead of blocking the game.
+    //
+    // It also makes the portal language readable before i18n boots, which is
+    // what Playgama's localization check and Playables' `getLanguage` rule grade.
+    const { playgamaPlugin, playgamaLoadingStart, playgamaLocale, registerPlaygamaLeaderboard } =
+      await import('@/utils/playgamaPlugin')
+    await playgamaPlugin()
+    playgamaLoadingStart()
+    pgLocale = playgamaLocale.value
+    // Playgama's own leaderboard, beside ours — see `usePortalLeaderboard`.
+    registerPlaygamaLeaderboard()
   } else if (isPoki) {
     // **Parallel** init — deliberately NOT awaited, unlike the GamePix / Yandex
     // arms above. Poki has NO cloud-save API (its wrapper mirrors the iframe's
@@ -340,18 +361,12 @@ const bootstrap = async () => {
     })
   }
 
-  // Playgama: same parallel-init pattern as GD. The plugin internally
-  // caches its init promise, so the AdProvider + SaveStrategy both join
-  // this same `bridge.initialize()` call instead of issuing duplicates.
-  // Loading messages are sent immediately after init resolves; the
-  // `game_ready` edge is fired later from App.vue's asset-loaded watcher.
-  if (import.meta.env.VITE_APP_PLAYGAMA === 'true') {
-    void import('@/utils/playgamaPlugin').then(({ playgamaPlugin, playgamaLoadingStart }) => {
-      void playgamaPlugin().then(() => playgamaLoadingStart())
-    })
-  }
+  // Playgama init already ran (awaited) above — see the `else if (isPlaygama)`
+  // arm. It used the parallel pattern until the Bridge v2 migration; that is
+  // what left `PlaygamaStrategy.hydrate()` unable to read the cloud. The
+  // AdProvider's later `playgamaPlugin()` joins the cached init promise.
 
-  // GameMonetize: same parallel-init pattern as GD / Playgama. The plugin sets
+  // GameMonetize: same parallel-init pattern as GD. The plugin sets
   // `window.SDK_OPTIONS`, lazily injects the SDK script
   // (api.gamemonetize.com/sdk.js), and resolves on SDK_READY. The AdProvider's
   // init() (post-mount via initAds) joins the same cached promise. There's no
@@ -374,7 +389,7 @@ const bootstrap = async () => {
   // `cgLocale` / `yaLocale` were captured up in their init arms; null on
   // other builds. Yandex returns ISO-639-1 (`en`, `ru`, `tr`, etc.);
   // anything we don't ship maps to the resolver's fallback chain.
-  const portalLocaleHint = cgLocale ?? yaLocale ?? pkLocale
+  const portalLocaleHint = cgLocale ?? yaLocale ?? pkLocale ?? pgLocale
   const portalLocale = portalLocaleHint && LANGUAGES.includes(portalLocaleHint) ? portalLocaleHint : null
 
   const { default: App } = await import('@/App.vue')
@@ -432,12 +447,41 @@ const bootstrap = async () => {
         // value (cloud-hydrated or just-seeded). Never the portal locale
         // unconditionally, because that's what was overwriting an
         // explicit Spanish choice on every English-portal refresh.
-        if (isSupportedLocale(storedLang.value)) {
+        //
+        // PLAYGAMA: only a choice the player actually MADE. `userLanguage`
+        // defaults to 'en' when nothing is stored, and this build does not
+        // persist the portal locale (see the live watcher below), so applying
+        // the default here reverted a first-time German Playables player to
+        // English one tick after boot had chosen German — found in the
+        // YouTube-shaped browser run, where `getLanguage()` said 'de'.
+        const playgamaUnchosen = import.meta.env.VITE_APP_PLAYGAMA === 'true' && !hasStoredLanguage
+        if (!playgamaUnchosen && isSupportedLocale(storedLang.value)) {
           setI18nLocale(i18n, storedLang.value)
         }
       },
       { immediate: true }
     )
+  }
+
+  // ─── Playgama / Playables: the portal language, live ───────────────────
+  //
+  // Deliberately NOT folded into `portalSeed` above, which WRITES the portal
+  // locale into the player's own language key. Platform state is not player
+  // state: once written, "the portal said so" is indistinguishable from "the
+  // player chose this", every later portal language is ignored, and via cloud
+  // save that survives a QA re-test on the same account — the ticket Playgama
+  // filed twice against chaos-arena.
+  //
+  // So here the portal language is APPLIED and never stored, and only while
+  // the player has made no choice of their own. It follows mid-session changes
+  // too (the plugin polls `platform.language`), because Playgama's QA Tool
+  // switches language without reloading the frame.
+  if (import.meta.env.VITE_APP_PLAYGAMA === 'true') {
+    const { playgamaLocale } = await import('@/utils/playgamaPlugin')
+    watch(playgamaLocale, (code) => {
+      if (!code || hasState(LANGUAGE_KEY) || !isSupportedLocale(code)) return
+      void setI18nLocale(i18n, code)
+    })
   }
 
   // Expose the instance globally so composables / skills that want to

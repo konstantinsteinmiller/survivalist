@@ -155,7 +155,8 @@ export default {
     'failed': 'Classement inaccessible.',
     'loading': 'Chargement…',
     'you': 'Toi',
-    'yourRank': 'Tu es #{n} sur {total}'
+    'yourRank': 'Tu es #{n} sur {total}',
+    'tabGlobal': 'Mondial'
   },
 
   'chest': {

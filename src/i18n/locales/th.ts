@@ -155,7 +155,8 @@ export default {
     'failed': 'เชื่อมต่อกระดานผู้นำไม่ได้',
     'loading': 'กำลังโหลด…',
     'you': 'คุณ',
-    'yourRank': 'คุณอยู่อันดับ #{n} จาก {total}'
+    'yourRank': 'คุณอยู่อันดับ #{n} จาก {total}',
+    'tabGlobal': 'ทั่วโลก'
   },
 
   'chest': {

@@ -155,7 +155,8 @@ export default {
     'failed': 'Reytingga ulanib bo‘lmadi.',
     'loading': 'Yuklanmoqda…',
     'you': 'Siz',
-    'yourRank': '{total} o‘yinchidan #{n} o‘rindasiz'
+    'yourRank': '{total} o‘yinchidan #{n} o‘rindasiz',
+    'tabGlobal': 'Jahon'
   },
 
   'chest': {

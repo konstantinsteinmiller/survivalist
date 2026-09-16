@@ -155,7 +155,8 @@ export default {
     'failed': 'Không kết nối được bảng xếp hạng.',
     'loading': 'Đang tải…',
     'you': 'Bạn',
-    'yourRank': 'Bạn hạng #{n} trên {total}'
+    'yourRank': 'Bạn hạng #{n} trên {total}',
+    'tabGlobal': 'Toàn cầu'
   },
 
   'chest': {

@@ -368,6 +368,24 @@ export const POSTED_NAME_KEY = 'ts_posted_name'
  * a bill.
  */
 export const SUBMITTED_STAGE_KEY = 'ts_submitted_stage'
+/**
+ * The highest stage already sent to the PORTAL's own board (Playgama's SaaS
+ * leaderboard), kept apart from `SUBMITTED_STAGE_KEY` on purpose.
+ *
+ * The two boards fail independently — ours can be baked with no endpoint at all
+ * while the portal's is live, and a portal write can fail while ours lands — so
+ * one shared "already posted" number would let a success on one board silently
+ * skip the other. Cloud-synced like the rest: a signed-in portal player keeps
+ * one row across devices, so a restored save must not re-post what is there.
+ */
+export const PORTAL_POSTED_STAGE_KEY = 'ts_portal_posted_stage'
+/**
+ * Whether this player already has a row on the portal's board — set once the
+ * portal accepted the first post, including the stage-0 post that enters a
+ * first-time player at the bottom. Separate from `PORTAL_POSTED_STAGE_KEY`
+ * because a posted 0 and "never posted" are both 0 there.
+ */
+export const PORTAL_JOINED_KEY = 'ts_portal_joined'
 
 // ─── User settings ──────────────────────────────────────────────────────────
 

@@ -14,7 +14,7 @@
     "build:itch": "vite build --mode itch --base=./ && cd dist && tar -a -cf ../survivalist-itch.zip * && cd .. && move survivalist-itch.zip dist\\",
     "build:glitch": "vite build --mode glitch --base=./ && cd dist && tar -a -cf ../survivalist-glitch.zip * && cd .. && move survivalist-glitch.zip dist\\",
     "build:game-distribution": "vite build --mode game-distribution --base=./",
-    "build:playgama": "vite build --mode playgama --base=./ && cd dist && tar -a -cf ../survivalist-playgama.zip * && cd .. && move survivalist-playgama.zip dist\\",
+    "build:playgama": "node scripts/playgama-leaderboard-check.mjs && vite build --mode playgama --base=./ && cd dist && tar -a -cf ../survivalist-playgama.zip * && cd .. && move survivalist-playgama.zip dist\\",
     "build:gamepix": "vite build --mode gamepix --base=./ && cd dist && tar -a -cf ../survivalist-gamepix.zip * && cd .. && move survivalist-gamepix.zip dist\\",
     "build:gamemonetize": "vite build --mode gamemonetize --base=./ && cd dist && tar -a -cf ../survivalist-gamemonetize.zip * && cd .. && move survivalist-gamemonetize.zip dist\\",
     "build:yandex": "vite build --mode yandex --base=./ && cd dist && tar -a -cf ../survivalist-yandex.zip * && cd .. && move survivalist-yandex.zip dist\\",
@@ -27,6 +27,7 @@
     "type-check": "vue-tsc --build",
     "leaderboard:seed": "node scripts/leaderboard-seed.mjs",
     "leaderboard:snapshot": "node scripts/leaderboard-snapshot.mjs",
+    "playgama:leaderboard:check": "node scripts/playgama-leaderboard-check.mjs",
     "perf:ab": "node scripts/perf-ab.mjs",
     "perf:play": "node scripts/perf-play.mjs",
     "perf:builds": "node scripts/perf-builds.mjs",
@@ -48,6 +49,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@playgama/bridge": "^2.2.0",
     "@vueuse/core": "^14.2.1",
     "@wvdsh/sdk-js": "^0.0.38",
     "lodash.clonedeep": "^4.5.0",

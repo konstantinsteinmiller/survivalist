@@ -23,8 +23,13 @@ export {
   isPlaygamaAdsBlocked,
   playgamaLocale,
   playgamaDetectedId,
-  getPlaygamaBridge
+  getPlaygamaBridge,
+  registerPlaygamaLeaderboard
 } from '@/utils/playgamaPlugin'
+// Deliberately NOT re-exported here: `@/utils/playgamaLeaderboard` (reached via
+// the plugin) and `./bridgeConfig` (build-time, imported by vite.config.ts).
+// `platforms/index.ts` imports this barrel in EVERY build, and neither module
+// has any business in a Yandex or Poki bundle.
 
 export { createPlaygamaProvider } from '@/use/ads/PlaygamaProvider'
 

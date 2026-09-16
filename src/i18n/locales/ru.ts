@@ -155,7 +155,8 @@ export default {
     'failed': 'Таблица лидеров недоступна.',
     'loading': 'Загрузка…',
     'you': 'Вы',
-    'yourRank': 'Вы на #{n} из {total}'
+    'yourRank': 'Вы на #{n} из {total}',
+    'tabGlobal': 'Мировой'
   },
 
   'chest': {

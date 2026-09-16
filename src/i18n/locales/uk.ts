@@ -155,7 +155,8 @@ export default {
     'failed': 'Таблиця лідерів недоступна.',
     'loading': 'Завантаження…',
     'you': 'Ви',
-    'yourRank': 'Ви на #{n} із {total}'
+    'yourRank': 'Ви на #{n} із {total}',
+    'tabGlobal': 'Світовий'
   },
 
   'chest': {

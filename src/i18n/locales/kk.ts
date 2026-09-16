@@ -155,7 +155,8 @@ export default {
     'failed': 'Көшбасшылар тізімі қолжетімсіз.',
     'loading': 'Жүктелуде…',
     'you': 'Сіз',
-    'yourRank': '{total} ойыншыдан #{n} орындасыз'
+    'yourRank': '{total} ойыншыдан #{n} орындасыз',
+    'tabGlobal': 'Әлемдік'
   },
 
   'chest': {

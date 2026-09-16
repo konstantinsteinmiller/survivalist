@@ -155,7 +155,8 @@ export default {
     'failed': 'تعذر الوصول إلى لوحة الصدارة.',
     'loading': 'جارٍ التحميل…',
     'you': 'أنت',
-    'yourRank': 'ترتيبك #{n} من {total} لاعب'
+    'yourRank': 'ترتيبك #{n} من {total} لاعب',
+    'tabGlobal': 'عالمي'
   },
 
   'chest': {

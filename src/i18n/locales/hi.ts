@@ -155,7 +155,8 @@ export default {
     'failed': 'लीडरबोर्ड तक नहीं पहुँच सके।',
     'loading': 'लोड हो रहा है…',
     'you': 'आप',
-    'yourRank': '{total} खिलाड़ियों में आप #{n} पर हैं'
+    'yourRank': '{total} खिलाड़ियों में आप #{n} पर हैं',
+    'tabGlobal': 'वैश्विक'
   },
 
   'chest': {

@@ -7,8 +7,12 @@ import { bestStage } from '@/use/useSurvivalGame'
 import { playerDisplayName } from '@/use/usePlayerIdentity'
 import {
   OUTSIDE_BOARD, boardSize, ensureBoard, leaderboard, leaderboardFailed,
-  leaderboardPending, playerTotal, rankFor
+  leaderboardPending, rankFor, rankTotalFor
 } from '@/use/useLeaderboard'
+import {
+  ensurePortalBoard, portalBoardLabel, portalBoardLoaded, portalBoardPending,
+  portalBoardVisible, portalEntries
+} from '@/use/usePortalLeaderboard'
 
 /**
  * ─── The global board ───────────────────────────────────────────────────────
@@ -93,7 +97,9 @@ const ownRankLabel = computed(() =>
  */
 const footerLine = computed(() => t('leaderboard.yourRank', {
   n: ownRankLabel.value,
-  total: grouped(playerTotal.value)
+  // Not `playerTotal`: a build that ranks an unplayed player last counts them
+  // into the population ("#7,832 of 7,832"). See `rankTotalFor`.
+  total: grouped(rankTotalFor(bestStage.value))
 }))
 
 const showOwnRank = computed(() => !onBoard.value && ownRank.value !== 0)
@@ -105,6 +111,34 @@ const showEmpty = computed(() =>
   !leaderboardPending.value && !leaderboardFailed.value && leaderboard.value !== null
   && entries.value.length === 0)
 
+/**
+ * ─── The portal's own board, as a second tab ────────────────────────────────
+ *
+ * On Playgama the portal runs a live leaderboard of its own and draws no UI for
+ * it (`in_game`), so it gets a tab here. Only a tab: the rank chip and this
+ * modal's footer stay on OUR board, because two rank sources on one screen that
+ * disagree read as a bug.
+ *
+ * No tabs at all on every other build — `portalBoardVisible` is false — so the
+ * modal keeps its title ribbon exactly as before. And no error state for the
+ * portal board either: a read that fails hides the tab, and a tab that vanishes
+ * while selected drops the player back onto ours via `showPortal`.
+ */
+const activeTab = ref<'global' | 'portal'>('global')
+
+const tabs = computed(() => portalBoardVisible.value && portalBoardLabel.value
+  ? [
+    { label: t('leaderboard.tabGlobal'), value: 'global' },
+    // A brand name, deliberately untranslated.
+    { label: portalBoardLabel.value, value: 'portal' }
+  ]
+  : [])
+
+const showPortal = computed(() => portalBoardVisible.value && activeTab.value === 'portal')
+const showPortalLoading = computed(() => portalBoardPending.value && portalEntries.value.length === 0)
+const showPortalEmpty = computed(() =>
+  !portalBoardPending.value && portalBoardLoaded.value && portalEntries.value.length === 0)
+
 // Fetched on OPEN, not on mount: the modal is mounted for the whole session and
 // most sessions never open it. `ensureBoard` is idempotent and cached, so a
 // player who opens the board six times still costs one request — and a previous
@@ -112,13 +146,43 @@ const showEmpty = computed(() =>
 watch(model, (open) => {
   if (!open) return
   void ensureBoard()
+  // Same rules for the portal's board; a no-op on every build without one.
+  void ensurePortalBoard()
   void playerDisplayName().then((name) => { ownName.value = name })
 }, { immediate: true })
 </script>
 
 <template lang="pug">
-  FModal(v-model="model" :title="t('leaderboard.title')")
-    div.board
+  FModal(
+    v-model="model"
+    v-model:activeTab="activeTab"
+    :title="t('leaderboard.title')"
+    :tabs="tabs"
+  )
+    //- The portal's board: rank, name, stage — it has no squad column to show.
+    //- Its own row is matched by the portal's player id, not by name.
+    div.board(v-if="showPortal")
+      div.board__head.is-portal
+        span.board__col.is-rank {{ t('leaderboard.rank') }}
+        span.board__col.is-name {{ t('leaderboard.player') }}
+        span.board__col.is-stage {{ t('leaderboard.stage') }}
+
+      div.board__state(v-if="showPortalLoading") {{ t('leaderboard.loading') }}
+      div.board__state(v-else-if="showPortalEmpty") {{ t('leaderboard.empty') }}
+
+      div.board__list(v-else)
+        div.board-row.is-portal(
+          v-for="(entry, i) in portalEntries"
+          :key="`portal-${entry.rank}-${i}`"
+          :class="{ 'is-you': entry.isYou }"
+        )
+          span.board-row__rank {{ grouped(entry.rank) }}
+          span.board-row__name
+            span.board-row__name-text {{ entry.name || t('leaderboard.player') }}
+            span.board-row__you(v-if="entry.isYou") {{ t('leaderboard.you') }}
+          span.board-row__stage {{ entry.score }}
+
+    div.board(v-else)
       div.board__head
         span.board__col.is-rank {{ t('leaderboard.rank') }}
         span.board__col.is-name {{ t('leaderboard.player') }}
@@ -167,6 +231,8 @@ watch(model, (open) => {
 // only flexible one — the three numbers are as wide as their content and no
 // wider, which is what keeps four columns on a 320 px screen.
 $cols: clamp(1.6rem, 8vw, 2.4rem) minmax(0, 1fr) clamp(2rem, 9vw, 3rem) clamp(2.2rem, 10vw, 3.4rem)
+// The portal's board has no squad column, so the name takes that width.
+$cols-portal: clamp(1.6rem, 8vw, 2.4rem) minmax(0, 1fr) clamp(2rem, 9vw, 3rem)
 
 .board
   display: flex
@@ -180,6 +246,9 @@ $cols: clamp(1.6rem, 8vw, 2.4rem) minmax(0, 1fr) clamp(2rem, 9vw, 3rem) clamp(2.
   gap: clamp(0.3rem, 2vw, 0.6rem)
   padding: 0 clamp(0.3rem, 1.6vw, 0.6rem) clamp(0.15rem, 0.8vw, 0.3rem)
   border-bottom: 2px solid rgba(255, 255, 255, 0.12)
+
+  &.is-portal
+    grid-template-columns: $cols-portal
 
 .board__col
   color: #9fb2d0
@@ -206,6 +275,9 @@ $cols: clamp(1.6rem, 8vw, 2.4rem) minmax(0, 1fr) clamp(2rem, 9vw, 3rem) clamp(2.
   border: 2px solid transparent
   border-radius: clamp(0.35rem, 1.8vw, 0.6rem)
   background-color: rgba(0, 0, 0, 0.22)
+
+  &.is-portal
+    grid-template-columns: $cols-portal
 
   // Zebra striping rather than a border per row: 100 rows of border is a wall.
   &:nth-child(even)

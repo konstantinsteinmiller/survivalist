@@ -270,6 +270,14 @@ describe('the baked snapshot is the bottom rung, reached only on failure', () =>
       handler: async () => reply({ rank: 9, best: 1, total: 400, board: LIVE_BOARD })
     })
 
+    // Same premise reset as the climb case above, for the same reason: under a
+    // full-suite run an earlier case's posted stage 42 has been observed
+    // surviving into this test, every report below it is then a no-op, and the
+    // case fails with ZERO writes — reading like the force path being broken.
+    const { setState } = await import('@/use/useTowerState')
+    const { SUBMITTED_STAGE_KEY } = await import('@/keys')
+    setState(SUBMITTED_STAGE_KEY, 0)
+
     await lb.reportRun(3, 100)
     await lb.reportRun(7, 100)                      // throttled away
     await lb.reportRun(9, 100, { force: true })     // the run ended

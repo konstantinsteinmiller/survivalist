@@ -243,9 +243,15 @@ onMounted(() => {
   settleFallbackId = window.setTimeout(() => {
     if (!done.value) done.value = true
   }, 8000)
-  stuckHintId = window.setTimeout(() => {
-    if (!done.value) showStuckHint.value = true
-  }, 5000)
+  // Not on Playgama. That archive is also the YouTube Playables submission, and
+  // "Disable your adblocker and reload" is the wrong thing to say inside YouTube
+  // (ads there come only through the Playables SDK) and on playgama.com, where
+  // the portal serves the ads. Env literal, so the timer folds out of the build.
+  if (import.meta.env.VITE_APP_PLAYGAMA !== 'true') {
+    stuckHintId = window.setTimeout(() => {
+      if (!done.value) showStuckHint.value = true
+    }, 5000)
+  }
 
   greetTimerId = window.setTimeout(() => runGreeting('boo'), LURK_MS)
 })

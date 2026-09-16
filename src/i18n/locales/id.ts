@@ -155,7 +155,8 @@ export default {
     'failed': 'Papan peringkat tidak terjangkau.',
     'loading': 'Memuat…',
     'you': 'Kamu',
-    'yourRank': 'Kamu peringkat #{n} dari {total}'
+    'yourRank': 'Kamu peringkat #{n} dari {total}',
+    'tabGlobal': 'Global'
   },
 
   'chest': {

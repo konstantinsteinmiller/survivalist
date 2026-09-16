@@ -155,7 +155,8 @@ export default {
     'failed': '无法连接排行榜。',
     'loading': '加载中…',
     'you': '你',
-    'yourRank': '{total} 人中你排第 {n}'
+    'yourRank': '{total} 人中你排第 {n}',
+    'tabGlobal': '全球'
   },
 
   'chest': {

@@ -155,7 +155,8 @@ export default {
     'failed': 'Nie można wczytać rankingu.',
     'loading': 'Wczytywanie…',
     'you': 'Ty',
-    'yourRank': 'Jesteś #{n} z {total}'
+    'yourRank': 'Jesteś #{n} z {total}',
+    'tabGlobal': 'Światowy'
   },
 
   'chest': {

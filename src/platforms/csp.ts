@@ -30,7 +30,8 @@ const BASE_HOSTS: ReadonlyArray<string> = [
   'https://*.gamedistribution.com',
   'https://playgama.com',
   'https://*.playgama.com',
-  'https://bridge.playgama.com',
+  // (No `bridge.playgama.com`: Bridge v2 is bundled from npm, and the Playgama
+  // build ships no CSP meta tag anyway.)
   'https://gamepix.com',
   'https://*.gamepix.com',
   'https://integration.gamepix.com',

@@ -155,7 +155,8 @@ export default {
     'failed': 'Bestenliste nicht erreichbar.',
     'loading': 'Wird geladen…',
     'you': 'Du',
-    'yourRank': 'Du bist #{n} von {total}'
+    'yourRank': 'Du bist #{n} von {total}',
+    'tabGlobal': 'Global'
   },
 
   'chest': {

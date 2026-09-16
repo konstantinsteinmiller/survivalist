@@ -39,7 +39,8 @@ vi.mock('@/use/useLeaderboard', () => ({
   leaderboardFailed: { value: false },
   leaderboard: { value: { entries: [{ rank: 41032, name: 'Ada', score: 12, squad: 4000 }] } },
   ensureBoard: () => Promise.resolve(),
-  rankFor: () => 41032
+  rankFor: () => 41032,
+  rankTotalFor: () => 154331
 }))
 vi.mock('@/use/useSurvivalGame', () => ({ bestStage: { value: 12 } }))
 vi.mock('@/use/usePlayerIdentity', () => ({ playerDisplayName: ref('Someone Else') }))

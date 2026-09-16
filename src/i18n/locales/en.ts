@@ -336,7 +336,8 @@ export default {
     'failed': "Couldn't reach the leaderboard.",
     'loading': 'Loading…',
     'you': 'You',
-    'yourRank': 'You are #{n} of {total}'
+    'yourRank': 'You are #{n} of {total}',
+    'tabGlobal': 'Global'
   },
 
   // ─── Upgrades ─────────────────────────────────────────────────────────────

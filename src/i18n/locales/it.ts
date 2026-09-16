@@ -155,7 +155,8 @@ export default {
     'failed': 'Classifica non raggiungibile.',
     'loading': 'Caricamento…',
     'you': 'Tu',
-    'yourRank': 'Sei #{n} su {total}'
+    'yourRank': 'Sei #{n} su {total}',
+    'tabGlobal': 'Globale'
   },
 
   'chest': {

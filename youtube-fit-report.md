@@ -1,6 +1,49 @@
 # YouTube Playables fit — survivalist
 
-**Verdict: 1 MUST failure left** (was 9), and it is a question for Playgama
+## Update 2026-09-16 — Bridge v2, the last blocker closed
+
+**The one remaining MUST below (`YTP-NO-EXTERNAL-CALLS`, the v1 Bridge CDN
+script) is resolved.** The Playgama Bridge is now the `@playgama/bridge` 2.2.0
+npm package, bundled into the archive behind a build-gated import — no
+`bridge.playgama.com` tag, no runtime adapter chunks, no injected scripts.
+
+What the byte audit says now, and why it is not a regression: `youtube-fit-audit`
+reports **8 MUST fails, every one of them evidenced ONLY inside
+`assets/playgama-bridge.esm-*.js`**. The npm bundle ships all ~30 portal adapters
+as dead code (CrazyGames/GameDistribution/Facebook SDK URLs, Xsolla, clipboard,
+`navigator.language` in the base adapter, `visibilitychange` in its own
+analytics and YouTube adapter). No hit is in the game's own chunks; this is the
+package Playgama prescribes for Playables.
+
+So the proof is RUNTIME, and it was run on the built archive (headless Chrome,
+host `e2e.playables.usercontent.goog`, `window.localStorage` and
+`sessionStorage` nulled before any script, `ytgame` stubbed):
+
+| Check | Result |
+| --- | --- |
+| Bridge adapter | `youtube`, v2.2.0, initialized, no exceptions |
+| Null storage (`YTP-NO-RAW-STORAGE`) | new `public/js/storage-shim.js` engaged; before it, `new SaveManager(strategy, window.localStorage)` would have thrown at boot |
+| External calls | the ONLY off-origin request was `www.youtube.com/game_api/v1`; nothing to `api.playgama.com`; no script tags beyond `index.html`'s |
+| Save (`YTP-SAVE-API`) | `loadData` on boot, ONE `saveData` blob with `tower_state` + `__save_meta__` |
+| `firstFrameReady` / `gameReady` | both called (`YTP-FIRSTFRAME` closed — Bridge v2 calls it) |
+| Language (`getLanguage` → `de-DE`) | booted in German (a stored-language default reverting it to English was found and fixed) |
+| Pause (`onPause`) | reaches the game's pause gate |
+| Leaderboard | `type: native`; arrival sent no score; a win sent `sendScore({ value: 7 })` |
+
+Also in this pass: `PlaygamaStrategy` now reads the cloud save on hydrate (it
+never did) and pushes one batched write; `main.ts` awaits the Bridge before the
+save hydrate. Release archive `dist/survivalist-playgama.zip` — 3.47 MiB,
+172 entries, real PKZIP.
+
+Still open, as before: the judgement pass, and the runtime checks not listed
+above (aspect ladder, resize-to-zero, 512 MB heap, real devices). The loading
+screen's 5-second "Disable your adblocker and reload." hint is now switched off
+on the Playgama build (`FLogoProgress.vue`, pinned by
+`tests/ui/stuckHintPlaygama.test.ts`; its timer is absent from the built bundle).
+
+---
+
+**Verdict (2026-09-14): 1 MUST failure left** (was 9), and it is a question for Playgama
 rather than a defect — their own Bridge loads from their CDN, and only they can
 say how that is handled on Playables. Every other mechanical check passes.
 
