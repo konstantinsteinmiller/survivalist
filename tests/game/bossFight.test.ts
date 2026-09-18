@@ -193,7 +193,7 @@ describe('a long fight is a losing fight', () => {
     // turns "how long does this run take" into a coin flip, and this test is
     // about the boss's cadence, not the road. Stage 1 has an elite of its own
     // AND a boss, but that boss is a tutorial piece — one guard gate instead of
-    // two, a token swing (`TUTORIAL_SLAM_FRACTION`) — so its cadence is
+    // two, and no second phase (`TUTORIAL_GUARD_GATES`) — so its cadence is
     // deliberately not the game's. Stage 2 is the first ordinary one; the crowd
     // is oversized so its one elite is walked through rather than fought.
     //

@@ -1,4 +1,4 @@
-import { CRATE_R, LANE_HALF, SHOOTERS, stageSpeed } from '@/game/survival'
+import { BULLET_R, CRATE_R, LANE_HALF, SHOOTERS, stageSpeed } from '@/game/survival'
 
 /**
  * ─── Weapon upgrades — the puzzle prize ─────────────────────────────────────
@@ -65,7 +65,20 @@ import { CRATE_R, LANE_HALF, SHOOTERS, stageSpeed } from '@/game/survival'
  * lives in the two multipliers alone.
  */
 
-export type WeaponId = 'rocket' | 'gatling'
+export type WeaponId = 'rocket' | 'gatling' | 'grapeshot' | 'dynamo' | 'gravecall' | 'hoard'
+
+/**
+ * ─── What the shop's Power track buys, per weapon ───────────────────────────
+ *
+ * The first two weapons ARE their damage, so their track multiplies the round.
+ * The four that came after are not: Gravecall's gun is the squad's own and its
+ * power is the dead it raises, and the Hoard's gun is WEAKER than the squad's
+ * and its power is what a corpse is worth. A track that multiplied the round
+ * there would buy the wrong thing and — worse — quietly inflate the number the
+ * boss's bar is priced against (`weaponDamageMul`), which is how a shop level
+ * makes a fight longer instead of shorter.
+ */
+export type WeaponPowerScales = 'gun' | 'trait'
 
 export interface WeaponDef {
   id: WeaponId
@@ -158,8 +171,25 @@ export interface WeaponDef {
    * invisible on the door itself. This is that advantage, made visible: the
    * hose winds the number up faster, and the whole read of the gatling —
    * "everything just got louder" — finally includes the gate.
+   *
+   * This is the rate on the ADDITIVE doors (`+N` / `-N`). The scale doors have
+   * their own, below.
    */
   pumpMul: number
+  /**
+   * …and on the SCALE doors (`xN` / `/N`), which is deliberately lower.
+   *
+   * One rate for both was the gatling's single biggest overreach, reported in
+   * play: a `x1.6` or `x2.4` door hosed at the additive rate reached `x2.x` /
+   * `x3` inside one approach, and a multiplier multiplies whatever the rest of
+   * the stage already built — so the bonus compounded on every bank after it.
+   * Measured before the split, a good player handed a gatling on stage 5 took
+   * 222 survivors through its gates against 142 without it, and reached the
+   * boss 62 % bigger. An additive door's pump is linear in the time spent on it;
+   * a scale door's is exponential in everything downstream, so it gets the
+   * smaller multiplier.
+   */
+  scalePumpMul: number
   /**
    * Seconds a door stays HOT after one of this weapon's rounds hits it, on top
    * of the ordinary hot window.
@@ -175,6 +205,40 @@ export interface WeaponDef {
    * stream of tracers, which is exactly the launcher's whole character.
    */
   gateHoldS: number
+  /** Which half of the weapon the shop's Power track multiplies. */
+  powerScales: WeaponPowerScales
+  /**
+   * Half-angle of the muzzle's cone, radians. 0 is straight up the road with
+   * the ordinary sprinkle of scatter.
+   *
+   * The shotgun's whole identity: a fan of pellets that covers a pack at
+   * arm's length and nothing at all at the far end of the road.
+   */
+  spreadRad: number
+  /**
+   * …and how far its rounds reach, as a share of the squad's own range.
+   *
+   * 1 is every other weapon. Below 1 is the price of the spread, and it is the
+   * price on the GATES too: a door is only pumped while it is in range, so a
+   * short gun spends fewer seconds on every bank (see `stepGates`).
+   */
+  rangeMul: number
+  /**
+   * Does hitting things CHARGE this weapon? The Dynamo's meter fills from every
+   * round that lands, and the player spends it on a bolt of their own
+   * (`DYNAMO_BOLT_MULT`).
+   */
+  charges: boolean
+  /**
+   * How many of the dead this weapon can have on its feet at once, 0 for every
+   * weapon that raises nobody. Gravecall's thralls — see `THRALL_*`.
+   */
+  raises: number
+  /**
+   * What a corpse is worth in coins, as a multiple of the ordinary drop. 0 for
+   * every weapon that does not gild them. The Hoard — see `GILD_*`.
+   */
+  gilds: number
 }
 
 /**
@@ -199,6 +263,111 @@ export const ROCKET_SPLASH_SHARE = 0.6
  */
 export const ROCKET_SPLASH_R = 2.3
 
+// --- The Dynamo's meter ---------------------------------------------------
+
+/**
+ * How much of a charge one round's damage is worth, as a share of ONE SECOND of
+ * the crowd's own fire.
+ *
+ * Charge is measured in seconds-of-fire rather than in raw damage for the same
+ * reason the boss's bar is: raw damage means something different to a crowd of
+ * four and a crowd of four hundred, and a meter that fills inside one bank at
+ * depth and never at all on stage 10 is not a mechanic. At an eighth the meter
+ * wants eight seconds of LANDED fire — a pack, a bank and a crate, or most of
+ * an elite — so a road pays three or four bolts to a player who keeps the gun
+ * busy and one to a player who does not.
+ *
+ * Only rounds that land charge it. Fire into empty road is worth nothing, which
+ * is what makes the meter a reward for aiming rather than for holding a thumb
+ * down.
+ */
+export const DYNAMO_CHARGE_PER_DPS = 1 / 8
+
+/**
+ * What the bolt hits for, as seconds of the crowd's own fire.
+ *
+ * Priced exactly the way the grenade is (`grenadeMult`, 3 at level 0) and
+ * deliberately smaller: the grenade is a skill the player owns for a career,
+ * the bolt is a bonus riding on a weapon they hold for one stage — and unlike
+ * the grenade it comes round three or four times a road.
+ *
+ * It is deliberately NOT part of `weaponDamageMul`, so no boss bar and no elite
+ * bar is priced against it. That is the owner's call and it is what makes the
+ * bolt a bonus: the fight was sized for the gun, and the bolt is the player
+ * getting ahead of it.
+ */
+export const DYNAMO_BOLT_MULT = 2
+
+/** Half-width of the bolt's column — "three gun shots thin". */
+export const DYNAMO_BOLT_HALF_W = BULLET_R * 3
+
+/** Seconds the bolt is drawn for. It resolves on the frame it is thrown. */
+export const DYNAMO_BOLT_S = 0.35
+
+// --- Gravecall's thralls ---------------------------------------------------
+
+/** The most of the dead that may be on their feet at once. */
+export const THRALL_MAX = 15
+
+/**
+ * How far in front of the crowd a thrall walks.
+ *
+ * Far enough to meet what is coming before it reaches the squad — the first
+ * thing a thrall is worth is the bite it takes instead of the crowd — and close
+ * enough to stay on screen and read as YOUR side of the fight rather than as
+ * another pack.
+ */
+export const THRALL_LEAD = 3.2
+
+/** ...and how far it may drift off the crowd's column to find work. */
+export const THRALL_SPREAD = 2.6
+
+/** How fast it closes on what it is attacking, world units a second, on top of
+ *  the road's own speed. */
+export const THRALL_SPEED = 3.4
+
+/** Reach of its swing, past the two bodies' own radii. */
+export const THRALL_REACH = 0.55
+
+/** Seconds between its swings. */
+export const THRALL_HIT_CD = 0.6
+
+/**
+ * What one swing costs, as seconds of ONE SURVIVOR's fire.
+ *
+ * Priced per survivor rather than as a share of the crowd, so fifteen thralls
+ * are worth a fixed readable amount instead of a second crowd that scales with
+ * the first. A risen creep hits like a handful of the squad, and the weapon
+ * stays "they take the bites and hold the line" rather than "they double your
+ * damage".
+ */
+export const THRALL_HIT_SECONDS = 3
+
+/** A thrall's health, as a share of what the body had when it was alive: it
+ *  gets up weaker than it fell, and a brute still outlasts a creep. */
+export const THRALL_HP_SHARE = 0.6
+
+/** ...and the floor under that, so a one-hit creep still stands for a moment. */
+export const THRALL_HP_MIN = 6
+
+/** Seconds a raised body takes to claw its way up, during which nothing can
+ *  touch it and it cannot swing. The tell that says "that one is yours now". */
+export const THRALL_RISE_S = 0.45
+
+// --- The Hoard's gold ------------------------------------------------------
+
+/** What a gilded corpse pays, as a multiple of the coins it would have dropped. */
+export const GILD_COIN_MUL = 2.5
+
+/** Seconds a statue stands before it bursts. Long enough to read as a statue,
+ *  short enough that the coins arrive while the kill still feels connected. */
+export const GILD_STAND_S = 1.1
+
+/** The burst it ends in: radius, and what it hits for in seconds of one
+ *  survivor's fire. Small — the gold is the point, this is the punctuation. */
+export const GILD_BURST_R = 1.6
+export const GILD_BURST_SECONDS = 1.2
+
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
   gatling: {
     id: 'gatling',
@@ -209,7 +378,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     streamsPer: 0,
     streamsMax: 0,
     rateMul: 2.2,
-    damageMul: 2,
+    // 2 until 2026-09-16: a stage with the hose on it was roughly four times
+    // as survivable as one without — cut a fifth, on the owner's call.
+    damageMul: 1.6,
     splashR: 0,
     // Straight up the road, like the gun it replaces. The gatling's whole read
     // is VOLUME — where you point it is still the entire skill.
@@ -219,8 +390,17 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     // every ~310 ms at stage 1 instead of every 500 — visibly quicker on the
     // plate and audibly quicker on the ladder, without turning a full approach
     // into a number the curve was never priced against.
-    pumpMul: 1.6,
-    gateHoldS: 0
+    // 1.6 on every door until 2026-09-16. The additive doors keep most of the
+    // hose's edge; the multipliers lose most of it — see `scalePumpMul`.
+    pumpMul: 1.4,
+    scalePumpMul: 1.2,
+    gateHoldS: 0,
+    powerScales: 'gun',
+    spreadRad: 0,
+    rangeMul: 1,
+    charges: false,
+    raises: 0,
+    gilds: 0
   },
   rocket: {
     id: 'rocket',
@@ -232,16 +412,177 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     streamsPer: 24,
     streamsMax: 5,
     rateMul: 0.6,
-    damageMul: 5.5,
+    // 5.5 until 2026-09-16 — cut a fifth alongside the gatling, on the owner's
+    // call. Splash is a share of the round, so the blast falls with it.
+    damageMul: 4.4,
     splashR: ROCKET_SPLASH_R,
     homing: true,
     volley: true,
     pumpMul: 1,
+    scalePumpMul: 1,
     // Bridges the salvo's own reload — see `gateHoldS`. 0.75 s plus the 0.4 s
     // window is 1.15 s, comfortably past the 0.88 s between salvos at the base
     // fire rate, and still short enough that a door the crowd has stopped
     // shooting goes cold within a second and a half.
-    gateHoldS: 0.75
+    gateHoldS: 0.75,
+    powerScales: 'gun',
+    spreadRad: 0,
+    rangeMul: 1,
+    charges: false,
+    raises: 0,
+    gilds: 0
+  },
+
+  // ── The four that came after, one verb each ──
+  //
+  // Each one is priced against the same identity the first two are
+  // (`weaponDpsMul` = rate × damage), and each one's TRAIT is the rest of what
+  // it is worth. Where the trait carries most of the weapon, the gun is cut
+  // below the squad's own so the weapon is a change of plan rather than a
+  // strictly better rifle.
+
+  /**
+   * GRAPESHOT — the shotgun. A fan of pellets, murderous up close and useless
+   * down the road.
+   *
+   * Its DPS sits a little over the launcher's (2.93 against 2.64) and that is
+   * the whole brief: the strongest burst in the game, sold for the two things
+   * every other gun gets for free — REACH and the seconds of gate pump reach
+   * buys. At `rangeMul` 0.5 a bank is in range for about half as long, so a
+   * player carrying it arrives at a door with a smaller number on it and has to
+   * take the pack in front of it apart instead.
+   */
+  grapeshot: {
+    id: 'grapeshot',
+    // A fan, not a stream: five barrels at the smallest crowd and nine at a
+    // hundred, all of them going off together (`volley`).
+    streams: 5,
+    streamsPer: 22,
+    streamsMax: 9,
+    rateMul: 0.75,
+    damageMul: 3.9,
+    splashR: 0,
+    homing: false,
+    volley: true,
+    pumpMul: 1,
+    scalePumpMul: 1,
+    // One trigger every 0.70 s at the base fire rate, against a door that
+    // forgets in 0.4 — so the pellets bridge their own reload exactly as the
+    // launcher's salvo does, and a short gun's disadvantage stays REACH rather
+    // than turning into "cannot pump at all".
+    gateHoldS: 0.45,
+    powerScales: 'gun',
+    // ±17°. Wide enough that the fan is unmistakable at the front rank, tight
+    // enough that a crowd aimed at a body still puts most of it into that body.
+    spreadRad: 0.3,
+    // 0.5 first, and measured too harsh: half the reach costs the shotgun the
+    // crates, the walls and most of the pump as well as the range, and it came
+    // out the weakest weapon in the game on every stage it was dealt, and 0.62
+    // was still the weakest at depth. 0.7 is visibly the short gun — a bank is
+    // in range about two thirds as long as it is for everything else, and the
+    // pack in front of it has to be taken apart rather than out-ranged — with
+    // the compounding losses (crates, walls, the pump) paid back.
+    rangeMul: 0.7,
+    charges: false,
+    raises: 0,
+    gilds: 0
+  },
+
+  /**
+   * DYNAMO — a coil gun that banks what it hits and hands it back as a bolt.
+   *
+   * The gun itself is deliberately the plainest on the list, a shade under the
+   * gatling's: the weapon is the METER. Every round that lands charges it (see
+   * `DYNAMO_CHARGE_PER_DPS`), and a full meter is a button the player presses
+   * when they choose — the one weapon in the game with an input of its own.
+   */
+  dynamo: {
+    id: 'dynamo',
+    streams: 0,
+    streamsPer: 0,
+    streamsMax: 0,
+    rateMul: 1.35,
+    damageMul: 1.9,
+    splashR: 0,
+    homing: false,
+    volley: false,
+    pumpMul: 1,
+    scalePumpMul: 1,
+    gateHoldS: 0,
+    powerScales: 'gun',
+    spreadRad: 0,
+    rangeMul: 1,
+    charges: true,
+    raises: 0,
+    gilds: 0
+  },
+
+  /**
+   * GRAVECALL — the gun is the squad's own; what changes is that the dead get
+   * up.
+   *
+   * `rateMul` and `damageMul` are both 1 ON PURPOSE. The player keeps exactly
+   * the rifle they had and the weapon is the fifteen thralls walking in front
+   * of it — which is why its Power track scales the THRALLS (`powerScales`) and
+   * why the boss's bar, priced off the gun, is unchanged by it. The thralls are
+   * a bonus on top of a fight priced without them, exactly as the Dynamo's bolt
+   * is.
+   */
+  gravecall: {
+    id: 'gravecall',
+    streams: 0,
+    streamsPer: 0,
+    streamsMax: 0,
+    rateMul: 1,
+    damageMul: 1,
+    splashR: 0,
+    homing: false,
+    volley: false,
+    pumpMul: 1,
+    scalePumpMul: 1,
+    gateHoldS: 0,
+    powerScales: 'trait',
+    spreadRad: 0,
+    rangeMul: 1,
+    charges: false,
+    raises: THRALL_MAX,
+    gilds: 0
+  },
+
+  /**
+   * CROW'S HOARD — a cursed gun that turns what it kills into money.
+   *
+   * The only weapon whose gun is WORSE than the squad's own (0.85), and the
+   * only one that pays in a currency the road does not: a corpse stands as a
+   * gold statue for a beat and bursts into `GILD_COIN_MUL` times the coins it
+   * would have dropped. It is the stage a player spends on the shop rather than
+   * on the road, which is a different kind of good stage and the reason the gun
+   * is allowed to be weak.
+   */
+  hoard: {
+    id: 'hoard',
+    streams: 0,
+    streamsPer: 0,
+    streamsMax: 0,
+    rateMul: 1,
+    // 0.85 first — a gun deliberately worse than the squad's own — and measured
+    // it was worse than carrying NOTHING: the weak gun killed less, so the gold
+    // never arrived either, and the stage paid fewer coins than an unarmed one.
+    // At 1 the trade is the honest one: the Hoard costs you what the OTHER five
+    // weapons would have given you, and pays in coins instead.
+    damageMul: 1,
+    splashR: 0,
+    homing: false,
+    volley: false,
+    pumpMul: 1,
+    scalePumpMul: 1,
+    gateHoldS: 0,
+    powerScales: 'trait',
+    spreadRad: 0,
+    rangeMul: 1,
+    charges: false,
+    raises: 0,
+    gilds: GILD_COIN_MUL
   }
 }
 
@@ -356,7 +697,8 @@ export const BOSS_REWARD_WEAPON: WeaponId = 'rocket'
 export const BOSS_REWARD_DAMAGE_MUL = 0.5
 
 /** A pick read back off a save blob is only a pick if it names a weapon. */
-export const isWeaponId = (v: unknown): v is WeaponId => v === 'rocket' || v === 'gatling'
+export const isWeaponId = (v: unknown): v is WeaponId =>
+  typeof v === 'string' && Object.prototype.hasOwnProperty.call(WEAPONS, v)
 
 /**
  * …and one every this many stages after it.
@@ -397,8 +739,63 @@ export const stageHasWeapon = (stage: number): boolean =>
  * swarm should know before they press retry that stage 12's prize is the
  * rocket, and plan the sweep for it.
  */
-export const weaponForStage = (stage: number): WeaponId =>
-  Math.floor((stage - WEAPON_STAGE) / WEAPON_EVERY) % 2 === 0 ? 'gatling' : 'rocket'
+/**
+ * --- Which weapon a box holds, with six of them ---------------------------
+ *
+ * Two rules, and the first is why this is a table rather than a modulo: a
+ * weapon DEBUTS on a stated stage and is never seen before it. The road teaches
+ * the two originals first (4, 6), then hands over one new verb at a time with a
+ * stage of familiar ground between them; once the player has met all six, the
+ * boxes rotate.
+ *
+ * The rotation is six long against the box-position order's eight
+ * (`WEAPON_SLOT_ORDER` in `track.ts`), so no weapon is welded to one place on
+ * the road. It is a pure function of the stage number for the reason everything
+ * else in `track.ts` is: a player who lost stage 12 should know what stage 12's
+ * box holds before they press retry.
+ */
+export const WEAPON_DEBUT: Readonly<Record<WeaponId, number>> = {
+  gatling: WEAPON_STAGE,
+  rocket: 6,
+  grapeshot: 8,
+  dynamo: 10,
+  gravecall: 14,
+  hoard: 18
+}
+
+/** The campaign's hand-authored deal, stage by stage. The stages between the
+ *  debuts go back to the originals, so the first two never disappear. */
+const WEAPON_CAMPAIGN: Readonly<Record<number, WeaponId>> = {
+  4: 'gatling', 6: 'rocket', 8: 'grapeshot', 10: 'dynamo',
+  12: 'gatling', 14: 'gravecall', 16: 'rocket', 18: 'hoard'
+}
+
+/**
+ * ...and the loop it falls into once every weapon has been met.
+ *
+ * SEVEN long for six weapons, and that is the whole reason the gatling is in it
+ * twice. The box's POSITION on the road runs on its own eight-long order
+ * (`WEAPON_SLOT_ORDER` in `track.ts`); a six-long weapon loop shares a factor
+ * with it, and two dials whose periods share a factor are one dial — each slot
+ * would only ever deal half the arsenal, and "the shotgun is the one at the end
+ * of the road" would be true for the rest of the campaign. Seven is coprime
+ * with eight, so every weapon is dealt in every position.
+ *
+ * The gatling takes the repeat because it is the weapon that teaches nothing
+ * new: a player who meets it twice in a rotation has lost the least.
+ */
+export const WEAPON_ROTATION: readonly WeaponId[] =
+  ['grapeshot', 'gatling', 'gravecall', 'rocket', 'hoard', 'dynamo', 'gatling']
+
+/** The first box stage past the authored table. */
+export const WEAPON_ROTATION_STAGE = 20
+
+export const weaponForStage = (stage: number): WeaponId => {
+  const authored = WEAPON_CAMPAIGN[stage]
+  if (authored) return authored
+  const n = Math.max(0, Math.floor((stage - WEAPON_ROTATION_STAGE) / WEAPON_EVERY))
+  return WEAPON_ROTATION[n % WEAPON_ROTATION.length]!
+}
 
 // ─── The furniture ──────────────────────────────────────────────────────────
 
@@ -797,6 +1194,56 @@ export const weaponReactionS = (stage: number): number =>
  * this": the puzzle's punishment is the prize you do not get, and stacking a
  * death on top of that would turn a bonus into a hazard.
  */
+/**
+ * --- One of Gravecall's dead, back on its feet ------------------------------
+ *
+ * A thrall is NOT a `Foe` with a flag: every hostile in the game is billed,
+ * aimed at, collided with and drawn off that array, and a friendly body inside
+ * it is a special case in twenty places. It is its own small entity with its own
+ * step, and it borrows only the two things it has to look right — the design it
+ * was raised from, so it is visibly the creep that just died, and its scale.
+ */
+export interface Thrall {
+  id: number
+  /** The design it wore alive, so the renderer draws that creature. */
+  design: string
+  /** …and the archetype, which is what a test reads to know what it was. */
+  typeId: string
+  x: number
+  y: number
+  hp: number
+  maxHp: number
+  scale: number
+  /** Counts up through `THRALL_RISE_S` while it claws its way up. Untouchable
+   *  and unable to swing until it reaches zero. */
+  rising: number
+  /** Seconds until it can swing again. */
+  swingCd: number
+  /** 0..1, decayed by the sim — the white flash a hit puts through it. */
+  flash: number
+  dead: boolean
+}
+
+/**
+ * --- One of the Hoard's gilded corpses --------------------------------------
+ *
+ * A body the Hoard killed, standing as gold for `GILD_STAND_S` before it bursts
+ * into coins. It is scenery with a clock: nothing collides with it, nothing
+ * aims at it, and the only thing it does is end.
+ */
+export interface Statue {
+  id: number
+  design: string
+  x: number
+  y: number
+  scale: number
+  /** Seconds left before it bursts. */
+  left: number
+  /** Coins the burst pays. Priced when the body fell, so a Scavenging level
+   *  bought mid-flight cannot change what a corpse already owed. */
+  coins: number
+}
+
 export interface Lever {
   id: number
   /** The puzzle this lever belongs to — see `WeaponBox.puzzleId`. */

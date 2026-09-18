@@ -729,8 +729,11 @@ describe('a stage gives the run what it needs', () => {
     // squad deleting it in half a second, and two is where the slams came from.
     expect(bossGuardGates(1)).toHaveLength(1)
     expect(bossGuardGates(2)).toHaveLength(2)
-    // And its swing is a token against the ordinary one.
-    expect(TUTORIAL_SLAM_FRACTION).toBeLessThan(SLAM_MAX_FRACTION / 2)
+    // And its swing is NOT a token. It was one (0.08) until a crowd of 99 stood
+    // under the first boss without dodging and lost 2-4 a strike; a telegraph
+    // that costs nothing teaches that telegraphs are decoration. It is the
+    // ordinary share now, softened only by the beginner's cut stages 2-3 get.
+    expect(TUTORIAL_SLAM_FRACTION).toBeGreaterThanOrEqual(SLAM_MAX_FRACTION)
   })
 
   it('makes the stage-2 boss the same body as the elite on that road', () => {

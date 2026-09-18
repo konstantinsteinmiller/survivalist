@@ -697,9 +697,10 @@ export const BOSS_ENRAGE_AT = 0.5
  * …and the stage the turn is allowed to happen on at all.
  *
  * Stage 1's single gate sits at exactly a half (`TUTORIAL_GUARD_GATES`), so the
- * bound above would enrage the tutorial boss — the one fight in the game that is
- * deliberately priced as a fright rather than as a threat (see
- * `TUTORIAL_SLAM_FRACTION`). A first-timer meeting a lane charge is not learning
+ * bound above would enrage the tutorial boss — the one fight in the game whose
+ * boss has a single guard gate and no second phase (see `TUTORIAL_GUARD_GATES`).
+ * Its ring hurts like every other ring now, but a first-timer meeting a lane
+ * charge is not learning
  * what a telegraph means, they are losing a run to a move they have not been
  * taught the vocabulary for yet.
  */

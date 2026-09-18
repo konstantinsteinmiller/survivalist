@@ -15,7 +15,8 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  GRENADE_BASE_MULT, SHIELD_MAX_LEVEL, SKILL_COOLDOWN_MS, shieldSecondsAt
+  GRENADE_BASE_MULT, GRENADE_BOSS_BASE_MULT, SHIELD_MAX_LEVEL, SKILL_COOLDOWN_MS,
+  shieldSecondsAt
 } from '@/use/useUpgrades'
 
 const importGame = () => import('@/use/useSurvivalGame')
@@ -152,6 +153,37 @@ describe('the grenade', () => {
       marked.filter((f) => f.dead).length,
       'the blast left the pack untouched'
     ).toBeGreaterThan(0)
+  })
+
+  it('lands 2.2x on a boss where the road takes 3x', async () => {
+    const game = await importGame()
+    const { bossKindFor } = await import('@/game/threats')
+    const { BOSS_GUARD_GATES } = await import('@/game/survival')
+    // An ordinary stage below the melt floor, so the floor's cap is not what is
+    // measured, and not a healer, whose casts would move the bar on their own.
+    const stage = [2, 3, 4, 5].find((s) => bossKindFor(s) !== 'healer')!
+    game.startStage(stage)
+    game.debugAddUnits(60)
+    game.debugSkipToArena()
+    for (let i = 0; i < 12000 && game.phase.value !== 'boss'; i++) game.step(STEP_MS)
+    expect(game.phase.value, 'never reached the boss').toBe('boss')
+    const b = game.getBoss()!
+
+    // Shield up and no gates left: gunfire cannot touch the bar and nothing
+    // clamps it, so whatever the boss loses in flight is the grenade alone.
+    const pin = () => { b.guarded = BOSS_GUARD_GATES.length; b.guard = 1 }
+    pin()
+    b.hp = 1e9
+    expect(game.throwGrenade(GRENADE_BASE_MULT)).toBe(true)
+    const g = game.getGrenades()[0]!
+    expect(g.power, 'the road lost its 3x').toBeCloseTo(g.dps * GRENADE_BASE_MULT, 6)
+
+    for (let i = 0; i < 60 && game.getGrenades().length > 0; i++) {
+      pin()
+      game.step(STEP_MS)
+    }
+    expect(game.getGrenades(), 'the grenade never landed').toHaveLength(0)
+    expect(1e9 - b.hp).toBeCloseTo(g.dps * GRENADE_BOSS_BASE_MULT, 2)
   })
 })
 

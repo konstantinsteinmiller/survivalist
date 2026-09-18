@@ -25,14 +25,26 @@ export const ART_CATALOGUE: Record<Exclude<ArtKind, 'monster' | 'hero' | 'death'
     'barrel', 'pillar', 'coin',
     // The weapon puzzle: the prize shut and open, the armour over it, and the
     // lever that opens it — a housing and a swinging arm.
-    'weapon-box', 'weapon-box-open', 'guard-plate', 'lever-post', 'lever-arm'
+    'weapon-box', 'weapon-box-open', 'guard-plate', 'lever-post', 'lever-arm',
+    // The three cages: the roadside one a crowd shoots open, the miniboss's
+    // sealed cabinet, and the warden cage behind every boss. One drawing, three
+    // paintings — see `paintCageBody`.
+    'cage', 'cage-sealed', 'cage-warden'
   ],
   gate: ['frame-add', 'frame-sub', 'frame-mul', 'frame-div'],
-  round: ['tracer', 'bolt-gunner', 'bolt-boss', 'roller', 'meteor', 'bomb', 'grenade', 'rocket'],
+  round: [
+    'tracer', 'bolt-gunner', 'bolt-boss', 'roller', 'meteor', 'bomb', 'grenade', 'rocket',
+    // The shotgun's pellet — see `game/weapons.ts`.
+    'pellet'
+  ],
   fx: [
     'muzzle', 'smoke', 'scorch',
     'ring-shock', 'ring-heat', 'ring-heal',
-    'shield', 'guard', 'crest-shield', 'crest-guard'
+    'shield', 'guard', 'crest-shield', 'crest-guard',
+    // One mark each for three of the four later weapons: the Dynamo's bolt,
+    // the light over one of Gravecall's dead, and the burst a gilded corpse
+    // ends in. The fourth, the shotgun's pellet, is a round.
+    'bolt', 'wisp', 'gild'
   ],
   // No road tile: painted cobbles read as objects under the crowd, and the
   // procedural gravel stays. See `artSheet.ts`.

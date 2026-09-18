@@ -77,7 +77,11 @@ export interface PeekInput {
  *               possible thing to teach the shop with.
  */
 export const PEEK_ORDER: readonly UpgradeId[] = [
-  'power', 'squad', 'rate', 'range', 'scavenge', 'grenade', 'shield', 'rocket', 'gatling'
+  'power', 'squad', 'rate', 'range', 'scavenge', 'grenade', 'shield',
+  // The weapon tracks go last, all six of them: a level in one is worth
+  // nothing until that weapon is found on a road, so a plate that opened on
+  // Hoard Power would be selling a player something they cannot use yet.
+  'rocket', 'gatling', 'grapeshot', 'dynamo', 'gravecall', 'hoard'
 ]
 
 const peekRank = (id: UpgradeId): number => {

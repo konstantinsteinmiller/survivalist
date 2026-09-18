@@ -22,8 +22,8 @@ import {
   GATE_DEPTH, GATE_MAX_VALUE, GATE_SUB_MAX, LANE_HALF, MAX_FIRE_RATE, MAX_SQUAD,
   SLAM_CD_BASE, SLAM_CD_DECAY, SLAM_CD_MIN, SLAM_RADIUS,
   SLAM_RADIUS_GROWTH, SLAM_RADIUS_MAX, STEER_SPRING,
-  TUTORIAL_SLAM_FRACTION, TUTORIAL_SLAM_MIN_KILL, UNIT_R,
-  CHARGED_EVERY, CHARGED_LEAD, CHARGED_WINDUP_MUL, slamRadiusFor,
+  TUTORIAL_BAR_SLAM_FRACTION, TUTORIAL_SLAM_FRACTION, TUTORIAL_SLAM_MIN_KILL, UNIT_R,
+  CHARGED_EVERY, CHARGED_LEAD, CHARGED_SHARE_MUL, CHARGED_WINDUP_MUL, slamRadiusFor,
   DECLINE_MAX, biteShareFor, challengeBiteFactor, challengeFactor, challengePackFactor,
   rewardDeclineFactor,
   contactReliefFor,
@@ -42,7 +42,12 @@ import {
   BOSS_REWARD_DAMAGE_MUL, BOSS_REWARD_STAGE, BOSS_REWARD_WEAPON,
   GUARD_H, LEVER_R, ROCKET_SPLASH_SHARE, STONE_H, WEAPONS, WEAPON_BOX_R, WEAPON_PICK_STAGE,
   WEAPON_REVEAL_S, isWeaponId, weaponStreams,
-  type Guard, type Lever, type Stone, type WeaponBox, type WeaponId
+  DYNAMO_BOLT_HALF_W, DYNAMO_BOLT_MULT, DYNAMO_BOLT_S, DYNAMO_CHARGE_PER_DPS,
+  GILD_BURST_R, GILD_BURST_SECONDS, GILD_STAND_S,
+  THRALL_HIT_CD, THRALL_HIT_SECONDS, THRALL_HP_MIN, THRALL_HP_SHARE, THRALL_LEAD,
+  THRALL_REACH, THRALL_RISE_S, THRALL_SPEED, THRALL_SPREAD,
+  type Guard, type Lever, type Statue, type Stone, type Thrall,
+  type WeaponBox, type WeaponId
 } from '@/game/weapons'
 import { BOSS_REWARD_KEY, GAZE_TAUGHT_KEY, WEAPON_PICK_KEY } from '@/keys'
 import { buildTrack, perfectSquadFor, type Track, MINIBOSS_CAGE_TUTORIAL } from '@/game/track'
@@ -182,7 +187,7 @@ import {
   __setUpgradeLevel,
   coinMagnetBonus, coinMultiplier, fireRate as metaFireRate, gatePayoutBonus, rangeBonus,
   startSquadAt, unitDamage, weaponPowerMul,
-  grenadeMult
+  grenadeMult, grenadeBossMult
 } from '@/use/useUpgrades'
 import { getState, setStates } from '@/use/useTowerState'
 import {
@@ -366,6 +371,16 @@ export const bestSquad = ref(Number(getState(BEST_SQUAD_KEY, 0)) || 0)
 let track: Track = buildTrack(1)
 let units: Unit[] = []
 let bullets: Bullet[] = []
+/**
+ * --- Gravecall's dead, and the Hoard's gold ------------------------------
+ *
+ * Two arrays rather than flags on `foes`, for the reason written on `Thrall`:
+ * everything hostile is billed, aimed at and collided with off that array.
+ * Both are cleared by `startStage` with the rest of the road — a weapon lasts
+ * one stage, and so does what it leaves standing.
+ */
+let thralls: Thrall[] = []
+let statues: Statue[] = []
 let gates: Gate[] = []
 let dividers: Divider[] = []
 let crates: Crate[] = []
@@ -691,7 +706,7 @@ export const FOE_BLANK: Readonly<Foe> = {
 }
 
 export const BULLET_BLANK: Readonly<Bullet> = {
-  x: 0, y: 0, vx: 0, vy: 0, damage: 0, life: 0, pierced: -1, weapon: null
+  x: 0, y: 0, vx: 0, vy: 0, damage: 0, life: 0, pierced: -1, weapon: null, range: 0
 }
 
 /**
@@ -726,7 +741,7 @@ const resetFoe = (f: Foe): Foe => {
 
 const resetBullet = (b: Bullet): Bullet => {
   b.x = 0; b.y = 0; b.vx = 0; b.vy = 0
-  b.damage = 0; b.life = 0; b.pierced = -1; b.weapon = null
+  b.damage = 0; b.life = 0; b.pierced = -1; b.weapon = null; b.range = 0
   return b
 }
 
@@ -769,6 +784,24 @@ const drain = <T>(live: T[], pool: T[], cap: number): void => {
 }
 
 export const getUnits = (): Unit[] => units
+export const getThralls = (): Thrall[] => thralls
+export const getStatues = (): Statue[] => statues
+
+/**
+ * --- The Dynamo's meter, 0..1 ----------------------------------------------
+ *
+ * A ref rather than a plain number because the HUD draws it: the weapon's own
+ * button is the only control in the game that appears and disappears with what
+ * the crowd is carrying, and it needs to know both that the meter exists and
+ * how full it is. Zeroed by `startStage` along with the weapon itself.
+ */
+export const dynamoCharge = ref(0)
+
+/** Is the bolt ready to throw? The one answer, so the button, the sim and the
+ *  specs cannot disagree. */
+export const dynamoReady = computed(
+  () => activeWeapon.value === 'dynamo' && dynamoCharge.value >= 1
+)
 
 /**
  * ─── The squad IS the payout, and now it looks like it ──────────────────────
@@ -1259,6 +1292,11 @@ const resetWorld = (): void => {
   weaponBoxes = []
   grenades = []
   rocks = []
+  // A weapon lasts one stage and so does what it left standing: the dead it
+  // raised and the gold it made. The meter goes with them — see `dynamoCharge`.
+  thralls = []
+  statues = []
+  dynamoCharge.value = 0
   foes = []
   bolts = []
   pickups = []
@@ -2748,6 +2786,10 @@ export const step = (dtMs: number): void => {
   stepGuards(dt)
   stepWeaponBoxes(dt)
   stepBarrels(dt)
+  // After the foes have moved and before the boss swings: a thrall meets what
+  // is walking at the crowd, and it is on its feet for the boss's own tick.
+  stepThralls(dt)
+  stepStatues(dt)
   stepGrenades(dt)
   stepPickups(dt)
   stepBoss(dt)
@@ -3053,23 +3095,28 @@ const stepAnchor = (dt: number): void => {
  * side gun.
  */
 const weaponDamageMul = (): number => {
+  // TRUE firepower for every gun in the crowd's hands — rate × damage × power.
+  //
+  // ── It used to leave the rate out of the main gun, and that was the gatling ──
+  //
+  // `perSurvivorDps` is `damage × runFireRate × this`, and `runFireRate` is the
+  // CROWD's rate: a weapon's `rateMul` is applied on top of it where the gun
+  // fires (`fireGun`), never folded into it. So a main gun priced on `damageMul`
+  // alone was priced as a fraction of what it shoots. The gatling (rate ×2.2)
+  // got a bar sized for less than half its real output and every adaptive fight
+  // it walked into — bosses on stages 1-5, their elites, the melt floor from 6 —
+  // ran at about 45 % of its promised length; the launcher (rate ×0.6) ran long.
+  // Reported in play as the weapons "boosting survivability by ~4x". The side
+  // gun was always priced this way; now the main gun is too.
+  //
+  // `weaponPower` stays in: the stage-1 boss's launcher is priced as what it is,
+  // or the stage-2 boss would be sized for a full one and outlast the gift.
+  const trueMul = (id: WeaponId, power: number): number =>
+    WEAPONS[id].rateMul * WEAPONS[id].damageMul * weaponPowerMul(id) * power
   const weapon = activeWeapon.value
-  const def = weapon ? WEAPONS[weapon] : null
-  // `weaponPower` too: the stage-1 boss's launcher is priced as what it is, or
-  // the stage-2 boss would be sized for a full one and outlast the gift.
-  let mul = def ? def.damageMul * weaponPowerMul(weapon!) * weaponPower.value : 1
-  // …and a side gun adds its share (`sideWeapon`). Added as a RATIO of true
-  // firepower — rate × damage × power for each gun — and applied to the first
-  // gun's term, so the single-weapon model every fight was tuned against is
-  // untouched and two guns price as exactly as much more as they really fire.
+  const first = weapon ? trueMul(weapon, weaponPower.value) : 1
   const side = sideWeapon.value
-  if (side) {
-    const trueMul = (id: WeaponId, power: number): number =>
-      WEAPONS[id].rateMul * WEAPONS[id].damageMul * weaponPowerMul(id) * power
-    const first = weapon ? trueMul(weapon, weaponPower.value) : 1
-    mul *= (first + trueMul(side, sideWeaponPower.value)) / first
-  }
-  return mul
+  return side ? first + trueMul(side, sideWeaponPower.value) : first
 }
 
 const fightModel = (openingCd: number): AdaptiveFight => {
@@ -3079,7 +3126,10 @@ const fightModel = (openingCd: number): AdaptiveFight => {
   return {
     squad: squadCount.value,
     perSurvivorDps: damage.value * runFireRate.value * damageMul,
-    slamShare: bossHitShare(1, soft),
+    // Stage 1's bar stays priced on the token swing its fight length was
+    // calibrated against, however hard the swing itself now lands — see
+    // `TUTORIAL_BAR_SLAM_FRACTION`.
+    slamShare: stage.value <= 1 ? TUTORIAL_BAR_SLAM_FRACTION * soft : bossHitShare(1, soft),
     // The FLOOR, not the budget: the model re-applies `max(floor, squad x
     // share)` at every step as the crowd shrinks, which is what the fight does.
     // Handing it the budget at full strength would charge a crowd of twenty the
@@ -4690,6 +4740,284 @@ const endGrenadeLesson = (): void => {
   if (!grenadeTaught()) setStates({ [GRENADE_TAUGHT_KEY]: true })
 }
 
+// --- Gravecall: the dead, back on their feet -------------------------------
+
+/**
+ * Raise the body that just fell, if the crowd is carrying the weapon that does
+ * that and there is room for another.
+ *
+ * Refused for anything with a health bar and a name — an elite or a boss is a
+ * LANDMARK, and a player who beats one and then walks behind it has been handed
+ * the fight they just won. The cap is the weapon's own (`WeaponDef.raises`), so
+ * the number lives with the rest of what the weapon is.
+ */
+const raiseThrall = (f: Foe): void => {
+  const def = activeWeapon.value ? WEAPONS[activeWeapon.value] : null
+  if (!def || def.raises <= 0 || f.elite) return
+  if (thralls.length >= def.raises) return
+  const power = weaponPowerMul(activeWeapon.value!)
+  thralls.push({
+    id: entityId++,
+    design: f.design,
+    typeId: f.typeId,
+    x: f.x,
+    y: f.y,
+    // It gets up weaker than it fell, and a brute still outlasts a creep.
+    hp: Math.max(THRALL_HP_MIN, f.maxHp * THRALL_HP_SHARE * power),
+    maxHp: Math.max(THRALL_HP_MIN, f.maxHp * THRALL_HP_SHARE * power),
+    scale: f.scale,
+    rising: THRALL_RISE_S,
+    swingCd: 0,
+    flash: 0,
+    dead: false
+  })
+  pushFx({ kind: 'thrallRise', x: f.x, y: f.y })
+}
+
+/**
+ * What one thrall's swing lands for.
+ *
+ * Priced in seconds of ONE survivor's fire (`THRALL_HIT_SECONDS`) rather than
+ * as a share of the crowd, so fifteen of them are a fixed, readable amount of
+ * help instead of a second crowd that doubles with the first. The shop's
+ * Gravecall track multiplies it — that weapon's levels buy the dead, not the
+ * gun (`WeaponDef.powerScales`).
+ */
+const thrallHit = (): number => {
+  const perSurvivor = Math.max(0.01, damage.value * runFireRate.value)
+  const power = activeWeapon.value === 'gravecall' ? weaponPowerMul('gravecall') : 1
+  return perSurvivor * THRALL_HIT_SECONDS * power
+}
+
+/**
+ * The thralls' own tick: walk up the road ahead of the crowd, swing at whatever
+ * is in reach, and take what is swung back.
+ *
+ * They are deliberately NOT a second crowd. They do not steer, they cannot be
+ * healed, they never leave the band `THRALL_LEAD` in front of the squad, and
+ * they expire with the stage. What they are worth is the two things the owner
+ * asked for: bodies in front of the crowd, and damage the crowd did not have to
+ * stand still to deal.
+ */
+const stepThralls = (dt: number): void => {
+  if (thralls.length === 0) return
+  const hit = thrallHit()
+  for (let i = thralls.length - 1; i >= 0; i--) {
+    const t = thralls[i]!
+    if (t.dead) { thralls.splice(i, 1); continue }
+    if (t.flash > 0) t.flash = Math.max(0, t.flash - dt * 4)
+    if (t.rising > 0) {
+      t.rising = Math.max(0, t.rising - dt)
+      continue
+    }
+
+    // What it is going for: the nearest hostile ahead of the crowd, the boss
+    // included. A thrall that has nothing to fight walks the lead line.
+    let target: { x: number; y: number; bite: () => void } | null = null
+    let best = Number.POSITIVE_INFINITY
+    for (const f of foes) {
+      if (f.dead) continue
+      const d = Math.hypot(f.x - t.x, f.y - t.y)
+      if (d >= best) continue
+      best = d
+      target = { x: f.x, y: f.y, bite: () => damageFoe(f, hit) }
+    }
+    const b = boss
+    if (b && !b.dead) {
+      const d = Math.hypot(b.x - t.x, b.y - t.y)
+      if (d < best) {
+        best = d
+        // Through the guard, like a barrel and the grenade: a phase the player
+        // was told they could do nothing about is exactly where a body they
+        // raised should still be swinging.
+        target = { x: b.x, y: b.y, bite: () => damageBoss(b, hit, true) }
+      }
+    }
+
+    // Where it wants to be: on its target, or on the lead line in front of the
+    // crowd. Clamped to the lane and to a band around the squad's column, so a
+    // thrall is always somewhere the player can see it doing its job.
+    const wantX = target ? target.x : anchorX
+    const wantY = target ? target.y : anchorY + THRALL_LEAD
+    const cx = Math.max(anchorX - THRALL_SPREAD, Math.min(anchorX + THRALL_SPREAD, wantX))
+    const step = THRALL_SPEED * dt
+    const dx = cx - t.x
+    const dy = wantY - t.y
+    const len = Math.hypot(dx, dy)
+    if (len > 0.001) {
+      const k = Math.min(1, step / len)
+      t.x += dx * k
+      t.y += dy * k
+    }
+    t.x = Math.max(-EDGE_X, Math.min(EDGE_X, t.x))
+    // …and it rides the road with the crowd rather than being left behind by it.
+    t.y = Math.max(anchorY - 1.5, t.y)
+
+    t.swingCd = Math.max(0, t.swingCd - dt)
+    if (target && t.swingCd <= 0
+      && Math.hypot(target.x - t.x, target.y - t.y) <= THRALL_REACH + t.scale * 0.5 + 0.5) {
+      target.bite()
+      t.swingCd = THRALL_HIT_CD
+      pushFx({ kind: 'thrallHit', x: t.x, y: t.y })
+    }
+  }
+}
+
+/**
+ * What a bite aimed at the crowd hits instead, if a thrall is standing in the
+ * way — the other half of what the weapon is for.
+ *
+ * Asked by `stepFoes` before it bills the squad. It is a share rather than a
+ * shield: a foe with a thrall on it is fighting the thrall, and the crowd
+ * behind it pays nothing for that bite.
+ */
+const thrallBlocking = (f: Foe): Thrall | null => {
+  for (const t of thralls) {
+    if (t.dead || t.rising > 0) continue
+    if (Math.hypot(t.x - f.x, t.y - f.y) <= THRALL_REACH + t.scale * 0.5 + 0.6) return t
+  }
+  return null
+}
+
+/** A thrall takes a hit meant for the crowd. */
+const hurtThrall = (t: Thrall, amount: number): void => {
+  t.hp -= amount
+  t.flash = 1
+  if (t.hp > 0) return
+  t.dead = true
+  pushFx({ kind: 'thrallFall', x: t.x, y: t.y })
+}
+
+// --- The Hoard: a corpse, in gold ------------------------------------------
+
+/**
+ * Turn the body that just fell to gold, if the crowd is carrying the weapon
+ * that does that.
+ *
+ * The coins are priced HERE, when the body falls, and paid when the statue
+ * bursts: a Scavenging level bought while the gold is standing cannot change
+ * what a corpse already owed, and a statue left standing when the stage ends is
+ * simply never paid. `gilds` is the weapon's own multiple, and the shop's Hoard
+ * track multiplies it (`WeaponDef.powerScales`).
+ */
+const gildCorpse = (f: Foe, drop: number, bounty: number): boolean => {
+  const def = activeWeapon.value ? WEAPONS[activeWeapon.value] : null
+  if (!def || def.gilds <= 0) return false
+  const power = weaponPowerMul(activeWeapon.value!)
+  // What the corpse owed, times the weapon's multiple, LESS the bounty the kill
+  // has already paid — so the statue is the difference and the total is exactly
+  // `gilds` times an ordinary body. Priced now rather than at the burst: a
+  // Scavenging level bought while the gold is standing cannot change what a
+  // corpse already owed.
+  const owed = Math.round((drop + bounty) * def.gilds * power) - bounty
+  statues.push({
+    id: entityId++,
+    design: f.design,
+    x: f.x,
+    y: f.y,
+    scale: f.scale,
+    left: GILD_STAND_S,
+    coins: Math.max(1, owed)
+  })
+  pushFx({ kind: 'gild', x: f.x, y: f.y })
+  return true
+}
+
+/** The statues' clock, and the burst each one ends in. */
+const stepStatues = (dt: number): void => {
+  if (statues.length === 0) return
+  const burst = Math.max(0.01, damage.value * runFireRate.value) * GILD_BURST_SECONDS
+  for (let i = statues.length - 1; i >= 0; i--) {
+    const st = statues[i]!
+    st.left -= dt
+    if (st.left > 0) continue
+    statues.splice(i, 1)
+    // ── Paid, not dropped, and that is the one place this weapon breaks the
+    // road's own rule ──
+    //
+    // "Coins do not come to you" is a real pillar (`COIN_MAGNET_BASE`): the
+    // road's loose coins are a ROUTE, and driving over them is the decision.
+    // Dropping the gold here was tried first and measured: a statue stands for
+    // `GILD_STAND_S` while the crowd keeps moving, so by the time it burst the
+    // gold was behind the squad and a Hoard stage banked the same coins as
+    // carrying no weapon at all. The pickup the player cannot reach is not a
+    // trade-off, it is a dead weapon.
+    //
+    // So the burst pays straight into the run, the way a kill's own bounty
+    // does, and the coin that flies to the wallet is the picture of it.
+    runCoins.value += st.coins
+    pushFx({ kind: 'coin', x: st.x, y: st.y, value: st.coins })
+    for (const f of foes) {
+      if (f.dead) continue
+      if (Math.hypot(f.x - st.x, f.y - st.y) > GILD_BURST_R) continue
+      damageFoe(f, burst)
+    }
+    pushFx({ kind: 'gildBurst', x: st.x, y: st.y })
+  }
+}
+
+// --- The Dynamo: the meter, and the bolt it buys ---------------------------
+
+/**
+ * Bank a round that landed.
+ *
+ * Measured in seconds of the crowd's own fire, so the meter means the same
+ * thing at every crowd size (see `DYNAMO_CHARGE_PER_DPS`), and only ever from
+ * damage this weapon's own rounds actually dealt — fire into empty road banks
+ * nothing.
+ */
+const chargeDynamo = (b: Bullet): void => {
+  if (b.weapon !== 'dynamo' || !WEAPONS.dynamo.charges) return
+  if (activeWeapon.value !== 'dynamo' && sideWeapon.value !== 'dynamo') return
+  const perSecond = Math.max(0.01, squadDps.value)
+  dynamoCharge.value = Math.min(1, dynamoCharge.value + (b.damage / perSecond) * DYNAMO_CHARGE_PER_DPS)
+}
+
+/**
+ * Throw the bolt: a thin column straight up the road that hits everything in it.
+ *
+ * Priced exactly like the grenade — seconds of the crowd's own fire — and
+ * deliberately absent from `weaponDamageMul`, so no boss bar and no elite bar
+ * was ever sized against it. It is a bonus on top of a fight priced without it.
+ *
+ * @returns false when there is no charge, no weapon or no run to throw it into,
+ *          so the button can stay honest about whether it did anything.
+ */
+export const fireDynamoBolt = (): boolean => {
+  if (phase.value !== 'run' && phase.value !== 'boss') return false
+  if (activeWeapon.value !== 'dynamo' || dynamoCharge.value < 1) return false
+  dynamoCharge.value = 0
+
+  const power = weaponPowerMul('dynamo')
+  const hit = Math.max(1, squadDps.value * DYNAMO_BOLT_MULT * power)
+  const reach = effectiveBulletRange(rangeBonus.value)
+  const x = anchorX
+  const half = DYNAMO_BOLT_HALF_W
+
+  for (const f of foes) {
+    if (f.dead) continue
+    if (f.y < anchorY - 1 || f.y > anchorY + reach) continue
+    if (Math.abs(f.x - x) > half + 0.44 * f.scale) continue
+    damageFoe(f, hit)
+  }
+  const b = boss
+  if (b && !b.dead && b.y <= anchorY + reach && Math.abs(b.x - x) <= half + b.scale) {
+    // Through the guard, like the grenade and the barrels: the bolt is the
+    // player spending something they earned, and a shield phase is exactly when
+    // they want to spend it.
+    damageBoss(b, hit, true)
+  }
+  for (const bl of barrels) {
+    if (bl.dead || bl.fuse >= 0) continue
+    if (Math.abs(bl.x - x) > half + BARREL_R) continue
+    if (bl.y < anchorY - 1 || bl.y > anchorY + reach) continue
+    bl.fuse = 0
+    pushFx({ kind: 'barrelLit', x: bl.x, y: bl.y })
+  }
+  pushFx({ kind: 'dynamoBolt', x, y: anchorY, reach, ttl: DYNAMO_BOLT_S })
+  return true
+}
+
 export const throwGrenade = (mult: number): boolean => {
   if (phase.value !== 'run' && phase.value !== 'boss') return false
   const at = grenadeTarget()
@@ -4724,12 +5052,17 @@ const detonateGrenade = (g: Grenade): void => {
     // Through the shield, like a barrel: the grenade is the other answer to a
     // phase the player was told they could do nothing about.
     //
-    // Against a FLOORED boss the multiplier is capped, and only there. The floor
-    // prices the bar at `BOSS_MIN_FIRE_SECONDS` of `squadDps`, and the grenade
-    // deals `squadDps × mult` in one hit — so at the base multiplier of 3 the
-    // bomb is worth exactly the whole guarantee. Everything else on the road,
-    // and every boss the authored curve still prices, takes the full hit.
-    const mult = bossFloored ? Math.min(g.mult, BOSS_FLOOR_GRENADE_MULT) : g.mult
+    // A boss takes a reduced multiplier (`grenadeBossMult`: 2.2x at level 0
+    // where the road takes 3x), so the bomb is one answer in the fight rather
+    // than the whole of it.
+    //
+    // Against a FLOORED boss that multiplier is capped as well. The floor prices
+    // the bar at `BOSS_MIN_FIRE_SECONDS` of `squadDps`, and the grenade deals
+    // `squadDps × mult` in one hit — so an upgraded bomb is worth more than the
+    // whole guarantee. Every boss the authored curve still prices takes the
+    // boss multiplier uncapped.
+    const onBoss = grenadeBossMult(g.mult)
+    const mult = bossFloored ? Math.min(onBoss, BOSS_FLOOR_GRENADE_MULT) : onBoss
     damageBoss(boss, Math.max(1, g.dps * mult), true)
   }
   for (const bl of barrels) {
@@ -5162,8 +5495,13 @@ const fireGun = (
   const shooters = Math.min(alive, streams)
   const perBullet = ((alive * damage.value) / shooters) * damageMul
   // Read once per tick for the same reason `stepBullets` does: `rangeBonus` is
-  // a Vue computed, and only the homing branch below actually needs it.
-  const gunRange = def?.homing ? effectiveBulletRange(rangeBonus.value) : 0
+  // a Vue computed, and a hundred rounds a second is a hundred reads of a
+  // number that cannot change inside a frame. Two branches need it now — the
+  // homing round, which steers along it, and every round, which carries its
+  // gun's own share of it (`WeaponDef.rangeMul`).
+  const fullRange = effectiveBulletRange(rangeBonus.value)
+  const gunRange = def?.homing ? fullRange : 0
+  const reach = fullRange * (def?.rangeMul ?? 1)
 
   // ── One trigger pull, `salvo` rounds ──
   //
@@ -5218,6 +5556,7 @@ const fireGun = (
       b.damage = perBullet
       b.life = BULLET_LIFE_MS
       b.weapon = weapon
+      b.range = reach
 
       // ── Where it goes ──
       //
@@ -5237,6 +5576,16 @@ const fireGun = (
         const len = Math.hypot(dx, dy) || 1
         b.vx = (dx / len) * BULLET_SPEED
         b.vy = (dy / len) * BULLET_SPEED
+      } else if (def && def.spreadRad > 0) {
+        // The shotgun's fan. One angle per pellet across the whole cone rather
+        // than a random one, so a volley reads as a FAN — five rounds drawn
+        // independently from the same cone land in a clump about as often as
+        // they land spread out, which looks like bad aim instead of a shotgun.
+        // The jitter keeps two triggers from printing the same picture.
+        const t = salvo > 1 ? (shot / (salvo - 1)) * 2 - 1 : (Math.random() - 0.5) * 2
+        const a = t * def.spreadRad + (Math.random() - 0.5) * def.spreadRad * 0.25
+        b.vx = Math.sin(a) * BULLET_SPEED
+        b.vy = Math.cos(a) * BULLET_SPEED
       } else {
         b.vx = (Math.random() - 0.5) * 0.5
         b.vy = BULLET_SPEED
@@ -5274,7 +5623,11 @@ const stepBullets = (dt: number): void => {
     // the squad. A round fired a moment before the crowd sped up therefore
     // reaches slightly further in world terms, which is correct — it is still
     // on screen, and still short of the top.
-    if (b.life <= 0 || b.y > anchorY + gunRange || Math.abs(b.x) > LANE_HALF + 1) {
+    // Its own reach, not the squad's: a pellet dies half a screen early (see
+    // `Bullet.range`). Zero means a round fired before this field existed — or
+    // by a test — and falls back to the shared range.
+    if (b.life <= 0 || b.y > anchorY + (b.range > 0 ? b.range : gunRange)
+      || Math.abs(b.x) > LANE_HALF + 1) {
       releaseBullet(i)
       continue
     }
@@ -5292,6 +5645,8 @@ const resolveBullet = (b: Bullet): boolean => {
     if (dy < -0.6 || dy > 1.1) continue
     if (Math.abs(f.x - b.x) > 0.44 * f.scale + BULLET_R) continue
     damageFoe(f, b.damage)
+    // A round that landed is a round the Dynamo banks — see `chargeDynamo`.
+    chargeDynamo(b)
     pushFx({ kind: 'hit', x: b.x, y: b.y, on: 'foe' })
     // The blast is charged to everything AROUND the body that stopped the
     // round; the body itself already took the round in full. See `detonateRound`.
@@ -5572,6 +5927,7 @@ const resolveBullet = (b: Bullet): boolean => {
         return true
       }
       damageBoss(boss, b.damage)
+      chargeDynamo(b)
       pushFx({ kind: 'bossHit', x: b.x, y: b.y })
       if (b.weapon) detonateRound(b, null, true)
       return true
@@ -6091,7 +6447,14 @@ const damageFoe = (f: Foe, amount: number): void => {
   const drop = f.elite
     ? FOE_COIN_DROP_ELITE
     : Math.max(1, Math.round(def.coins * FOE_COIN_DROP_PER_BOUNTY))
-  spillCoins(f.x, f.y, drop, drop + 1)
+  // ── …unless a weapon has something else in mind for the body ──
+  //
+  // The Hoard gilds it — the coins are priced here and paid when the statue
+  // bursts (`gildCorpse`) — and Gravecall stands it back up. Both are refused
+  // for an elite, so beating a landmark never hands its body back as scenery
+  // or as an ally.
+  if (!gildCorpse(f, drop, coins)) spillCoins(f.x, f.y, drop, drop + 1)
+  raiseThrall(f)
 }
 
 /** Test seam: hit a body through the real damage path, so a spec can measure
@@ -6126,11 +6489,17 @@ const stepGates = (dt: number): void => {
   const scaleTickMs = gateTickMs('mul', stage.value)
   const addStep = gatePumpStep(stage.value)
   // The weapon in the crowd's hands winds every door it is pointed at faster
-  // (the gatling) or exactly as fast (everything else) — see `WeaponDef.pumpMul`.
-  // With two guns the faster pump wins: they are firing at the same door.
+  // (the gatling) or exactly as fast (everything else) — see `WeaponDef.pumpMul`
+  // for the additive doors and `scalePumpMul` for the multipliers, which get
+  // less of it. With two guns the faster pump wins: they are firing at the same
+  // door.
   const weaponPump = Math.max(
     activeWeapon.value ? WEAPONS[activeWeapon.value].pumpMul : 1,
     sideWeapon.value ? WEAPONS[sideWeapon.value].pumpMul : 1
+  )
+  const weaponScalePump = Math.max(
+    activeWeapon.value ? WEAPONS[activeWeapon.value].scalePumpMul : 1,
+    sideWeapon.value ? WEAPONS[sideWeapon.value].scalePumpMul : 1
   )
 
   for (let i = gates.length - 1; i >= 0; i--) {
@@ -6184,7 +6553,7 @@ const stepGates = (dt: number): void => {
       // Two multipliers on the clock, both 1 on an ordinary door with the
       // squad's own gun: the weapon's (`pumpMul` on the def) and the door's
       // (`pumpMul` on the leaf, stage 1's racing opener).
-      g.charge += dt * 1000 * weaponPump * g.pumpMul
+      g.charge += dt * 1000 * (scale ? weaponScalePump : weaponPump) * g.pumpMul
       // Both the interval and the additive step scale with the stage — see
       // `gatePumpStep`. The scale ops keep their tenth and get the shorter
       // clock instead.
@@ -7520,6 +7889,18 @@ const stepFoes = (dt: number): void => {
     // The cooldown is set either way. The monster BIT; whether anything died is
     // the shield's business, and a foe that could re-bite on the next frame
     // because its last one was absorbed would be a foe the pickup made angrier.
+    // ── A body of your own, standing in the way ──
+    //
+    // The other half of what Gravecall is worth: a foe with a thrall in reach
+    // is fighting the thrall, and the crowd behind it pays nothing for that
+    // bite. Asked BEFORE the bulwark and before any survivor is billed, so a
+    // blocked bite is not a blow at all rather than a blow somebody absorbed.
+    const blocker = thralls.length > 0 ? thrallBlocking(f) : null
+    if (blocker) {
+      hurtThrall(blocker, Math.max(1, f.bite))
+      f.biteCd = foeDef(f.typeId).biteCd
+      continue
+    }
     const inReach = (u: Unit): boolean => {
       const dx = u.x - f.x
       const dy = u.y - f.y
@@ -8772,8 +9153,8 @@ const aimBoss = (b: Boss, leadMul = 1): void => {
  * on top of it are both written down at `BOLT_SHARE_MUL`.
  */
 const bossHitShare = (mul = 1, discount = bossSwingMul): number => (stage.value <= 1
-  // The tutorial's swing is a token and stays one — the discount can make it a
-  // token that lands, never one that hurts.
+  // The tutorial's swing — the ordinary share since a stationary 99-crowd was
+  // measured losing 2-4 bodies a strike to it (see `TUTORIAL_SLAM_FRACTION`).
   ? TUTORIAL_SLAM_FRACTION * discount * mul
   : Math.min(
     // Clamped AFTER the run has been read, not before: `bossSwingMul` may push
@@ -8893,7 +9274,12 @@ const throwBossAttack = (b: Boss): void => {
   // nothing measurable — 14 of 15 simulated retries moved the clear rate by
   // exactly zero — because 68–80 % of a failing run's losses are slams, which
   // no amount of enemy HP relief ever touches.
-  let budget = bossHitBudget(bossHitShare())
+  //
+  // The big ring bills more as well as reaching further (`CHARGED_SHARE_MUL`),
+  // and never past the ceiling on one swing.
+  let budget = bossHitBudget(charged
+    ? Math.min(SLAM_FRACTION_MAX, bossHitShare() * CHARGED_SHARE_MUL)
+    : bossHitShare())
   // The ring is drawn either way — the boss swung, and a swing the player did
   // not dodge should look like a swing they did not dodge. What changes is that
   // it lands on the dome. The share a slam takes is 20–50 % of the crowd, so any
@@ -10003,6 +10389,45 @@ export const debugGiveWeapon = (id: WeaponId | null): void => {
   sideWeapon.value = null
   sideWeaponPower.value = 1
 }
+
+/**
+ * Test/dev seam: plant one foe where the caller wants it.
+ *
+ * Through `takeFoe` and the archetype's own numbers, so a spawned body is the
+ * body the road spawns — a seam that built its own object would pass while the
+ * real one was broken. The road's own spawners are y-driven and a spec that
+ * waits for one spends four thousand ticks getting to the interesting frame.
+ */
+export const debugSpawnFoe = (x: number, y: number, typeId = 'creep'): Foe => {
+  const def = foeDef(typeId)
+  const f = takeFoe()
+  f.id = entityId++
+  f.typeId = def.id
+  f.design = def.designs[0] ?? 'grumpling'
+  f.x = x
+  f.y = y
+  f.hp = def.hp
+  f.maxHp = def.hp
+  f.speed = def.speed
+  f.bite = def.bite
+  f.biteShare = biteShareFor(def.id)
+  f.scale = def.scale
+  f.phase = Math.random()
+  f.flying = def.flying
+  f.swayPhase = Math.random() * 6.28
+  foes.push(f)
+  return f
+}
+
+/** Test seam: fill the Dynamo's meter without shooting a road's worth of
+ *  rounds into things. */
+export const debugChargeDynamo = (v: number): void => {
+  dynamoCharge.value = Math.max(0, Math.min(1, v))
+}
+
+/** Test seam: what the boss's bar is priced against right now. The bolt and the
+ *  thralls must never appear in it — see `DYNAMO_BOLT_MULT`. */
+export const debugWeaponDamageMul = (): number => weaponDamageMul()
 
 /** Test-only: wipe both the world and the persisted failure record. */
 export const __resetForTest = (): void => {

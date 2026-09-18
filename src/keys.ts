@@ -166,6 +166,12 @@ export const SHOP_SPOTLIGHT_KEY = 'ts_shop_spotlight_seen'
  * only — after that it is nagging.
  */
 export const RESULTS_SEEN_KEY = 'ts_results_seen'
+/**
+ * The player has opened the shop from a result screen — the forge glyph or the
+ * peek plate. Retires the upgrade pointer for good, even inside its first
+ * screens: they have found the door, and the peek plate keeps showing it.
+ */
+export const RESULT_SHOP_OPENED_KEY = 'ts_result_shop_opened'
 
 /**
  * When each active skill next comes off cooldown, as absolute epoch ms.

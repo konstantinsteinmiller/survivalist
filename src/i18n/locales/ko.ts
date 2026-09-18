@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': '로켓 런처',
-    'gatling': '개틀링건'
+    'gatling': '개틀링건',
+    'grapeshot': '산탄총',
+    'dynamo': '다이나모',
+    'gravecall': '망자 소환',
+    'hoard': '까마귀 보물',
+    'bolt': '번개'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': '스테이지 클리어!',
+    'clearedStage': '스테이지 {n} 클리어!',
     'wipedOut': '부대 전멸',
     'reachedStage': '스테이지 {n}',
     'newRecord': '신기록!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': '다시 시도',
     'upgrade': '업그레이드',
     'upgradeHint': '부대를 강화하세요!',
-    'rankOf': '{n}명 중',
-    'upNext': '다음: 스테이지 {n}'
+    'rankOf': '{n}명 중'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': '수류탄',
       'shield': '방패',
       'rocket': '로켓 위력',
-      'gatling': '개틀링 위력'
+      'gatling': '개틀링 위력',
+      'grapeshot': '산탄총 위력',
+      'dynamo': '다이나모 위력',
+      'gravecall': '망자 소환 위력',
+      'hoard': '보물 위력'
     },
     'descriptions': {
       'squad': '더 많은 생존자로 스테이지를 시작합니다.',
@@ -234,7 +243,11 @@ export default {
       'grenade': '수류탄을 던져 큰 피해를 줍니다.',
       'shield': '몇 초 동안 부대가 받는 피해를 절반으로 줄입니다.',
       'rocket': '스테이지에서 얻는 로켓 런처의 피해량이 증가합니다.',
-      'gatling': '스테이지에서 얻는 개틀링건의 피해량이 증가합니다.'
+      'gatling': '스테이지에서 얻는 개틀링건의 피해량이 증가합니다.',
+      'grapeshot': '스테이지에서 얻는 산탄총의 피해량이 증가합니다.',
+      'dynamo': '스테이지에서 얻는 다이나모 번개의 위력이 증가합니다.',
+      'gravecall': '되살린 망자가 더 강하게 싸우고 더 오래 버팁니다.',
+      'hoard': '황금으로 변한 적이 더 많은 코인을 줍니다.'
     }
   },
 

@@ -104,13 +104,27 @@ Steer left and right using the mouse or press and drag anywhere to move your squ
 
 ### Weapons and skills
 
-17. **The road hands you guns.** The first boss drops a **Rocket Launcher**, and
-    stage 2 has a free **Gatling Gun** box waiting in the road — both fire side
-    by side. Clear stage 2 and you **choose** which of the two you carry into
-    stage 3. The **gatling** is a hose: red rounds, twice the fire rate, and it
-    pumps gates faster. The **launcher** fires homing salvos with blast damage,
-    the one thing in your hands that answers a whole pack at once. A weapon lasts
-    for the stage it was won on.
+17. **The road hands you guns, and there are six of them.** The first boss drops
+    a **Rocket Launcher**, and stage 2 has a free **Gatling Gun** box waiting in
+    the road — both fire side by side. Clear stage 2 and you **choose** which of
+    the two you carry into stage 3. A weapon lasts for the stage it was won on,
+    and each one changes a different thing:
+    * **Gatling** — a hose: red rounds, twice the fire rate, and it pumps gates
+      faster than anything else.
+    * **Rocket Launcher** — homing salvos with blast damage, the answer to a
+      whole pack at once.
+    * **Grapeshot** (stage 8) — a shotgun. The hardest-hitting burst in the
+      game, and it only reaches two thirds as far, so packs have to be taken
+      apart up close.
+    * **Dynamo** (stage 10) — every round that lands charges a meter, and a
+      full meter is a **button**: a thin lightning bolt straight up your column
+      that goes through a boss's shield.
+    * **Gravecall** (stage 14) — your own gun, but everything you kill gets
+      back up and fights for you. Up to fifteen of the dead walk ahead of the
+      squad, taking the bites meant for it until they fall again.
+    * **Crow's Hoard** (stage 18) — what it kills turns to gold. Each corpse
+      stands as a statue for a moment, then bursts into coins worth far more
+      than the body would have dropped.
 18. **From stage 4, every other road hides a weapon box.** It sits behind armour
     on one shoulder, and the lock is two **levers out at the road edges**, each
     behind a stone. Shoot through the stone and hit the lever — **both of them**

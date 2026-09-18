@@ -193,7 +193,7 @@ const label = computed(() => {
 // ─── The plate ──────────────────────────────────────────────────────────────
 //
 // Gold-edged slate, which is the vocabulary this screen already uses for "money
-// happened" (`.result__milestone`, `.result__record`) rather than the blue the
+// happened" (`.result__milestone`) rather than the blue the
 // shop's own rows wear. Deliberate: on THIS screen the plate is a piece of the
 // coin economy, and it has to sit under a gold ×3 button and above a green
 // forge without competing with either.

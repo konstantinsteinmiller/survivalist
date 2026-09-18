@@ -654,9 +654,9 @@ describe('the boss can actually reach the crowd', () => {
 
   it('kills survivors of a stationary crowd within a few slam cycles', async () => {
     const game = await importGame()
-    // Stage 2: stage 1's boss swings for a token share of the crowd
-    // (`TUTORIAL_SLAM_FRACTION`, a body or two), which is the wrong road to
-    // measure "a stationary crowd gets punished" on.
+    // Stage 2: stage 1's boss is the tutorial piece (one guard gate, no second
+    // phase), which is the wrong road to measure "a stationary crowd gets
+    // punished" on even though its ring hurts like every other one now.
     game.startStage(2)
     // Enough bodies to survive the road, and deliberately NO extra damage: the
     // boss has to live long enough to swing.

@@ -14,9 +14,9 @@
 //      the whole reason adaptive pricing stops at stage 5 is that a bar always
 //      exactly as big as you are is a bar your upgrades can never beat;
 //   2. a bomb cannot delete the guarantee. A grenade deals `squadDps × mult` in
-//      one hit and the floor is worth `BOSS_MIN_FIRE_SECONDS × squadDps`, so at
-//      the base multiplier of 3 those are the same number — the floor would buy
-//      three seconds and the bomb would spend all of them.
+//      one hit and the floor is worth `BOSS_MIN_FIRE_SECONDS × squadDps`, so an
+//      upgraded bomb (4.4x against a boss at level 20) would spend all three
+//      seconds the floor just bought.
 import { describe, expect, it } from 'vitest'
 import {
   ADAPTIVE_BOSS_STAGES, BOSS_FLOOR_GRENADE_MULT, BOSS_MIN_FIRE_SECONDS,
@@ -25,7 +25,7 @@ import {
 } from '@/game/adaptive'
 import { BOSS_BASE_HP, SLAM_CD_BASE, SLAM_CD_DECAY, SLAM_CD_MIN } from '@/game/survival'
 import { bossHpScale } from '@/game/foes'
-import { GRENADE_BASE_MULT } from '@/use/useUpgrades'
+import { GRENADE_BOSS_BASE_MULT, grenadeBossMult } from '@/use/useUpgrades'
 
 /** A fight at depth, shaped like the careers this was measured on. */
 const fight = (squad: number, perSurvivorDps: number): AdaptiveFight => ({
@@ -136,8 +136,8 @@ describe('the melt floor', () => {
   })
 
   describe('and the bomb', () => {
-    it('is capped below its base multiplier', () => {
-      expect(BOSS_FLOOR_GRENADE_MULT).toBeLessThan(GRENADE_BASE_MULT)
+    it('is capped below its base multiplier against a boss', () => {
+      expect(BOSS_FLOOR_GRENADE_MULT).toBeLessThan(GRENADE_BOSS_BASE_MULT)
     })
 
     it('cannot delete a floored boss on its own', () => {
@@ -151,9 +151,9 @@ describe('the melt floor', () => {
         const squadDps = squad * per
         expect(squadDps * BOSS_FLOOR_GRENADE_MULT,
           `squad ${squad}: a capped bomb still one-shots the floor`).toBeLessThan(floor)
-        // …and the uncapped bomb is exactly why the cap exists: at the base
-        // multiplier it is worth the whole guarantee.
-        expect(squadDps * GRENADE_BASE_MULT,
+        // …and the uncapped bomb is exactly why the cap exists: fully upgraded
+        // it is worth more than the whole guarantee.
+        expect(squadDps * grenadeBossMult(6),
           `squad ${squad}: the cap is not doing anything`).toBeGreaterThan(floor)
       }
     })

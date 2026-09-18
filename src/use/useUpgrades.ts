@@ -37,6 +37,18 @@ import { gateAddBase } from '@/game/track'
 export const GRENADE_BASE_MULT = 3
 export const GRENADE_MULT_STEP = (6 - GRENADE_BASE_MULT) / 20
 
+/**
+ * What the level-0 grenade is worth against a BOSS, as a multiple of the crowd's
+ * fire. Below the road's 3x on purpose: at 3x the bomb was a free nuke that made
+ * every other skill optional in the one fight that should need all of them.
+ *
+ * Upgrades keep their worth by scaling it by the same fraction, so level 20's 6x
+ * lands 4.4x on a boss. Everything that is not a boss still takes the full hit.
+ */
+export const GRENADE_BOSS_BASE_MULT = 2.2
+export const grenadeBossMult = (mult: number): number =>
+  mult * (GRENADE_BOSS_BASE_MULT / GRENADE_BASE_MULT)
+
 /** Shield: level 1 unlocks it at three seconds, level 10 reaches six. */
 export const SHIELD_MAX_LEVEL = 10
 export const SHIELD_BASE_SECONDS = 3
@@ -117,7 +129,7 @@ export const gatePayoutBonusAt = (level: number): number => {
 
 export type UpgradeId =
   | 'squad' | 'power' | 'rate' | 'range' | 'scavenge' | 'grenade' | 'shield'
-  | 'rocket' | 'gatling'
+  | 'rocket' | 'gatling' | 'grapeshot' | 'dynamo' | 'gravecall' | 'hoard'
 
 /**
  * What one level of a weapon track is worth.
@@ -135,7 +147,11 @@ export const WEAPON_POWER_STEP = 0.12
  *  row in this map rather than a branch in four files. */
 export const WEAPON_TRACK: Record<WeaponId, UpgradeId> = {
   rocket: 'rocket',
-  gatling: 'gatling'
+  gatling: 'gatling',
+  grapeshot: 'grapeshot',
+  dynamo: 'dynamo',
+  gravecall: 'gravecall',
+  hoard: 'hoard'
 }
 
 /**
@@ -386,18 +402,53 @@ export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
     // campaign's stages over the other.
     cost: endlessCost(140, 1.4, 14),
     valueAt: (l) => Math.round((1 + l * WEAPON_POWER_STEP) * 100)
+  },
+
+  /**
+   * ...and the four that came later, on the same terms and at the same price.
+   *
+   * Two of them do NOT buy damage, because their weapons are not damage (see
+   * `WeaponDef.powerScales`): Gravecall's level makes the dead it raises
+   * tougher and harder-hitting, and the Hoard's makes a gilded corpse worth
+   * more. The readout stays a percentage of the thing the weapon does, so every
+   * shop row reads the same way.
+   */
+  grapeshot: {
+    id: 'grapeshot',
+    maxLevel: Number.POSITIVE_INFINITY,
+    cost: endlessCost(140, 1.4, 14),
+    valueAt: (l) => Math.round((1 + l * WEAPON_POWER_STEP) * 100)
+  },
+  dynamo: {
+    id: 'dynamo',
+    maxLevel: Number.POSITIVE_INFINITY,
+    cost: endlessCost(140, 1.4, 14),
+    valueAt: (l) => Math.round((1 + l * WEAPON_POWER_STEP) * 100)
+  },
+  gravecall: {
+    id: 'gravecall',
+    maxLevel: Number.POSITIVE_INFINITY,
+    cost: endlessCost(140, 1.4, 14),
+    valueAt: (l) => Math.round((1 + l * WEAPON_POWER_STEP) * 100)
+  },
+  hoard: {
+    id: 'hoard',
+    maxLevel: Number.POSITIVE_INFINITY,
+    cost: endlessCost(140, 1.4, 14),
+    valueAt: (l) => Math.round((1 + l * WEAPON_POWER_STEP) * 100)
   }
 }
 
 export const UPGRADE_ORDER: UpgradeId[] = [
-  'squad', 'power', 'rate', 'range', 'scavenge', 'grenade', 'shield', 'rocket', 'gatling'
+  'squad', 'power', 'rate', 'range', 'scavenge', 'grenade', 'shield',
+  'rocket', 'gatling', 'grapeshot', 'dynamo', 'gravecall', 'hoard'
 ]
 
 type Levels = Record<UpgradeId, number>
 
 const emptyLevels = (): Levels => ({
   squad: 0, power: 0, rate: 0, range: 0, scavenge: 0, grenade: 0, shield: 0,
-  rocket: 0, gatling: 0
+  rocket: 0, gatling: 0, grapeshot: 0, dynamo: 0, gravecall: 0, hoard: 0
 })
 
 const read = (): Levels => {

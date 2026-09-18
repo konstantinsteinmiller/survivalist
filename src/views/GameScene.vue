@@ -12,7 +12,8 @@ import {
   getCages, getBulwarks,
   throwGrenade, raiseShield, shieldActive as isShieldUp,
   castFrostNova, throwDecoy, frostActive, getDecoy,
-  activeWeapon, puzzleGift, puzzlePulled, puzzleTotal, puzzleWeapon, weaponPower,
+  activeWeapon, dynamoCharge, fireDynamoBolt,
+  puzzleGift, puzzlePulled, puzzleTotal, puzzleWeapon, weaponPower,
   sideWeapon, sideWeaponPower,
   rallies, readWeaponPick, setRallyPolicy, stageBeats, worldVersion,
   isExpedition, startExpedition, cashOutSquad
@@ -62,7 +63,7 @@ import { getState, setState } from '@/use/useTowerState'
 import { flushSaveNow } from '@/use/useSaveStatus'
 import {
   BOSS_REWARD_KEY, BULWARK_HINT_KEY, CAGE_HINT_KEY,
-  LEVER_HINT_KEY, ONBOARDED_KEY, RESULTS_SEEN_KEY, REWARD_DECLINE_KEY,
+  LEVER_HINT_KEY, ONBOARDED_KEY, RESULT_SHOP_OPENED_KEY, RESULTS_SEEN_KEY, REWARD_DECLINE_KEY,
   SHOP_SPOTLIGHT_KEY, TUTORIAL_KEY, WEAPON_PICK_KEY
 } from '@/keys'
 import useTowerEconomy from '@/use/useTowerEconomy'
@@ -362,6 +363,24 @@ const shieldLive = ref(false)
  *  than wait, as the shield's does. */
 const frostLive = ref(false)
 const decoyLive = ref(false)
+
+/**
+ * ─── The weapon's own button ────────────────────────────────────────────────
+ *
+ * Present only while the crowd is carrying a weapon that charges, which today
+ * is the Dynamo and its bolt. It is not a skill: nothing in `useSkills` owns
+ * it, it has no cooldown and it does not survive the stage — the meter is the
+ * weapon's, and so is the press.
+ */
+const boltCharge = computed(
+  () => (activeWeapon.value === 'dynamo' ? dynamoCharge.value : null)
+)
+
+const onUseBolt = (): void => {
+  if (isGamePaused.value || overlayUp.value) return
+  if (!fireDynamoBolt()) return
+  markHintDone('move')
+}
 
 const onUseSkill = (id: SkillId): void => {
   // ── The lesson's one exception ──
@@ -1032,6 +1051,17 @@ const showOptions = ref(false)
 const showUpgrades = ref(false)
 const showLeaderboard = ref(false)
 const summary = ref(runSummary())
+/**
+ * The result ribbon. A campaign win names the stage it cleared — the screen has
+ * no other line saying which one. The expedition's stage number is a rung on
+ * the difficulty curve rather than a stage the player has met, so its win keeps
+ * the bare caption.
+ */
+const resultRibbon = computed(() => {
+  const s = summary.value
+  if (!s.cleared) return t('result.wipedOut')
+  return s.expedition ? t('result.stageClear') : t('result.clearedStage', { n: s.stage })
+})
 
 /** The weapon choice is up — see `flowToNextStage`. */
 const showWeaponPick = ref(false)
@@ -1117,9 +1147,9 @@ void joinPortalBoard(bestStage.value)
 // the device calls "share". Two conditions, and both are somebody else's
 // numbers rather than a second opinion of this screen's:
 //
-//   • THE RUN IS A RECORD — `summary.isRecord`, the same flag that puts "New
-//     record!" on this screen a few lines up. If the screen does not already
-//     say the run was a record, there is nothing to share.
+//   • THE RUN IS A RECORD — `summary.isRecord`. (The screen's own "New record!"
+//     line is gone: every campaign win is a record, so it said nothing. If the
+//     card comes back, this condition needs a stricter one.)
 //   • THE BOARD PLACED IT — `resultRank` is a real placing rather than empty
 //     (no board on this build, or the endpoint failed) or the `…` that means
 //     the read has not landed. That is the roadmap's "compared to peers from
@@ -2577,6 +2607,10 @@ const onUpgradeFromResult = (via: ShopDoor = 'result'): void => {
   if (adInFlight.value) return
   shopOpenVia.value = via
   showUpgrades.value = true
+  if (!resultShopOpened.value) {
+    resultShopOpened.value = true
+    setState(RESULT_SHOP_OPENED_KEY, true)
+  }
 }
 
 watch(showUpgrades, (open, wasOpen) => {
@@ -2608,9 +2642,16 @@ watch(showUpgrades, (open, wasOpen) => {
  * minutes. So the first three result screens point at it explicitly, and then
  * never again — a permanent arrow is nagging, and it would sit on top of the
  * one control that ends the screen.
+ *
+ * It also retires the moment the player opens the shop from a result screen
+ * (forge or peek plate), even on screen one: the door has been found, and the
+ * peek plate keeps advertising it without a pointer.
  */
 const resultsSeen = ref(Number(getState(RESULTS_SEEN_KEY, 0)) || 0)
-const showUpgradeHint = computed(() => showResult.value && resultsSeen.value <= 3)
+const resultShopOpened = ref(getState<boolean>(RESULT_SHOP_OPENED_KEY, false) === true)
+const showUpgradeHint = computed(() =>
+  showResult.value && resultsSeen.value <= 3 && !resultShopOpened.value
+)
 
 const shopSpotlightSeen = ref(getState<boolean>(SHOP_SPOTLIGHT_KEY, false) === true)
 const showShopSpotlight = computed(() =>
@@ -3154,10 +3195,12 @@ onUnmounted(() => {
         :shield-live="shieldLive"
         :frost-live="frostLive"
         :decoy-live="decoyLive"
+        :bolt-charge="boltCharge"
         :lane-half-px="laneHalfPx"
         :squad-floor-px="squadFloorPx"
         :hud-bottom-px="hudBottomPx"
         @use="onUseSkill"
+        @bolt="onUseBolt"
       )
 
       //- ── Bottom bar ────────────────────────────────────────────────────
@@ -3235,30 +3278,26 @@ onUnmounted(() => {
       :show-continue="false"
     )
       template(#ribbon)
-        span.scene__ribbon {{ summary.cleared ? t('result.stageClear') : t('result.wipedOut') }}
+        span.scene__ribbon {{ resultRibbon }}
 
       div.result
-        div.result__headline
-          //- ON A WIN THIS LOOKS FORWARD, and on a loss it looks back.
-          //-
-          //- The screen used to headline the stage just finished either way,
-          //- which is a summary — the shape of an ending. Half of Poki's testers
-          //- left at this screen having just WON, so the win path now names the
-          //- thing that has not happened yet. The stage they cleared is already
-          //- on the ribbon above; repeating it bought nothing.
-          //- The expedition takes neither line: "up next: stage 17" would be a
-          //- promise about a campaign this run is not part of, and "stage 16" a
-          //- number the player has no relationship with. It names itself and
-          //- says when the next one is, which is the only forward-looking thing
-          //- there is to say about a road that comes once a day.
+        //- A CAMPAIGN WIN HAS NO HEADLINE. The ribbon already says "Stage 4
+        //- Clear!", and the "Up next: Stage 5" line under it was the same news
+        //- told twice. The "New record!" line went with it: every campaign win
+        //- clears a stage past the old best, so it showed on every single win
+        //- and meant nothing. (`summary.isRecord` still exists; the parked share
+        //- card reads it.)
+        //- The expedition keeps its headline: "stage 16" is a number the player
+        //- has no relationship with, so it names itself and says when the next
+        //- one is — the only forward-looking thing to say about a road that
+        //- comes once a day.
+        div.result__headline(v-if="summary.expedition || !summary.cleared")
           span.result__stage(v-if="summary.expedition") {{ t('expedition.title') }}
-          span.result__stage(v-else-if="summary.cleared") {{ t('result.upNext', { n: summary.stage + 1 }) }}
           span.result__stage(v-else) {{ t('result.reachedStage', { n: summary.stage }) }}
           span.result__relief(v-if="summary.expedition") {{ t('expedition.done') }}
-          span.result__record(v-if="summary.isRecord") {{ t('result.newRecord') }}
           //- Only ever shown AFTER the run. Telling a player mid-stage that the
           //- game went easy on them takes the win away from them.
-          span.result__relief(v-else-if="summary.relieved") {{ t('result.rallied') }}
+          span.result__relief(v-if="summary.relieved") {{ t('result.rallied') }}
 
         //- The near-miss rail and the cause box used to sit here. Both are
         //- gone — see "Two readouts this screen no longer carries".
@@ -3314,31 +3353,38 @@ onUnmounted(() => {
           IconCoin(class="result__milestone-coin")
           span.result__milestone-value +{{ summary.milestone }}
 
-        div.result__coins(ref="rewardCoinRef")
-          IconCoin(class="result__coin-icon")
-          span.result__coin-value +{{ summary.coins }}
+        //- ── The income row ─────────────────────────────────────────────────
+        //-
+        //- The coins and the ×3 share ONE row: the offer sits right beside the
+        //- number it multiplies, and the screen loses a full button row, which
+        //- is the axis it runs out of on a landscape phone. It wraps (centred)
+        //- only when a six-figure payout meets a 320 px phone.
+        div.result__income
+          div.result__coins(ref="rewardCoinRef")
+            IconCoin(class="result__coin-icon")
+            span.result__coin-value +{{ summary.coins }}
 
-        //- The ×3, above the actions and visually louder than either of them:
-        //- it is the primary income of the game, not a footnote on the way out.
-        FButton.result__reward(
-          v-if="showRewardButton"
-          :size="resultCompact ? 'sm' : 'md'"
-          type="warning"
-          :is-disabled="adInFlight"
-          @click="onClaimReward"
-        )
-          //- The film frame is the ad signal and comes first, exactly as it does
-          //- on every other rewarded button on every portal we ship to.
-          RewardAdIcon.result__reward-icon
-          span.result__reward-mult {{ t('result.tripleCoins') }}
-          IconCoin.result__reward-coin
-          span.result__reward-bonus {{ t('result.tripleBonus', { n: rewardBonus }) }}
+          //- The ×3, above the actions and visually louder than either of them:
+          //- it is the primary income of the game, not a footnote on the way out.
+          FButton.result__reward(
+            v-if="showRewardButton"
+            :size="resultCompact ? 'sm' : 'md'"
+            type="warning"
+            :is-disabled="adInFlight"
+            @click="onClaimReward"
+          )
+            //- The film frame is the ad signal and comes first, exactly as it does
+            //- on every other rewarded button on every portal we ship to.
+            RewardAdIcon.result__reward-icon
+            span.result__reward-mult {{ t('result.tripleCoins') }}
+            IconCoin.result__reward-coin
+            span.result__reward-bonus {{ t('result.tripleBonus', { n: rewardBonus }) }}
 
-        //- Claimed: the button is replaced rather than merely disabled, so the
-        //- screen never shows a dead control the player already used.
-        div.result__claimed(v-else-if="rewardClaimed")
-          IconCoin(class="result__claimed-icon")
-          span {{ t('result.tripleClaimed') }}
+          //- Claimed: the button is replaced rather than merely disabled, so the
+          //- screen never shows a dead control the player already used.
+          div.result__claimed(v-else-if="rewardClaimed")
+            IconCoin(class="result__claimed-icon")
+            span {{ t('result.tripleClaimed') }}
 
         //- ── A look inside the shop ────────────────────────────────────────
         //-
@@ -3912,14 +3958,6 @@ onUnmounted(() => {
   font-size: clamp(1rem, 5vmin, 1.9rem)
   text-shadow: 3px 3px 0 #000
 
-.result__record
-  color: #ffd93c
-  font-weight: 900
-  text-transform: uppercase
-  font-size: clamp(0.65rem, 3vmin, 0.95rem)
-  text-shadow: 2px 2px 0 #000
-  animation: spotlight-pulse 1.1s ease-in-out infinite
-
 .result__relief
   color: #8fd6ff
   font-weight: 900
@@ -3950,9 +3988,8 @@ onUnmounted(() => {
 
 // ─── The milestone line ─────────────────────────────────────────────────────
 //
-// Gold on a gold-edged plate — the same vocabulary as the HUD chip it pays off
-// and as the `result__record` line, because all three are "something went right
-// that does not happen every stage".
+// Gold on a gold-edged plate — the same vocabulary as the HUD chip it pays off,
+// because both are "something went right that does not happen every stage".
 .result__milestone
   display: flex
   align-items: center
@@ -4051,6 +4088,13 @@ onUnmounted(() => {
   color: #b9cbe8
   text-transform: uppercase
   font-size: clamp(0.5rem, 2.4vmin, 0.7rem)
+
+.result__income
+  display: flex
+  flex-wrap: wrap
+  align-items: center
+  justify-content: center
+  gap: clamp(0.3rem, 1.6vh, 0.85rem) clamp(0.6rem, 3vmin, 1.1rem)
 
 .result__coins
   display: flex
@@ -4317,7 +4361,7 @@ onUnmounted(() => {
   .result
     gap: clamp(0.25rem, 1.2vh, 0.5rem)
 
-  .result__record, .result__relief
+  .result__relief
     font-size: clamp(0.55rem, 2.4vmin, 0.72rem)
 
   .result__reward

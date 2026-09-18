@@ -91,7 +91,19 @@ export default {
   // over the full mechanical one. The glyph beside it already says what it is.
   'weapons': {
     'rocket': 'Rocket Launcher',
-    'gatling': 'Gatling Gun'
+    'gatling': 'Gatling Gun',
+    // The four later weapons, same rule: the SHORT name a player would say out
+    // loud, because the badge ellipsises at about 8 characters and the glyph
+    // beside it already says what the thing is.
+    'grapeshot': 'Grapeshot',
+    'dynamo': 'Dynamo',
+    'gravecall': 'Gravecall',
+    'hoard': "Crow's Hoard",
+    // …and the ONE string that is a control rather than a name: the Dynamo's
+    // own button, which appears in the skill row only while that weapon is in
+    // the crowd's hands. Read aloud by a screen reader and shown as the
+    // button's tooltip, so translate it as the name of an ACTION.
+    'bolt': 'Lightning bolt'
   },
 
   // ─── The mid-run weapon offer ─────────────────────────────────────────────
@@ -231,6 +243,11 @@ export default {
   },
   'result': {
     'stageClear': 'Stage Clear!',
+    // The ribbon on a campaign win, and the only place the screen names the
+    // stage. It rides the iron banner, so keep it a short exclamation. The
+    // bare `stageClear` above is the Daily Expedition's, whose stage number is
+    // not one the player has met.
+    'clearedStage': 'Stage {n} Clear!',
     'wipedOut': 'Squad Wiped Out',
     'reachedStage': 'Stage {n}',
     'newRecord': 'New record!',
@@ -270,8 +287,7 @@ export default {
     'tryAgain': 'Try again',
     'upgrade': 'Upgrade',
     'upgradeHint': 'Upgrade your squad!',
-    'rankOf': 'of {n}',
-    'upNext': 'Up next: Stage {n}'
+    'rankOf': 'of {n}'
   },
 
   // ─── The share card ───────────────────────────────────────────────────────
@@ -434,7 +450,14 @@ export default {
       // because the player's question in the shop is "which of the two things I
       // keep finding do I want to be better", not "what does this percentage do".
       'rocket': 'Rocket Power',
-      'gatling': 'Gatling Power'
+      'gatling': 'Gatling Power',
+      'grapeshot': 'Grapeshot Power',
+      'dynamo': 'Dynamo Power',
+      // The last two tracks do not buy damage — they buy what those weapons
+      // actually do (the dead they raise, the gold they make) — so they are
+      // named for the weapon rather than for a stat.
+      'gravecall': 'Gravecall Power',
+      'hoard': 'Hoard Power'
     },
     'descriptions': {
       'squad': 'Start every stage with more survivors.',
@@ -445,7 +468,11 @@ export default {
       'grenade': 'Throw a grenade for a burst of heavy damage.',
       'shield': 'Halve the damage your squad takes for a few seconds.',
       'rocket': 'Rocket launchers you unlock on a stage deal more damage.',
-      'gatling': 'Gatling guns you unlock on a stage deal more damage.'
+      'gatling': 'Gatling guns you unlock on a stage deal more damage.',
+      'grapeshot': 'Shotguns you unlock on a stage deal more damage.',
+      'dynamo': 'Dynamo bolts you unlock on a stage hit harder.',
+      'gravecall': 'The dead you raise fight harder and last longer.',
+      'hoard': 'Enemies turned to gold are worth more coins.'
     }
   },
 

@@ -9,7 +9,7 @@ import { ART_FOLDERS, type ArtKind } from '@/game/art'
 import { ART_CATALOGUE } from '@/game/artCatalogue'
 // From the pure module, not the renderer: this manifest must load under plain
 // Node for `pnpm art:prompts` (see `tools/ts-resolve.mjs`).
-import { GATE_FRAME, ROCKET_BOX } from '@/game/artBoxes'
+import { BOLT_BOX, GATE_FRAME, ROCKET_BOX } from '@/game/artBoxes'
 import { BANNER } from '@/game/uiArt'
 
 /**
@@ -721,6 +721,16 @@ export interface StillSpec {
   frames?: number
   cols?: number
   rows?: number
+  /**
+   * A CHARACTER image attached before the reference, relative to `art-sheets/`,
+   * and what the painter is to take from it.
+   *
+   * The deaths' lesson, applied to a still that has people in it: described in
+   * words, a figure is re-invented on every roll, and a cage of strangers is a
+   * cage the player has no reason to open. `what` is the prompt's own account
+   * of the image — what to copy from it and, as importantly, what not to.
+   */
+  model?: { file: string; what: string }
   /** What moves between the panels, and what must NOT. The prompt's
    *  `READ THE PANELS`; only meaningful when `frames > 1`. */
   cycle?: string
@@ -813,6 +823,39 @@ const still = (
  */
 const WARN_BLURB_HEAD = 'The incoming-attack alarm: a heavy hazard sign, an upward-pointing triangle of battered iron plate with a thick dark bevelled rim, chipped paint and a few scratches, and a bold near-black exclamation mark punched through the middle of it — a tapering bar above a round dot. A sign bolted to a battlefield, not a tidy interface decal.'
 const WARN_BLURB_TAIL = 'THE PLATE IS THE ONE HOT ACCENT OF THIS IMAGE: paint it at full strength, the brightest thing in the frame, bright enough to name the colour instantly at a glance. The style rule about desaturated low-key colour applies to the iron rim, the grime and the shadows — NOT to the plate. A plate that has gone grey, brown, black or muddy is a failed image; only the RIM, the bang and the shadows are dark. One of a SET OF THREE identical signs that differ in NOTHING but that colour: the same triangle, the same rim, the same bang, the same wear in the same places. Bold shape and a hard silhouette, no fine detail — it is caught in the corner of the eye while the player is dodging — and the same layout as the reference: apex at the top, wide flat base, filling the frame edge to edge with magenta only in the two upper corners.'
+
+/**
+ * ─── The cages' shared description ──────────────────────────────────────────
+ *
+ * A head, a people clause and a tail around one clause per cage, for the same
+ * reason the alarm is written that way: the three are one object at three
+ * weights, and three independently worded blurbs drift into three unrelated
+ * props within a couple of edits.
+ *
+ * The head carries the two reads the renderer's drawing was built on (see
+ * `drawCages`): a TALL barred box under a hard flat lid, which is what tells a
+ * cage from a crate at a glance, and light coming OUT of a dark object — the
+ * one warm glow on the roadside. The lamplight is stated the way the alarm's
+ * plate had to be, with a midtone hex and the failure named, because a warm
+ * accent described in the style's own muted words came back brown.
+ *
+ * The people are the survivors from BEHIND, faceless, silhouetted against the
+ * lamp at the back — the drawn cage's huddled shape, and `cutscenes.md` shot 3,
+ * which says the same: they are turned away, looking up the road at the place
+ * they were taken from.
+ */
+const CAGE_HEAD = 'A prisoner cage standing on the ground, seen STRAIGHT ON from the front, flat-on like a crate: a TALL box, a little taller than it is wide, with a heavy flat iron LID across the top that overhangs the bars slightly — a hard, level shelf, the top edge of the whole silhouette — a bottom rail standing on the ground, a post at each side, and FOUR vertical iron bars across the front with clear open gaps between them. It is lit from WITHIN by a lantern hanging at the BACK of the cage, and THE LAMPLIGHT IS THE ONE HOT ACCENT OF THIS IMAGE: a rich warm amber, around #E0902E and brighter toward the lamp, filling the space behind the bars, bright enough to name at a glance from across a phone screen. The BACK and the SIDES of the cage are closed with dark iron sheet, exactly as the reference fills its whole inside: nothing behind the prisoners is see-through, and no background colour shows anywhere inside the frame — light spilling over magenta turns pink, and a pink cage is a failed image. The style rule about desaturated low-key colour applies to the iron and the people — NOT to the light. The iron is cold, dark and dead: gunmetal grey-blue with rust, no paint, no colour of its own. A cage that has gone dark, grey or brown inside is a failed image.'
+const CAGE_PEOPLE = 'INSIDE are the prisoners, and they are the survivors from IMAGE 1 — the same people: pointed hoods up, ragged coats in faded teal, ochre and slate, battered packs. They are seen FROM BEHIND exactly as image 1 shows them, turned away from the viewer toward the lamp at the back, so they read as dark hooded silhouettes against the amber light with only a thin rim of lamplight along their hoods and shoulders. NO FACES — this game never draws a survivor\'s face. They are not running: they stand and huddle, pressed together, and one of them has a hand up on a bar. Big simple shapes — at play size the whole cage is about 40 px tall, so each person is a hood and a pair of shoulders, not a portrait.'
+const CAGE_TAIL = 'Keep the silhouette the reference draws — a tall barred box under a flat lid, filling the frame from the top of the lid to the bottom rail — and keep every part of it inside that box: nothing hangs off the sides, nothing stands up on the lid, nothing lies on the ground around it.'
+const CAGE_OPTS: Partial<StillSpec> = {
+  anchor: 'feet',
+  glow: true,
+  model: {
+    file: 'models/survivors.png',
+    what: 'THE PEOPLE: the three survivors exactly as the game shows them. Take\n     their look from it — hoods, coats, packs, colours, proportions — and not\n     their running poses; inside the cage they stand still.'
+  },
+  live: 'The game paints the lamp\'s soft halo around the cage, a white "+N" count above the lid and a hit-point number under the bottom rail, and it shakes and leans the whole cage when it is shot — so paint NO glow outside the bars, NO numbers, NO text, and paint the cage INTACT, upright and still.'
+}
 
 const GATE_BLURB = 'A gate FRAME for a magical doorway, seen straight on: two THIN, tall posts, one at each side of the frame, joined by a thin lintel or arch across the top; the whole MIDDLE IS OPEN — flat magenta — because the game paints the glowing curtain, the flowing chevrons and the number plate inside the opening. The posts stand on the road; leave a little magenta under and over them exactly as the reference does.'
 
@@ -911,6 +954,20 @@ export const STILLS: StillSpec[] = [
   still('prop', 'lever-arm', 'Lever arm',
     'The arm of a road-side lever, standing straight UP: a stout iron rod with a wrapped grip, rising from the bottom edge of the frame, and at its top an EMPTY round socket — an open iron ring or claw with nothing in it. The socket must be a hole, not a ball: the game lights a glowing orb inside it. Centred, the rod filling the frame\'s full height, the socket at the very top.',
     { w: 288, h: 512, anchor: 'feet', authored: 'standing UP: the pivot at the bottom edge, the socket at the top. The game swings it over as the lever is pulled', live: 'The knob is painted live INSIDE the socket — red while the lever is live, green once it is pulled — so leave the socket open and unlit.' }),
+  // The three cages. One drawing — the game draws them alike at three sizes —
+  // and three paintings, because they are three different objects to the
+  // player: a box you shoot open, a strongroom a kill unlocks, and the prison
+  // the run is walking toward. The people inside are the squad's own, so the
+  // survivors' model rides along as image 1. See `paintCageBody`.
+  still('prop', 'cage', 'Rescue cage (roadside)',
+    `${CAGE_HEAD} ${CAGE_PEOPLE} THIS ONE is the ROADSIDE cage — the one the crowd shoots open — and it has to look like it can be: the smallest and cheapest of the set, rickety and patched. Thin rusted bars, one of them bent outward a little; crude hammered rivets; a dented lid with a rust-eaten edge; a length of frayed rope lashed round one post where it was mended. TWO OR THREE prisoners inside, huddled low. ${CAGE_TAIL}`,
+    CAGE_OPTS),
+  still('prop', 'cage-sealed', 'Rescue cage (sealed, beside a miniboss)',
+    `${CAGE_HEAD} ${CAGE_PEOPLE} THIS ONE is the SEALED cage a miniboss stands beside — bullets do nothing to it, and only that monster's death opens it — so it must look impossible to break: a strongroom of a cage. Thick black-iron corner posts studded with rivets, bars as thick as a wrist, a massive riveted lid, and one heavy CHAIN slung across the front of the bars at hip height, held shut by a single huge black-iron PADLOCK hanging at the centre. FOUR OR FIVE prisoners crowded shoulder to shoulder inside, their hoods and shoulders above the chain. ${CAGE_TAIL}`,
+    CAGE_OPTS),
+  still('prop', 'cage-warden', 'Warden cage (behind the boss)',
+    `${CAGE_HEAD} ${CAGE_PEOPLE} THIS ONE is the WARDEN cage — the prison every boss stands guard in front of, holding the whole squad the player starts the next stage with. It is the thing the entire run is walking toward, so it is the biggest and grimmest of the set: massive black-iron corner posts, bars as thick as spear shafts, a crushing iron-banded lid with a row of short blunt spikes along its FRONT FACE (on the face of the lid, not sticking up above it), a bleached skull wired to the top of each corner post, and a heavy chain wound round both posts. PACKED with prisoners — six to eight hooded heads and shoulders crowded together across the whole width of the cage. ${CAGE_TAIL}`,
+    CAGE_OPTS),
   // ── Gates ──
   // `fit: false` on every gate: the slicer RE-COMPOSES a gate return onto the
   // reference's post band and stands it on the ground line, which is the
@@ -1028,6 +1085,14 @@ export const STILLS: StillSpec[] = [
     { maxEdge: 128, authored: 'level: it tumbles in flight and the game turns it' }),
   // The box is `ROCKET_BOX` in units of the shell's radius, at 80 px per
   // unit: 288 x 512, which is 9:16.
+  // ── The shotgun's pellet ──
+  //
+  // A round, not an effect: it is a solid thing in the air, there are five to
+  // nine of them at once, and the whole read of the weapon is that they are
+  // SHORT where every other round is a streak.
+  still('round', 'pellet', 'The shotgun\'s pellet',
+    'A shotgun pellet in flight: a short, fat slug of hot lead — a white-gold core with a stubby ember-orange smear behind it, no longer than it is wide and a half. It is drawn ADDITIVELY over the road, so dark pixels add nothing and the shape has to carry itself IN LIGHT ALONE: there is no ink outline anywhere on it, no black contour, no grey body, no cracks, no metal, no casing and no surface of any kind - this is not an object, it is the glow a round leaves as it goes past. The "INK FIRST" rule in the style block below applies to every other sheet in this game and NOT to this one. Two returns have already come back as a solid inked object (a brass cartridge, then a cracked metal drum with a lit end) and both were unusable. It is one of nine on screen at once, so it has to read as a lump rather than as a line: keep it COMPACT, and nothing like the long thin tracer the squad\'s own rifle fires. Centred, filling most of the frame exactly as the reference does — the game draws it small, and a pellet that leaves a margin here arrives smaller still.',
+    { maxEdge: 96, fit: false, glow: true }),
   still('round', 'rocket', 'The launcher\'s rocket',
     'The launcher\'s rocket in flight, nose up: a fat black-iron shell with a blunt warhead, a band of rust round its middle, two or three swept fins at its tail, and a hot exhaust plume streaming DOWN from it — a white-gold core inside ember-orange flame that frays into smoke. The SHELL sits in the upper part of the frame with its nose a little below the top edge and is about half the frame\'s width; the PLUME runs from the fins down to the bottom edge and may be as wide as the frame. It is the heaviest thing the player fires, so it must read as iron, not as a spark.',
     {
@@ -1061,6 +1126,20 @@ export const STILLS: StillSpec[] = [
   still('fx', 'guard', 'Boss guard barrier',
     'The boss\'s guard barrier: a point-up HEXAGON of ember-orange energy, a translucent fill with a hot rim. The hexagon spans about 89% of the frame, exactly as the reference has it; the rim\'s glow outside it stays inside the frame edge.',
     { glow: true }),
+  // ── The three marks the later weapons are known by ──
+  //
+  // Each one is the thing on screen that says which weapon the crowd is
+  // carrying, and each is blitted by its own painter — see `useSurvivalArt`.
+  still('fx', 'bolt', 'The Dynamo\'s bolt',
+    'One tile of a lightning bolt, seen straight on: a vertical column of white-hot electricity with a pale cold-blue glow around it and a jagged spine down the middle, running from the TOP edge of the frame to the BOTTOM edge and touching both — the game stretches it down the road, so a bolt that stops short of either edge arrives in the game with a gap in it. Thin: the column is about a fifth of the frame wide, and the glow around it a third. Nothing else in the frame — no impact, no sparks at the ends, no ground.',
+    { w: 288, h: 512, maxEdge: 256, fit: false, glow: true,
+      authored: 'pointing UP the road: the column runs the full height of the frame and is stretched along it' }),
+  still('fx', 'wisp', 'The thrall\'s wisp',
+    'A small cold soul-light: a pale blue-white flame, taller than it is wide, with a bright core and a soft halo — the light that hangs over the head of a body the Gravecall relic has raised. THE FLAME IS THE ONE HOT ACCENT OF THIS IMAGE AND IT IS COLD BLUE: paint the body of it at a luminous ice-blue midtone around #7FD4E8, with a near-white core around #EAFBFF and a soft halo of the same blue. It is the brightest thing in the frame and it must be nameable as BLUE at a glance. The style rule about desaturated low-key colour applies to nothing here: a wisp that comes back grey, white, silver, charcoal or ash is a failed image, and it came back grey once. There is no ink outline around it and no dark mass inside it - the game draws this additively over a dark road, so every dark pixel in the painting disappears and a flame with a black heart arrives as a hole. It is the one pixel that says a walking corpse is on the player\'s side, and it is read at 12 px, so it is a simple bright shape and not a detailed flame. Centred, the flame and its halo filling the frame exactly as the reference does, with the halo stopping at the frame edge.',
+    { maxEdge: 96, fit: false, glow: true }),
+  still('fx', 'gild', 'The gold burst',
+    'A burst of gold: a thin ring of light with coins and glinting shards flying outward through it. THE GOLD IS THE ONE HOT ACCENT OF THIS IMAGE: paint it at a luminous midtone around #E8B93A with near-white glints around #FFF6D8, bright enough to name as GOLD at a glance. The style rule about desaturated low-key colour applies to nothing here, and the game draws this additively over a dark road, so every dark pixel disappears: no ink outlines, no brown, no grey, no dark mass. A burst that comes back tarnished, muddy or grey is a failed image. The ring and the shards are caught at the moment it opens, caught at the moment it opens. It is what a corpse turned to gold leaves behind when it bursts, so it reads as MONEY rather than as fire — no flame, no embers, no orange heat. The ring spans about 70% of the frame and the shards stay inside the frame edge.',
+    { glow: true, fit: false }),
   still('fx', 'crest-shield', 'Shield crest',
     'A heater shield crest — flat top, straight shoulders, tapering to a rounded point — in cold blue with a heavy near-black rim, a chief band across the top and a centre rib. Heraldry read at 20 px. Fills the frame.',
     { maxEdge: 128, fill: true }),
@@ -1643,8 +1722,14 @@ export const promptForStill = (s: StillSpec): string => {
         + `
 ${shapeOf(s)} sheet of ${colsOf(s)} x ${rowsOf(s)} panels.`
       : `Paint ONE game sprite in a single ${shapeOf(s)} image.`,
-    'The attached reference is exactly what to paint, at exactly the size and',
-    'position it is drawn at. Match both.',
+    ...(s.model
+      ? ['Two images come with this prompt, in this order:',
+        `  IMAGE 1 — \`${s.model.file}\` — ${s.model.what}`,
+        `  IMAGE 2 — \`${s.file}.png\` — THE REFERENCE: the game's own drawing of this`,
+        '     sprite. It is exactly what to paint, at exactly the size and position it',
+        '     is drawn at. Match both.']
+      : ['The attached reference is exactly what to paint, at exactly the size and',
+        'position it is drawn at. Match both.']),
     '',
     `WHAT IT IS: ${s.blurb}`,
     ...(cycle ? cyclePrompt(s) : []),
@@ -1829,6 +1914,8 @@ export const promptDocs = (_fits?: Record<string, Fit>): Record<string, string> 
     '',
     'Attach `art-sheets/still-<kind>-<id>.png` and paste the matching block',
     'beside it. There is no grid to preserve here, which is the whole point.',
+    'A block whose heading names two images (the cages) wants both, in that',
+    'order: the character model first, then the reference.',
     '',
     'Drop results in `art-sheets/painted/`, keeping the `still-<kind>-<id>` in',
     'the name, then run `pnpm slice-sheets`. Every return is measured against',
@@ -1836,7 +1923,7 @@ export const promptDocs = (_fits?: Record<string, Fit>): Record<string, string> 
     'Each prompt is a fenced block — the preview\'s copy button takes all of it —',
     'and `pnpm art:desk` can run the whole loop from these blocks.',
     '',
-    STILLS.map((s) => promptBlock(s.name, s.file, s.target, promptForStill(s))).join('\n\n---\n\n'),
+    STILLS.map((s) => promptBlock(s.name, s.file, s.target, promptForStill(s), s.model ? [s.model.file] : [])).join('\n\n---\n\n'),
     ''
   ].join('\n'),
   'PROMPTS-DEATHS.md': [

@@ -689,21 +689,37 @@ describe('every third boss swing is charged', () => {
   })
 
   /**
-   * A boss fight long enough to see the pattern.
+   * Keep the fight going for as long as a spec needs it: the boss's bar pinned
+   * full and the crowd topped back up.
    *
-   * A shallow-stage fight with a big crowd is over in two swings — the boss dies
-   * before the third exists, which says nothing about the third.
+   * Both halves are needed now. A shallow-stage fight with a big crowd is over
+   * in two swings — the boss dies before the third exists, which says nothing
+   * about the third — and since the charged ring bills more than an ordinary
+   * one (`CHARGED_SHARE_MUL`), a crowd that stands still for it wipes after the
+   * fifth ring, one short of the two full cycles the pattern needs. These specs
+   * are about the CADENCE and the REACH of the swing, not about who survives
+   * it, so neither end is allowed to close the fight.
    */
+  const holdOpen = (game: Game): void => {
+    const b = game.getBoss()
+    if (b && !b.dead) b.hp = b.maxHp
+    if (game.squadCount.value < 150) game.debugAddUnits(260 - game.squadCount.value)
+  }
+
+  /** A boss fight long enough to see the pattern: three full cycles of rings. */
   const fight = async (): Promise<Array<Extract<FxEvent, { kind: 'bossSlam' }>>> => {
     const game = await importGame()
+    const { CHARGED_EVERY } = await import('@/game/survival')
     game.startStage(SLAM_STAGE)
     game.debugAddUnits(260)
     game.debugSkipToArena()
     drainFx()
     const slams: Array<Extract<FxEvent, { kind: 'bossSlam' }>> = []
     for (let i = 0; i < 12000; i++) {
+      holdOpen(game)
       game.step(16)
       for (const e of drainFx()) if (e.kind === 'bossSlam') slams.push(e)
+      if (slams.length >= CHARGED_EVERY * 3) break
       if (game.phase.value === 'clear' || game.phase.value === 'wipe') break
     }
     return slams
@@ -787,10 +803,11 @@ describe('every third boss swing is charged', () => {
     const restore = withSeed(20260815)
     try {
       // The whole point of the doubled arc: it converts a swing the player was
-      // dodging into one that lands. Damage per landed hit is unchanged — the
-      // share is capped either way — so "more threatening" has to show up as a
-      // HIT RATE, and that is what this counts, against a crowd that is
-      // constantly moving rather than a stationary target.
+      // dodging into one that lands. It bills more per landed hit as well now
+      // (`CHARGED_SHARE_MUL`), but THIS spec is about the reach, so "more
+      // threatening" is counted as a HIT RATE, against a crowd that is
+      // constantly moving rather than a stationary target — held open, so the
+      // extra bill cannot end the fight before there is a rate to read.
       game.startStage(SLAM_STAGE)
       game.debugAddUnits(260)
       game.debugSkipToArena()
@@ -804,6 +821,7 @@ describe('every third boss swing is charged', () => {
       for (let i = 0; i < 12000; i++) {
         // Keep moving, the way a player who has learned the ordinary slam does.
         game.steerTo(Math.sin(i / 40) * 3.2)
+        holdOpen(game)
         game.step(16)
         const now = game.deathBreakdown().slam
         for (const e of drainFx()) {
@@ -813,6 +831,7 @@ describe('every third boss swing is charged', () => {
           else { plain++; if (landed) plainHit++ }
         }
         deaths = now
+        if (charged >= 4 && plain >= 6) break
         if (game.phase.value === 'clear' || game.phase.value === 'wipe') break
       }
       expect(plain, 'no ordinary swings to compare against').toBeGreaterThan(2)

@@ -41,6 +41,11 @@ describe('the weapons and the pump', () => {
     expect(WEAPONS.gatling.pumpMul).toBeGreaterThan(1)
     expect(WEAPONS.gatling.pumpMul).toBeLessThanOrEqual(2)
     expect(WEAPONS.rocket.pumpMul).toBe(1)
+    // …and the hose's edge is smaller on a multiplier door than on an additive
+    // one: a scale door's pump compounds through every bank after it.
+    expect(WEAPONS.gatling.scalePumpMul).toBeGreaterThanOrEqual(1)
+    expect(WEAPONS.gatling.scalePumpMul).toBeLessThan(WEAPONS.gatling.pumpMul)
+    expect(WEAPONS.rocket.scalePumpMul).toBe(1)
     expect(WEAPONS.gatling.gateHoldS).toBe(0)
     // The gatling never fires slower than the hot window, so it needs no hold.
     expect(1 / (BASE_FIRE_RATE * WEAPONS.gatling.rateMul)).toBeLessThan(GATE_HOT_S)

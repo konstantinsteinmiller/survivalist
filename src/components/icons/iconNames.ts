@@ -46,7 +46,7 @@ export const GAME_ICON_NAMES = [
   // badge, which is the same rule the five stat glyphs above follow: the thing
   // bought and the thing carried must be one drawing, or the player has to
   // learn the same object twice. See `game/weapons.ts`.
-  'rocket', 'gatling',
+  'rocket', 'gatling', 'grapeshot', 'dynamo', 'gravecall', 'hoard',
   // The incoming-attack alarm. It lives in the shared set rather than inline in
   // `IncomingWarning.vue` because that badge now asks `ArtIcon` for its mark,
   // and `ArtIcon`'s floor is a glyph from this list — see `game/uiArt.ts`,

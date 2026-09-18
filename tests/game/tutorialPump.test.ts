@@ -359,10 +359,20 @@ describe('the tutorial hold, priced', () => {
     // The real guarantee lives in `balance.test.ts` ("lets a careless run reach
     // the closing elite on every seed", `progress01 > 0.8`), which is measured
     // on progress rather than on a binary and does not flip.
+    //
+    // ── …and since 2026-09-16 the floor is the ROAD, not the boss ──
+    //
+    // The first boss's ring stopped being a token (`TUTORIAL_SLAM_FRACTION`): a
+    // 99-strong crowd that never dodged lost 2-4 a strike to it, and the owner's
+    // call was that an attack which costs nothing is what loses players. A run
+    // that never touches the screen now reaches the arena and loses the fight,
+    // which is the whole point of the change. What is still owed to it is the
+    // same SOME the old bound promised, one step earlier: it still reaches the
+    // first boss. (Every seed is `balance.test.ts`'s, on road progress.)
     const idle = rows('s1 careless hold')
     expect(
-      idle.filter((r) => r.cleared).length,
-      'a run that never steers stopped seeing the first boss die at all'
+      idle.filter((r) => r.squadAtBoss > 0).length,
+      'a run that never steers stopped reaching the first boss at all'
     ).toBeGreaterThan(0)
 
     // ── Stage 2 is not in this at all, and that is the finding ──

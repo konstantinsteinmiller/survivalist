@@ -6,6 +6,9 @@
  *   pnpm art:export                # in another; writes art-sheets/
  *   pnpm art:export http://localhost:2050/#/art-sheets
  *   pnpm art:export -- --deaths    # the boss deaths only (+ the whole index)
+ *   pnpm art:export -- --only still-prop-cage,still-prop-cage-sealed
+ *                                  # just those references (+ the index, the
+ *                                  # stills key and the prompt documents)
  *
  * Own profile, own port — never the shared debugging profile, which belongs to
  * whatever the user has open, and two clients on one profile deadlock with no
@@ -19,7 +22,11 @@ import { join } from 'node:path'
 
 const ARGS = process.argv.slice(2)
 const DEATHS_ONLY = ARGS.includes('--deaths')
-const APP = ARGS.find((a) => !a.startsWith('--')) ?? 'http://localhost:2050/#/art-sheets'
+const ONLY_AT = ARGS.indexOf('--only')
+const ONLY = ONLY_AT >= 0 ? (ARGS[ONLY_AT + 1] ?? '') : ''
+if (ONLY_AT >= 0 && !ONLY) { console.error('--only needs a comma-separated list of reference stems'); process.exit(1) }
+const BASE = ARGS.find((a, i) => !a.startsWith('--') && i !== ONLY_AT + 1) ?? 'http://localhost:2050/#/art-sheets'
+const APP = ONLY ? `${BASE}?only=${encodeURIComponent(ONLY)}` : BASE
 const PORT = 9700 + Math.floor(Math.random() * 200)
 const PROFILE = mkdtempSync(join(tmpdir(), 'sv-art-'))
 

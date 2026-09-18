@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { stageHasWeapon, weaponForStage } from '@/game/weapons'
 
 /**
  * Staged art loading: what the splash holds for is derived from the stage the
@@ -222,14 +223,18 @@ describe('tiers 1 and 2', () => {
     stage = 5
     m = await load(true)
     expect(has(m.earlyArtWants(), 'round', 'rocket')).toBe(true)
-    // Stage 7 and stage 8 are a blank road and a gatling box: nothing to fetch.
-    stage = 7
-    m = await load(true)
-    expect(has(m.earlyArtWants(), 'round', 'rocket')).toBe(false)
-    // Stage 9 sees stage 10's box, which is a rocket again.
-    stage = 9
-    m = await load(true)
-    expect(has(m.earlyArtWants(), 'round', 'rocket')).toBe(true)
+    // …and every stage's answer is the deal itself: tier 1 covers this road and
+    // the next, so the round is wanted exactly when one of the two deals it.
+    // Written against `weaponForStage` rather than against a list of stage
+    // numbers, because the rotation grew from two weapons to six and a list
+    // would have to be rewritten every time one moves.
+    for (const s of [7, 8, 9, 10, 11, 12]) {
+      stage = s
+      m = await load(true)
+      const dealt = (stageHasWeapon(s) && weaponForStage(s) === 'rocket')
+        || (stageHasWeapon(s + 1) && weaponForStage(s + 1) === 'rocket')
+      expect(has(m.earlyArtWants(), 'round', 'rocket'), `stage ${s}`).toBe(dealt)
+    }
   })
 
   it('fetches the weapon choice\'s cards only until the player has chosen', async () => {

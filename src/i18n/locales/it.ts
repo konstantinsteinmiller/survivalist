@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Lanciarazzi',
-    'gatling': 'Gatling'
+    'gatling': 'Gatling',
+    'grapeshot': 'Mitraglia',
+    'dynamo': 'Dinamo',
+    'gravecall': 'Oltretomba',
+    'hoard': 'Tesoro Corvo',
+    'bolt': 'Fulmine'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'Livello superato!',
+    'clearedStage': 'Livello {n} superato!',
     'wipedOut': 'Squadra annientata',
     'reachedStage': 'Livello {n}',
     'newRecord': 'Nuovo record!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Riprova',
     'upgrade': 'Potenzia',
     'upgradeHint': 'Potenzia la squadra!',
-    'rankOf': 'su {n}',
-    'upNext': 'Prossimo: Livello {n}'
+    'rankOf': 'su {n}'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'Granata',
       'shield': 'Scudo',
       'rocket': 'Potenza razzi',
-      'gatling': 'Potenza Gatling'
+      'gatling': 'Potenza Gatling',
+      'grapeshot': 'Potenza mitraglia',
+      'dynamo': 'Potenza Dinamo',
+      'gravecall': 'Potenza oltretomba',
+      'hoard': 'Potenza tesoro'
     },
     'descriptions': {
       'squad': 'Inizia ogni livello con più sopravvissuti.',
@@ -234,7 +243,11 @@ export default {
       'grenade': 'Lancia una granata per un colpo di danno pesante.',
       'shield': 'Dimezza i danni alla squadra per qualche secondo.',
       'rocket': 'I lanciarazzi che sblocchi in un livello fanno più danni.',
-      'gatling': 'Le Gatling che sblocchi in un livello fanno più danni.'
+      'gatling': 'Le Gatling che sblocchi in un livello fanno più danni.',
+      'grapeshot': 'I fucili a pompa che sblocchi in un livello fanno più danni.',
+      'dynamo': 'I fulmini del Dinamo che sblocchi in un livello colpiscono più forte.',
+      'gravecall': 'I morti che rialzi combattono meglio e durano di più.',
+      'hoard': 'I nemici trasformati in oro valgono più monete.'
     }
   },
 

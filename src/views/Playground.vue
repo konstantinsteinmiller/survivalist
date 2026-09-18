@@ -17,10 +17,14 @@ import {
   paintRollerBall, paintGunnerBolt, paintBossBolt, paintMeteorRock,
   paintBombCharge, paintGrenadeBody, paintTracerRef, ROCKET_BOX, paintRocketBody,
   muzzleRamp, paintMuzzleFlash, paintScorch, paintRing, paintShieldDome,
-  paintGuardHex, paintCrest, paintCrown, paintLaneTile, paintRidge
+  paintGuardHex, paintCrest, paintCrown, paintLaneTile, paintRidge,
+  paintPellet, paintBoltTile, paintWisp, paintGildBurst,
+  paintCageBody, CAGE_BOX
 } from '@/use/useSurvivalArt'
 import { blitBanner, paintUiIcon, UI_ICON_IDS, BANNER } from '@/game/uiArt'
-import { BARREL_R, CRATE_R, BARRICADE_H, ROCK_H, DIVIDER_HALF_W, DIVIDER_H } from '@/game/survival'
+import {
+  BARREL_R, CAGE_R, CRATE_R, BARRICADE_H, ROCK_H, DIVIDER_HALF_W, DIVIDER_H
+} from '@/game/survival'
 import { BOLT_R, ROLLER_R } from '@/game/threats'
 
 /**
@@ -204,6 +208,17 @@ const paint = (now: number): void => {
           paintCoin(c, 0.22 * s, Math.abs(Math.cos(phase)), Math.sin(phase * 0.6) * s * 0.06)
           break
         }
+        case 'cage': case 'cage-sealed': case 'cage-warden': {
+          // All three at the roadside cage's size, so the paintings compare
+          // like for like; the box is centred in the cell. The road cage
+          // cycles its damage so the painted lean can be judged against the
+          // drawing's bending bars.
+          const r = CAGE_R * s
+          const hurt = id === 'cage' ? Math.max(0, Math.sin(t / 900)) : 0
+          c.translate(0, r * (CAGE_BOX.top - CAGE_BOX.side / 2))
+          paintCageBody(c, r, id === 'cage-warden' ? 'warden' : id === 'cage-sealed' ? 'sealed' : 'road', hurt)
+          break
+        }
       }
     })
 
@@ -244,6 +259,17 @@ const paint = (now: number): void => {
       const dy = Math.sin(a)
       switch (id) {
         case 'tracer': c.translate(0, -CELL * 0.3); paintTracerRef(c, 0.5, CELL / 0.55 * 0.6); break
+        // The shotgun's: a fan of them, because one pellet on its own says
+        // nothing about the weapon it belongs to.
+        case 'pellet': {
+          for (let k = -2; k <= 2; k++) {
+            c.save()
+            c.translate(k * CELL * 0.14, Math.abs(k) * CELL * 0.05)
+            paintPellet(c, CELL * 0.07)
+            c.restore()
+          }
+          break
+        }
         case 'bolt-gunner': paintGunnerBolt(c, CELL / 10, dx, dy, (CELL / 10) / BOLT_R, false); break
         case 'bolt-boss': paintBossBolt(c, CELL / 10, dx, dy, 0.85 + Math.sin(t / 70) * 0.15, false); break
         case 'roller': paintRollerBall(c, CELL * 0.42, -t / 320, (CELL * 0.42) / ROLLER_R, false); break
@@ -285,6 +311,19 @@ const paint = (now: number): void => {
           paintMuzzleFlash(c, 0, r, muzzleRamp(c, 0, r))
           break
         }
+        // The three marks the later weapons are known by. The bolt is a TILE:
+        // drawn here at the cell's full height, exactly as the road stretches
+        // it from the crowd to the end of the gun's reach.
+        case 'bolt':
+          c.translate(0, -CELL * 0.45)
+          paintBoltTile(c, CELL * 0.16, CELL * 0.9)
+          break
+        case 'wisp':
+          paintWisp(c, CELL * 0.22 * (0.9 + pulse * 0.12))
+          break
+        case 'gild':
+          paintGildBurst(c, CELL * 0.3 * (0.75 + pulse * 0.35))
+          break
         case 'smoke': {
           const spr = puffSpriteFor(168, 156, 134)
           const r = CELL * 0.3 * (0.7 + pulse * 0.4)

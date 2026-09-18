@@ -3,7 +3,8 @@ import { THREAT_POOL_FROM_STAGE, minibossKindFor, bossKindFor, SUMMON_DESIGN } f
 import { OUTFITS } from '@/game/heroSprites'
 import {
   BOSS_REWARD_STAGE, BOSS_REWARD_WEAPON,
-  WEAPON_PICK_STAGE, isWeaponId, stageHasWeapon, stageHasWeaponGift, weaponForStage
+  WEAPON_PICK_STAGE, isWeaponId, stageHasWeapon, stageHasWeaponGift, weaponForStage,
+  type WeaponId
 } from '@/game/weapons'
 import { WEAPON_PICK_KEY } from '@/keys'
 import { allMonsterIds } from '@/game/monsterSprites'
@@ -160,17 +161,35 @@ const weaponPuzzleWants = (stage: number): ArtWant[] => {
     ['prop', 'lever-post'], ['prop', 'lever-arm'], ['prop', 'guard-plate'],
     ['prop', 'weapon-box'], ['prop', 'weapon-box-open']
   ]
-  // The launcher's rocket, on the stages whose box holds it — which is every
+  // …and each weapon's own mark, on the stages whose box holds it — every
   // other puzzle stage, not every other stage. See `weaponForStage`.
-  if (weaponForStage(stage) === 'rocket') wants.push(['round', 'rocket'])
+  for (const [want, id] of WEAPON_MARKS) {
+    if (weaponForStage(stage) === id) wants.push(want)
+  }
   return wants
 }
+
+/**
+ * The one drawable each weapon is recognised by, and the weapon that deals it.
+ *
+ * The gatling has none: it is the squad's own tracer, hotter (see
+ * `drawBullets`), and the art it uses is already in tier 0. Gravecall's and the
+ * Hoard's marks are not their rounds — they fire the squad's gun — but the
+ * light over a raised body and the burst a gilded corpse ends in.
+ */
+const WEAPON_MARKS: ReadonlyArray<readonly [ArtWant, WeaponId]> = [
+  [['round', 'rocket'], 'rocket'],
+  [['round', 'pellet'], 'grapeshot'],
+  [['fx', 'bolt'], 'dynamo'],
+  [['fx', 'wisp'], 'gravecall'],
+  [['fx', 'gild'], 'hoard']
+]
 
 /**
  * The weapon the player chose for `WEAPON_PICK_STAGE`, off the save, without
  * dragging the simulation onto the boot path. `null` until they have chosen.
  */
-const weaponPick = (): 'rocket' | 'gatling' | null => {
+const weaponPick = (): WeaponId | null => {
   try {
     const v = getState<unknown>(WEAPON_PICK_KEY, null)
     return isWeaponId(v) ? v : null
@@ -230,6 +249,13 @@ export const criticalArtWants = (): ArtWant[] => {
     // as the player is concerned — a bank drawn with painted frames and a grey
     // post between them reads as a half-finished gate, not as a late prop.
     ['prop', 'pillar'],
+    // The roadside cage: every road carries them, stage 1's hand-authored pair
+    // included, and the first stands a few seconds in.
+    ['prop', 'cage'],
+    // …and the warden cage, on stage 1 only, because that is where the intro
+    // plays — and its very first frame is the boss standing in front of this
+    // cage. Everywhere else it is a stage away and rides tier 1 with the boss.
+    ...(stage === 1 ? [['prop', 'cage-warden'] as ArtWant] : []),
     // Gates: the paying door is on every stage, the trap from stage 2, the
     // bill from stage 3 (see `track.ts`), the multiplier from the first bank
     // that rolls one.
@@ -269,6 +295,9 @@ export const earlyArtWants = (): ArtWant[] => {
     // The midpoint fight: an elite is a scaled-up roster design that is already
     // here, so all it needs is the crown it wears.
     ...(stage >= 2 ? [['ui', 'crown'] as ArtWant] : []),
+    // …and the sealed cage beside every elite, stage 1's two included: it is
+    // the reason to stop for the fight, so it has to be there when the fight is.
+    ['prop', 'cage-sealed'],
     // The optional beat on the shoulder, ahead of the boss because it is the
     // one thing the player has to NOTICE.
     ...weaponPuzzleWants(stage),
@@ -279,6 +308,8 @@ export const earlyArtWants = (): ArtWant[] => {
     ['ui', 'warn-away'], ['ui', 'warn-into'], ['ui', 'warn-still'],
     // The thing at the end of the road, and everything it throws.
     ['monster', bossDesign(stage)],
+    // …and the cage it stands in front of, which is the reason for the fight.
+    ['prop', 'cage-warden'],
     ...threatWants(stage),
     // The banner the stage ends on.
     ['ui', 'ribbon'],

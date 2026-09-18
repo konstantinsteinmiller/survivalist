@@ -483,6 +483,32 @@ export const ICON_PATHS: Record<GameIconName, string[]> = {
   'gatling': [
     'M4.6 4.2h14.8v9.2H4.6V4.2Zm4.1 1.6H6.9v6h1.8v-6Zm6.6 0h-1.8v6h1.8v-6Z',
     'M3 14.6h18a1.4 1.4 0 0 1 1.4 1.4v1.6A1.4 1.4 0 0 1 21 19H3a1.4 1.4 0 0 1-1.4-1.4V16A1.4 1.4 0 0 1 3 14.6Z',
-    'M9.4 19.8h5.2v2.6H9.4v-2.6Z'
+    'M9.4 19.8h5.2v2.6H9.4v-2.6Z'  ],
+  // A short, fat barrel over a flared muzzle, with three pellets fanning out of
+  // it. The fan is the whole read: this is the gun whose rounds go WIDE.
+  'grapeshot': [
+    'M5.6 5.2h9.2a1.3 1.3 0 0 1 1.3 1.3v4a1.3 1.3 0 0 1-1.3 1.3H5.6a1.3 1.3 0 0 1-1.3-1.3v-4a1.3 1.3 0 0 1 1.3-1.3Z',
+    'M16.1 4.1 20.4 6a1.2 1.2 0 0 1 .7 1.1v2.8a1.2 1.2 0 0 1-.7 1.1l-4.3 1.9V4.1Z',
+    'M7 13.4l-2.4 5.2 2.3 1 2.4-5.2-2.3-1Zm4.9 0h2.5l.4 6.1h-2.5l-.4-6.1Zm5.1-.5 2.4 5.2-2.3 1.1-2.4-5.3 2.3-1Z'
+  ],
+  // A coil: two plates with a wound core between them and a bolt leaving the
+  // top one. Reads as "stored, then released" rather than as a plain battery.
+  'dynamo': [
+    'M4.8 3.4h14.4v2.4H4.8V3.4Zm0 14.4h14.4v2.4H4.8v-2.4Z',
+    'M8.4 6.6h7.2v1.5H8.4V6.6Zm0 3.1h7.2v1.5H8.4V9.7Zm0 3.1h7.2v1.5H8.4v-1.5Z',
+    'M13.3 0.4 9.1 5.9h2.6l-1.2 4.2 4.4-5.6h-2.7l1.1-4.1Z'
+  ],
+  // A skull rising out of a broken grave slab. The slab's crack is what says
+  // "it came back up" rather than "here is a skull".
+  'gravecall': [
+    'M12 3.2a4.6 4.6 0 0 1 4.6 4.6v2.6a1.5 1.5 0 0 1-1.5 1.5h-.9l-.5 1.6h-3.4l-.5-1.6h-.9a1.5 1.5 0 0 1-1.5-1.5V7.8A4.6 4.6 0 0 1 12 3.2Zm-1.8 4.3a1.1 1.1 0 0 0 0 2.2 1.1 1.1 0 0 0 0-2.2Zm3.6 0a1.1 1.1 0 0 0 0 2.2 1.1 1.1 0 0 0 0-2.2Z',
+    'M3.4 15.2h7.1l-1 2.3 1.5 3.1H3.4v-5.4Zm10.1 0h7.1v5.4h-5.6l1.5-3.1-1-2.3Z'
+  ],
+  // A coin stack with a crow's beak-and-eye over it: the hoard, and what is
+  // guarding it.
+  'hoard': [
+    'M12 12.6c3.9 0 7-1.1 7-2.4S15.9 7.8 12 7.8 5 8.9 5 10.2s3.1 2.4 7 2.4Z',
+    'M5 12.4c0 1.3 3.1 2.4 7 2.4s7-1.1 7-2.4v2.3c0 1.3-3.1 2.4-7 2.4s-7-1.1-7-2.4v-2.3Zm0 4.5c0 1.3 3.1 2.4 7 2.4s7-1.1 7-2.4v2.2c0 1.3-3.1 2.4-7 2.4s-7-1.1-7-2.4v-2.2Z',
+    'M9.6 2.4a3.4 3.4 0 0 1 3.3 2.6l3.9 1.2-3.8 1a3.4 3.4 0 1 1-3.4-4.8Zm-.5 1.7a1 1 0 0 0 0 2 1 1 0 0 0 0-2Z'
   ]
 }

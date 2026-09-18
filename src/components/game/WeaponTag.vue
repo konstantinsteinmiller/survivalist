@@ -84,7 +84,11 @@ const props = withDefaults(defineProps<Props>(), { power: 1, side: null, sidePow
 
 const WEAPON_ICONS: Record<WeaponId, GameIconName> = {
   rocket: 'rocket',
-  gatling: 'gatling'
+  gatling: 'gatling',
+  grapeshot: 'grapeshot',
+  dynamo: 'dynamo',
+  gravecall: 'gravecall',
+  hoard: 'hoard'
 }
 
 /**

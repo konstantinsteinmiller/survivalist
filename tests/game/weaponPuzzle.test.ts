@@ -33,7 +33,7 @@ import {
 } from '@/game/survival'
 import {
   LEVER_R, LEVER_STAGGER, LEVER_STONE_LEAD, LEVER_STONE_W, leverStoneHp,
-  LEVER_X, ROCKET_SPLASH_SHARE, WEAPONS, WEAPON_BOX_AHEAD,
+  LEVER_X, ROCKET_SPLASH_SHARE, WEAPONS, WEAPON_BOX_AHEAD, WEAPON_DEBUT,
   WEAPON_BOX_X, WEAPON_EVERY, WEAPON_FREE_LANE, WEAPON_GUARD_LEAD, WEAPON_STAGE,
   stageHasWeapon, stageHasWeaponBox, stageHasWeaponGift, weaponDpsMul, weaponForStage,
   weaponReactionS, WEAPON_GIFT_LANE_SHARE, WEAPON_GIFT_STAGE, WEAPON_REVEAL_S
@@ -168,18 +168,20 @@ describe('every other stage carries one', () => {
   })
 
   it('keeps the position and the weapon from predicting each other', () => {
-    // The trap in dealing four slots against two weapons: any four-long
-    // rotation locks the two together, and "the launcher is the one at the end
-    // of the road" becomes true for the whole campaign. Two dials with the same
-    // period are one dial. See `WEAPON_SLOT_ORDER`.
+    // The trap in dealing four slots against a weapon loop: pick a loop whose
+    // length shares a factor with the position order's eight and the two dials
+    // become one — each slot deals only part of the arsenal, and "the shotgun
+    // is the one at the end of the road" is true for the rest of the campaign.
+    // `WEAPON_ROTATION` is seven long against eight for exactly this reason.
     const seen = new Map<string, Set<string>>()
     for (const stage of puzzleStages(WEAPON_STAGE, 120)) {
       const id = weaponSlotIdFor(stage)
       if (!seen.has(id)) seen.set(id, new Set())
       seen.get(id)!.add(puzzleOf(stage)!.weapon)
     }
+    const all = Object.keys(WEAPONS).length
     for (const [id, weapons] of seen) {
-      expect(weapons.size, `slot ${id} only ever holds ${[...weapons]}`).toBe(2)
+      expect(weapons.size, `slot ${id} only ever holds ${[...weapons]}`).toBe(all)
     }
   })
 
@@ -210,17 +212,25 @@ describe('every other stage carries one', () => {
     }
   })
 
-  it('alternates the two weapons so neither half of the shop is dead money', () => {
+  it('deals every weapon, none of them before it debuts', () => {
     const stages = puzzleStages(WEAPON_STAGE, 40)
     for (const stage of stages) {
       expect(puzzleOf(stage)!.weapon).toBe(weaponForStage(stage))
     }
     // The trap the every-other-stage cadence walks into: alternate on
-    // `stage % 2` while only even stages carry a box and the gatling never
-    // appears in one for the whole campaign. The alternation has to run over
+    // `stage % 2` while only even stages carry a box, and half the arsenal
+    // never appears in one for the whole campaign. The rotation has to run over
     // the PUZZLE stages, not over the stages.
-    const kinds = stages.slice(0, 6).map((s) => puzzleOf(s)!.weapon)
-    expect(new Set(kinds).size).toBe(2)
+    const kinds = stages.map((s) => puzzleOf(s)!.weapon)
+    // A weapon is never dealt before the stage it is introduced on: meeting the
+    // shotgun on stage 4 would be meeting it instead of learning what a box is.
+    for (const [i, w] of kinds.entries()) {
+      expect(stages[i]!, `${w} dealt before its debut`).toBeGreaterThanOrEqual(WEAPON_DEBUT[w])
+    }
+    // …and every one of them IS dealt inside the first twenty puzzle stages, so
+    // no shop row is dead money.
+    expect(new Set(kinds).size).toBe(Object.keys(WEAPONS).length)
+    // Never the same weapon twice in a row: a box is a change of plan.
     for (let i = 1; i < kinds.length; i++) expect(kinds[i]).not.toBe(kinds[i - 1])
     // The gatling goes first: the prize that teaches "the box pays out" should
     // not also be teaching a new verb.
@@ -592,7 +602,7 @@ describe('what the two weapons are worth', () => {
     // and does not.
     expect(WEAPONS.rocket.rateMul).toBeLessThan(1)
     expect(WEAPONS.gatling.rateMul).toBeGreaterThan(2)
-    expect(WEAPONS.gatling.damageMul).toBe(2)
+    expect(WEAPONS.gatling.damageMul).toBe(1.6)
     expect(WEAPONS.rocket.splashR).toBeGreaterThan(0)
     expect(WEAPONS.gatling.splashR).toBe(0)
   })

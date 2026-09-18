@@ -4,7 +4,7 @@ A report, not a contract: it is a picture of `art-sheets/painted/` and the
 slicer's receipt at the moment it was written. Re-run `pnpm art:prompts`
 after painting or slicing anything.
 
-**11 sliced · 0 need a repaint · 62 painted, unreceipted · 1 outstanding**
+**18 sliced · 0 need a repaint · 62 painted, unreceipted · 1 outstanding**
 
 | | Sheet | Prompt block in | Reference | State |
 | --- | --- | --- | --- | --- |
@@ -38,6 +38,9 @@ after painting or slicing anything.
 | ? | **Weapon-case armour plate** | `PROMPTS-STILLS.md` | `still-prop-guard-plate.png` (rev `9a5daf7cf07d`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Lever housing** | `PROMPTS-STILLS.md` | `still-prop-lever-post.png` (rev `a71c4660874d`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Lever arm** | `PROMPTS-STILLS.md` | `still-prop-lever-arm.png` (rev `8f0b40538b60`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
+| ✓ | **Rescue cage (roadside)** | `PROMPTS-STILLS.md` | `still-prop-cage.png` (rev `11dc4a668bf5`) | sliced 2026-09-16 |
+| ✓ | **Rescue cage (sealed, beside a miniboss)** | `PROMPTS-STILLS.md` | `still-prop-cage-sealed.png` (rev `11dc4a668bf5`) | sliced 2026-09-16 |
+| ✓ | **Warden cage (behind the boss)** | `PROMPTS-STILLS.md` | `still-prop-cage-warden.png` (rev `11dc4a668bf5`) | sliced 2026-09-16 |
 | ? | **Gate frame — the door that pays** | `PROMPTS-STILLS.md` | `still-gate-frame-add.png` (rev `9d10b408d926`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Gate frame — the door that bills** | `PROMPTS-STILLS.md` | `still-gate-frame-sub.png` (rev `aad80c660812`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Gate frame — the multiplier** | `PROMPTS-STILLS.md` | `still-gate-frame-mul.png` (rev `8e0111a43ffe`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
@@ -49,6 +52,7 @@ after painting or slicing anything.
 | ? | **The boss's rock** | `PROMPTS-STILLS.md` | `still-round-meteor.png` (rev `9c52a1b279ff`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **The bomber's charge** | `PROMPTS-STILLS.md` | `still-round-bomb.png` (rev `9e46ae6fff9b`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **The player's grenade** | `PROMPTS-STILLS.md` | `still-round-grenade.png` (rev `602f7170a511`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
+| ✓ | **The shotgun's pellet** | `PROMPTS-STILLS.md` | `still-round-pellet.png` (rev `4ce926ac7052`) | sliced 2026-09-18 |
 | ? | **The launcher's rocket** | `PROMPTS-STILLS.md` | `still-round-rocket.png` (rev `3cd257c17d95`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Muzzle flash** | `PROMPTS-STILLS.md` | `still-fx-muzzle.png` (rev `cacc2b1e833b`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Smoke puff** | `PROMPTS-STILLS.md` | `still-fx-smoke.png` (rev `a2f499ecff8f`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
@@ -58,6 +62,9 @@ after painting or slicing anything.
 | ? | **Heal ring** | `PROMPTS-STILLS.md` | `still-fx-ring-heal.png` (rev `85051a224daa`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Shield dome** | `PROMPTS-STILLS.md` | `still-fx-shield.png` (rev `37b964f8f9bd`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Boss guard barrier** | `PROMPTS-STILLS.md` | `still-fx-guard.png` (rev `9b781ef9aec3`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
+| ✓ | **The Dynamo's bolt** | `PROMPTS-STILLS.md` | `still-fx-bolt.png` (rev `f59fb39c528e`) | sliced 2026-09-17 |
+| ✓ | **The thrall's wisp** | `PROMPTS-STILLS.md` | `still-fx-wisp.png` (rev `b86ce16f5334`) | sliced 2026-09-17 |
+| ✓ | **The gold burst** | `PROMPTS-STILLS.md` | `still-fx-gild.png` (rev `29e9762f6482`) | sliced 2026-09-17 |
 | ? | **Shield crest** | `PROMPTS-STILLS.md` | `still-fx-crest-shield.png` (rev `7feff3298ed0`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Guard crest** | `PROMPTS-STILLS.md` | `still-fx-crest-guard.png` (rev `eb91311ff9a5`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Far ridge** | `PROMPTS-STILLS.md` | `still-bg-ridge-far.png` (rev `2b8353641a23`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |

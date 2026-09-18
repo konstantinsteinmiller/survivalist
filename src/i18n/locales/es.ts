@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Lanzacohetes',
-    'gatling': 'Ametralladora Gatling'
+    'gatling': 'Ametralladora Gatling',
+    'grapeshot': 'Metralla',
+    'dynamo': 'Dinamo',
+    'gravecall': 'Ultratumba',
+    'hoard': 'Botín Cuervo',
+    'bolt': 'Rayo'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': '¡Nivel superado!',
+    'clearedStage': '¡Nivel {n} superado!',
     'wipedOut': 'Escuadrón aniquilado',
     'reachedStage': 'Nivel {n}',
     'newRecord': '¡Nuevo récord!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Reintentar',
     'upgrade': 'Mejorar',
     'upgradeHint': '¡Mejora tu escuadrón!',
-    'rankOf': 'de {n}',
-    'upNext': 'A continuación: Nivel {n}'
+    'rankOf': 'de {n}'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'Granada',
       'shield': 'Escudo',
       'rocket': 'Potencia de cohetes',
-      'gatling': 'Potencia Gatling'
+      'gatling': 'Potencia Gatling',
+      'grapeshot': 'Potencia de metralla',
+      'dynamo': 'Potencia Dinamo',
+      'gravecall': 'Potencia Ultratumba',
+      'hoard': 'Potencia del botín'
     },
     'descriptions': {
       'squad': 'Empieza cada nivel con más supervivientes.',
@@ -234,7 +243,11 @@ export default {
       'grenade': 'Lanza una granada para un estallido de daño.',
       'shield': 'Reduce a la mitad el daño a tu escuadrón unos segundos.',
       'rocket': 'Los lanzacohetes que desbloquees en un nivel hacen más daño.',
-      'gatling': 'Las Gatling que desbloquees en un nivel hacen más daño.'
+      'gatling': 'Las Gatling que desbloquees en un nivel hacen más daño.',
+      'grapeshot': 'Las escopetas que desbloquees en un nivel hacen más daño.',
+      'dynamo': 'Los rayos del Dinamo que desbloquees en un nivel pegan más fuerte.',
+      'gravecall': 'Los muertos que levantas luchan mejor y duran más.',
+      'hoard': 'Los enemigos convertidos en oro valen más monedas.'
     }
   },
 

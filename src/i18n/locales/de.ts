@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Raketenwerfer',
-    'gatling': 'Gatling'
+    'gatling': 'Gatling',
+    'grapeshot': 'Kartätsche',
+    'dynamo': 'Dynamo',
+    'gravecall': 'Grabruf',
+    'hoard': 'Krähenhort',
+    'bolt': 'Blitzschlag'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'Level geschafft!',
+    'clearedStage': 'Level {n} geschafft!',
     'wipedOut': 'Trupp ausgelöscht',
     'reachedStage': 'Level {n}',
     'newRecord': 'Neuer Rekord!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Nochmal',
     'upgrade': 'Upgrade',
     'upgradeHint': 'Rüste deine Truppe auf!',
-    'rankOf': 'von {n}',
-    'upNext': 'Als Nächstes: Level {n}'
+    'rankOf': 'von {n}'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'Granate',
       'shield': 'Schild',
       'rocket': 'Raketenkraft',
-      'gatling': 'Gatling-Kraft'
+      'gatling': 'Gatling-Kraft',
+      'grapeshot': 'Kartätschenkraft',
+      'dynamo': 'Dynamo-Kraft',
+      'gravecall': 'Grabruf-Kraft',
+      'hoard': 'Hort-Kraft'
     },
     'descriptions': {
       'squad': 'Starte jedes Level mit mehr Überlebenden.',
@@ -234,7 +243,11 @@ export default {
       'grenade': 'Wirf eine Granate für einen schweren Schadensstoß.',
       'shield': 'Halbiere für einige Sekunden den Schaden an deiner Truppe.',
       'rocket': 'Raketenwerfer, die du im Level freischaltest, machen mehr Schaden.',
-      'gatling': 'Gatlings, die du im Level freischaltest, machen mehr Schaden.'
+      'gatling': 'Gatlings, die du im Level freischaltest, machen mehr Schaden.',
+      'grapeshot': 'Schrotflinten, die du im Level freischaltest, machen mehr Schaden.',
+      'dynamo': 'Dynamo-Blitze, die du im Level freischaltest, schlagen härter.',
+      'gravecall': 'Deine erweckten Toten kämpfen stärker und halten länger.',
+      'hoard': 'In Gold verwandelte Gegner bringen mehr Münzen.'
     }
   },
 

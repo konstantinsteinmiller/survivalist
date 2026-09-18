@@ -374,6 +374,19 @@ export type FxEvent =
    *  renderer's one chance to say "that was the answer". */
   | { kind: 'gazeEnd'; x: number; y: number; kept: boolean }
   | { kind: 'grenadeThrow'; x: number; y: number }
+  // ─── The four later weapons ───────────────────────────────────────────────
+  //
+  // Gravecall raises a body, that body swings, and eventually it falls again;
+  // the Hoard gilds a corpse and the gold bursts; the Dynamo's meter fills and
+  // the player spends it on a bolt. Each one is a moment the mixer and the
+  // renderer both need, and none of them is any other event wearing a flag.
+  | { kind: 'thrallRise'; x: number; y: number }
+  | { kind: 'thrallHit'; x: number; y: number }
+  | { kind: 'thrallFall'; x: number; y: number }
+  | { kind: 'gild'; x: number; y: number }
+  | { kind: 'gildBurst'; x: number; y: number }
+  /** `reach` is how far up the road the column goes, `ttl` how long it is drawn. */
+  | { kind: 'dynamoBolt'; x: number; y: number; reach: number; ttl: number }
   /** The player's grenade went off. */
   | { kind: 'grenade'; x: number; y: number }
   /** The shield came up over the crowd. */

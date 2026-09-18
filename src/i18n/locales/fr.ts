@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Lance-roquettes',
-    'gatling': 'Gatling'
+    'gatling': 'Gatling',
+    'grapeshot': 'Mitraille',
+    'dynamo': 'Dynamo',
+    'gravecall': 'Outre-tombe',
+    'hoard': 'Trésor Corbeau',
+    'bolt': 'Éclair'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'Niveau terminé !',
+    'clearedStage': 'Niveau {n} terminé !',
     'wipedOut': 'Escouade anéantie',
     'reachedStage': 'Niveau {n}',
     'newRecord': 'Nouveau record !',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Réessayer',
     'upgrade': 'Améliorer',
     'upgradeHint': 'Améliore ton escouade !',
-    'rankOf': 'sur {n}',
-    'upNext': 'Ensuite : Niveau {n}'
+    'rankOf': 'sur {n}'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'Grenade',
       'shield': 'Bouclier',
       'rocket': 'Puissance roquette',
-      'gatling': 'Puissance Gatling'
+      'gatling': 'Puissance Gatling',
+      'grapeshot': 'Puissance mitraille',
+      'dynamo': 'Puissance Dynamo',
+      'gravecall': 'Puissance outre-tombe',
+      'hoard': 'Puissance trésor'
     },
     'descriptions': {
       'squad': 'Commence chaque niveau avec plus de survivants.',
@@ -234,7 +243,11 @@ export default {
       'grenade': 'Lance une grenade pour infliger de gros dégâts.',
       'shield': 'Réduit de moitié les dégâts subis pendant quelques secondes.',
       'rocket': 'Les lance-roquettes trouvés dans un niveau font plus de dégâts.',
-      'gatling': 'Les Gatling trouvées dans un niveau font plus de dégâts.'
+      'gatling': 'Les Gatling trouvées dans un niveau font plus de dégâts.',
+      'grapeshot': 'Les fusils à pompe trouvés dans un niveau font plus de dégâts.',
+      'dynamo': 'Les éclairs du Dynamo trouvés dans un niveau frappent plus fort.',
+      'gravecall': 'Les morts que tu relèves frappent plus fort et durent plus longtemps.',
+      'hoard': 'Les ennemis changés en or rapportent plus de pièces.'
     }
   },
 

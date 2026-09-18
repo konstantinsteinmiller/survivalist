@@ -83,7 +83,14 @@ const { playSound } = useSounds()
 /** The two perk glyphs per card. Order matches `weaponPick.<w>.a` / `.b`. */
 const PERK_ICONS: Record<WeaponId, [GameIconName, GameIconName]> = {
   rocket: ['star', 'flame'],
-  gatling: ['rate', 'bolt']
+  gatling: ['rate', 'bolt'],
+  // The four later weapons are never dealt by the stage-3 card reveal
+  // (`WEAPON_PICK_CHOICES`), but the map is total so a future pick — or a card
+  // shown for a weapon found on the road — cannot land here without a drawing.
+  grapeshot: ['flame', 'squad'],
+  dynamo: ['bolt', 'star'],
+  gravecall: ['squad', 'shield'],
+  hoard: ['coin', 'star']
 }
 
 /** How long the chosen card gets to flare before the scene takes over, ms. */

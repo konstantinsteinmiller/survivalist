@@ -61,7 +61,15 @@ const runState = (game: Game) => ({
   grenade: +grenadeMult.value.toFixed(4),
   shield: +shieldSeconds.value.toFixed(4),
   rocket: +weaponPowerMul('rocket').toFixed(4),
-  gatling: +weaponPowerMul('gatling').toFixed(4)
+  gatling: +weaponPowerMul('gatling').toFixed(4),
+  // The four later weapons' tracks. Two of them buy damage and two buy what
+  // their weapon actually does — the dead it raises, the gold it makes — but
+  // all four are read through the same multiplier, which is the number a
+  // purchase has to move. See `WeaponDef.powerScales`.
+  grapeshot: +weaponPowerMul('grapeshot').toFixed(4),
+  dynamo: +weaponPowerMul('dynamo').toFixed(4),
+  gravecall: +weaponPowerMul('gravecall').toFixed(4),
+  hoard: +weaponPowerMul('hoard').toFixed(4)
 })
 
 /** Which run-facing number each track is supposed to move. */
@@ -74,7 +82,11 @@ const OWNS: Record<UpgradeId, keyof ReturnType<typeof runState>> = {
   grenade: 'grenade',
   shield: 'shield',
   rocket: 'rocket',
-  gatling: 'gatling'
+  gatling: 'gatling',
+  grapeshot: 'grapeshot',
+  dynamo: 'dynamo',
+  gravecall: 'gravecall',
+  hoard: 'hoard'
 }
 
 describe('a purchase between stages reaches the next one', () => {

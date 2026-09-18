@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Lança-foguetes',
-    'gatling': 'Metralhadora Gatling'
+    'gatling': 'Metralhadora Gatling',
+    'grapeshot': 'Metralha',
+    'dynamo': 'Dínamo',
+    'gravecall': 'Além-túmulo',
+    'hoard': 'Tesouro Corvo',
+    'bolt': 'Raio'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'Fase concluída!',
+    'clearedStage': 'Fase {n} concluída!',
     'wipedOut': 'Esquadrão dizimado',
     'reachedStage': 'Fase {n}',
     'newRecord': 'Novo recorde!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Tentar de novo',
     'upgrade': 'Melhorar',
     'upgradeHint': 'Melhore seu esquadrão!',
-    'rankOf': 'de {n}',
-    'upNext': 'A seguir: Nível {n}'
+    'rankOf': 'de {n}'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'Granada',
       'shield': 'Escudo',
       'rocket': 'Poder do foguete',
-      'gatling': 'Poder da Gatling'
+      'gatling': 'Poder da Gatling',
+      'grapeshot': 'Poder da metralha',
+      'dynamo': 'Poder do Dínamo',
+      'gravecall': 'Poder do além-túmulo',
+      'hoard': 'Poder do tesouro'
     },
     'descriptions': {
       'squad': 'Comece cada fase com mais sobreviventes.',
@@ -234,7 +243,11 @@ export default {
       'grenade': 'Lance uma granada para causar dano pesado.',
       'shield': 'Reduza pela metade o dano ao esquadrão por alguns segundos.',
       'rocket': 'Lança-foguetes que você libera na fase causam mais dano.',
-      'gatling': 'Gatlings que você libera na fase causam mais dano.'
+      'gatling': 'Gatlings que você libera na fase causam mais dano.',
+      'grapeshot': 'Espingardas que você libera na fase causam mais dano.',
+      'dynamo': 'Raios do Dínamo que você libera na fase batem mais forte.',
+      'gravecall': 'Os mortos que você ergue lutam melhor e duram mais.',
+      'hoard': 'Inimigos transformados em ouro valem mais moedas.'
     }
   },
 

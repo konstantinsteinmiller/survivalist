@@ -11,7 +11,8 @@ import {
 } from '@/game/survival'
 import { BOLT_R, ROLLER_R, ROLLER_SPEED, ROLLER_WARN_AHEAD, flankXs } from '@/game/threats'
 import {
-  GUARD_H, LEVER_R, STONE_H, WEAPON_BOX_R, WEAPON_REVEAL_S, type WeaponId
+  DYNAMO_BOLT_HALF_W, GILD_BURST_R,
+  GUARD_H, LEVER_R, STONE_H, THRALL_RISE_S, WEAPON_BOX_R, WEAPON_REVEAL_S, type WeaponId
 } from '@/game/weapons'
 import {
   anchor, crowdRadius, damage, eliteAlive, formationRadius, getBarricades, getBolts, getBoss,
@@ -19,12 +20,13 @@ import {
   bossGazeLeft01, bossGazeOpening, bossGazeWatching,
   shieldActive as isShieldUp, shieldLeftMs as shieldLeft,
   getBarrels, getBullets, getBulwarks, getCages, getCrates, getDividers, getFoes, getGates,
+  getStatues, getThralls,
   getGrenades, getPickups,
   bulwarkReady,
   getBossBolts,
   getRocks,
   getUnits,
-  activeWeapon, getGuards, getLevers, getStones, getWeaponBoxes,
+  activeWeapon, sideWeapon, getGuards, getLevers, getStones, getWeaponBoxes,
   nowMs, phase, runFireRate, squadCount, stage,
   bossFallDir, getBossCorpse, progress01, roadScrollY, takeDepartedSurvivors,
   frostActive, frostFrozenAt
@@ -49,7 +51,7 @@ import { deathArtDue, deathArtWant } from '@/game/artPreload'
 // readouts" flag — see `game/previewFeed.ts`. The numbers painted ON the world
 // (a gate's value, a crate's HP) deliberately stay; only the readouts go.
 import { HIDE_READOUTS } from '@/game/previewFeed'
-import { GATE_FRAME, ROCKET_BOX } from '@/game/artBoxes'
+import { CAGE_BOX, GATE_FRAME, ROCKET_BOX } from '@/game/artBoxes'
 import { spriteFor, onArtChanged, type ArtKind } from '@/game/art'
 import { stripFrames } from '@/game/spriteStrip'
 import { bossDesign, stageDesigns } from '@/game/foes'
@@ -3130,6 +3132,8 @@ export const drawScene = (
   // Scorch marks are pure history: they say what already happened, and nothing
   // the player has to react to is ever carried by one.
   if (!minFx) drawDecals(ctx)
+  drawDynamoBolts(ctx, dtMs / 1000)
+  drawGildBursts(ctx, dtMs / 1000)
   // The flare's pool of red light, on the road under everything that stands on
   // it — the bodies it lures are drawn lit from below, not behind a glow.
   drawSkillGround(ctx)
@@ -3165,6 +3169,10 @@ export const drawScene = (
   drawDismissals(ctx)
   drawDividers(ctx)
   drawFoes(ctx)
+  // After the pack: a thrall wading into one belongs in front of it, and a
+  // statue is a thing the player is meant to see standing among the bodies.
+  drawThralls(ctx)
+  drawStatues(ctx)
   drawBossBody(ctx)
   // The eye goes straight on top of the body it belongs to. See `drawBossGaze`.
   drawBossGaze(ctx)
@@ -3568,6 +3576,64 @@ const clipToRoad = (
   ctx.beginPath()
   ctx.rect(l, top, r - l, height)
   ctx.clip()
+}
+
+/**
+ * ─── The Dynamo's bolt ──────────────────────────────────────────────────────
+ *
+ * One entry per throw, alive for its own `ttl`. The sim already resolved the
+ * damage on the frame it was thrown (`fireDynamoBolt`); this is the picture, so
+ * it carries no state the simulation reads and expiring it early would cost
+ * nothing but the look.
+ */
+interface BoltFlash { x: number; y: number; reach: number; t: number; ttl: number }
+let dynamoBolts: BoltFlash[] = []
+
+/** Gold bursts waiting to be drawn — one per statue that popped. */
+const gildBursts: Array<{ x: number; y: number; t: number }> = []
+
+/** …and their pass. Short-lived, additive, and blitted through the painter the
+ *  art pipeline replaces. */
+const drawGildBursts = (ctx: CanvasRenderingContext2D, dt: number): void => {
+  if (gildBursts.length === 0) return
+  for (let i = gildBursts.length - 1; i >= 0; i--) {
+    const g = gildBursts[i]!
+    g.t += dt
+    if (g.t >= GILD_BURST_DRAW_S) { gildBursts.splice(i, 1); continue }
+    const k = g.t / GILD_BURST_DRAW_S
+    ctx.save()
+    ctx.globalAlpha = 1 - k
+    ctx.translate(worldToScreenX(g.x), worldToScreenY(g.y))
+    paintGildBurst(ctx, GILD_BURST_R * scale * (0.5 + k * 0.8))
+    ctx.restore()
+  }
+}
+
+/** Seconds a gold burst is drawn for. Shorter than the coins' own flight: it is
+ *  the flash the gold leaves, not the gold. */
+const GILD_BURST_DRAW_S = 0.32
+
+/** A thin white column up the road, with a soft core and a jagged spine. */
+const drawDynamoBolts = (ctx: CanvasRenderingContext2D, dt: number): void => {
+  if (dynamoBolts.length === 0) return
+  for (let i = dynamoBolts.length - 1; i >= 0; i--) {
+    const b = dynamoBolts[i]!
+    b.t += dt
+    if (b.t >= b.ttl) { dynamoBolts.splice(i, 1); continue }
+    const k = 1 - b.t / b.ttl
+    const sx = worldToScreenX(b.x)
+    const y0 = worldToScreenY(b.y)
+    const y1 = worldToScreenY(b.y + b.reach)
+    const w = Math.max(2, DYNAMO_BOLT_HALF_W * 2 * scale) * (0.6 + k * 0.4)
+
+    ctx.save()
+    ctx.globalAlpha = k
+    // One tile of column, stretched from the crowd to the end of the gun's
+    // reach — see `BOLT_BOX`. Painted or drawn, it is the same blit.
+    ctx.translate(sx, y0)
+    paintBoltTile(ctx, w * 2.4, y1 - y0)
+    ctx.restore()
+  }
 }
 
 const drawDecals = (ctx: CanvasRenderingContext2D): void => {
@@ -5839,8 +5905,142 @@ const drawCrates = (ctx: CanvasRenderingContext2D): void => {
 
 /** How much taller than wide a cage is drawn. The footprint stays `CAGE_R`
  *  square — this is the drawn body only, exactly as a barricade stands taller
- *  than the strip of road it occupies. */
-const CAGE_DRAW_TALL = 1.5
+ *  than the strip of road it occupies. It is the top of the painting's box,
+ *  so the number lives with that box in `game/artBoxes.ts`. */
+const CAGE_DRAW_TALL = CAGE_BOX.top
+
+export { CAGE_BOX }
+
+/**
+ * ─── The three cages, drawn alike and painted apart ─────────────────────────
+ *
+ * The roadside cage, the miniboss's sealed cabinet and the warden cage behind
+ * every boss are one drawing at three sizes, because the drawing's job is the
+ * silhouette and all three share it. The paintings are three, because the
+ * objects are not the same object: one is a rickety box a crowd can shoot
+ * open, one is a strongroom that only a kill unlocks, and one is the prison
+ * the whole run is walking toward. See `Cage.sealed` and `Cage.warden`.
+ */
+export type CageKind = 'road' | 'sealed' | 'warden'
+
+/** The painting each kind of cage asks for. */
+export const CAGE_ART_ID: Readonly<Record<CageKind, string>> = {
+  road: 'cage',
+  sealed: 'cage-sealed',
+  warden: 'cage-warden'
+}
+
+/**
+ * How far a painted cage LEANS at zero health, as a shear per unit of height.
+ *
+ * The drawing's wear channel is its bars bending at the middle, and a painting
+ * cannot bend its own bars. It can buckle as a whole, though: the lid drifts
+ * off true over the bottom rail as the cage takes fire, about a fifth of a
+ * half-width by the time it breaks, which reads as a box coming apart rather
+ * than as a box sliding along the road — the judder already says "struck".
+ */
+const CAGE_ART_LEAN = 0.09
+
+/**
+ * A cage's BODY — the lit well, the people inside, the bars, the frame and the
+ * lid — about the cage's own origin on the road, `r` its half-width.
+ *
+ * The lamp's halo, the judder, and the two numbers are the caller's and stay
+ * live over a painting: the halo because it flickers, the judder because it is
+ * the shot-feedback channel, the numbers because they change. A painting is
+ * blitted into `CAGE_BOX`, square, standing on the bottom rail.
+ */
+export const paintCageBody = (
+  ctx: CanvasRenderingContext2D, r: number, kind: CageKind, hurt: number, o?: PaintOpts
+): void => {
+  const top = -r * CAGE_DRAW_TALL
+  const bot = r * CAGE_BOX.bottom
+
+  const painted = art('prop', CAGE_ART_ID[kind], o)
+  if (painted) {
+    const side = r * CAGE_BOX.side
+    if (hurt > 0) {
+      ctx.save()
+      // Sheared about the bottom rail, so the cage stays standing where it
+      // stands and only its top gives.
+      ctx.translate(0, bot)
+      ctx.transform(1, 0, -hurt * CAGE_ART_LEAN, 1, 0, 0)
+      ctx.drawImage(painted, -side / 2, top - bot, side, side)
+      ctx.restore()
+    } else {
+      ctx.drawImage(painted, -side / 2, top, side, side)
+    }
+    return
+  }
+
+  // The interior: a warm well, so the bars in front of it read as bars.
+  const wellKey = `cageWell|${r}|${r * CAGE_DRAW_TALL}`
+  let well = getRamp(wellKey)
+  if (!well) {
+    well = putRamp(wellKey, ctx.createLinearGradient(0, bot, 0, top))
+    well.addColorStop(0, '#7a4418')
+    well.addColorStop(0.55, '#c87d2e')
+    well.addColorStop(1, '#3a2410')
+  }
+  ctx.fillStyle = well
+  roundRect(ctx, -r * 0.92, top + r * 0.16, r * 1.84, bot - top - r * 0.16, r * 0.16)
+  ctx.fill()
+
+  // The body inside. Two shapes and no more: a huddled mass and a head. It is
+  // 12 px tall on a phone, so anything else is mud — and this is the whole
+  // reason the prop is worth taking, so it may not be decoration.
+  ctx.fillStyle = 'rgba(28,16,8,0.92)'
+  ctx.beginPath()
+  ctx.ellipse(0, bot - r * 0.36, r * 0.48, r * 0.4, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(0, bot - r * 0.86, r * 0.27, 0, Math.PI * 2)
+  ctx.fill()
+
+  // ── The frame and the bars ──
+  //
+  // Drawn as strokes over the well rather than as a filled box with holes cut
+  // in it: a stroked bar keeps its width at every zoom, and at the far end of
+  // the road a filled slat would vanish while the gaps stayed.
+  const iron = '#8b93a6'
+  const ironDark = '#454c5e'
+  ctx.lineCap = 'butt'
+  ctx.strokeStyle = iron
+  ctx.lineWidth = Math.max(1.4, r * 0.15)
+  ctx.beginPath()
+  for (let i = 0; i < 4; i++) {
+    const bx = -r * 0.66 + (r * 1.32 * i) / 3
+    // The bars BEND as the cage comes apart — the wear channel, and it is the
+    // one a crate cannot have. A crate cracks along its face; a cage gives at
+    // the middle of its slats, which is exactly where a crowd's fire lands.
+    const bend = hurt * r * 0.22 * (i % 2 === 0 ? 1 : -1)
+    ctx.moveTo(bx, top + r * 0.2)
+    ctx.quadraticCurveTo(bx + bend, (top + bot) / 2, bx, bot - r * 0.06)
+  }
+  ctx.stroke()
+
+  // Top rail, bottom rail, and the two posts — the cage's outline proper.
+  ctx.strokeStyle = ironDark
+  ctx.lineWidth = Math.max(2, r * 0.2)
+  roundRect(ctx, -r * 0.92, top + r * 0.16, r * 1.84, bot - top - r * 0.16, r * 0.16)
+  ctx.stroke()
+  ctx.strokeStyle = iron
+  ctx.lineWidth = Math.max(1.4, r * 0.12)
+  ctx.beginPath()
+  ctx.moveTo(-r * 0.92, top + r * 0.62)
+  ctx.lineTo(r * 0.92, top + r * 0.62)
+  ctx.stroke()
+
+  // The lid: a plain iron cap, so the top of the silhouette is a hard shelf
+  // and not a rounded box lid. It is the fastest half of the shape to read at
+  // distance because it is the first part to come over the top of the screen.
+  ctx.fillStyle = ironDark
+  roundRect(ctx, -r, top, r * 2, r * 0.34, r * 0.1)
+  ctx.fill()
+  ctx.fillStyle = iron
+  roundRect(ctx, -r * 0.92, top + r * 0.03, r * 1.84, r * 0.13, r * 0.05)
+  ctx.fill()
+}
 
 /** Breathing room, in CSS px, between a clamped cage label and the screen edge.
  *  Small on purpose: the label is meant to look like it is hanging off the side
@@ -5894,75 +6094,9 @@ const drawCages = (ctx: CanvasRenderingContext2D): void => {
     ctx.translate(sx + (c.flash > 0 ? Math.sin(t / 24) * c.flash * r * 0.14 : 0), sy)
 
     const top = -hh
-    const bot = r * 0.72
+    const bot = r * CAGE_BOX.bottom
 
-    // The interior: a warm well, so the bars in front of it read as bars.
-    const wellKey = `cageWell|${r}|${hh}`
-    let well = getRamp(wellKey)
-    if (!well) {
-      well = putRamp(wellKey, ctx.createLinearGradient(0, bot, 0, top))
-      well.addColorStop(0, '#7a4418')
-      well.addColorStop(0.55, '#c87d2e')
-      well.addColorStop(1, '#3a2410')
-    }
-    ctx.fillStyle = well
-    roundRect(ctx, -r * 0.92, top + r * 0.16, r * 1.84, bot - top - r * 0.16, r * 0.16)
-    ctx.fill()
-
-    // The body inside. Two shapes and no more: a huddled mass and a head. It is
-    // 12 px tall on a phone, so anything else is mud — and this is the whole
-    // reason the prop is worth taking, so it may not be decoration.
-    ctx.fillStyle = 'rgba(28,16,8,0.92)'
-    ctx.beginPath()
-    ctx.ellipse(0, bot - r * 0.36, r * 0.48, r * 0.4, 0, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.beginPath()
-    ctx.arc(0, bot - r * 0.86, r * 0.27, 0, Math.PI * 2)
-    ctx.fill()
-
-    // ── The frame and the bars ──
-    //
-    // Drawn as strokes over the well rather than as a filled box with holes cut
-    // in it: a stroked bar keeps its width at every zoom, and at the far end of
-    // the road a filled slat would vanish while the gaps stayed.
-    const iron = '#8b93a6'
-    const ironDark = '#454c5e'
-    ctx.lineCap = 'butt'
-    ctx.strokeStyle = iron
-    ctx.lineWidth = Math.max(1.4, r * 0.15)
-    ctx.beginPath()
-    for (let i = 0; i < 4; i++) {
-      const bx = -r * 0.66 + (r * 1.32 * i) / 3
-      // The bars BEND as the cage comes apart — the wear channel, and it is the
-      // one a crate cannot have. A crate cracks along its face; a cage gives at
-      // the middle of its slats, which is exactly where a crowd's fire lands.
-      const bend = hurt * r * 0.22 * (i % 2 === 0 ? 1 : -1)
-      ctx.moveTo(bx, top + r * 0.2)
-      ctx.quadraticCurveTo(bx + bend, (top + bot) / 2, bx, bot - r * 0.06)
-    }
-    ctx.stroke()
-
-    // Top rail, bottom rail, and the two posts — the cage's outline proper.
-    ctx.strokeStyle = ironDark
-    ctx.lineWidth = Math.max(2, r * 0.2)
-    roundRect(ctx, -r * 0.92, top + r * 0.16, r * 1.84, bot - top - r * 0.16, r * 0.16)
-    ctx.stroke()
-    ctx.strokeStyle = iron
-    ctx.lineWidth = Math.max(1.4, r * 0.12)
-    ctx.beginPath()
-    ctx.moveTo(-r * 0.92, top + r * 0.62)
-    ctx.lineTo(r * 0.92, top + r * 0.62)
-    ctx.stroke()
-
-    // The lid: a plain iron cap, so the top of the silhouette is a hard shelf
-    // and not a rounded box lid. It is the fastest half of the shape to read at
-    // distance because it is the first part to come over the top of the screen.
-    ctx.fillStyle = ironDark
-    roundRect(ctx, -r, top, r * 2, r * 0.34, r * 0.1)
-    ctx.fill()
-    ctx.fillStyle = iron
-    roundRect(ctx, -r * 0.92, top + r * 0.03, r * 1.84, r * 0.13, r * 0.05)
-    ctx.fill()
+    paintCageBody(ctx, r, c.warden ? 'warden' : c.sealed ? 'sealed' : 'road', hurt)
 
     // ── The two numbers ──
     //
@@ -7294,6 +7428,289 @@ const drawEliteTelegraphs = (ctx: CanvasRenderingContext2D, overCrowd = false): 
     ctx.moveTo(edge, yNear)
     ctx.lineTo(edge, yFar)
     ctx.stroke()
+    ctx.restore()
+  }
+}
+
+/**
+ * ─── Gravecall's thralls, and the Hoard's gold ──────────────────────────────
+ *
+ * Both are drawn from the monster strips the road already baked — a thrall IS
+ * the creep that just died and a statue IS the body that just fell, so neither
+ * costs a sprite. What tells them apart from the pack is the treatment:
+ *
+ *   A THRALL is washed cold and pale and carries a wisp over its head. It is on
+ *   the player's side, and the one thing the picture must never do is leave the
+ *   player wondering whether the thing in front of them is going to bite.
+ *   A STATUE is the same body in flat gold, standing still, with no health bar
+ *   and no animation at all — a thing that has stopped rather than a thing that
+ *   is waiting.
+ *
+ * Drawn after the foes so a thrall wading into a pack is in front of it, which
+ * is where the player's eye needs it.
+ */
+/**
+ * ─── The four later weapons' own marks ──────────────────────────────────────
+ *
+ * Each of these is the one thing on screen that says which weapon the crowd is
+ * carrying, and each is a drop-in the art pipeline can replace: the painter is
+ * both the reference the sheet is exported from and the fallback the game draws
+ * when no painting has arrived. See `artSheet.ts`.
+ */
+
+/** GRAPESHOT — one pellet, filling a `2r` box centred on the round. */
+export const paintPellet = (
+  ctx: CanvasRenderingContext2D, r: number, o?: PaintOpts
+): void => {
+  const painted = art('round', 'pellet', o)
+  if (painted) {
+    ctx.drawImage(painted, -r, -r, r * 2, r * 2)
+    return
+  }
+  // A stubby slug rather than a streak: the shotgun's round is SHORT, which is
+  // what makes a fan of them read as a fan rather than as a wall of tracers.
+  const body = getRamp(`pellet|${r}`)
+    ?? putRamp(`pellet|${r}`, (() => {
+      const g = ctx.createLinearGradient(0, -r, 0, r)
+      g.addColorStop(0, 'rgba(255,246,214,0.95)')
+      g.addColorStop(0.55, 'rgba(255,186,96,0.85)')
+      g.addColorStop(1, 'rgba(160,80,20,0)')
+      return g
+    })())
+  ctx.fillStyle = body
+  ctx.beginPath()
+  ctx.ellipse(0, 0, r * 0.42, r, 0, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+/** DYNAMO — one tile of the bolt's column, `w` x `h`, drawn from its top. */
+export const paintBoltTile = (
+  ctx: CanvasRenderingContext2D, w: number, h: number, o?: PaintOpts
+): void => {
+  const painted = art('fx', 'bolt', o)
+  if (painted) {
+    ctx.drawImage(painted, -w / 2, 0, w, h)
+    return
+  }
+  // The drawn bolt: a soft column with a jagged spine down it. Two strokes, so
+  // a full-length column costs the same as a short one — the game is
+  // fill-bound and this thing is as tall as the screen.
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.strokeStyle = 'rgba(150,210,255,0.5)'
+  ctx.lineWidth = w
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.lineTo(0, h)
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(245,252,255,0.95)'
+  ctx.lineWidth = w * 0.42
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  const steps = 7
+  for (let s = 1; s <= steps; s++) {
+    const p = s / steps
+    ctx.lineTo(s === steps ? 0 : Math.sin(s * 2.1) * w * 0.55, h * p)
+  }
+  ctx.stroke()
+  ctx.restore()
+}
+
+/** GRAVECALL — the cold light over a thrall's head, in a `2r` box. */
+export const paintWisp = (
+  ctx: CanvasRenderingContext2D, r: number, o?: PaintOpts
+): void => {
+  const painted = art('fx', 'wisp', o)
+  if (painted) {
+    ctx.drawImage(painted, -r, -r, r * 2, r * 2)
+    return
+  }
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.fillStyle = 'rgba(150,226,255,0.85)'
+  ctx.beginPath()
+  ctx.ellipse(0, 0, r * 0.5, r * 0.68, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.globalAlpha = 0.35
+  ctx.beginPath()
+  ctx.ellipse(0, 0, r, r, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+}
+
+/** CROW'S HOARD — the burst a gilded corpse ends in, in a `2r` box. */
+export const paintGildBurst = (
+  ctx: CanvasRenderingContext2D, r: number, o?: PaintOpts
+): void => {
+  const painted = art('fx', 'gild', o)
+  if (painted) {
+    ctx.drawImage(painted, -r, -r, r * 2, r * 2)
+    return
+  }
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.strokeStyle = 'rgba(255,214,120,0.9)'
+  ctx.lineWidth = Math.max(1.5, r * 0.12)
+  ctx.beginPath()
+  ctx.arc(0, 0, r * 0.7, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.fillStyle = 'rgba(255,236,170,0.75)'
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2
+    ctx.beginPath()
+    ctx.ellipse(Math.cos(a) * r * 0.82, Math.sin(a) * r * 0.82, r * 0.12, r * 0.12, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+const drawThralls = (ctx: CanvasRenderingContext2D): void => {
+  const t = nowMs()
+  for (const th of getThralls()) {
+    if (th.dead) continue
+    const sy = worldToScreenY(th.y)
+    const sx = worldToScreenX(th.x)
+    if (sy < -100 || sy > viewH + 100) continue
+    const size = th.scale * scale * 1.25
+    // Rising: the body comes up out of the road, so it is drawn climbing out of
+    // its own shadow rather than appearing whole.
+    const up = th.rising > 0 ? 1 - th.rising / THRALL_RISE_S : 1
+
+    ctx.save()
+    ctx.translate(sx, sy)
+    ctx.fillStyle = 'rgba(0,0,0,0.32)'
+    ctx.beginPath()
+    ctx.ellipse(0, size * 0.06, size * 0.3, size * 0.09, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    const frame = monsterFrame(th.design, (t / 520 + th.id * 0.13) % 1)
+    ctx.save()
+    // Clipped to the ground line while it climbs: the half that is still under
+    // the road is not drawn, which is what makes it a body coming UP.
+    if (up < 1) {
+      ctx.beginPath()
+      ctx.rect(-size, -size * 2 * up, size * 2, size * 2 * up + size * 0.1)
+      ctx.clip()
+    }
+    if (frame) {
+      const k = (size * 1.5) / (frame.height * SPRITE_HEIGHT_R)
+      const dw = frame.width * k
+      const dh = frame.height * k
+      const top = -frame.height * SPRITE_FOOT_R * k
+      const mirror = monsterFaces(th.design) === 'left' ? -1 : 1
+      ctx.save()
+      ctx.scale(mirror, 1)
+      ctx.globalAlpha = 0.92
+      ctx.drawImage(frame, -dw / 2, top, dw, dh)
+      // The cold wash: the same frame re-blitted in the squad's own blue, which
+      // is the colour every friendly thing in this game already wears.
+      ctx.globalAlpha = 0.38 + (th.flash > 0.02 ? 0.3 : 0)
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.drawImage(frame, -dw / 2, top, dw, dh)
+      ctx.restore()
+    } else {
+      ctx.fillStyle = '#7fd4e8'
+      ctx.beginPath()
+      ctx.ellipse(0, -size * 0.35, size * 0.3, size * 0.42, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.restore()
+
+    // The wisp: one small cold light over the head, bobbing. It is the tell —
+    // at 30 px a pale creep and a live one are the same silhouette, and this is
+    // the pixel that says whose it is.
+    const bob = Math.sin(t / 300 + th.id) * size * 0.05
+    ctx.translate(0, -size * 1.1 + bob)
+    paintWisp(ctx, size * 0.16)
+    ctx.restore()
+  }
+}
+
+/**
+ * A gilded copy of one baked frame, cached against the frame itself.
+ *
+ * The obvious way to tint a sprite — draw it, then `source-atop` a gold
+ * rectangle over it — is wrong on a shared canvas and it shipped that way for
+ * one browser pass: `source-atop` composites against everything already drawn,
+ * so the fill landed on the ROAD as well and every statue was a flat gold
+ * rectangle. The tint has to happen somewhere the sprite is the only thing
+ * there, which means its own canvas.
+ *
+ * Keyed by the frame object in a `WeakMap`, so a re-baked strip (a painting
+ * arriving, a quality tier changing) invalidates the copy by construction and
+ * nothing has to remember to clear it.
+ */
+const gildCache = new WeakMap<CanvasImageSource, HTMLCanvasElement>()
+
+const gildedFrame = (frame: HTMLCanvasElement): HTMLCanvasElement => {
+  const had = gildCache.get(frame)
+  if (had) return had
+  const c = document.createElement('canvas')
+  c.width = frame.width
+  c.height = frame.height
+  const g = c.getContext('2d')!
+  g.drawImage(frame, 0, 0)
+  // Inside its own canvas the sprite IS the composite, so `source-atop` tints
+  // exactly the body and nothing else.
+  g.globalCompositeOperation = 'source-atop'
+  g.fillStyle = 'rgba(214,158,42,0.88)'
+  g.fillRect(0, 0, c.width, c.height)
+  // …and a brighter band down the top half, so the metal has a highlight
+  // rather than reading as one flat colour.
+  //
+  // `source-atop` again, NOT `lighter`: an additive pass is not clipped to what
+  // is already on the canvas, so it lights the transparent pixels too and the
+  // statue ships with a translucent gold rectangle hanging over its head. That
+  // is the same mistake as the one above, one line further down.
+  g.globalAlpha = 0.22
+  g.fillStyle = '#ffd678'
+  g.fillRect(0, 0, c.width, c.height * 0.55)
+  gildCache.set(frame, c)
+  return c
+}
+
+/** The gold a Hoard kill leaves standing, and the ring it bursts into. */
+const drawStatues = (ctx: CanvasRenderingContext2D): void => {
+  for (const st of getStatues()) {
+    const sy = worldToScreenY(st.y)
+    const sx = worldToScreenX(st.x)
+    if (sy < -100 || sy > viewH + 100) continue
+    const size = st.scale * scale * 1.25
+    // It shivers in the last quarter-second, which is the whole warning that it
+    // is about to go.
+    const soon = st.left < 0.25 ? (0.25 - st.left) / 0.25 : 0
+    ctx.save()
+    ctx.translate(sx + (soon > 0 ? Math.sin(nowMs() / 24) * soon * size * 0.05 : 0), sy)
+    ctx.fillStyle = 'rgba(0,0,0,0.32)'
+    ctx.beginPath()
+    ctx.ellipse(0, size * 0.06, size * 0.3, size * 0.09, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    const frame = monsterFrame(st.design, 0)
+    if (frame) {
+      const k = (size * 1.5) / (frame.height * SPRITE_HEIGHT_R)
+      const dw = frame.width * k
+      const dh = frame.height * k
+      const top = -frame.height * SPRITE_FOOT_R * k
+      const mirror = monsterFaces(st.design) === 'left' ? -1 : 1
+      ctx.save()
+      ctx.scale(mirror, 1)
+      // The body, already gilded on a canvas of its own — see `gildedFrame`.
+      ctx.drawImage(gildedFrame(frame), -dw / 2, top, dw, dh)
+      // …and the shiver's glint in the last quarter-second, as the same shape
+      // brightened rather than as a rectangle over the road.
+      if (soon > 0) {
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.globalAlpha = soon * 0.45
+        ctx.drawImage(gildedFrame(frame), -dw / 2, top, dw, dh)
+      }
+      ctx.restore()
+    } else {
+      ctx.fillStyle = '#d69e2a'
+      ctx.beginPath()
+      ctx.ellipse(0, -size * 0.35, size * 0.3, size * 0.42, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
     ctx.restore()
   }
 }
@@ -8885,11 +9302,30 @@ const drawBullets = (ctx: CanvasRenderingContext2D): void => {
   // `source-in` swap the ember frames use — otherwise a build with art
   // overrides on would blit the identical gold streak for both guns and the
   // whole distinction would exist only in the procedural fallback.
+  // ── The shotgun's pellets, out of the batch ──
+  //
+  // A pellet is not a tracer: it is SHORT, and a fan of nine short rounds is
+  // the whole read of the weapon. Drawn per round through its own painter (so
+  // the art pipeline can replace it), and skipped by every pass below.
+  const pellets = activeWeapon.value === 'grapeshot' || sideWeapon.value === 'grapeshot'
+  if (pellets) {
+    const pr = Math.max(1.5, scale * 0.1)
+    for (const b of bullets) {
+      if (b.weapon !== 'grapeshot') continue
+      const sy = worldToScreenY(b.y)
+      if (sy < -40 || sy > viewH + 40) continue
+      ctx.save()
+      ctx.translate(worldToScreenX(b.x), sy)
+      paintPellet(ctx, pr)
+      ctx.restore()
+    }
+  }
+
   const paintedBase = spriteFor('round', 'tracer')
   const painted = hot && paintedBase ? (redTracer(paintedBase) ?? paintedBase) : paintedBase
   if (painted) {
     for (const b of bullets) {
-      if (b.weapon === 'rocket') continue
+      if (b.weapon === 'rocket' || b.weapon === 'grapeshot') continue
       const sy = worldToScreenY(b.y)
       if (sy < -40 || sy > viewH + 40) continue
       const sx = worldToScreenX(b.x)
@@ -8910,7 +9346,7 @@ const drawBullets = (ctx: CanvasRenderingContext2D): void => {
     ctx.lineWidth = st.outerW
     ctx.beginPath()
     for (const b of bullets) {
-      if (b.weapon === 'rocket') continue
+      if (b.weapon === 'rocket' || b.weapon === 'grapeshot') continue
       const sy = worldToScreenY(b.y)
       if (sy < -40 || sy > viewH + 40) continue
       const sx = worldToScreenX(b.x)
@@ -8923,7 +9359,7 @@ const drawBullets = (ctx: CanvasRenderingContext2D): void => {
     ctx.lineWidth = st.coreW
     ctx.beginPath()
     for (const b of bullets) {
-      if (b.weapon === 'rocket') continue
+      if (b.weapon === 'rocket' || b.weapon === 'grapeshot') continue
       const sy = worldToScreenY(b.y)
       if (sy < -40 || sy > viewH + 40) continue
       const sx = worldToScreenX(b.x)
@@ -10201,6 +10637,76 @@ const applyFx = (e: FxEvent): void => {
       }
       break
     }
+
+    case 'dynamoBolt':
+      // The bolt the player spent their meter on. Loud, because it is the one
+      // thing in the game they chose to do with a weapon.
+      dynamoBolts.push({ x: e.x, y: e.y, reach: e.reach, t: 0, ttl: e.ttl })
+      playFx('eliteSweep', 0.85)
+      triggerShake('strong')
+      break
+
+    case 'thrallRise':
+      // Cold motes coming up out of the road where the body was.
+      for (let i = 0; i < (cheapFx ? 3 : 8); i++) {
+        emit({
+          x: e.x + (Math.random() - 0.5) * 0.5, y: e.y,
+          vx: (Math.random() - 0.5) * 0.8, vy: 1.4 + Math.random() * 1.6,
+          life: 420 + Math.random() * 260, size: 0.07 + Math.random() * 0.05,
+          color: [150, 226, 255], additive: true, shape: 0, drag: 1.6, gravity: -1
+        })
+      }
+      break
+
+    case 'thrallHit':
+      if (!cheapFx) {
+        emit({
+          x: e.x, y: e.y + 0.3, vx: 0, vy: 0.4, life: 180, size: 0.12,
+          color: [190, 240, 255], additive: true, shape: 0, drag: 3, gravity: 0
+        })
+      }
+      break
+
+    case 'thrallFall':
+      for (let i = 0; i < (cheapFx ? 2 : 6); i++) {
+        emit({
+          x: e.x, y: e.y + 0.2,
+          vx: (Math.random() - 0.5) * 1.6, vy: 0.6 + Math.random(),
+          life: 300 + Math.random() * 200, size: 0.06 + Math.random() * 0.05,
+          color: [120, 180, 210], additive: true, shape: 0, drag: 2.2, gravity: 1.5
+        })
+      }
+      break
+
+    case 'gild':
+      // The body turning: a ring of gold sparks, and nothing else. The statue
+      // itself is drawn by `drawStatues` for as long as it stands.
+      for (let i = 0; i < (cheapFx ? 3 : 9); i++) {
+        const a = (i / 9) * Math.PI * 2
+        emit({
+          x: e.x, y: e.y + 0.25,
+          vx: Math.cos(a) * 1.1, vy: Math.sin(a) * 0.7 + 0.5,
+          life: 380, size: 0.08, color: [255, 208, 96], additive: true,
+          shape: 0, drag: 2.4, gravity: 1.2
+        })
+      }
+      break
+
+    case 'gildBurst':
+      playFx('coin', 0.7)
+      // The burst itself is a drop-in (`fx/gild`); the sparks below are the
+      // weight around it and stay procedural.
+      gildBursts.push({ x: e.x, y: e.y + 0.3, t: 0 })
+      for (let i = 0; i < (cheapFx ? 4 : 12); i++) {
+        const a = (i / 12) * Math.PI * 2
+        emit({
+          x: e.x, y: e.y + 0.3,
+          vx: Math.cos(a) * 2.4, vy: Math.sin(a) * 1.6 + 1,
+          life: 520, size: 0.09, color: [255, 224, 140], additive: true,
+          shape: 0, drag: 1.8, gravity: 3.4
+        })
+      }
+      break
 
     case 'grenadeThrow':
       // The throw itself. Almost nothing — a scuff of dust at the crowd's feet

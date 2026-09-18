@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Súng phóng rocket',
-    'gatling': 'Súng Gatling'
+    'gatling': 'Súng Gatling',
+    'grapeshot': 'Súng hoa cải',
+    'dynamo': 'Dynamo',
+    'gravecall': 'Gọi hồn',
+    'hoard': 'Kho báu quạ',
+    'bolt': 'Tia sét'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'Qua màn!',
+    'clearedStage': 'Qua màn {n}!',
     'wipedOut': 'Đội bị xóa sổ',
     'reachedStage': 'Màn {n}',
     'newRecord': 'Kỷ lục mới!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Thử lại',
     'upgrade': 'Nâng cấp',
     'upgradeHint': 'Nâng cấp đội của bạn!',
-    'rankOf': 'trên {n}',
-    'upNext': 'Tiếp theo: Màn {n}'
+    'rankOf': 'trên {n}'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'Lựu đạn',
       'shield': 'Khiên',
       'rocket': 'Sức mạnh rocket',
-      'gatling': 'Sức mạnh Gatling'
+      'gatling': 'Sức mạnh Gatling',
+      'grapeshot': 'Sức mạnh hoa cải',
+      'dynamo': 'Sức mạnh Dynamo',
+      'gravecall': 'Sức mạnh gọi hồn',
+      'hoard': 'Sức mạnh kho báu'
     },
     'descriptions': {
       'squad': 'Bắt đầu mỗi màn với nhiều người sống sót hơn.',
@@ -234,7 +243,11 @@ export default {
       'grenade': 'Ném lựu đạn để gây sát thương lớn.',
       'shield': 'Giảm một nửa sát thương lên đội trong vài giây.',
       'rocket': 'Súng phóng rocket mở khoá trong màn gây nhiều sát thương hơn.',
-      'gatling': 'Súng Gatling mở khoá trong màn gây nhiều sát thương hơn.'
+      'gatling': 'Súng Gatling mở khoá trong màn gây nhiều sát thương hơn.',
+      'grapeshot': 'Súng hoa cải mở khoá trong màn gây nhiều sát thương hơn.',
+      'dynamo': 'Tia sét Dynamo mở khoá trong màn đánh mạnh hơn.',
+      'gravecall': 'Xác chết bạn hồi sinh đánh mạnh hơn và trụ lâu hơn.',
+      'hoard': 'Kẻ địch hoá vàng cho nhiều xu hơn.'
     }
   },
 

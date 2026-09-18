@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Raketa otar',
-    'gatling': 'Gatling pulemyoti'
+    'gatling': 'Gatling pulemyoti',
+    'grapeshot': 'Sochma miltiq',
+    'dynamo': 'Dinamo',
+    'gravecall': 'Qabr chorlovi',
+    'hoard': 'Qarg‘a xazinasi',
+    'bolt': 'Chaqmoq'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'Bosqich tugadi!',
+    'clearedStage': '{n}-bosqich tugadi!',
     'wipedOut': 'Guruh yo‘q qilindi',
     'reachedStage': '{n}-bosqich',
     'newRecord': 'Yangi rekord!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Qayta urinish',
     'upgrade': 'Yaxshilash',
     'upgradeHint': 'Otryadingizni yaxshilang!',
-    'rankOf': '{n} dan',
-    'upNext': 'Keyingi: {n}-bosqich'
+    'rankOf': '{n} dan'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'Granata',
       'shield': 'Qalqon',
       'rocket': 'Raketa kuchi',
-      'gatling': 'Gatling kuchi'
+      'gatling': 'Gatling kuchi',
+      'grapeshot': 'Sochma kuchi',
+      'dynamo': 'Dinamo kuchi',
+      'gravecall': 'Qabr chorlovi kuchi',
+      'hoard': 'Xazina kuchi'
     },
     'descriptions': {
       'squad': 'Har bosqichni ko‘proq omon qolgan bilan boshlang.',
@@ -234,7 +243,11 @@ export default {
       'grenade': "Og'ir zarar uchun granata uloqtiring.",
       'shield': 'Bir necha soniya otryadga zararni yarmiga kamaytiradi.',
       'rocket': 'Bosqichda ochilgan raketa otarlar ko‘proq zarar yetkazadi.',
-      'gatling': 'Bosqichda ochilgan gatlinglar ko‘proq zarar yetkazadi.'
+      'gatling': 'Bosqichda ochilgan gatlinglar ko‘proq zarar yetkazadi.',
+      'grapeshot': 'Bosqichda ochilgan sochma miltiqlar ko‘proq zarar yetkazadi.',
+      'dynamo': 'Bosqichda ochilgan Dinamo chaqmoqlari kuchliroq uradi.',
+      'gravecall': 'Tiriltirgan o‘liklaring kuchliroq jang qiladi va uzoqroq turadi.',
+      'hoard': 'Oltinga aylangan dushmanlar ko‘proq tanga beradi.'
     }
   },
 

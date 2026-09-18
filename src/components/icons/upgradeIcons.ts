@@ -48,6 +48,12 @@ export const UPGRADE_ICONS: Record<UpgradeId, GameIconName> = {
   // one object.
   grenade: 'bomb',
   shield: 'shield',
+  // ...and one row per weapon, each wearing that weapon's own mark, so the
+  // track bought here and the gun carried on the road are one drawing.
+  grapeshot: 'grapeshot',
+  dynamo: 'dynamo',
+  gravecall: 'gravecall',
+  hoard: 'hoard',
   // …and the two weapons, wearing the glyph that is painted on the box they
   // come out of and on the badge that appears when they do. Same rule again:
   // one object, one drawing, wherever the player meets it.

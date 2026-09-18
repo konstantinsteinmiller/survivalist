@@ -608,9 +608,10 @@ export const tutorialEliteFireSeconds = (
  * It can only ever UNDO the discount. The swing never exceeds what the stage
  * authored, so nothing here can invent a difficulty the design did not ask for.
  *
- * Stage 1 is untouched in practice: its swing is `TUTORIAL_SLAM_FRACTION`, a
- * token worth a body or two whatever this returns, and a careless run is
- * supposed to finish the tutorial.
+ * Stage 1 reads it too, and since its swing stopped being a token
+ * (`TUTORIAL_SLAM_FRACTION` is the ordinary share now) that is no longer a
+ * formality: a crowd that arrived with nothing is hit at the full authored share
+ * on the first boss as well.
  */
 
 /** At or above this share of the perfect crowd, the discount applies in full. */
@@ -714,14 +715,13 @@ export const BOSS_MIN_FIRE_SECONDS = ADAPTIVE_RUNGS[0]!.seconds
  *
  * The cap is not decoration, it is what stops the floor being cosmetic. A
  * grenade deals `squadDps × mult` as one instant hit, and the floor prices the
- * bar at `BOSS_MIN_FIRE_SECONDS` of `squadDps`. At the base multiplier of 3
- * those are THE SAME NUMBER: one bomb is worth exactly the three seconds the
- * floor just bought, so without this the guaranteed fight is a bomb and a
- * corpse. (Upgrades take the multiplier to 6, i.e. twice the whole bar.)
+ * bar at `BOSS_MIN_FIRE_SECONDS` of `squadDps`. A boss already takes a reduced
+ * multiplier (`grenadeBossMult`: 2.2 at level 0), but upgrades take that to 4.4
+ * — well past the three seconds the floor just bought — so without this the
+ * guaranteed fight is a bomb and a corpse for anyone who has spent on the track.
  *
- * Capped rather than scaled, deliberately. A proportional cut would leave a
- * fully-upgraded grenade at 4x — still more than the bar — and the point is a
- * guarantee that does not depend on how much the player has spent.
+ * Capped rather than scaled, deliberately: the point is a guarantee that does
+ * not depend on how much the player has spent.
  *
  * Two seconds of the three, so a bomb thrown into a floored fight is a real
  * decision (it ends the climax in about a second) rather than a delete button.

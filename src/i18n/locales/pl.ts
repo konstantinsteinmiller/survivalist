@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Wyrzutnia rakiet',
-    'gatling': 'Gatling'
+    'gatling': 'Gatling',
+    'grapeshot': 'Kartacz',
+    'dynamo': 'Dynamo',
+    'gravecall': 'Zew grobu',
+    'hoard': 'Skarb kruka',
+    'bolt': 'Piorun'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'Etap ukończony!',
+    'clearedStage': 'Etap {n} ukończony!',
     'wipedOut': 'Oddział wybity',
     'reachedStage': 'Etap {n}',
     'newRecord': 'Nowy rekord!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Spróbuj ponownie',
     'upgrade': 'Ulepsz',
     'upgradeHint': 'Ulepsz swój oddział!',
-    'rankOf': 'z {n}',
-    'upNext': 'Dalej: Poziom {n}'
+    'rankOf': 'z {n}'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'Granat',
       'shield': 'Tarcza',
       'rocket': 'Moc rakiet',
-      'gatling': 'Moc Gatlinga'
+      'gatling': 'Moc Gatlinga',
+      'grapeshot': 'Moc kartacza',
+      'dynamo': 'Moc Dynama',
+      'gravecall': 'Moc zewu grobu',
+      'hoard': 'Moc skarbu'
     },
     'descriptions': {
       'squad': 'Zaczynaj każdy etap z większą liczbą ocalałych.',
@@ -234,7 +243,11 @@ export default {
       'grenade': 'Rzuć granat, by zadać potężne obrażenia.',
       'shield': 'Zmniejsz o połowę obrażenia oddziału na kilka sekund.',
       'rocket': 'Wyrzutnie rakiet zdobyte na etapie zadają więcej obrażeń.',
-      'gatling': 'Gatlingi zdobyte na etapie zadają więcej obrażeń.'
+      'gatling': 'Gatlingi zdobyte na etapie zadają więcej obrażeń.',
+      'grapeshot': 'Strzelby zdobyte na etapie zadają więcej obrażeń.',
+      'dynamo': 'Pioruny Dynama zdobyte na etapie uderzają mocniej.',
+      'gravecall': 'Wskrzeszeni umarli walczą mocniej i żyją dłużej.',
+      'hoard': 'Wrogowie zamienieni w złoto dają więcej monet.'
     }
   },
 

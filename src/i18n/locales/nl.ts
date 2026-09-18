@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Raketwerper',
-    'gatling': 'Gatling'
+    'gatling': 'Gatling',
+    'grapeshot': 'Schroot',
+    'dynamo': 'Dynamo',
+    'gravecall': 'Grafroep',
+    'hoard': 'Kraaienschat',
+    'bolt': 'Bliksem'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'Level gehaald!',
+    'clearedStage': 'Level {n} gehaald!',
     'wipedOut': 'Team weggevaagd',
     'reachedStage': 'Level {n}',
     'newRecord': 'Nieuw record!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Opnieuw',
     'upgrade': 'Upgraden',
     'upgradeHint': 'Upgrade je team!',
-    'rankOf': 'van {n}',
-    'upNext': 'Hierna: Level {n}'
+    'rankOf': 'van {n}'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'Granaat',
       'shield': 'Schild',
       'rocket': 'Raketkracht',
-      'gatling': 'Gatling-kracht'
+      'gatling': 'Gatling-kracht',
+      'grapeshot': 'Schrootkracht',
+      'dynamo': 'Dynamo-kracht',
+      'gravecall': 'Grafroep-kracht',
+      'hoard': 'Schatkracht'
     },
     'descriptions': {
       'squad': 'Begin elk level met meer overlevenden.',
@@ -234,7 +243,11 @@ export default {
       'grenade': 'Gooi een granaat voor een uitbarsting van schade.',
       'shield': 'Halveer de schade aan je team voor enkele seconden.',
       'rocket': 'Raketwerpers die je in een level vrijspeelt doen meer schade.',
-      'gatling': 'Gatlings die je in een level vrijspeelt doen meer schade.'
+      'gatling': 'Gatlings die je in een level vrijspeelt doen meer schade.',
+      'grapeshot': 'Hagelgeweren die je in een level vrijspeelt doen meer schade.',
+      'dynamo': 'Dynamo-bliksems die je in een level vrijspeelt slaan harder toe.',
+      'gravecall': 'De doden die je opwekt vechten harder en gaan langer mee.',
+      'hoard': 'Vijanden die in goud veranderen leveren meer munten op.'
     }
   },
 

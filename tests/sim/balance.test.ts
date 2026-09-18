@@ -139,12 +139,20 @@ describe('the floor: stage 1 must not punish a player who does nothing', () => {
     // reaches the closing elite on every seed. It is the elite it now loses to
     // some of the time, which is the right thing for the last obstacle on the
     // teaching road to do.
-    const one = aggregate(await runSamples(1, careless, SEEDS))
-    expect(
-      one.clearRate,
-      `the tutorial stopped being survivable — careless died at ` +
-        `${Math.round(one.deathProgress.med * 100)} % of the road`
-    ).toBeGreaterThan(0)
+    // ── …AND THEN THE FIRST BOSS STARTED HITTING (2026-09-16) ──
+    //
+    // Its ring was a token (8 % of the crowd, under a 60 % cut) until a 99-strong
+    // crowd stood under it without dodging and lost 2-4 a strike; the owner's
+    // call was that a boss attack that does nothing is what makes players leave.
+    // It is the ordinary 31 % now. Measured over eight seeds: average, good and
+    // optimal still clear stage 1 8/8, and careless — which never touches the
+    // screen, a player the stage-1 steering lightbox does not let exist — reaches
+    // the boss with ~30 when it gets past the closing elite, and loses to it. So
+    // the promise moved to the part that is still true: the teaching ROAD is
+    // survivable without
+    // input — asserted by "lets a careless run reach the closing elite on every
+    // seed" above, which still holds — and the boss at the end of it is not a
+    // free win, so no clear is asserted for careless here any more.
 
     const tapped = aggregate(await runSamples(1, average, SEEDS))
     expect(

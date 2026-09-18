@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Peluncur Roket',
-    'gatling': 'Senapan Gatling'
+    'gatling': 'Senapan Gatling',
+    'grapeshot': 'Senapan Gotri',
+    'dynamo': 'Dinamo',
+    'gravecall': 'Seruan Kubur',
+    'hoard': 'Harta Gagak',
+    'bolt': 'Petir'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'Tahap selesai!',
+    'clearedStage': 'Tahap {n} selesai!',
     'wipedOut': 'Regu habis',
     'reachedStage': 'Tahap {n}',
     'newRecord': 'Rekor baru!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Coba lagi',
     'upgrade': 'Tingkatkan',
     'upgradeHint': 'Tingkatkan pasukanmu!',
-    'rankOf': 'dari {n}',
-    'upNext': 'Berikutnya: Level {n}'
+    'rankOf': 'dari {n}'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'Granat',
       'shield': 'Perisai',
       'rocket': 'Kekuatan Roket',
-      'gatling': 'Kekuatan Gatling'
+      'gatling': 'Kekuatan Gatling',
+      'grapeshot': 'Kekuatan Gotri',
+      'dynamo': 'Kekuatan Dinamo',
+      'gravecall': 'Kekuatan Seruan Kubur',
+      'hoard': 'Kekuatan Harta'
     },
     'descriptions': {
       'squad': 'Mulai tiap tahap dengan lebih banyak penyintas.',
@@ -234,7 +243,11 @@ export default {
       'grenade': 'Lempar granat untuk ledakan kerusakan besar.',
       'shield': 'Kurangi setengah kerusakan pada pasukan beberapa detik.',
       'rocket': 'Peluncur roket yang kamu buka di stage memberi lebih banyak damage.',
-      'gatling': 'Senapan Gatling yang kamu buka di stage memberi lebih banyak damage.'
+      'gatling': 'Senapan Gatling yang kamu buka di stage memberi lebih banyak damage.',
+      'grapeshot': 'Senapan gotri yang kamu buka di stage memberi lebih banyak damage.',
+      'dynamo': 'Petir Dinamo yang kamu buka di stage memukul lebih keras.',
+      'gravecall': 'Mayat yang kamu bangkitkan bertarung lebih kuat dan bertahan lebih lama.',
+      'hoard': 'Musuh yang berubah jadi emas bernilai lebih banyak koin.'
     }
   },
 

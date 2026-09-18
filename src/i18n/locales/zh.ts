@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': '火箭筒',
-    'gatling': '加特林机枪'
+    'gatling': '加特林机枪',
+    'grapeshot': '霰弹枪',
+    'dynamo': '蓄电枪',
+    'gravecall': '亡者召唤',
+    'hoard': '乌鸦宝藏',
+    'bolt': '闪电'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': '通关！',
+    'clearedStage': '第 {n} 关通关！',
     'wipedOut': '小队全灭',
     'reachedStage': '第 {n} 关',
     'newRecord': '新纪录！',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': '再试一次',
     'upgrade': '升级',
     'upgradeHint': '升级你的队伍！',
-    'rankOf': '共 {n} 人',
-    'upNext': '下一关：第 {n} 关'
+    'rankOf': '共 {n} 人'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': '手雷',
       'shield': '护盾',
       'rocket': '火箭威力',
-      'gatling': '加特林威力'
+      'gatling': '加特林威力',
+      'grapeshot': '霰弹枪威力',
+      'dynamo': '蓄电枪威力',
+      'gravecall': '亡者召唤威力',
+      'hoard': '宝藏威力'
     },
     'descriptions': {
       'squad': '每关开局的幸存者更多。',
@@ -234,7 +243,11 @@ export default {
       'grenade': '投掷手雷造成大量伤害。',
       'shield': '数秒内使队伍受到的伤害减半。',
       'rocket': '关卡中解锁的火箭筒伤害更高。',
-      'gatling': '关卡中解锁的加特林伤害更高。'
+      'gatling': '关卡中解锁的加特林伤害更高。',
+      'grapeshot': '关卡中解锁的霰弹枪伤害更高。',
+      'dynamo': '关卡中解锁的蓄电枪闪电威力更高。',
+      'gravecall': '你复活的亡者战斗更强、存在更久。',
+      'hoard': '变成黄金的敌人能换更多金币。'
     }
   },
 

@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'ロケットランチャー',
-    'gatling': 'ガトリングガン'
+    'gatling': 'ガトリングガン',
+    'grapeshot': '散弾銃',
+    'dynamo': 'ダイナモ',
+    'gravecall': '死霊召喚',
+    'hoard': '鴉の財宝',
+    'bolt': '雷撃'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'ステージクリア！',
+    'clearedStage': 'ステージ {n} クリア！',
     'wipedOut': '部隊全滅',
     'reachedStage': 'ステージ {n}',
     'newRecord': '新記録！',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'もう一度',
     'upgrade': '強化',
     'upgradeHint': '部隊を強化しよう！',
-    'rankOf': '{n} 人中',
-    'upNext': '次: ステージ {n}'
+    'rankOf': '{n} 人中'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': '手榴弾',
       'shield': 'シールド',
       'rocket': 'ロケット威力',
-      'gatling': 'ガトリング威力'
+      'gatling': 'ガトリング威力',
+      'grapeshot': '散弾銃威力',
+      'dynamo': 'ダイナモ威力',
+      'gravecall': '死霊召喚威力',
+      'hoard': '財宝威力'
     },
     'descriptions': {
       'squad': 'より多い仲間でステージを開始。',
@@ -234,7 +243,11 @@ export default {
       'grenade': '手榴弾を投げて大ダメージを与える。',
       'shield': '数秒間、部隊が受けるダメージを半減。',
       'rocket': 'ステージで手に入るロケットランチャーの威力が上がる。',
-      'gatling': 'ステージで手に入るガトリングガンの威力が上がる。'
+      'gatling': 'ステージで手に入るガトリングガンの威力が上がる。',
+      'grapeshot': 'ステージで手に入る散弾銃の威力が上がる。',
+      'dynamo': 'ステージで手に入るダイナモの雷撃が強くなる。',
+      'gravecall': '蘇らせた死者が強くなり、長く戦う。',
+      'hoard': '黄金に変わった敵から得られるコインが増える。'
     }
   },
 

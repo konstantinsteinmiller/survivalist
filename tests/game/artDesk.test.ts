@@ -23,7 +23,8 @@ import { parsePromptDoc } from '../../tools/art-desk/jobs.mjs'
 
 const builders = [
   ...WALKS.map((w) => ({ ref: `${w.file}.png`, target: w.target, text: promptForWalk(w), also: [] as string[] })),
-  ...STILLS.map((s) => ({ ref: `${s.file}.png`, target: s.target, text: promptForStill(s), also: [] as string[] })),
+  // A still with people in it (the cages) carries the survivors' model first.
+  ...STILLS.map((s) => ({ ref: `${s.file}.png`, target: s.target, text: promptForStill(s), also: s.model ? [s.model.file] : [] })),
   // A death goes out with its character model beside the layout — the desk
   // must attach it, or the painter paints a creature nobody has met.
   ...BOSS_DEATHS.map((d) => ({ ref: `${d.file}.png`, target: d.target, text: promptForDeath(d), also: [d.model] })),

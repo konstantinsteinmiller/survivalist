@@ -21,6 +21,7 @@ import { UPGRADE_ORDER, type UpgradeId } from '@/use/useUpgrades'
 import { UPGRADE_ICONS } from '@/components/icons/upgradeIcons'
 import { GAME_ICON_NAMES } from '@/components/icons/iconNames'
 import en from '@/i18n/locales/en'
+import { WEAPONS } from '@/game/weapons'
 
 const read = (rel: string): string =>
   readFileSync(resolve(__dirname, '../..', rel), 'utf8').replace(/\r\n/g, '\n')
@@ -39,8 +40,9 @@ describe('the walk order', () => {
     expect(PEEK_ORDER[0]).toBe('power')
   })
 
-  it('leaves the two weapon tracks until last, since a level in one is worth nothing until the weapon is found', () => {
-    expect(PEEK_ORDER.slice(-2).sort()).toEqual(['gatling', 'rocket'])
+  it('leaves the weapon tracks until last, since a level in one is worth nothing until the weapon is found', () => {
+    const weapons = Object.keys(WEAPONS).sort()
+    expect(PEEK_ORDER.slice(-weapons.length).sort()).toEqual(weapons)
   })
 })
 

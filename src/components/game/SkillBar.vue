@@ -25,7 +25,7 @@
         :disabled="!s.ready"
         :aria-label="s.label"
         :title="s.label"
-        @pointerdown.stop.prevent="onUse(s.id)"
+        @pointerdown.stop.prevent="onPress(s)"
       )
         //- ── The lesson's two arrows ──────────────────────────────────────
         //-
@@ -56,7 +56,12 @@
         ArtIcon.skills__icon(kind="ui" :id="s.art" :fallback="s.icon")
 
         //- Seconds remaining, so the wait is a number and not a guess.
-        span.skills__count(v-if="!s.ready") {{ Math.ceil(s.leftMs / 1000) }}
+        //-
+        //- The weapon's own slot has no clock to print — it fills from what the
+        //- crowd hits, not from time — so it shows its METER as a percentage
+        //- instead, and never the "0" a zero cooldown would have rendered.
+        span.skills__count(v-if="!s.ready && !s.weapon") {{ Math.ceil(s.leftMs / 1000) }}
+        span.skills__count(v-else-if="!s.ready") {{ Math.floor(s.charge * 100) }}%
         //- The free use, counted.
         span.skills__badge(v-if="s.state === 'trial'" aria-hidden="true") {{ t('skills.uses', { n: 1 }) }}
 </template>
@@ -158,7 +163,12 @@ import { SKILL_ROW_HUD_GAP_PX } from '@/components/game/skillBarPlacement'
  */
 const { t } = useI18n()
 
-const emit = defineEmits<{ (e: 'use', id: SkillId): void }>()
+const emit = defineEmits<{
+  (e: 'use', id: SkillId): void
+  /** The weapon's own button — see `boltSlot`. It carries no id: there is only
+   *  ever one weapon in the crowd's hands, and the scene knows which. */
+  (e: 'bolt'): void
+}>()
 
 /** Circumference of r=19, for the cooldown arc. */
 const RING = 2 * Math.PI * 19
@@ -178,6 +188,19 @@ interface Props {
   /** …and the same for the world being frozen, and for a flare being up. */
   frostLive?: boolean
   decoyLive?: boolean
+  /**
+   * ─── The weapon's own button ────────────────────────────────────────────
+   *
+   * 0..1 while the crowd is carrying a weapon that charges (the Dynamo), and
+   * `null` every other second of the game — which is most of them.
+   *
+   * It is the one control in the HUD that comes and goes with what the crowd
+   * is holding, and it is deliberately a FIFTH slot rather than a takeover of
+   * the grenade's: a skill the player owns may not disappear because they
+   * picked a box up, and a button that means two different things depending on
+   * what is in their hands is a button they have to check before pressing.
+   */
+  boltCharge?: number | null
   /**
    * Half the road's width in CSS pixels, measured by the scene through the
    * renderer's own projection.
@@ -239,8 +262,11 @@ const barStyle = computed(() => {
     // not gaps), and sizing off what is currently a button would resize the
     // three beside it on the frame a skill is bought — mid-run, under the
     // player's thumb.
-    const room = props.laneHalfPx * 2 - (SKILL_SLOTS.length - 1) * ROW_GAP_MAX_PX
-    style['--skill-fit'] = `${Math.max(1, Math.round(room / SKILL_SLOTS.length))}px`
+    // The weapon's slot counts when it is there: a five-button row on a lane
+    // sized for four is a row that leaves the road.
+    const n = SKILL_SLOTS.length + (props.boltCharge == null ? 0 : 1)
+    const room = props.laneHalfPx * 2 - (n - 1) * ROW_GAP_MAX_PX
+    style['--skill-fit'] = `${Math.max(1, Math.round(room / n))}px`
   }
   return style
 })
@@ -269,7 +295,35 @@ const barStyle = computed(() => {
  *  of `visible`, which reads it. */
 const revealing = ref<string[]>([])
 
-const visible = computed(() => SKILL_SLOTS.map((slot, i) => {
+/**
+ * The weapon's slot, or null when the crowd is not carrying one that charges.
+ *
+ * Shaped exactly like an owned skill's slot so the template needs no second
+ * branch, with `weapon: true` as the one thing that tells them apart — the
+ * press goes to the weapon rather than to `useSkills`, which owns none of this.
+ */
+const boltSlot = computed(() => {
+  const charge = props.boltCharge
+  if (charge == null) return null
+  return {
+    key: 'weapon-bolt',
+    id: null as SkillId | null,
+    weapon: true,
+    state: 'owned' as const,
+    icon: 'dynamo' as const,
+    art: '',
+    label: t('weapons.bolt'),
+    shineS: 3.2,
+    ready: charge >= 1,
+    charge: Math.max(0, Math.min(1, charge)),
+    leftMs: 0,
+    taught: false,
+    live: charge >= 1,
+    reveal: false
+  }
+})
+
+const visible = computed(() => [...SKILL_SLOTS.map((slot, i) => {
   const taught = props.taught ?? null
   const state = slotState(slot)
   const usable = state !== 'locked'
@@ -308,9 +362,19 @@ const visible = computed(() => SKILL_SLOTS.map((slot, i) => {
       : usable && id !== null ? skillReadyIn(id) : 0,
     taught: taught === id,
     live,
-    reveal: id !== null && usable && revealing.value.includes(revealKey(id, state))
+    reveal: id !== null && usable && revealing.value.includes(revealKey(id, state)),
+    weapon: false
   }
-}))
+}), ...(boltSlot.value ? [boltSlot.value] : [])])
+
+/** One press handler for both kinds of slot — see `boltSlot`. */
+const onPress = (s: { weapon: boolean; id: SkillId | null; ready: boolean }): void => {
+  if (s.weapon) {
+    if (s.ready) emit('bolt')
+    return
+  }
+  onUse(s.id)
+}
 
 const onUse = (id: SkillId | null): void => {
   if (id === null) return

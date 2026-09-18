@@ -1032,14 +1032,47 @@ export const bossGuardGates = (stage: number): readonly number[] =>
   stage <= 1 ? TUTORIAL_GUARD_GATES : BOSS_GUARD_GATES
 
 /**
- * The share of the crowd one slam takes on stage 1.
+ * The share of the crowd one slam takes on stage 1, before the beginner's cut
+ * (`earlyBigHitMul`, 60 % on stages 1-3).
  *
- * A token, against `SLAM_MAX_FRACTION`'s 31 %. The tutorial boss still winds up
- * and still swings, because that is the shape the player has to recognise on
- * stage 2 — but the first time they meet it, it costs them a couple of bodies
- * and a fright rather than most of their run.
+ * It was a token — 0.08, so under the cut about one body in twenty — and that
+ * was measured to be a fight with no failure state at all: a 99-strong crowd
+ * that stood under the first boss and never moved walked out with 90, and the
+ * lesson the first climax taught was that the ring on the ground is decoration.
+ * The owner's call was that an attack that does nothing is what makes players
+ * leave, not one that hurts.
+ *
+ * So it is no longer a token: it is the ordinary slam's `SLAM_MAX_FRACTION`,
+ * under the same beginner's cut stages 2 and 3 get. An ordinary ring takes
+ * about a fifth of a crowd that stands in it and the big one nearly a third
+ * (`CHARGED_SHARE_MUL`). Measured in `tests/sim/scratch.slam.test.ts`, five
+ * seeds, with the bar priced as below: a crowd that never moves eats five rings
+ * over a ~16 s fight and leaves with under a third (98 → 28, 51 → 14) — and
+ * still clears; one that dodges every ordinary ring still tends to be caught by
+ * the big one once (98 → 68) and finishes in ~11 s. Every scripted player that
+ * steers at all clears stage 1 on eight seeds out of eight.
+ *
+ * Kept as its own name rather than folded into `SLAM_MAX_FRACTION` because the
+ * tutorial fight still has its own floor (`TUTORIAL_SLAM_MIN_KILL`) and its own
+ * single guard gate, and a future pass may want to tune it apart again.
  */
-export const TUTORIAL_SLAM_FRACTION = 0.08
+export const TUTORIAL_SLAM_FRACTION = 0.31
+
+/**
+ * …and the share the stage-1 boss's HEALTH BAR is priced against, which is the
+ * old token and stays it.
+ *
+ * The first fight's length (`ADAPTIVE_FIRST_FIGHT_SECONDS`) is a target the
+ * adaptive model reaches by integrating what the swings do to the crowd, and
+ * that target was calibrated on a swing of 0.08. Feeding it the real swing
+ * shrinks the crowd faster in the model, the bar comes down to match, and a
+ * player who dodges everything kills the first boss in 7.9 s instead of 10.9 —
+ * the one fight a session is decided on, shortened by a change meant to make it
+ * harder. So the two are decoupled exactly as `adaptiveHp` already decouples
+ * the soft swing from the hard one: the BAR is the promise to a player who
+ * dodges, the SWING is what standing still costs.
+ */
+export const TUTORIAL_BAR_SLAM_FRACTION = 0.08
 /** …and it may never be the swing that ends a tutorial run. */
 export const TUTORIAL_SLAM_MIN_KILL = 1
 /**
@@ -1272,20 +1305,32 @@ export const endlessPressure = (stage: number): number =>
  * but it is the swing you have to actually respect, and standing still through
  * it is no longer an option.
  *
- * ─── Why the radius and not the damage ──────────────────────────────────────
+ * ─── The radius, AND the damage ─────────────────────────────────────────────
  *
- * A slam's toll is `squad × slamShare`, capped by `SLAM_FRACTION_MAX`, and it
- * is counted off whoever is inside the ring — so the RADIUS decides whether the
- * hit lands, and the share decides what it costs once it has. Doubling the
- * radius therefore turns a swing the player was dodging into a swing that
- * connects, at exactly the price the design already set for a slam that
- * connects. Doubling the damage as well would be two knobs doing one job, and
- * the second one is the one that turns a boss into a coin flip.
+ * A slam's toll is `squad × slamShare`, counted off whoever is inside the ring —
+ * so the RADIUS decides whether the hit lands, and the share decides what it
+ * costs once it has. This used to double the radius and leave the share alone,
+ * on the argument that two knobs doing one job make a coin flip.
+ *
+ * Played, that argument lost. The big meteor arrives with the longest wind-up
+ * in the game, the biggest ring and the loudest fall, and billed exactly what
+ * the small one did — a 99-strong crowd that never moved lost 2-4 bodies to
+ * either, and a swing the whole screen announces that then costs nothing tells
+ * the player the telegraph is decoration. So it costs more as well:
+ * `CHARGED_SHARE_MUL` of an ordinary swing, still under `SLAM_FRACTION_MAX`,
+ * because the ceiling on what one swing may take is not the charged ring's to
+ * raise.
  */
 export const CHARGED_EVERY = 3
 
 /** …and the arc it throws is twice the size. */
 export const CHARGED_RADIUS_MUL = 2
+
+/**
+ * …and it takes more of whoever is inside it: this multiple of an ordinary
+ * swing's share, clamped to `SLAM_FRACTION_MAX` by the caller.
+ */
+export const CHARGED_SHARE_MUL = 1.6
 
 /**
  * The wind-up, as a multiple of the cycle it interrupts.
@@ -3080,4 +3125,15 @@ export interface Bullet {
    * doorway's depth. This is the "once" .
    */
   pierced: number
+  /**
+   * How far past the crowd this round may travel, world units.
+   *
+   * Fixed when the round leaves the muzzle, because it is a fact about the GUN
+   * that fired it (`WeaponDef.rangeMul`) and a weapon lasts one stage while a
+   * round lasts half a second: a pellet already in the air when the shotgun is
+   * swapped out is still a pellet. Measured from the crowd rather than from the
+   * muzzle for the reason the shared range is (see `BULLET_RANGE`) — the range
+   * is a fact about the screen, and the screen travels with the squad.
+   */
+  range: number
 }

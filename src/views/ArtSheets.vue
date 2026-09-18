@@ -11,7 +11,9 @@ import { paintSurvivorFrame, OUTFITS } from '@/game/heroSprites'
 import { paintSmokeRef } from '@/use/useVfx'
 import {
   paintCoin, paintCrateBody, paintBarrelBody, paintBoulder, paintBarricadeBody,
+  paintPellet, paintBoltTile, paintWisp, paintGildBurst,
   paintWeaponBoxBody, paintGuardPlate, paintLeverPost, paintLeverArm, LEVER_ART,
+  paintCageBody, CAGE_BOX,
   paintGateFrame, GATE_FRAME, paintPillarBody, hazardPatternFor,
   paintRollerBall, ROLLER_ART_PAD, ROLLER_SPIN_PER_LOOP,
   paintGunnerBolt, paintBossBolt, paintMeteorRock, METEOR_BOX,
@@ -22,6 +24,7 @@ import {
 } from '@/use/useSurvivalArt'
 import { paintBanner, paintUiIcon, type UiIconId } from '@/game/uiArt'
 import { BARREL_R, DIVIDER_HALF_W, DIVIDER_H } from '@/game/survival'
+import { BOLT_BOX } from '@/game/artBoxes'
 import { BOLT_R, ROLLER_R } from '@/game/threats'
 import { WEAPON_BOX_R } from '@/game/weapons'
 
@@ -318,6 +321,18 @@ const renderStillAlpha = (s: StillSpec, cycle = 0): HTMLCanvasElement => {
       ctx.translate(cx, cy)
       paintWeaponBoxBody(ctx, S / 2, S / 2 / WEAPON_BOX_R, s.id.endsWith('-open'), 0, REF)
       break
+    case 'prop/cage':
+    case 'prop/cage-sealed':
+    case 'prop/cage-warden': {
+      // The panel IS `CAGE_BOX`: the lid on the top edge, the bottom rail on
+      // the bottom one, the cage's origin `top` half-widths down. All three
+      // are the same drawing, intact — the painting is what tells them apart.
+      const r = S / CAGE_BOX.side
+      ctx.translate(cx, CAGE_BOX.top * r)
+      const kind = s.id === 'cage-warden' ? 'warden' : s.id === 'cage-sealed' ? 'sealed' : 'road'
+      paintCageBody(ctx, r, kind, 0, REF)
+      break
+    }
 
     case 'gate/frame-add':
     case 'gate/frame-sub':
@@ -363,6 +378,29 @@ const renderStillAlpha = (s: StillSpec, cycle = 0): HTMLCanvasElement => {
       paintRollerBall(ctx, r, cycle * ROLLER_SPIN_PER_LOOP, r / ROLLER_R, false, ref)
       break
     }
+    case 'round/pellet': {
+      // The pellet fills a `2r` box centred on the round, exactly as
+      // `drawBullets` blits it.
+      ctx.translate(cx, cy)
+      paintPellet(ctx, S / 2 / FX_PAD, REF)
+      break
+    }
+    case 'fx/bolt': {
+      // One tile of column, drawn from the panel's TOP edge to its bottom —
+      // the renderer stretches this between the crowd and the gun's reach.
+      const w = s.w / (BOLT_BOX.w / 2)
+      ctx.translate(cx, 0)
+      paintBoltTile(ctx, w, s.h, REF)
+      break
+    }
+    case 'fx/wisp':
+      ctx.translate(cx, cy)
+      paintWisp(ctx, S / 2 / FX_PAD, REF)
+      break
+    case 'fx/gild':
+      ctx.translate(cx, cy)
+      paintGildBurst(ctx, S / 2 / FX_PAD, REF)
+      break
     case 'round/meteor': {
       const R = S / METEOR_BOX.side
       ctx.translate(cx, METEOR_BOX.centre * R)
@@ -702,6 +740,13 @@ const save = async (name: string, payload: { dataUrl?: string; text?: string }):
 
 const tick = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()))
 
+/** The reference stems named by `?only=` on the bench's route, or null for all. */
+const onlyStems = (): Set<string> | null => {
+  const raw = new URLSearchParams(location.hash.split('?')[1] ?? '').get('only')
+  const stems = (raw ?? '').split(',').map((x) => x.trim().replace(/\.png$/, '')).filter(Boolean)
+  return stems.length > 0 ? new Set(stems) : null
+}
+
 const preview = async (): Promise<void> => {
   await document.fonts?.ready
   const out: typeof previews.value = []
@@ -734,6 +779,12 @@ const preview = async (): Promise<void> => {
 const exportSheets = async (scope: 'all' | 'deaths'): Promise<void> => {
   busy.value = true
   const every = scope === 'all'
+  // `?only=<stem>,<stem>` narrows "all" to the named references: a NEW sheet
+  // is exported without re-stamping every reference that did not change (see
+  // `pnpm art:export -- --only`). Everything is still rendered, because the
+  // index is written whole and the prompt documents are the manifest's.
+  const only = onlyStems()
+  const wanted = (stem: string): boolean => only === null || only.has(stem)
   let written = 0
   const put = async (name: string, payload: { dataUrl?: string; text?: string }): Promise<void> => {
     await save(name, payload)
@@ -748,14 +799,14 @@ const exportSheets = async (scope: 'all' | 'deaths'): Promise<void> => {
       await tick()
       const cv = renderWalk(walk)
       if (!every) continue
-      await put(`${walk.file}.png`, { dataUrl: cv.toDataURL('image/png') })
+      if (wanted(walk.file)) await put(`${walk.file}.png`, { dataUrl: cv.toDataURL('image/png') })
       const first = document.createElement('canvas')
       first.width = walk.panelW
       first.height = walk.panelH
       first.getContext('2d')!.drawImage(cv, 0, 0, walk.panelW, walk.panelH, 0, 0, walk.panelW, walk.panelH)
       walkKeys.push({ title: walk.name, sub: walk.target, cv: first })
     }
-    if (every) await put('key-walks.png', { dataUrl: renderKey(walkKeys, 192, 8).toDataURL('image/png') })
+    if (every && only === null) await put('key-walks.png', { dataUrl: renderKey(walkKeys, 192, 8).toDataURL('image/png') })
 
     const stillKeys: { title: string; sub: string; cv: HTMLCanvasElement }[] = []
     for (const s of STILLS) {
@@ -763,9 +814,11 @@ const exportSheets = async (scope: 'all' | 'deaths'): Promise<void> => {
       await tick()
       const cv = renderStill(s)
       if (!every) continue
-      await put(`${s.file}.png`, { dataUrl: cv.toDataURL('image/png') })
+      if (wanted(s.file)) await put(`${s.file}.png`, { dataUrl: cv.toDataURL('image/png') })
       stillKeys.push({ title: s.name, sub: s.target, cv })
     }
+    // The key is every still's caption card, so a narrowed export still
+    // rewrites it: it is the sheet an operator reads to find the new ones.
     if (every) await put('key-stills.png', { dataUrl: renderKey(stillKeys, 192, 8).toDataURL('image/png') })
 
     const deathKeys: { title: string; sub: string; cv: HTMLCanvasElement }[] = []
@@ -773,7 +826,7 @@ const exportSheets = async (scope: 'all' | 'deaths'): Promise<void> => {
       status.value = `rendering ${d.file}`
       await tick()
       const cv = renderDeath(d)
-      await put(`${d.file}.png`, { dataUrl: cv.toDataURL('image/png') })
+      if (wanted(d.file)) await put(`${d.file}.png`, { dataUrl: cv.toDataURL('image/png') })
       // The key shows the LAST panel — the body the game keeps on screen.
       const last = document.createElement('canvas')
       last.width = d.panelW
@@ -782,7 +835,7 @@ const exportSheets = async (scope: 'all' | 'deaths'): Promise<void> => {
         d.panelW, d.panelH, 0, 0, d.panelW, d.panelH)
       deathKeys.push({ title: d.name, sub: d.target, cv: last })
     }
-    await put('key-deaths.png', { dataUrl: renderKey(deathKeys, 192, 8).toDataURL('image/png') })
+    if (only === null) await put('key-deaths.png', { dataUrl: renderKey(deathKeys, 192, 8).toDataURL('image/png') })
 
     // The text is the manifest's (`promptDocs`), so this route and
     // `pnpm art:prompts` write byte-identical documents.

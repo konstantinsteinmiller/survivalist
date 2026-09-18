@@ -46,7 +46,12 @@ export default {
 
   'weapons': {
     'rocket': 'Roketatar',
-    'gatling': 'Gatling'
+    'gatling': 'Gatling',
+    'grapeshot': 'Saçma',
+    'dynamo': 'Dinamo',
+    'gravecall': 'Mezar Çağrısı',
+    'hoard': 'Karga Hazinesi',
+    'bolt': 'Yıldırım'
   },
 
   'offer': {
@@ -112,6 +117,7 @@ export default {
   },
   'result': {
     'stageClear': 'Bölüm tamamlandı!',
+    'clearedStage': 'Bölüm {n} tamamlandı!',
     'wipedOut': 'Ekip yok edildi',
     'reachedStage': 'Bölüm {n}',
     'newRecord': 'Yeni rekor!',
@@ -131,8 +137,7 @@ export default {
     'tryAgain': 'Tekrar dene',
     'upgrade': 'Geliştir',
     'upgradeHint': 'Takımını geliştir!',
-    'rankOf': '{n} içinde',
-    'upNext': 'Sırada: Bölüm {n}'
+    'rankOf': '{n} içinde'
   },
 
   // Two strings only; everything ON the card comes from keys this file
@@ -223,7 +228,11 @@ export default {
       'grenade': 'El Bombası',
       'shield': 'Kalkan',
       'rocket': 'Roket Gücü',
-      'gatling': 'Gatling Gücü'
+      'gatling': 'Gatling Gücü',
+      'grapeshot': 'Saçma Gücü',
+      'dynamo': 'Dinamo Gücü',
+      'gravecall': 'Mezar Gücü',
+      'hoard': 'Hazine Gücü'
     },
     'descriptions': {
       'squad': 'Her bölüme daha çok hayatta kalanla başla.',
@@ -234,7 +243,11 @@ export default {
       'grenade': 'Ağır hasar için el bombası at.',
       'shield': 'Birkaç saniye boyunca alınan hasarı yarıya indirir.',
       'rocket': 'Bölümde açtığın roketatarlar daha çok hasar verir.',
-      'gatling': 'Bölümde açtığın Gatlingler daha çok hasar verir.'
+      'gatling': 'Bölümde açtığın Gatlingler daha çok hasar verir.',
+      'grapeshot': 'Bölümde açtığın pompalı tüfekler daha çok hasar verir.',
+      'dynamo': 'Bölümde açtığın Dinamo yıldırımları daha sert vurur.',
+      'gravecall': 'Dirilttiğin ölüler daha güçlü savaşır ve daha uzun dayanır.',
+      'hoard': 'Altına dönüşen düşmanlar daha çok altın bırakır.'
     }
   },
 
