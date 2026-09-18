@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "Повернулися {n} вцілілих",
 
-    'next': "Далі: {label} · {when}"
+    'next': "Далі: {label} · {when}",
+    'bossAhead': "Попереду бос: {name}",
+    'bossName': {
+      'grumpling': "Бурчунчик",
+      'bonecap': "Кісткоголов",
+      'snaggletusk': "Кривоікл",
+      'thornwick': "Терновик",
+      'marrowknight': "Кістяний лицар",
+      'cinderhound': "Попелястий пес",
+      'rattlejack': "Гримучий Джек"
+    }
 
   },
 

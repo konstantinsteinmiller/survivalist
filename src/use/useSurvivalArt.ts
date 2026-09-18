@@ -5,7 +5,7 @@ import {
   gateTickMs, gatePumpCap, gateValueLabel, isScaleOp,
   LANE_HALF, MAX_FIRE_RATE, SLAM_RADIUS, SLAM_RADIUS_GROWTH, slamRadiusFor,
   SLAM_RADIUS_MAX, VIEW_HEIGHT, UNIT_R,
-  type Divider, type GateOp,
+  type Divider, type GateOp, type GatePrize,
   WARDEN_CAGE_SCALE,
   REWARD_CAGE_SCALE
 } from '@/game/survival'
@@ -35,7 +35,9 @@ import {
   applySkillFx, drawIceOn, drawSkillAir, drawSkillGround, drawSkillScreen, isSkillFx,
   stepSkillFx, syncSkillView
 } from '@/use/useSkillFx'
-import { CLAW_CORE_FRACTION, HEAL_FRACTION } from '@/game/threats'
+import {
+  CHARGE_DASH_S, CLAW_CORE_FRACTION, HEAL_FRACTION, SUMMON_TELEGRAPH, SUMMON_WAVES_MAX
+} from '@/game/threats'
 import {
   DOWN_FALL_SIDE, HERO_CYCLE_MS, HERO_FOOT_R, HERO_FRAME_ASPECT, HERO_HEIGHT_R,
   FALL_REST_P, outfitIndex, outfitTone, primeSurvivors, SURVIVOR_FALL_MS,
@@ -61,13 +63,17 @@ import {
   type FxEvent, type QualityTier
 } from '@/use/useVfx'
 import { useScreenshake } from '@/use/useScreenshake'
-import { playFx } from '@/use/useGameAudio'
+import { playFx, type FxSound } from '@/use/useGameAudio'
 import { haptic } from '@/use/useHaptics'
 import { getCachedImage } from '@/use/useAssets'
 import { clearRamps, getRamp, getSprite, putRamp, putSprite } from '@/use/useGradientRamps'
 import { VIGNETTE_GRADIENT } from '@/use/perfVariants'
 import { clearLabelWidths, measureLabel } from '@/use/useTextMetrics'
 import { bossOwnsCast, type CastKind } from '@/game/bossTells'
+import {
+  METEOR_RELEASE, POSE_AFTER_S, REST_POSE, advanceBeats, bossPose, hurlArc, hurlPoint,
+  windupBeats, type BossPose, type WindupBeat, type WindupCue, type WindupKind
+} from '@/game/bossWindup'
 
 // ─── The frame's quality tier ───────────────────────────────────────────────
 //
@@ -235,8 +241,20 @@ const GATE_TINT = {
   add: { a: '#7ae0ff', b: '#1f6aa8', glow: '120,220,255', plateA: '#cfefff', plateB: '#3d86c4' },
   sub: { a: '#ffa53c', b: '#6b3708', glow: '255,150,60', plateA: '#ffcf9a', plateB: '#a35c14' },
   mul: { a: '#ff7ad0', b: '#8a2ea8', glow: '255,140,230', plateA: '#ffb0e8', plateB: '#c04aa0' },
-  div: { a: '#ff5f3c', b: '#5e160e', glow: '255,80,45', plateA: '#ff9a80', plateB: '#8c2418' }
+  div: { a: '#ff5f3c', b: '#5e160e', glow: '255,80,45', plateA: '#ff9a80', plateB: '#8c2418' },
+  // ── The face-down door ──
+  //
+  // Black, and the SAME black whatever is underneath: this entry is the whole
+  // disguise, so it may not borrow a hue from any of the four above. The only
+  // colour in it is a cold violet rim-light — far enough from cyan, magenta,
+  // amber and red that it reads as "unknown" rather than as a faded version of
+  // one of the answers. See "The face-down door" in `track.ts`, rule 2.
+  mystery: { a: '#b7a6ff', b: '#1b1530', glow: '150,125,255', plateA: '#3b3352', plateB: '#0b0913' }
 } as const
+
+/** What a door is DRESSED as — its op, or the face-down disguise. Every cache key
+ *  and every tint lookup on a gate is keyed on this and never on the true op. */
+export type GateDress = GateOp | 'mystery'
 
 /**
  * One identity per crate kind.
@@ -1053,6 +1071,42 @@ export const paintBarricadeBody = (
 export { GATE_FRAME }
 
 /**
+ * A painting, blackened: the face-down door's frame, baked ONCE per painting.
+ *
+ * `ctx.filter` would do this per frame and this game is fill-bound, so the dark
+ * copy is made off-screen the first time it is asked for and blitted like any
+ * other painting from then on. Keyed on the image OBJECT, so a new painting
+ * arriving (`onArtChanged`) is simply a new key and the old bake is collected
+ * with the image it was made from — no invalidation to get wrong.
+ *
+ * `source-atop` keeps the painting's own alpha, so the silhouette — the posts,
+ * the lintel, the notches the slicer re-composed — is exactly the add frame's;
+ * only the light has gone out of it. A little of it is left (0.8, not 1) so the
+ * ironwork still reads as ironwork under the violet rim the curtain adds.
+ */
+const blackenedCache = new WeakMap<HTMLImageElement, HTMLCanvasElement | HTMLImageElement>()
+const blackened = (img: HTMLImageElement): HTMLCanvasElement | HTMLImageElement => {
+  const hit = blackenedCache.get(img)
+  if (hit) return hit
+  const w = img.naturalWidth || img.width
+  const h = img.naturalHeight || img.height
+  // Not decoded yet, or no canvas (a headless spec): hand back the painting
+  // itself and DON'T cache it, so the bake happens on the first frame it can.
+  if (typeof document === 'undefined' || w <= 0 || h <= 0) return img
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const g = c.getContext('2d')
+  if (!g) return img
+  g.drawImage(img, 0, 0, w, h)
+  g.globalCompositeOperation = 'source-atop'
+  g.fillStyle = 'rgba(10,8,18,0.8)'
+  g.fillRect(0, 0, w, h)
+  blackenedCache.set(img, c)
+  return c
+}
+
+/**
  * A gate leaf's FRAME: two posts and, painted, whatever spans them.
  *
  * The curtain, the chevrons, the plate and the charge meter are all live —
@@ -1067,10 +1121,15 @@ export { GATE_FRAME }
  * caller's, since it is additive and quality-gated.
  */
 export const paintGateFrame = (
-  ctx: CanvasRenderingContext2D, op: GateOp, halfW: number, height: number,
+  ctx: CanvasRenderingContext2D, op: GateDress, halfW: number, height: number,
   scale: number, o?: PaintOpts & { postW?: number }
 ): void => {
-  const painted = art('gate', `frame-${op}`, o)
+  // A face-down door wears the ADD frame, blackened — one frame for every `?`,
+  // so the ironwork cannot say what is underneath. Painted, that is a baked
+  // dark copy of the add painting (`blackened`); drawn, the posts take the
+  // mystery tint below.
+  const source = art('gate', `frame-${op === 'mystery' ? 'add' : op}`, o)
+  const painted = source && op === 'mystery' ? blackened(source) : source
   if (painted) {
     const u = scale / GATE_FRAME.ppu
     const edge = (GATE_FRAME.w / 2 - GATE_FRAME.refHalfW * GATE_FRAME.ppu) * u
@@ -2547,6 +2606,11 @@ interface Dismissal {
   y: number
   halfW: number
   op: GateOp
+  /** What the wreckage is dressed as. The door's own op, except a prize door,
+   *  which stays in the face-down dressing it wore — see `GateDress`. */
+  dress: GateDress
+  /** A turned-over shield door: its plate carries the crest, not `label`. */
+  shield: boolean
   /** Built once at spawn — never per frame. */
   label: string
   /** ms still to wait for the shockwave. */
@@ -2581,7 +2645,8 @@ let batchBleak = false
 /** A bank has at most two dismissals; two banks can overlap on screen during a
  *  fast weave. Six slots is headroom nobody will ever spend. */
 const dismissals: Dismissal[] = Array.from({ length: 6 }, () => ({
-  active: false, x: 0, y: 0, halfW: 0, op: 'add' as GateOp, label: '',
+  active: false, x: 0, y: 0, halfW: 0, op: 'add' as GateOp, dress: 'add' as GateDress,
+  shield: false, label: '',
   delay: 0, burst: false, age: 0, power: 1, bleak: false
 }))
 
@@ -2712,6 +2777,37 @@ const PILLAR_ASH: [number, number, number] = [78, 78, 86]
 const CRACK_JAG = [0.16, -0.13, 0.21, -0.09, 0.14]
 
 /**
+ * ─── The turn-over ──────────────────────────────────────────────────────────
+ *
+ * A face-down door that resolves folds edge-on and opens again as what it was.
+ * The sim clears `Gate.mystery` on the claim frame; this is the renderer's own
+ * short memory of WHICH doors just turned, keyed on position exactly like
+ * `standing` (banks are metres apart, leaves a third of a lane — no two doors
+ * can share one). Four slots: a bank has at most three doors.
+ */
+const FLIP_MS = 220
+const flips = Array.from({ length: 4 }, () => ({ x: 0, y: 0, t0: -1e9 }))
+let flipNext = 0
+
+const startFlip = (x: number, y: number): void => {
+  const f = flips[flipNext]!
+  flipNext = (flipNext + 1) % flips.length
+  f.x = x
+  f.y = y
+  f.t0 = nowMs()
+}
+
+/** 0..1 through this door's turn-over, or −1 when it is not turning. */
+const flipProgress = (x: number, y: number, t: number): number => {
+  for (const f of flips) {
+    const k = (t - f.t0) / FLIP_MS
+    if (k < 0 || k >= 1) continue
+    if (Math.abs(f.x - x) < 0.05 && Math.abs(f.y - y) < 0.05) return k
+  }
+  return -1
+}
+
+/**
  * Turn one `gateDismiss` event into a scheduled teardown.
  *
  * `distance` is the only thing that varies between the leaves of a bank, and it
@@ -2719,7 +2815,8 @@ const CRACK_JAG = [0.16, -0.13, 0.21, -0.09, 0.14]
  * much debris it throws, and how loud it is. One field, three consistent reads.
  */
 const spawnDismissal = (
-  x: number, y: number, halfW: number, op: GateOp, value: number, distance: number
+  x: number, y: number, halfW: number, op: GateOp, value: number, distance: number,
+  flipped = false, prize?: GatePrize
 ): void => {
   const d = claimDismissal()
   d.active = true
@@ -2727,14 +2824,24 @@ const spawnDismissal = (
   d.y = y
   d.halfW = halfW
   d.op = op
+  d.shield = prize === 'shield'
+  d.dress = prize ? 'mystery' : op
   const shown = gateValueLabel(value)
-  d.label = op === 'div' ? `÷${shown}`
-    : op === 'sub' ? `−${shown}`
-    : op === 'mul' ? `×${shown}` : `+${shown}`
+  d.label = prize ? ''
+    : op === 'div' ? `÷${shown}`
+      : op === 'sub' ? `−${shown}`
+        : op === 'mul' ? `×${shown}` : `+${shown}`
   // Capped: a bank can never be wider than the lane, and an uncapped delay on a
   // freak layout would leave a leaf still standing after the crowd has run past
   // where it used to be.
-  d.delay = Math.min(420, (distance / SHOCK_SPEED) * 1000)
+  //
+  // …except a door that was face-down, which is held standing long enough to
+  // finish turning over and be READ before it breaks. "What was the other one"
+  // is most of what makes the next `?` worth taking, and at `SHOCK_SPEED` the
+  // near door of a three-leaf bank would otherwise burst mid-turn.
+  const reach = (distance / SHOCK_SPEED) * 1000
+  d.delay = flipped ? Math.min(560, Math.max(reach, FLIP_MS + 240)) : Math.min(420, reach)
+  if (flipped) startFlip(x, y)
   d.burst = false
   d.age = 0
   d.power = Math.max(0.35, 1 - distance / 8)
@@ -3835,6 +3942,21 @@ interface Cast {
   life: number
   /** Held past impact for the flash; see `CAST_AFTER_S`. */
   done: boolean
+  /**
+   * A meteor's release point, WORLD space, latched on the first frame of its
+   * flight from the boss's posed hands — see `drawBossBody`. World rather than
+   * screen so the arc stays anchored if the camera moves under it.
+   */
+  hx?: number
+  hy?: number
+  /** No boss hands to throw from at the release: the rock falls from the sky,
+   *  as every meteor did before the hurl. */
+  sky?: boolean
+  /** The wind-up's SOUNDS, on this cast's own clock, and the next one due —
+   *  see `windupBeats`. Only the boss's casts carry them; a miniboss's fuse
+   *  or line has the cues its own event plays. */
+  beats?: WindupBeat[]
+  beat?: number
 }
 
 /** How long a cast lingers after it has landed, for the impact flash. */
@@ -3842,14 +3964,80 @@ const CAST_AFTER_S = 0.22
 
 const casts: Cast[] = []
 
+/**
+ * ─── The wind-up you can hear ───────────────────────────────────────────────
+ *
+ * Each beat of a boss's pose has a cue (`game/bossWindup.ts` has the why).
+ * They are fired from the three pools' STEP functions, on the sim-stepped
+ * `tellDtMs` the tells and the poses already run on — never from a timer —
+ * so the throw's whoosh is on the frame the rock leaves the hand, a frozen
+ * wind-up is a silent one, and a boss that dies takes its unfired beats with
+ * the pools `clearBossTells` empties.
+ */
+const WINDUP_SFX: Record<WindupCue, FxSound> = {
+  gather: 'windGather',
+  hurl: 'windHurl',
+  coil: 'windCoil',
+  // The dash keeps the cue it always had — it is the charge — now fired on the
+  // beat the body starts to run rather than at the start of the coil.
+  dash: 'bossCharge',
+  rise: 'windRise',
+  drop: 'windDrop',
+  whet: 'windWhet',
+  strike: 'windStrike',
+  heal: 'windHeal',
+  charge: 'windBolt',
+  zap: 'windZap',
+  call: 'windCall'
+}
+/** Set by the stepper before a cast's beats are advanced — a charged meteor is
+ *  a bigger rock and a bigger sound. Module scratch so the callback below is
+ *  one function, not a closure per cast per frame. */
+let beatPower = 0
+const soundBeat = (beat: WindupBeat): void => {
+  playFx(WINDUP_SFX[beat.cue], beatPower, 0, beat.seconds)
+}
+
+/** When the summoner's call was last sounded, by boss and wave — see
+ *  `stepSummonCall`. */
+let summonCallBoss: object | null = null
+let summonCallWave = -1
+
+/**
+ * The summoner's call: the one wind-up with no cast to hang its beat on.
+ *
+ * Its telegraph is its own clock (`summonCd` inside `SUMMON_TELEGRAPH`, the
+ * same test `findWindup` raises its arms on), so the sound is fired on the
+ * first frame that test is true for a given wave, and never again for it — a
+ * guard phase that re-times the clock back out of the window does not get a
+ * second call for the same wave.
+ */
+const stepSummonCall = (): void => {
+  const b = getBoss()
+  if (!b || b.dead || b.kind !== 'summoner') return
+  if (b.attacks >= SUMMON_WAVES_MAX || b.summonCd > SUMMON_TELEGRAPH) return
+  if (bossGazeOpening() !== 0) return
+  if (summonCallBoss === b && summonCallWave === b.attacks) return
+  summonCallBoss = b
+  summonCallWave = b.attacks
+  playFx('windCall', 0, 0, Math.max(0.3, b.summonCd))
+}
+
 const stepCasts = (dtMs: number): void => {
   const dt = dtMs / 1000
   for (let i = casts.length - 1; i >= 0; i--) {
     const c = casts[i]!
     c.t += dt
+    if (c.beats) {
+      beatPower = c.charged ? 1 : 0
+      c.beat = advanceBeats(c.beats, c.beat ?? 0, c.t, soundBeat)
+    }
     if (c.t >= c.life) c.done = true
     if (c.t >= c.life + CAST_AFTER_S) casts.splice(i, 1)
   }
+  // Stepped with the casts because it IS the summoner's cast, the one the
+  // simulation never emits — and on the same frozen-or-not clock.
+  if (dtMs > 0) stepSummonCall()
 }
 
 /**
@@ -3898,32 +4086,109 @@ const drawCasts = (ctx: CanvasRenderingContext2D): void => {
       ctx.restore()
 
       if (!c.done) {
-        // ── The rock ──
-        //
-        // Falls from above the top of the view, so it crosses the player's eye
-        // line on the way in rather than appearing beside them. Sized to be seen
-        // by somebody who is looking at their own thumb: the first version was
-        // a third of this and read as a speck.
-        const fallFrom = sy - viewH * 0.8 - scale * 4
-        const my = fallFrom + (sy - fallFrom) * (p * p)
+        // Sized to be seen by somebody who is looking at their own thumb: the
+        // first version was a third of this and read as a speck.
         const rockR = scale * (big ? 1 : 0.55)
-
-        // ── …and the fire it is falling in ──
-        //
-        // The fire belongs to `paintMeteorRock` now, and is asked for by the
-        // CYCLE rather than drawn here: that is what lets the art bench bake
-        // eight panels of it and a painted strip replace it. See the header
-        // above `paintTrailFlame`.
+        // The fire belongs to `paintMeteorRock`, and is asked for by the CYCLE
+        // rather than drawn here: that is what lets the art bench bake eight
+        // panels of it and a painted strip replace it. See the header above
+        // `paintTrailFlame`.
         const cycle = roundCycle(c.t, 0)
-        ctx.save()
-        ctx.translate(sx, my)
         // The tumble. A few degrees of counter-rotation, not a spin: the
         // painted rock carries its flame in the bitmap, and turning it far
-        // enough to see would point the painted fire sideways while the stone
-        // is still falling straight down.
-        ctx.rotate(Math.sin(TAU * cycle) * 0.09 + Math.sin(TAU * cycle * 2) * 0.04)
-        paintMeteorRock(ctx, rockR, big, scale, cheap, { cycle })
-        ctx.restore()
+        // enough to see would point the painted fire the wrong way.
+        const tumble = Math.sin(TAU * cycle) * 0.09 + Math.sin(TAU * cycle * 2) * 0.04
+
+        // ── The hurl ──
+        //
+        // The boss gathers the rock over its head for the first
+        // `METEOR_RELEASE` of the wind-up and throws it; it flies on an arc from
+        // the hands to the mark and lands at exactly `t = life`, the beat the
+        // simulation bills on. Before this the rock fell out of the top of the
+        // screen, and "the meteor comes from nowhere" was the report — the
+        // player was watching the boss, and the boss had done nothing.
+        if (!c.sky && c.hx === undefined && !bossHands.live) c.sky = true
+        if (!c.sky && p < METEOR_RELEASE) {
+          const g = p / METEOR_RELEASE
+          const grow = 0.3 + 0.7 * g * g * (3 - 2 * g)
+          // Sitting IN the hand: the rock's centre rides up as it grows, so its
+          // underside stays on the palm instead of floating over it.
+          const lift = rockR * 0.55 * grow
+          const hx = bossHands.x + bossHands.upX * lift
+          const hy = Math.max(rockR * 1.15, bossHands.y + bossHands.upY * lift)
+          // Heat pulled INTO the hand: a halo that swells with the rock, and
+          // embers drawn inward along spokes — gathering, not exploding.
+          paintWindupGlow(ctx, hx, hy, rockR * (1.6 + g * 1.4), '255,150,60', 0.35 + g * 0.55)
+          if (!cheap) {
+            ctx.save()
+            ctx.globalCompositeOperation = 'lighter'
+            ctx.fillStyle = '#ffe0a0'
+            for (let i = 0; i < 8; i++) {
+              const ph = (c.t * 2.4 + i / 8) % 1
+              const a = i * 2.39996 + c.t * 1.3
+              const d = rockR * (3.6 - ph * 2.8)
+              ctx.globalAlpha = ph
+              ctx.beginPath()
+              ctx.arc(hx + Math.cos(a) * d, hy + Math.sin(a) * d * 0.8,
+                Math.max(1.6, scale * 0.07 * (0.6 + ph)), 0, TAU)
+              ctx.fill()
+            }
+            ctx.restore()
+          }
+          ctx.save()
+          ctx.translate(hx, hy)
+          ctx.scale(grow, grow)
+          ctx.rotate(tumble)
+          paintMeteorRock(ctx, rockR, big, scale, cheap, { cycle })
+          ctx.restore()
+        } else if (!c.sky) {
+          // Latched on the first frame of the flight, from where the hands
+          // actually were — in world space, so a camera move cannot bend it.
+          if (c.hx === undefined) {
+            c.hx = screenToWorldX(bossHands.x + bossHands.upX * rockR * 0.55)
+            c.hy = camY + (viewH * CROWD_SCREEN_Y -
+              Math.max(rockR * 1.15, bossHands.y + bossHands.upY * rockR * 0.55)) / scale
+          }
+          const fx = worldToScreenX(c.hx)
+          const fy = worldToScreenY(c.hy ?? c.y)
+          const u = (p - METEOR_RELEASE) / (1 - METEOR_RELEASE)
+          // A high lob, flattened only as far as it takes to keep the rock on
+          // screen: losing it off the top is losing it at the one moment it is
+          // travelling toward the player.
+          const arc = hurlArc(fy, sy, Math.max(scale * 1.4, (sy - fy) * 0.4), rockR * 1.2)
+          const at = hurlPoint(u, fx, fy, sx, sy, arc)
+          if (!cheap) {
+            // A short wake of sparks along the arc behind it.
+            ctx.save()
+            ctx.globalCompositeOperation = 'lighter'
+            ctx.fillStyle = '#ffb066'
+            for (let i = 1; i <= 4; i++) {
+              const back = hurlPoint(u - i * 0.045, fx, fy, sx, sy, arc)
+              ctx.globalAlpha = 0.5 * (1 - i / 5)
+              ctx.beginPath()
+              ctx.arc(back.x, back.y, Math.max(1.5, rockR * (0.45 - i * 0.07)), 0, TAU)
+              ctx.fill()
+            }
+            ctx.restore()
+          }
+          ctx.save()
+          ctx.translate(at.x, at.y)
+          // The painted flame trails UP, which is behind a rock falling
+          // straight down; turned to the velocity, it trails behind the arc.
+          ctx.rotate(Math.atan2(at.dy, at.dx) - Math.PI / 2 + tumble * 0.5)
+          paintMeteorRock(ctx, rockR, big, scale, cheap, { cycle })
+          ctx.restore()
+        } else {
+          // No boss to throw it: the old drop from above the top of the view,
+          // so it still crosses the player's eye line on the way in.
+          const fallFrom = sy - viewH * 0.8 - scale * 4
+          const my = fallFrom + (sy - fallFrom) * (p * p)
+          ctx.save()
+          ctx.translate(sx, my)
+          ctx.rotate(tumble)
+          paintMeteorRock(ctx, rockR, big, scale, cheap, { cycle })
+          ctx.restore()
+        }
       }
       continue
     }
@@ -4300,6 +4565,9 @@ interface Rake {
   t: number
   life: number
   done: boolean
+  /** The whet and the swing — see `WINDUP_SFX`. */
+  beats: WindupBeat[]
+  beat: number
 }
 
 /** How long a struck rake stays on the road, seconds. Long enough to read as a
@@ -4335,6 +4603,8 @@ const stepRakes = (dtMs: number): void => {
   for (let i = rakes.length - 1; i >= 0; i--) {
     const r = rakes[i]!
     r.t += dt
+    beatPower = 0
+    r.beat = advanceBeats(r.beats, r.beat, r.t, soundBeat)
     if (r.t >= r.life) r.done = true
     if (r.t >= r.life + RAKE_AFTER_S) rakes.splice(i, 1)
   }
@@ -4500,7 +4770,15 @@ const drawClawFurrows = (ctx: CanvasRenderingContext2D): void => {
  * colour this game uses nowhere else, so the one event that undoes the player's
  * work is never confused with one that threatens them.
  */
-interface HealTell { x: number; y: number; t: number; life: number }
+interface HealTell {
+  x: number; y: number; t: number; life: number
+  /** A bolt being wound up rather than a heal — the body throws it rather
+   *  than gathering it (`bossPose`). The ground tell is the same for both. */
+  bolt: boolean
+  /** The gather, or the charge-and-throw — see `WINDUP_SFX`. */
+  beats: WindupBeat[]
+  beat: number
+}
 const healTells: HealTell[] = []
 
 const stepHealTells = (dtMs: number): void => {
@@ -4508,6 +4786,10 @@ const stepHealTells = (dtMs: number): void => {
   for (let i = healTells.length - 1; i >= 0; i--) {
     const h = healTells[i]!
     h.t += dt
+    // Advanced BEFORE the splice below: the bolt's throw is a beat at exactly
+    // `t = life`, the frame this tell leaves the pool on.
+    beatPower = 0
+    h.beat = advanceBeats(h.beats, h.beat, h.t, soundBeat)
     if (h.t >= h.life) healTells.splice(i, 1)
   }
 }
@@ -6533,7 +6815,12 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
   const addTickMs = gateTickMs('add', stage.value)
   const scaleTickMs = gateTickMs('mul', stage.value)
   for (const g of getGates()) {
-    if (g.used) continue
+    // `claimBank` marks EVERY leaf of the bank `used`, the dismissed ones too,
+    // so this has to let a dismissed leaf through or the standing test below
+    // never runs: it read `if (g.used) continue`, and every door the player did
+    // not take blinked out on the claim frame and burst from empty road a third
+    // of a second later. The taken door is the only one that goes at once.
+    if (g.used && !g.dismissed) continue
     // A dismissed leaf is still STANDING until the shockwave gets to it — that
     // wait is the cascade — so it keeps drawing until its own teardown takes
     // over. From that frame on it belongs to `drawDismissals` for good: the sim
@@ -6546,35 +6833,51 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     const halfW = g.halfW * scale
     const height = scale * 1.5
     const hot = g.hotFor < 0.4
-    const mul = g.op === 'mul' && !g.mystery
-    const bad = g.op === 'div' && !g.mystery
+    // ── The turn-over ──
+    //
+    // A face-down door that has just been resolved does not swap its plate, it
+    // TURNS: the leaf folds edge-on and opens again as what it really was, so a
+    // player watching the door they did not take sees it happen. The first half
+    // is still the `?` — `veiled` is the sim's flag OR the first half of a flip.
+    const flipK = flipProgress(g.x, g.y, t)
+    const veiled = g.mystery || (flipK >= 0 && flipK < 0.5)
+    // A prize door has no arithmetic to show once it is turned over — it keeps
+    // the black dressing and shows its prize on the plate instead.
+    const prizeDoor = g.prize !== undefined && !veiled
+    const plain = !veiled && !prizeDoor
+    const mul = plain && g.op === 'mul'
+    const bad = plain && g.op === 'div'
     // ── A face-down door gives nothing away ──
     //
     // Not just the number: the whole dressing. The curtain's tint, the crooked
-    // plate and the trap's unlit frame are all tells a player learns to read in
-    // the first five stages, and a `?` sitting behind a red unlit curtain is
-    // not a mystery — it is a `÷` with the number filed off. So a mystery leaf
-    // borrows the neutral `add` dressing and stands square: the ONLY thing the
+    // plate, the chevrons' direction and the trap's unlit frame are all tells a
+    // player learns to read in the first five stages, and a `?` sitting behind a
+    // red unlit curtain is not a mystery — it is a `÷` with the number filed off.
+    // So every face-down door wears ONE dressing, whatever it hides: the add
+    // frame blackened, a black curtain, a dark plate, square. The only thing the
     // player has to go on is where it is.
     // Both hostile ops otherwise get the trap's unlit curtain and crooked plate:
     // whatever else separates them, the first thing the player has to read is
     // 'this door takes something', and that read is carried by lighting and
     // tilt long before the glyph is legible.
-    const mystery = g.mystery
-    const hostile = !mystery && (g.op === 'div' || g.op === 'sub')
-    // ONE op for the whole dressing — and every CACHE KEY below is keyed on it
+    const hostile = plain && (g.op === 'div' || g.op === 'sub')
+    // ONE dress for the whole door — and every CACHE KEY below is keyed on it
     // rather than on `g.op`. The ramps live for the whole stage, so a key that
     // carried the TRUE op while the colours were built from the DISGUISED one
     // handed the next leaf of that op somebody else's gradient: one face-down
     // `×` leaf early in a stage painted every `×1.6` door after it the neutral
     // blue, and a readable `×` leaf drawn first painted the mystery magenta.
     // The same collision, and it takes the disguise off in both directions.
-    const dressOp: GateOp = mystery ? 'add' : g.op
+    const dressOp: GateDress = plain ? g.op : 'mystery'
+    const dark = dressOp === 'mystery'
     const tint = GATE_TINT[dressOp]
     const pop = g.pop
 
     ctx.save()
     ctx.translate(cx, sy)
+    // Edge-on at the middle of the turn, never quite zero — a leaf that vanishes
+    // for a frame reads as a blink, and the turn is what this is for.
+    if (flipK >= 0) ctx.scale(Math.max(0.06, Math.abs(Math.cos(Math.PI * flipK))), 1)
 
     // Curtain. A hostile leaf's is muddier and flatter — a lit doorway reads as
     // an opening no matter what colour it is, so neither the trap nor the bill
@@ -6589,7 +6892,15 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     let curtain = getRamp(curtainKey)
     if (!curtain) {
       curtain = putRamp(curtainKey, ctx.createLinearGradient(0, -height / 2, 0, height / 2))
-      if (hostile) {
+      if (dark) {
+        // A doorway you cannot see through: near-opaque black with the violet
+        // rim only at the lintel and the threshold. Every other curtain is a
+        // LIT opening; this one is the only door on the road that is shut.
+        curtain.addColorStop(0, `rgba(${tint.glow},${hot ? 0.3 : 0.2})`)
+        curtain.addColorStop(0.18, 'rgba(8,6,14,0.9)')
+        curtain.addColorStop(0.82, 'rgba(8,6,14,0.9)')
+        curtain.addColorStop(1, `rgba(${tint.glow},${hot ? 0.26 : 0.16})`)
+      } else if (hostile) {
         curtain.addColorStop(0, `rgba(${tint.glow},0.30)`)
         curtain.addColorStop(0.5, bad ? 'rgba(40,10,8,0.42)' : 'rgba(46,26,6,0.42)')
         curtain.addColorStop(1, `rgba(${tint.glow},0.26)`)
@@ -6610,7 +6921,25 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     // animation that says the same thing the arrowhead's static direction
     // already says.
     const dir = hostile ? -1 : 1
-    if (!minFx) {
+    if (dark && !minFx) {
+      // ── No chevrons on a shut door ──
+      //
+      // Chevrons say WHICH WAY the door pulls — the one thing a `?` may not say.
+      // Instead a few motes of the rim's violet drift up through the black and
+      // wink out, identical on every face-down door: something is in there, and
+      // that is all. Five `fillRect`s, no path, no clip.
+      ctx.save()
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.fillStyle = tint.a
+      const mote = Math.max(1.5, scale * 0.05)
+      for (let i = 0; i < 5; i++) {
+        const k = ((t / 2600) + i / 5) % 1
+        ctx.globalAlpha = Math.sin(k * Math.PI) * (hot ? 0.75 : 0.5)
+        const mx = Math.sin(i * 2.4 + t / 900) * halfW * 0.62
+        ctx.fillRect(mx - mote / 2, height * 0.42 - k * height * 0.84, mote, mote)
+      }
+      ctx.restore()
+    } else if (!minFx) {
       ctx.save()
       ctx.beginPath()
       ctx.rect(-halfW, -height / 2, halfW * 2, height)
@@ -6676,13 +7005,19 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     // a number that jumps is the difference between "it changed" and "I DID
     // that". The trap's plate is tilted off true: nothing else on screen is
     // crooked, so the tilt alone flags it before the glyph is readable.
-    const s = 1 + pop * 0.28
+    // A face-down door never pops (it never ticks), so its `?` breathes instead —
+    // phase-shifted by the door's own x, so the two doors of a blind pair do not
+    // pulse in lockstep like one animated sign. Same size on every `?`.
+    const s = veiled ? 1 + 0.06 * Math.sin(t / 260 + g.x * 1.7) : 1 + pop * 0.28
     const shown = gateValueLabel(g.value)
     // A face-down door wears a question mark and nothing else — the dressing
-    // around it was already neutralised at the top of the loop.
-    const label = g.mystery
+    // around it was already neutralised at the top of the loop. A turned-over
+    // prize door wears its prize (drawn below), never its `+0` placeholder.
+    const label = veiled
       ? '?'
-      : bad ? `÷${shown}` : g.op === 'sub' ? `−${shown}` : mul ? `×${shown}` : `+${shown}`
+      : prizeDoor
+        ? ''
+        : bad ? `÷${shown}` : g.op === 'sub' ? `−${shown}` : mul ? `×${shown}` : `+${shown}`
     const plateH = height * 0.52
     // Measured OUTSIDE the pop scale, so the punch magnifies a plate that was
     // already the right size rather than changing how the number is laid out
@@ -6715,21 +7050,31 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     ctx.lineWidth = lineW
     ctx.strokeStyle = hostile
       ? (bad ? 'rgba(30,6,4,0.95)' : 'rgba(36,18,4,0.95)')
-      : 'rgba(10,14,24,0.9)'
+      : dark ? `rgba(${tint.glow},0.75)` : 'rgba(10,14,24,0.9)'
     roundRect(ctx, -plateW / 2, -plateH / 2, plateW, plateH, plateH * 0.26)
     ctx.stroke()
 
-    // `measurePlate` did NOT leave the font set — its width came from a cache
-    // that never touched the context — so the size is applied here.
-    ctx.font = `900 ${metrics.font}px Angry, sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.lineJoin = 'round'
-    ctx.lineWidth = Math.max(2.5, metrics.font * 0.2)
-    ctx.strokeStyle = 'rgba(8,10,18,0.92)'
-    ctx.strokeText(label, 0, plateH * 0.06)
-    ctx.fillStyle = '#ffffff'
-    ctx.fillText(label, 0, plateH * 0.06)
+    if (prizeDoor) {
+      // The shield, in the crest and colour the skill and the roadside box both
+      // wear (`paintCrest`), so it reads as "the shield" without a word.
+      const cw = plateH * 0.46
+      paintCrest(ctx, 'shield', 0, 0, cw, cw * 1.16, {
+        fill: '#6fd6ff', rim: '#06263a', rimW: Math.max(2, scale * 0.06),
+        rib: 'rgba(6,38,58,0.9)', ribW: Math.max(1, scale * 0.03)
+      })
+    } else {
+      // `measurePlate` did NOT leave the font set — its width came from a cache
+      // that never touched the context — so the size is applied here.
+      ctx.font = `900 ${metrics.font}px Angry, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = Math.max(2.5, metrics.font * 0.2)
+      ctx.strokeStyle = veiled ? 'rgba(30,20,60,0.95)' : 'rgba(8,10,18,0.92)'
+      ctx.strokeText(label, 0, plateH * 0.06)
+      ctx.fillStyle = veiled ? '#f3eeff' : '#ffffff'
+      ctx.fillText(label, 0, plateH * 0.06)
+    }
     ctx.restore()
 
     // Charge meter under the plate: how far through the current half-second the
@@ -6747,7 +7092,7 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     // for as long as the crowd kept shooting. An empty meter under a `?` is the
     // one thing on the leaf that says "this door does not work like the others",
     // which is the tell the neutral dressing exists to avoid.
-    if (!mystery && g.value < gatePumpCap(g.op) && (hot || g.charge > 0)) {
+    if (plain && g.value < gatePumpCap(g.op) && (hot || g.charge > 0)) {
       const barW = plateW * 1.02
       const frac = Math.max(0, Math.min(1, g.charge / (isScaleOp(g.op) ? scaleTickMs : addTickMs)))
       ctx.fillStyle = 'rgba(0,0,0,0.5)'
@@ -6822,7 +7167,7 @@ const drawDismissals = (ctx: CanvasRenderingContext2D): void => {
     const sx = worldToScreenX(d.x)
     const halfW = d.halfW * scale
     const height = scale * 1.5
-    const tint = GATE_TINT[d.op]
+    const tint = GATE_TINT[d.dress]
     const bad = d.op === 'div'
     const age = d.age
     // The single switch the whole bleak variant hangs off. Every hot channel
@@ -7019,12 +7364,21 @@ const drawDismissals = (ctx: CanvasRenderingContext2D): void => {
           roundRect(ctx, -plateW / 2, -plateH / 2, plateW, plateH, plateH * 0.26)
           ctx.stroke()
 
-          ctx.font = `900 ${metrics.font}px Angry, sans-serif`
-          ctx.lineWidth = Math.max(2.5, metrics.font * 0.2)
-          ctx.strokeStyle = 'rgba(8,10,18,0.92)'
-          ctx.strokeText(d.label, 0, plateH * 0.06)
-          ctx.fillStyle = '#ffffff'
-          ctx.fillText(d.label, 0, plateH * 0.06)
+          if (d.shield) {
+            // The prize the player walked past, broken in two like any number.
+            const cw = plateH * 0.46
+            paintCrest(ctx, 'shield', 0, 0, cw, cw * 1.16, {
+              fill: '#6fd6ff', rim: '#06263a', rimW: Math.max(2, scale * 0.06),
+              rib: 'rgba(6,38,58,0.9)', ribW: Math.max(1, scale * 0.03)
+            })
+          } else {
+            ctx.font = `900 ${metrics.font}px Angry, sans-serif`
+            ctx.lineWidth = Math.max(2.5, metrics.font * 0.2)
+            ctx.strokeStyle = 'rgba(8,10,18,0.92)'
+            ctx.strokeText(d.label, 0, plateH * 0.06)
+            ctx.fillStyle = '#ffffff'
+            ctx.fillText(d.label, 0, plateH * 0.06)
+          }
 
           // The colour going out of it — charcoal for a trap that is burning,
           // dead grey for an offer that was given up. Same geometry, opposite
@@ -8627,7 +8981,286 @@ const clearBossTells = (): void => {
   gazeBeams.length = 0
 }
 
+// ─── The body winds up too ──────────────────────────────────────────────────
+//
+// The tells above are all on the ROAD, and the player is looking at the boss.
+// So the boss's body performs every wind-up over the same seconds its ground
+// tell counts down: it rears up with the meteor over its head and hurls it,
+// coils before a charge, rises before a shock and stomps, raises its claws, its
+// hands, its arms. The curves are pure and live in `game/bossWindup.ts`; this
+// block finds which wind-up is running and applies it.
+//
+// The pose is READ off the same pools the tells are drawn from, on the same
+// sim-stepped clock, so a pose can never run ahead of the hit it announces.
+
+/** The wind-up the body is performing this frame. Scratch, reused. */
+interface Windup {
+  kind: WindupKind
+  p: number
+  after: number
+  side: number
+  charged: boolean
+  life: number
+}
+const windup: Windup = { kind: 'meteor', p: 0, after: 0, side: 1, charged: false, life: 1 }
+
+/**
+ * How much of a rake's wind-up the body spends raising its claws, seconds.
+ *
+ * A crossrake puts its SECOND pass on the road with the first, `CROSSRAKE_GAP_S`
+ * later — so measured over its whole life the second pass would already be half
+ * raised the frame the first one struck. Measured over the last second instead,
+ * the claws come back up after the first strike and fall again on the second.
+ */
+const RAKE_POSE_S = 1
+
+/** When the summoner's last wave came up, sim ms — its arms come down on it. */
+let summonWaveAt = -1e9
+
+/**
+ * Which wind-up is the body in?
+ *
+ * The one that lands SOONEST, and a live one always beats a landed one — a
+ * struck pose settling out may not hold the body down while the next attack
+ * is already winding up.
+ */
+type LiveBoss = NonNullable<ReturnType<typeof getBoss>>
+
+const findWindup = (b: LiveBoss, t: number): Windup | null => {
+  let rank = Number.POSITIVE_INFINITY
+  const take = (
+    kind: WindupKind, at: number, life: number, charged: boolean, dx: number, span = life
+  ): void => {
+    const left = life - at
+    if (left < -POSE_AFTER_S) return
+    const r = left >= 0 ? left : 1e3 - left
+    if (r >= rank) return
+    rank = r
+    const s = Math.max(0.001, Math.min(life, span))
+    windup.kind = kind
+    windup.p = Math.max(0, Math.min(1, 1 - left / s))
+    windup.after = Math.max(0, -left)
+    windup.side = dx < 0 ? -1 : 1
+    windup.charged = charged
+    windup.life = life
+  }
+
+  for (const c of casts) {
+    if (c.kind === 'meteor' || c.kind === 'shock' || c.kind === 'charge') {
+      take(c.kind, c.t, c.life, c.charged, c.x - b.x)
+    }
+  }
+  for (const r of rakes) {
+    let mid = 0
+    for (const x of r.lanes) mid += x
+    mid /= Math.max(1, r.lanes.length)
+    take('rake', r.t, r.life, false, mid - b.x, RAKE_POSE_S)
+  }
+  for (const h of healTells) take(h.bolt ? 'bolt' : 'heal', h.t, h.life, false, b.slamX - b.x)
+
+  if (b.kind === 'summoner') {
+    // No cast to read: the summoner's clock IS the wind-up. Only while a wave
+    // is still owed and no eye is opening — a spent wall summons nothing.
+    const since = (t - summonWaveAt) / 1000
+    if (since >= 0 && since < POSE_AFTER_S) take('summon', 1 + since, 1, false, 0)
+    else if (
+      b.attacks < SUMMON_WAVES_MAX && bossGazeOpening() === 0 &&
+      b.summonCd <= SUMMON_TELEGRAPH
+    ) {
+      take('summon', SUMMON_TELEGRAPH - b.summonCd, SUMMON_TELEGRAPH, false, 0)
+    }
+  }
+  return rank < Number.POSITIVE_INFINITY ? windup : null
+}
+
+/**
+ * The pose actually drawn: eased toward the wind-up's, at a time constant short
+ * enough that a stomp still lands on its frame. The ease exists for the ENDS —
+ * a heal tell is dropped the instant it resolves, a boss can be frozen or
+ * killed mid-swing — where the target jumps and the body must not.
+ */
+const POSE_EASE_MS = 40
+const shownPose: BossPose = { ...REST_POSE }
+let poseClock = -1
+
+const easeBossPose = (target: Readonly<BossPose>, t: number, hold: boolean): BossPose => {
+  const dt = poseClock < 0 ? 1e3 : Math.max(0, Math.min(250, t - poseClock))
+  poseClock = t
+  if (hold) return shownPose
+  const k = dt >= 1e3 ? 1 : 1 - Math.exp(-dt / POSE_EASE_MS)
+  shownPose.lean += (target.lean - shownPose.lean) * k
+  shownPose.sx += (target.sx - shownPose.sx) * k
+  shownPose.sy += (target.sy - shownPose.sy) * k
+  shownPose.lift += (target.lift - shownPose.lift) * k
+  shownPose.dip += (target.dip - shownPose.dip) * k
+  shownPose.shake += (target.shake - shownPose.shake) * k
+  shownPose.glow += (target.glow - shownPose.glow) * k
+  return shownPose
+}
+
+/**
+ * Where the boss's raised hands are this frame, screen px, and which way is
+ * up for the body — written by `drawBossBody`, read by `drawCasts` to put the
+ * meteor in them. `live` is false whenever there is no standing boss.
+ */
+const bossHands = { live: false, x: 0, y: 0, upX: 0, upY: -1 }
+
+/** One additive glow, off ONE cached unit ramp per colour. */
+const paintWindupGlow = (
+  ctx: CanvasRenderingContext2D, x: number, y: number, r: number,
+  rgb: string, alpha: number, squash = 1
+): void => {
+  if (r < 0.5 || alpha <= 0.01) return
+  const key = `windupGlow|${rgb}`
+  let ramp = getRamp(key)
+  if (!ramp) {
+    ramp = putRamp(key, ctx.createRadialGradient(0, 0, 0, 0, 0, 1))
+    ramp.addColorStop(0, `rgba(${rgb},0.9)`)
+    ramp.addColorStop(0.45, `rgba(${rgb},0.32)`)
+    ramp.addColorStop(1, `rgba(${rgb},0)`)
+  }
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.globalAlpha = Math.min(1, alpha)
+  ctx.translate(x, y)
+  ctx.scale(r, r * squash)
+  ctx.fillStyle = ramp
+  ctx.beginPath()
+  ctx.arc(0, 0, 1, 0, TAU)
+  ctx.fill()
+  ctx.restore()
+}
+
+/** The attack's own colour, for the glow on the body. */
+const WINDUP_RGB: Record<WindupKind, string> = {
+  meteor: '255,150,60',
+  shock: '255,110,40',
+  charge: '255,70,30',
+  rake: '255,236,190',
+  heal: '92,240,138',
+  bolt: '110,240,150',
+  summon: '190,120,255'
+}
+
+/**
+ * The ground under a wind-up, in the boss's own (unposed) foot space: heat for
+ * a shock, dust kicked up by a coiling charge, speed streaks once it runs,
+ * a summoning circle. Drawn BEFORE the body, so it sits behind it.
+ */
+const drawWindupGround = (
+  ctx: CanvasRenderingContext2D, w: Windup, glow: number, size: number, t: number
+): void => {
+  if (w.kind === 'shock') {
+    paintWindupGlow(ctx, 0, 0, size * (0.55 + glow * 0.35), WINDUP_RGB.shock, glow * 0.55, 0.32)
+    return
+  }
+  if (w.kind === 'summon') {
+    paintWindupGlow(ctx, 0, 0, size * (0.6 + glow * 0.4), WINDUP_RGB.summon, glow * 0.5, 0.32)
+    return
+  }
+  if (w.kind !== 'charge' || w.after > 0) return
+  const dashAt = w.life <= 0 ? 0 : Math.max(0, 1 - CHARGE_DASH_S / w.life)
+  if (w.p < dashAt) {
+    // The paw: dust thrown back off both feet, harder as the coil tightens.
+    if (minFx) return
+    const coil = w.p / Math.max(0.001, dashAt)
+    const n = cheapFx ? 2 : 4
+    ctx.save()
+    ctx.fillStyle = 'rgb(178,154,124)'
+    for (let i = 0; i < n; i++) {
+      const ph = ((t / 420) + i / n) % 1
+      const side = i % 2 === 0 ? 1 : -1
+      ctx.globalAlpha = (1 - ph) * 0.6 * coil
+      const r = size * (0.1 + ph * 0.16)
+      ctx.beginPath()
+      ctx.ellipse(side * size * (0.22 + ph * 0.45), -ph * size * 0.22, r, r * 0.6, 0, 0, TAU)
+      ctx.fill()
+    }
+    ctx.restore()
+    return
+  }
+  // The run: streaks trailing BEHIND the body, which is up the screen — the
+  // boss comes down the road at the crowd.
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.strokeStyle = '#ffc48a'
+  ctx.lineWidth = Math.max(1.5, size * 0.035)
+  ctx.lineCap = 'round'
+  const n = cheapFx ? 3 : 6
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1) - 0.5) * size * 0.9
+    const ph = ((t / 90) + i * 0.37) % 1
+    ctx.globalAlpha = 0.45 * (1 - ph * 0.6)
+    const y0 = -size * (0.25 + ph * 0.3)
+    ctx.beginPath()
+    ctx.moveTo(x, y0)
+    ctx.lineTo(x, y0 - size * (1.1 + (i % 3) * 0.35))
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+/**
+ * The glow ON the body — hands, eyes, claws — drawn in the posed space right
+ * after the sprite. The meteor has none here: the rock it is holding is the
+ * light, and `drawCasts` draws it.
+ */
+const drawWindupBody = (
+  ctx: CanvasRenderingContext2D, w: Windup, glow: number, size: number, t: number
+): void => {
+  if (glow <= 0.02) return
+  const beat = 0.85 + Math.sin(t / 70) * 0.15
+  switch (w.kind) {
+    case 'charge':
+      // The whole body heats up from the core — not the eyes: the cast is
+      // bipeds, quadrupeds and blobs, and a glow placed where one design's head
+      // is floats in the air over the next one's back.
+      paintWindupGlow(ctx, 0, -size * 0.62, size * (0.78 + 0.18 * beat), WINDUP_RGB.charge, glow * 0.5)
+      paintWindupGlow(ctx, 0, -size * 0.62, size * 0.34 * beat, '255,200,120', glow * 0.4)
+      return
+    case 'shock':
+      paintWindupGlow(ctx, 0, -size * 0.75, size * 0.8, WINDUP_RGB.shock, glow * 0.3)
+      return
+    case 'rake': {
+      // Claws up on the far side, glinting.
+      const hx = -w.side * size * 0.42
+      paintWindupGlow(ctx, hx, -size * 1.08, size * 0.55 * beat, WINDUP_RGB.rake, glow * 0.9)
+      // Three blades of light — the rake's own three furrows, held up. Kept on
+      // every tier: three strokes are the tell here, not an embellishment.
+      ctx.save()
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.globalAlpha = glow
+      ctx.strokeStyle = '#fff4d8'
+      ctx.lineWidth = Math.max(2, size * 0.05)
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      for (let i = -1; i <= 1; i++) {
+        ctx.moveTo(hx + i * size * 0.12, -size * 0.86)
+        ctx.lineTo(hx + i * size * 0.18 - w.side * size * 0.08, -size * 1.36)
+      }
+      ctx.stroke()
+      ctx.restore()
+      return
+    }
+    case 'heal':
+      paintWindupGlow(ctx, 0, -size * 1.55, size * 0.62 * beat, WINDUP_RGB.heal, glow)
+      return
+    case 'bolt':
+      // The round forming in front of the body, low — where it will leave from.
+      paintWindupGlow(ctx, 0, -size * 0.55, size * (0.18 + glow * 0.3) * beat, WINDUP_RGB.bolt, glow)
+      paintWindupGlow(ctx, 0, -size * 0.55, size * 0.1 * glow, '255,255,255', glow * 0.9)
+      return
+    case 'summon':
+      paintWindupGlow(ctx, -size * 0.35, -size * 1.5, size * 0.35 * beat, WINDUP_RGB.summon, glow * 0.8)
+      paintWindupGlow(ctx, size * 0.35, -size * 1.5, size * 0.35 * beat, WINDUP_RGB.summon, glow * 0.8)
+      return
+    case 'meteor':
+      return
+  }
+}
+
 const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
+  bossHands.live = false
   const b = getBoss()
   if (!b) return
   const t = nowMs()
@@ -8791,6 +9424,45 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
   const frozen = frostActive() && !b.dead
   const frame = monsterFrame(b.design, ((frozen ? frostFrozenAt() : t) / 900) % 1)
   const enraged = bossIsEnraged()
+
+  // ── The wind-up pose ──
+  //
+  // Applied around the FEET, so a stretch rears the body up off its own shadow
+  // and a squash plants it. A frozen boss holds the pose it was caught in — the
+  // casts it reads are frozen on the same clock, and the ease is held too.
+  const wu = findWindup(b, t)
+  const pose = easeBossPose(
+    wu ? bossPose(wu.kind, wu.p, {
+      side: wu.side, charged: wu.charged, after: wu.after, life: wu.life, dashS: CHARGE_DASH_S
+    }) : REST_POSE,
+    t, frozen
+  )
+  const shakeT = frozen ? frostFrozenAt() : t
+  const shx = pose.shake > 0.0005 ? Math.sin(shakeT * 0.09) * pose.shake * size : 0
+  const shy = pose.shake > 0.0005 ? Math.cos(shakeT * 0.13) * pose.shake * size * 0.5 : 0
+  const px = shx
+  const py = (pose.dip - pose.lift) * size + shy
+  if (wu) drawWindupGround(ctx, wu, pose.glow, size, shakeT)
+  ctx.save()
+  ctx.translate(px, py)
+  if (Math.abs(pose.lean) > 0.0005) ctx.rotate(pose.lean)
+  if (Math.abs(pose.sx - 1) > 0.0005 || Math.abs(pose.sy - 1) > 0.0005) ctx.scale(pose.sx, pose.sy)
+
+  // The raised hand, for the meteor: cocked over the shoulder AWAY from the
+  // mark, so the throw sweeps across the body toward it rather than dropping
+  // straight down its front. Mapped back to the screen with the body's own up.
+  {
+    const c = Math.cos(pose.lean)
+    const s = Math.sin(pose.lean)
+    const lx = (wu?.kind === 'meteor' ? -wu.side * size * 0.3 : 0) * pose.sx
+    const ly = -size * 1.45 * pose.sy
+    bossHands.live = true
+    bossHands.x = sx + px + lx * c - ly * s
+    bossHands.y = sy + py + lx * s + ly * c
+    bossHands.upX = s
+    bossHands.upY = -c
+  }
+
   if (frame) {
     const k = (size * 1.6) / (frame.height * SPRITE_HEIGHT_R)
     const dw = frame.width * k
@@ -8849,6 +9521,8 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
     ctx.ellipse(0, -size * 0.5, size * 0.4, size * 0.6, 0, 0, Math.PI * 2)
     ctx.fill()
   }
+  if (wu) drawWindupBody(ctx, wu, pose.glow, size, shakeT)
+  ctx.restore()
 
   // ── The guard crest, drawn OVER the sprite ──
   //
@@ -9761,6 +10435,44 @@ const applyFx = (e: FxEvent): void => {
     }
 
     case 'gatePass': {
+      // ── A door that was face-down shatters its `?` first ──
+      //
+      // Violet shards off the door, in the disguise's own rim colour, under
+      // whatever the payout does next — so the moment reads as "the mystery
+      // broke open, and THIS is what it was" rather than as an ordinary door.
+      if (e.flipped && !minFx) {
+        for (let i = 0; i < (cheapFx ? 8 : 18); i++) {
+          const a = Math.random() * Math.PI * 2
+          const sp = 2 + Math.random() * 6
+          emit({
+            x: e.x, y: e.y + 0.2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6 + 2,
+            life: 380 + Math.random() * 260, size: 0.09 + Math.random() * 0.08,
+            color: [170, 150, 255], additive: true, shape: 1, gravity: 4, drag: 1.6,
+            rot: a, vrot: (Math.random() - 0.5) * 12
+          })
+        }
+      }
+      // ── The shield under a `?` ──
+      //
+      // Not a payout, so none of the payout channels below: no `+0`, no chord.
+      // The arming itself arrives as `bulwarkTake` in this same batch and owns
+      // the cue, the flash and the badge over the crowd — this is only the door
+      // giving it up, in the shield's own blue.
+      if (e.prize === 'shield') {
+        haptic('reward')
+        triggerShake('small')
+        rushPulse = 1
+        for (let i = 0; i < (cheapFx ? 12 : 28); i++) {
+          const a = Math.random() * Math.PI * 2
+          const sp = 2 + Math.random() * 6
+          emit({
+            x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7 + 1.5,
+            life: 520 + Math.random() * 380, size: 0.1 + Math.random() * 0.1,
+            color: [130, 220, 255], additive: true, shape: 2, drag: 1.8, gravity: -0.8
+          })
+        }
+        break
+      }
       // A loss gets the OPPOSITE of every channel a gain uses: red instead of
       // white, an implosion instead of a burst, a hurt pulse instead of the
       // speed streaks. Nothing about it may feel like a reward, because the
@@ -9838,7 +10550,7 @@ const applyFx = (e: FxEvent): void => {
       // channels, and a dismissal that also grabbed them would double every
       // camera punch in the game — on a three-leaf bank, triple it. The
       // dismissal is loud in its own frame and silent everywhere else.
-      spawnDismissal(e.x, e.y, e.halfW, e.op, e.value, e.distance)
+      spawnDismissal(e.x, e.y, e.halfW, e.op, e.value, e.distance, e.flipped === true, e.prize)
       break
 
     case 'crateBreak': {
@@ -10120,9 +10832,12 @@ const applyFx = (e: FxEvent): void => {
       break
 
     case 'meteorCast':
+      // No cue here: the gather and the throw are beats on the cast's own clock
+      // (`WINDUP_SFX`), so they cannot drift from the rock the body is holding.
       casts.push({
         kind: 'meteor', x: e.x, y: e.y, r: e.radius, inner: 0, dir: 1,
-        charged: e.charged, tx: e.x, ty: e.y, t: 0, life: e.ttl, done: false
+        charged: e.charged, tx: e.x, ty: e.y, t: 0, life: e.ttl, done: false,
+        beats: windupBeats('meteor', e.ttl), beat: 0
       })
       break
 
@@ -10244,15 +10959,16 @@ const applyFx = (e: FxEvent): void => {
       }
       break
     case 'chargeCast':
-      // The lane charge's wind-up, and the only boss tell with a cue of its own
-      // that LASTS: `bossCharge` is a rasp that runs for about a second, because
-      // the second and a bit after this event is when the player has to actually
-      // move, and a one-frame clack would put their attention on the frame it is
-      // already too late to use.
-      playFx('bossCharge')
+      // The lane charge's wind-up, and it LASTS: the second and a bit after
+      // this event is when the player has to actually move, so a one-frame
+      // clack would put their attention on the frame it is already too late to
+      // use. It is two beats now rather than one rasp from here — the COIL
+      // (`windCoil`) building for as long as the body crouches, then the DASH
+      // (`bossCharge`) on the frame the simulation starts moving it.
       casts.push({
         kind: 'charge', x: e.x, y: e.y, r: e.halfW, inner: 0, dir: 1,
-        charged: false, tx: e.x, ty: e.toY, t: 0, life: e.ttl, done: false
+        charged: false, tx: e.x, ty: e.toY, t: 0, life: e.ttl, done: false,
+        beats: windupBeats('charge', e.ttl, { dashS: CHARGE_DASH_S }), beat: 0
       })
       break
 
@@ -10330,20 +11046,40 @@ const applyFx = (e: FxEvent): void => {
     }
 
     case 'shockCast':
-      // The meteor's own rage cue, because that is what the sound means here:
-      // "something has committed and it is about to arrive". The DIRECTION of the
-      // answer is carried entirely by the picture — a mark that says "get in" and
-      // a sound that says "get out" would be a mix arguing with itself.
-      playFx('bossRage', 0.7)
+      // The body rising (`windRise`, the rage horn's shape, under it) and then
+      // falling onto the stomp (`windDrop`), both on the cast's clock. What they
+      // say is only "something has committed and it is about to arrive" — the
+      // DIRECTION of the answer is carried entirely by the picture, because a
+      // mark that says "get in" and a sound that says "get out" would be a mix
+      // arguing with itself.
       casts.push({
         kind: 'shock', x: e.x, y: e.y, r: e.outer, inner: e.eye, dir: 1,
-        charged: false, tx: e.x, ty: e.y, t: 0, life: e.ttl, done: false
+        charged: false, tx: e.x, ty: e.y, t: 0, life: e.ttl, done: false,
+        beats: windupBeats('shock', e.ttl), beat: 0
       })
       break
 
     case 'bossShock': {
       playFx('bossSlam')
       triggerShake('big')
+      // The stomp that SENT it: the body lands on this frame (`bossPose`), so
+      // the ground it lands on breaks too, and the ring around the crowd reads
+      // as the same blow arriving rather than as a second event.
+      const stomper = getBoss()
+      if (stomper && !stomper.dead) {
+        emitDecal(stomper.x, stomper.y, 1.1, 0.35)
+        const dust = minFx ? 4 : cheapFx ? 8 : 16
+        for (let i = 0; i < dust; i++) {
+          const a = (i / dust) * TAU
+          emit({
+            x: stomper.x + Math.cos(a) * 0.5, y: stomper.y + Math.sin(a) * 0.25,
+            vx: Math.cos(a) * (3 + Math.random() * 3), vy: Math.sin(a) * 1.4 + 1.2,
+            life: 360 + Math.random() * 220, size: 0.14 + Math.random() * 0.08,
+            color: Math.random() < 0.5 ? [140, 118, 96] : [255, 150, 70],
+            additive: i % 3 === 0, shape: 1, gravity: 6, drag: 1.8
+          })
+        }
+      }
       // Scars on the BAND and nothing in the eye. What is left on the road
       // afterwards is a burnt ring with clean ground inside it, which is the one
       // thing worth having learned before the next one — and a crater in the
@@ -10496,13 +11232,15 @@ const applyFx = (e: FxEvent): void => {
     }
 
     case 'rakeCast':
-      // The claw's wind-up. No sound of its own: it borrows the elite's swing,
-      // because it IS a swing, and a fifth combat cue in the same second of the
-      // mix is mud rather than information.
-      playFx('eliteSweep', 0.35)
+      // The claw's wind-up. It used to borrow the elite's swing at the cast;
+      // it has its own two beats now, on the pose: the whet as the claws come
+      // up (a crossrake's second pass raises late — `RAKE_POSE_S` — so its whet
+      // comes after the first strike, not on top of it) and the swing a beat
+      // before the `bossSlam` that lands the rake.
       rakes.push({
         lanes: e.lanes, y: e.y, halfW: e.halfW, depth: e.depth,
-        t: 0, life: e.ttl, done: false
+        t: 0, life: e.ttl, done: false,
+        beats: windupBeats('rake', e.ttl, { raiseS: RAKE_POSE_S }), beat: 0
       })
       break
 
@@ -10522,11 +11260,14 @@ const applyFx = (e: FxEvent): void => {
         r.lanes.length === e.lanes.length &&
         r.lanes.every((x, i) => Math.abs(x - (e.lanes[i] ?? 0)) < 1e-6)
       const live = rakes.find((r) => !r.done && sameLanes(r)) ?? rakes.find((r) => !r.done)
-      if (live) { live.t = live.life; live.done = true }
+      // A struck rake has nothing left to announce: its unfired beats are
+      // spent here, or the next step would play a whet and a swing AFTER the
+      // slam they were meant to lead into.
+      if (live) { live.t = live.life; live.done = true; live.beat = live.beats.length }
       else {
         rakes.push({
           lanes: e.lanes, y: e.y, halfW: e.halfW, depth: e.depth,
-          t: 0, life: 0.001, done: true
+          t: 0, life: 0.001, done: true, beats: [], beat: 0
         })
       }
       for (const lx of e.lanes) {
@@ -10547,7 +11288,10 @@ const applyFx = (e: FxEvent): void => {
     }
 
     case 'healCast':
-      healTells.push({ x: e.x, y: e.y, t: 0, life: e.ttl })
+      healTells.push({
+        x: e.x, y: e.y, t: 0, life: e.ttl, bolt: false,
+        beats: windupBeats('heal', e.ttl), beat: 0
+      })
       break
 
     case 'bossHeal': {
@@ -10576,8 +11320,14 @@ const applyFx = (e: FxEvent): void => {
     }
 
     case 'bossBoltCast':
-      healTells.push({ x: e.x, y: e.y, t: 0, life: e.ttl })
-      playFx('bossGuard', 0.4)
+      // The charge in the hands and the throw on `t = life` (`windBolt`,
+      // `windZap`). It used to be a quiet `bossGuard` ricochet here, which is
+      // the sound of the player's OWN fire bouncing off the shield — the wrong
+      // thing to say about a round coming the other way.
+      healTells.push({
+        x: e.x, y: e.y, t: 0, life: e.ttl, bolt: true,
+        beats: windupBeats('bolt', e.ttl), beat: 0
+      })
       break
 
     case 'bossBoltHit': {
@@ -10614,6 +11364,8 @@ const applyFx = (e: FxEvent): void => {
     }
 
     case 'summonWave': {
+      // The summoner's arms come down on this — see `findWindup`.
+      summonWaveAt = nowMs()
       // Borrowed from the miniboss arrival, because that is what it is: bodies
       // walking onto the road with a health bar's worth of intent behind them.
       playFx('eliteSpawn', 0.6)

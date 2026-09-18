@@ -205,7 +205,23 @@ export default {
     // (a weapon, the shield, "choose a weapon") and `{when}` is one of the
     // `ladder.*` timing phrases below — two interpolations so the sentence
     // order stays the locale's own.
-    'next': 'Next: {label} · {when}'
+    'next': 'Next: {label} · {when}',
+    // ─── The next boss, on the handover banner ──────────────────────────
+    // A pill under the stage number while the road hands over, beside a dark
+    // silhouette of the boss waiting at the end of the new road. `{name}` is
+    // one of `bossName` below. Keep it to about three words.
+    'bossAhead': "Boss ahead: {name}",
+    // The bosses' own names. Invented proper nouns: Latin-script locales keep
+    // them; other scripts transliterate, or coin a name of the same kind.
+    'bossName': {
+      'grumpling': "Grumpling",
+      'bonecap': "Bonecap",
+      'snaggletusk': "Snaggletusk",
+      'thornwick': "Thornwick",
+      'marrowknight': "Marrowknight",
+      'cinderhound': "Cinderhound",
+      'rattlejack': "Rattlejack"
+    }
   },
   // ─── The gift ladder ──────────────────────────────────────────────────────
   // The HUD chip and the banner name what is coming and when. Both render in a

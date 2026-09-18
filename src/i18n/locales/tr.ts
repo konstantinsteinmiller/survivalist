@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "{n} hayatta kalan geri döndü",
 
-    'next': "Sırada: {label} · {when}"
+    'next': "Sırada: {label} · {when}",
+    'bossAhead': "Sıradaki patron: {name}",
+    'bossName': {
+      'grumpling': "Grumpling",
+      'bonecap': "Bonecap",
+      'snaggletusk': "Snaggletusk",
+      'thornwick': "Thornwick",
+      'marrowknight': "Marrowknight",
+      'cinderhound': "Cinderhound",
+      'rattlejack': "Rattlejack"
+    }
 
   },
 

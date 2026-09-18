@@ -245,6 +245,23 @@ punish a player for reading well, while a hidden bad door is a real question.
 At most one bank a road, ~0.08 per bank, on its own RNG stream so it cannot
 re-roll the campaign. `tests/game/mysteryGate.test.ts`.
 
+*Redesigned 2026-09-18, to the owner's spec — the paragraph above is history.*
+The `?` is now a **black door** with one dressing for everything it can hide
+(the add frame blackened, a shut black curtain, a dark plate), and it can hide a
+fifth thing: the **shield** — the roadside shield box's one-shot absorb, for the
+rest of the stage. Its content is **designed, not rolled**: hand-placed on
+stages 2-15 (`hide()` / `shieldPrize()`), and on a pure schedule above that
+(`mysteryPlanFor`: a single on two stages in six, rotating best / worst /
+shield). The debut moved from stage 9 to **stage 2's first bank, and it pays**
+— a novelty beat in the minute after the first boss, which is one of the
+fit test's biggest drop-off points. It may now hide the BEST door as well as
+the worst. And rarely both doors of a pair go face-down — the **blind pair**, a
+forced gamble, at most once in any three stages (authored on 6 and 12, then
+every stage ≡ 3 mod 6 from 21), always with one door that pays. Resolving a bank
+turns every `?` over like a card before the losers break, so the player sees
+what they walked past. The rules and placements are in the header of "The
+face-down door" in `game/track.ts`.
+
 ### 8. Rescue cages — **SHIPPED**, with a curve instead of the flat +5
 **Moves:** APT, pick-up · **Effort:** 1 d
 

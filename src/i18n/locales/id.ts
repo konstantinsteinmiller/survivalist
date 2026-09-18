@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "{n} penyintas kembali",
 
-    'next': "Berikutnya: {label} · {when}"
+    'next': "Berikutnya: {label} · {when}",
+    'bossAhead': "Bos menanti: {name}",
+    'bossName': {
+      'grumpling': "Grumpling",
+      'bonecap': "Bonecap",
+      'snaggletusk': "Snaggletusk",
+      'thornwick': "Thornwick",
+      'marrowknight': "Marrowknight",
+      'cinderhound': "Cinderhound",
+      'rattlejack': "Rattlejack"
+    }
 
   },
 

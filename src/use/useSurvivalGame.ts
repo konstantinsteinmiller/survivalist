@@ -1639,6 +1639,7 @@ export const startStage = (n?: number, seed?: number): void => {
   // Per run, like everything else here: the scene only ever reacts to it going
   // UP, so the reset announces nothing.
   rallies.value = 0
+  arrivedAtBoss = 0
   peakSquad.value = 0
   progress01.value = 0
   bossHp01.value = 0
@@ -2346,9 +2347,11 @@ const streamTrack = (): void => {
             id: entityId++, bankId, x: leaf.x, halfW: leaf.halfW, y: e.y,
             op: leaf.op, value: leaf.value, charge: 0, hotFor: 999,
             used: false, dismissed: false, pop: 0,
-            // Face-down until the bank resolves. Rolled by the generator on at
-            // most one leaf of at most one bank a stage — see `MYSTERY_STAGE`.
+            // Face-down until the bank resolves. DESIGNED by the road, never
+            // rolled here — see "The face-down door" in `track.ts`.
             mystery: leaf.mystery === true,
+            // The shield under a `?` (`GatePrize`), resolved in `claimBank`.
+            ...(leaf.prize ? { prize: leaf.prize } : {}),
             // Authored on the leaf, 1 everywhere the road rolls its own doors.
             pumpMul: leaf.pumpMul ?? 1,
             ...(leaf.pumpCap !== undefined ? { pumpCap: leaf.pumpCap } : {})
@@ -2430,6 +2433,10 @@ const streamTrack = (): void => {
         break
 
       case 'foes': {
+        // Targets laid out for a gift the player is holding (`targetPractice`):
+        // with no weapon armed there is nothing to show off, and the beat was
+        // priced against the launcher's blast, not against the squad's own gun.
+        if (e.forGift && !activeWeapon.value) break
         const def = foeDef(e.typeId)
         const hp = Math.max(1, Math.round(def.hp * foeHpScale(stage.value) * diff * hpRelief))
         // A streak sends more of them, and each one takes a bigger mouthful.
@@ -2829,7 +2836,14 @@ export interface RallyAsk {
   progress01: number
   peakSquad: number
   phase: RunPhase
+  /** The crowd that walked into the boss arena, or 0 before the arena opened.
+   *  The stage-1 boss's second wind is priced off it — see `GameScene`'s
+   *  `rallyPolicy`. */
+  arrivedAtBoss: number
 }
+
+/** See `RallyAsk.arrivedAtBoss`. Set by `spawnBoss`, cleared by `startStage`. */
+let arrivedAtBoss = 0
 
 /** How many survivors to hand back, or 0 (or less) to let the wipe stand. */
 export type RallyPolicy = (ask: RallyAsk) => number
@@ -2847,7 +2861,8 @@ const tryRally = (): boolean => {
   if (phase.value !== 'run' && phase.value !== 'boss') return false
   const n = Math.floor(rallyPolicy({
     stage: stage.value, progress01: progress01.value,
-    peakSquad: peakSquad.value, phase: phase.value
+    peakSquad: peakSquad.value, phase: phase.value,
+    arrivedAtBoss: phase.value === 'boss' ? arrivedAtBoss : 0
   }))
   if (!Number.isFinite(n) || n <= 0) return false
   for (let i = 0; i < n; i++) {
@@ -3247,6 +3262,9 @@ const spawnBoss = (): void => {
   // `bossHpMulFor`.
   const kind = bossKindFor(stage.value)
   const adaptive = adaptiveBossStage(stage.value)
+  // The crowd that walked into the arena — what a boss-phase rally is priced
+  // against (`RallyAsk.arrivedAtBoss`). Read here, once, before a single swing.
+  arrivedAtBoss = squadCount.value
   // The healer runs its own clock (`HEALER_CAST_CD`), and its first cycle has to
   // be the one it will actually throw: `charging` marks the every-third heal for
   // a healer exactly as it marks the charged swing for a meteor — decided when
@@ -6374,9 +6392,19 @@ const breakCage = (c: Cage): void => {
  */
 const takeBulwark = (w: Bulwark): void => {
   w.dead = true
+  armBulwark(w.x, w.y)
+}
+
+/**
+ * Arm the one-shot absorb, from wherever it was won — the roadside box or the
+ * shield under a `?` door. ONE function, so the two can never arm different
+ * things: the door's prize is advertised as "the shield box's shield", and it
+ * is that, down to the cue and the flash.
+ */
+const armBulwark = (x: number, y: number): void => {
   const fresh = !bulwarkArmed
   bulwarkArmed = true
-  pushFx({ kind: 'bulwarkTake', x: w.x, y: w.y, fresh })
+  pushFx({ kind: 'bulwarkTake', x, y, fresh })
   for (const u of units) u.flash = 220
 }
 
@@ -6527,9 +6555,9 @@ const stepGates = (dt: number): void => {
     // Expressed as a clause on the HOT test below rather than as a `continue`:
     // the crossing check at the bottom of this loop is what resolves the bank,
     // and skipping the rest of the iteration would leave a face-down leaf
-    // unable to claim the bank it belongs to. Today a sibling always claims it
-    // first — a mystery is never alone on a bank — so that bug would have sat
-    // invisible until the first rule change.
+    // unable to claim the bank it belongs to. That is no longer hypothetical:
+    // the BLIND PAIR is a bank with no readable door at all, so a face-down
+    // leaf is the only thing that can resolve it.
 
     // `sub` pumps on exactly the same clock as `add`, and that is the whole
     // idea: the crowd fires forward whether the player wants it to or not, so
@@ -6614,7 +6642,7 @@ const stepGates = (dt: number): void => {
  * `gatePass` in the same drained batch. A dismissal that arrived first would
  * have nothing to travel away from.
  */
-const dismissLosers = (leaves: Gate[], winner: Gate): void => {
+const dismissLosers = (leaves: Gate[], winner: Gate, flipped: ReadonlySet<number>): void => {
   for (const leaf of leaves) {
     if (leaf === winner) continue
     leaf.dismissed = true
@@ -6627,7 +6655,9 @@ const dismissLosers = (leaves: Gate[], winner: Gate): void => {
       value: leaf.value,
       // How far the shockwave has to travel from the door that was taken —
       // what turns a three-leaf bank into a left-to-right cascade.
-      distance: Math.abs(leaf.x - winner.x)
+      distance: Math.abs(leaf.x - winner.x),
+      ...(flipped.has(leaf.id) ? { flipped: true } : {}),
+      ...(leaf.prize ? { prize: leaf.prize } : {})
     })
   }
 }
@@ -6643,8 +6673,14 @@ const claimBank = (bankId: number): void => {
   // would leave the player unable to tell whether they had gambled well, and
   // "what was the other one" is most of what makes the next `?` interesting.
   // Before anything else in this function, so the payout and the dismissal
-  // events both describe doors that are now face-up.
-  for (const leaf of leaves) leaf.mystery = false
+  // events both describe doors that are now face-up. Which of them WERE face
+  // down travels on those events (`flipped`), so the renderer can turn them
+  // over rather than just swap the plate.
+  const flipped = new Set<number>()
+  for (const leaf of leaves) {
+    if (leaf.mystery) flipped.add(leaf.id)
+    leaf.mystery = false
+  }
 
   let winner: Gate | null = null
   let best = -1
@@ -6693,9 +6729,32 @@ const claimBank = (bankId: number): void => {
         kind: 'gateDismiss',
         x: leaf.x, y: leaf.y, halfW: leaf.halfW,
         op: leaf.op, value: leaf.value,
-        distance: Math.abs(leaf.x - anchorX)
+        distance: Math.abs(leaf.x - anchorX),
+        ...(flipped.has(leaf.id) ? { flipped: true } : {}),
+        ...(leaf.prize ? { prize: leaf.prize } : {})
       })
     }
+    return
+  }
+
+  // ── The shield under a `?` ──
+  //
+  // Not arithmetic, so none of the branches below can price it: it arms the same
+  // one-shot absorb the roadside shield box does (`armBulwark`), for the rest of
+  // this stage, and pays no survivors. The `gatePass` still goes out — it is
+  // what the renderer's dismissal cascade measures its blast origin from — but
+  // it carries the prize, so nothing reads its `+0` as a payout.
+  if (winner.prize === 'shield') {
+    armBulwark(winner.x, winner.y)
+    pushFx({
+      kind: 'gatePass', x: winner.x, y: winner.y, op: winner.op, value: winner.value, gain: 0,
+      prize: 'shield', flipped: true
+    })
+    sendAnalytics('gate_pass', {
+      stage: stage.value, op: 'shield', value: 0,
+      gain: 0, leaves: leaves.length, squad: squadCount.value, mystery: true
+    })
+    dismissLosers(leaves, winner, flipped)
     return
   }
 
@@ -6715,13 +6774,15 @@ const claimBank = (bankId: number): void => {
     for (let k = 0; k < toKill; k++) killUnit(inside[k]!, Math.sign(inside[k]!.x - winner.x), 'trap')
     timeScaleTarget = Math.min(timeScaleTarget, 0.5)
     pushFx({
-      kind: 'gatePass', x: winner.x, y: winner.y, op: winner.op, value: winner.value, gain: -toKill
+      kind: 'gatePass', x: winner.x, y: winner.y, op: winner.op, value: winner.value, gain: -toKill,
+      ...(flipped.has(winner.id) ? { flipped: true } : {})
     })
     sendAnalytics('gate_pass', {
       stage: stage.value, op: winner.op, value: winner.value,
-      gain: -toKill, leaves: leaves.length, squad: squadCount.value
+      gain: -toKill, leaves: leaves.length, squad: squadCount.value,
+      mystery: flipped.has(winner.id)
     })
-    dismissLosers(leaves, winner)
+    dismissLosers(leaves, winner, flipped)
     return
   }
 
@@ -6735,7 +6796,7 @@ const claimBank = (bankId: number): void => {
     ? Math.round(winner.value * gatePayoutBonus.value)
     : Math.round(inside.length * (winner.value - 1))
   if (gain <= 0) {
-    dismissLosers(leaves, winner)
+    dismissLosers(leaves, winner, flipped)
     return
   }
 
@@ -6755,16 +6816,18 @@ const claimBank = (bankId: number): void => {
     )
   }
   pushFx({
-    kind: 'gatePass', x: winner.x, y: winner.y, op: winner.op, value: winner.value, gain: spawned
+    kind: 'gatePass', x: winner.x, y: winner.y, op: winner.op, value: winner.value, gain: spawned,
+    ...(flipped.has(winner.id) ? { flipped: true } : {})
   })
   // The road's own funnel. `leaves` is what the player was offered and `value`
   // is what the door was worth AFTER any pumping, so a bank read back later is
   // the decision as it actually stood rather than as it was authored.
   sendAnalytics('gate_pass', {
     stage: stage.value, op: winner.op, value: winner.value,
-    gain: spawned, leaves: leaves.length, squad: squadCount.value
+    gain: spawned, leaves: leaves.length, squad: squadCount.value,
+    mystery: flipped.has(winner.id)
   })
-  dismissLosers(leaves, winner)
+  dismissLosers(leaves, winner, flipped)
 }
 
 /**

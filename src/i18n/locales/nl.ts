@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "{n} overlevenden zijn terug",
 
-    'next': "Hierna: {label} · {when}"
+    'next': "Hierna: {label} · {when}",
+    'bossAhead': "Baas in aantocht: {name}",
+    'bossName': {
+      'grumpling': "Grumpling",
+      'bonecap': "Bonecap",
+      'snaggletusk': "Snaggletusk",
+      'thornwick': "Thornwick",
+      'marrowknight': "Marrowknight",
+      'cinderhound': "Cinderhound",
+      'rattlejack': "Rattlejack"
+    }
 
   },
 

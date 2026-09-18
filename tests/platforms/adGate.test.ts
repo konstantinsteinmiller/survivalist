@@ -190,6 +190,31 @@ describe('interstitial pacing', () => {
     expect(gate.canShowInterstitial()).toBe(true)
   })
 
+  it('runs no break at all in the first three minutes of a session', async () => {
+    // Poki's fit test is averaged playtime past three minutes; a midgame ad is
+    // a full stop, and the one screen a stranger most readily closes the tab
+    // on. The floor is session time, independent of the gap below.
+    vi.useFakeTimers()
+    const gate = await loadGate()
+    gate.__resetInterstitialClock(0)
+    expect(gate.FIRST_INTERSTITIAL_AFTER_MS).toBe(180_000)
+
+    // The gap alone would allow one at 2:01 — the floor still says no.
+    gate.canShowInterstitial()
+    vi.advanceTimersByTime(121_000)
+    expect(gate.canShowInterstitial()).toBe(false)
+    vi.advanceTimersByTime(58_000)
+    expect(gate.canShowInterstitial()).toBe(false)
+
+    // Past three minutes the ordinary pacing takes over: the first request
+    // after the floor starts the gap clock, exactly as a session's first
+    // request always has.
+    vi.advanceTimersByTime(2_000)
+    expect(gate.canShowInterstitial()).toBe(false)
+    vi.advanceTimersByTime(121_000)
+    expect(gate.canShowInterstitial()).toBe(true)
+  })
+
   it('restarts the clock once a break is actually shown', async () => {
     vi.useFakeTimers()
     const gate = await loadGate()

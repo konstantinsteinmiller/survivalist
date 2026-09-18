@@ -2154,6 +2154,18 @@ export const milestoneReward = (stage: number): number =>
  */
 export type GateOp = 'add' | 'sub' | 'mul' | 'div'
 
+/**
+ * What a face-down door can hold that is NOT arithmetic.
+ *
+ * `shield` arms the bulwark — the same one-shot absorb the roadside shield box
+ * hands over (`takeBulwark`), for the rest of the stage. It only ever exists
+ * under a `?`: a readable shield door would be a pickup with a pillar in front
+ * of it, and the whole point of the prize is that it is one of the five things
+ * the `?` might be. Its `op`/`value` are a neutral `+0` placeholder that every
+ * reader of a prize door must skip — see `Gate.prize`.
+ */
+export type GatePrize = 'shield'
+
 /** Ceiling on a `-N` leaf, matching `GATE_MAX_VALUE` for the same reason: the
  *  two are one mechanic with a sign, and an asymmetric cap would make the
  *  mirror a lie. In practice the pump window (see `BULLET_RANGE`) keeps a
@@ -2217,6 +2229,14 @@ export interface Gate {
    * "what would the other one have been" is most of the reason to gamble again.
    */
   mystery: boolean
+  /**
+   * A face-down door whose payload is not a number — see `GatePrize`. When set,
+   * `op`/`value` are a `+0` placeholder: the door neither pumps nor pays
+   * survivors, it arms the bulwark in `claimBank`, and the renderer draws the
+   * shield crest on its plate once it is turned over. Absent on every ordinary
+   * door.
+   */
+  prize?: GatePrize
 }
 
 /** A solid pillar between two leaves of a gate bank. Kills on contact — until

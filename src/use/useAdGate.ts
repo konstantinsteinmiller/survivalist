@@ -222,16 +222,43 @@ export const canOfferReward = computed(
  */
 const INTERSTITIAL_MIN_GAP_MS = 121_000
 
+/**
+ * ─── Nothing before the three-minute line ───────────────────────────────────
+ *
+ * Poki's fit test passes a game on AVERAGE playtime over three minutes and a
+ * quarter of plays past it, and an interstitial is a full stop — the one screen
+ * a stranger is most likely to close the tab on. So no midgame ad may run in
+ * the first three minutes of a session, whatever the stage and whatever the
+ * cadence below says.
+ *
+ * It binds from the very first screen: the first result screen lands after
+ * stage 2 (~2:06 on a clean run), and without this floor that screen's request
+ * would have started the gap clock there, putting the first ad up from ~4:07 —
+ * the minutes where a player is deciding whether to stay. With it the clock
+ * starts no earlier than 3:00, so the first ad is ~5:00 at the soonest. This is
+ * the floor that does not move with the road lengths. It
+ * measures the page, not the run: a player who retried stage 1 three times has
+ * been with the game long enough.
+ *
+ * Only the midgame ad. The moderation-mandated first-load ad (GameMonetize,
+ * `useFirstLoadInterstitial`) is its own path and is untouched — shipping there
+ * depends on it.
+ */
+export const FIRST_INTERSTITIAL_AFTER_MS = 180_000
+
 let lastInterstitialAt = 0
+let sessionStartedAt = Date.now()
 
 /**
  * True when enough time has passed to show another interstitial.
  *
  * The first call of a session returns false: an interstitial in the opening
  * seconds — before the player has seen the game work — is the single most
- * reliable way to lose them.
+ * reliable way to lose them. And nothing at all before
+ * `FIRST_INTERSTITIAL_AFTER_MS` of session time.
  */
 export const canShowInterstitial = (): boolean => {
+  if (Date.now() - sessionStartedAt < FIRST_INTERSTITIAL_AFTER_MS) return false
   if (lastInterstitialAt === 0) {
     lastInterstitialAt = Date.now()
     return false
@@ -248,5 +275,12 @@ export const markInterstitialShown = (): void => {
 export const interstitialCooldownLeft = (): number =>
   Math.max(0, INTERSTITIAL_MIN_GAP_MS - (Date.now() - lastInterstitialAt)) / 1000
 
-/** Test seam: reset the pacing clock. */
-export const __resetInterstitialClock = (): void => { lastInterstitialAt = 0 }
+/**
+ * Test seam: reset the pacing clock. `sessionAgeMs` is how long the session is
+ * pretended to have been running — by default already past the three-minute
+ * floor, so a spec about the GAP is not also a spec about the floor.
+ */
+export const __resetInterstitialClock = (sessionAgeMs = FIRST_INTERSTITIAL_AFTER_MS): void => {
+  lastInterstitialAt = 0
+  sessionStartedAt = Date.now() - sessionAgeMs
+}

@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "{n} omon qolgan qaytdi",
 
-    'next': "Keyingi: {label} · {when}"
+    'next': "Keyingi: {label} · {when}",
+    'bossAhead': "Oldinda bos: {name}",
+    'bossName': {
+      'grumpling': "Grumpling",
+      'bonecap': "Bonecap",
+      'snaggletusk': "Snaggletusk",
+      'thornwick': "Thornwick",
+      'marrowknight': "Marrowknight",
+      'cinderhound': "Cinderhound",
+      'rattlejack': "Rattlejack"
+    }
 
   },
 

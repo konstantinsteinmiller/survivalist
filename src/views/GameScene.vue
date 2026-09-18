@@ -16,7 +16,7 @@ import {
   puzzleGift, puzzlePulled, puzzleTotal, puzzleWeapon, weaponPower,
   sideWeapon, sideWeaponPower,
   rallies, readWeaponPick, setRallyPolicy, stageBeats, worldVersion,
-  isExpedition, startExpedition, cashOutSquad
+  isExpedition, startExpedition, cashOutSquad, type RallyAsk
 } from '@/use/useSurvivalGame'
 import { EXPEDITION_STAGE } from '@/use/useDailyExpedition'
 import {
@@ -71,6 +71,8 @@ import { affordableCount, grantUpgrade } from '@/use/useUpgrades'
 import { track, exposeAnalytics } from '@/use/useAnalytics'
 import { isDebug } from '@/use/useMatch'
 import { cardPayout, RESULT_BOUNCE_DELAY_MS, shouldBounceGo } from '@/game/resultFlow'
+import { bossDesign } from '@/game/foes'
+import { bossOneRally } from '@/game/secondWind'
 import { stagesToPendingMilestone } from '@/use/useSurvivalGame'
 import {
   grenadeTeaching, grenadeTeachHeld, setGrenadeTutorialAllowed
@@ -159,7 +161,7 @@ import GameIcon from '@/components/icons/GameIcon.vue'
  * which is exactly what portal QA rejects builds for.
  */
 
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 const { coins, addCoins } = useTowerEconomy()
 /**
  * How many shop tracks the wallet can pay for right now.
@@ -1271,16 +1273,34 @@ const maybeShowInterstitial = async (cleared: boolean): Promise<void> => {
  * …and, since the playtests that lost a quarter of their players at the first
  * kill, a three-second one after stage 1: the boss's launcher, handed over as a
  * reveal that closes itself (`presentBossReward`). A gift, not a screen.
+ *
+ * ONE since 2026-09-18 — the owner's call: the first result screen comes after
+ * stage 2. The roads grew (stage 1 is a minute of running, stage 2 fifty
+ * seconds), so the sim's clean `average` run reaches that screen at about 2:06,
+ * with the first boss's launcher used, the first `?` door met and coins worth a
+ * first look at the shop. Stage 1 still never stops: its kill hands over the
+ * launcher card and walks on (`presentBossReward`).
+ *
+ * What the handover used to carry now rides the result path instead:
+ *   • the weapon choice for `WEAPON_PICK_STAGE` goes up when the player presses
+ *     on from stage 2's result screen, before the road moves (`beginStage`);
+ *   • the shield for clearing stage 3 is granted when that result screen goes
+ *     up and announced on the banner of the stage it opens (`pendingStageGift`).
+ * No interstitial can land on the early screens: midgame ads are held until
+ * three minutes of session time (`FIRST_INTERSTITIAL_AFTER_MS` in `useAdGate`).
  */
-const CONTINUOUS_THROUGH_STAGE = 3
+const CONTINUOUS_THROUGH_STAGE = 1
 
 /** How long the handover banner sits over the new stage's opening. */
 const BANNER_MS = 1700
+/** …and with the boss teaser on it: a third line needs the time to be read. */
+const BANNER_BOSS_MS = 2500
 
 const bannerStage = ref(0)
 const bannerUnlock = ref<{ icon: GameIconName; label: string; tag?: string } | null>(null)
 const bannerNext = ref<{ icon: GameIconName; text: string } | null>(null)
 const bannerTitle = ref<string | null>(null)
+const bannerBoss = ref<{ design: string; name: string } | null>(null)
 const bannerShown = ref(false)
 let bannerTimer: number | null = null
 
@@ -1290,15 +1310,38 @@ const showBanner = (
     unlock?: { icon: GameIconName; label: string; tag?: string } | null
     next?: { icon: GameIconName; text: string } | null
     title?: string | null
+    boss?: { design: string; name: string } | null
   }
 ): void => {
   bannerStage.value = o.stage
   bannerUnlock.value = o.unlock ?? null
   bannerNext.value = o.next ?? null
   bannerTitle.value = o.title ?? null
+  bannerBoss.value = o.boss ?? null
   bannerShown.value = true
   if (bannerTimer !== null) clearTimeout(bannerTimer)
-  bannerTimer = window.setTimeout(() => { bannerShown.value = false }, BANNER_MS)
+  bannerTimer = window.setTimeout(
+    () => { bannerShown.value = false },
+    o.boss ? BANNER_BOSS_MS : BANNER_MS
+  )
+}
+
+/**
+ * ─── The next boss, named at the kill ───────────────────────────────────────
+ *
+ * A boss kill reads as an ending unless something is already waiting past it,
+ * and the players who leave at the first kill leave on exactly that reading. So
+ * every no-screen handover names the boss at the end of the road that just
+ * opened, beside its shadow: the kill becomes chapter one of something. Only
+ * the handovers — past the continuous stages the result screen and the shop are
+ * the forward-looking thing, and a banner every stage would stop being read.
+ * The name is a locale string; a design with no name (one added to the cast
+ * later) simply gets no teaser rather than a raw id on screen.
+ */
+const bossTeaser = (forStage: number): { design: string; name: string } | null => {
+  const design = bossDesign(forStage)
+  const key = `flow.bossName.${design}`
+  return te(key) ? { design, name: t(key) } : null
 }
 
 // ─── The ladder, in words ───────────────────────────────────────────────────
@@ -1421,7 +1464,10 @@ const flowToNextStage = async (): Promise<void> => {
     setState(ONBOARDED_KEY, true)
   }
 
-  const gift = grantStageGift(summary.value.stage)
+  // The shield on 3, or — now that stage 4 flows on too — the late skill a
+  // stage-4 clear hands over (the free Frost Nova), which used to wait for the
+  // result screen's forward button (`beginStage`).
+  const gift = grantStageGift(summary.value.stage) ?? skillGiftFor(summary.value)
 
   if (picking) {
     showWeaponPick.value = true
@@ -1457,14 +1503,17 @@ const continueRoad = (): void => {
 }
 
 /** The back half of a continuous handover: the next road, and the banner. */
-const completeHandover = (gift: { icon: GameIconName; label: string } | null): void => {
+const completeHandover = (
+  gift: { icon: GameIconName; label: string; tag?: string } | null
+): void => {
   invalidateArt()
   continueRoad()
   showBanner({
     stage: stage.value,
     unlock: gift,
     // The promise rides every banner that has no gift on it.
-    next: gift ? null : ladderLine(stage.value)
+    next: gift ? null : ladderLine(stage.value),
+    boss: bossTeaser(stage.value)
   })
 }
 
@@ -1562,7 +1611,14 @@ const ralliedStages = new Set<number>()
 /** What the last rally handed back — the number the announcement reads out. */
 const rallyCount = ref(0)
 
-const rallyPolicy = (ask: { stage: number; progress01: number; peakSquad: number }): number => {
+const rallyPolicy = (ask: RallyAsk): number => {
+  // The stage-1 boss's second wind for a first-timer: 120 % of the crowd that
+  // walked into the arena, every time, no loss screen. See `game/secondWind.ts`.
+  const bossOne = bossOneRally(ask, bestStage.value)
+  if (bossOne > 0) {
+    rallyCount.value = bossOne
+    return bossOne
+  }
   if (bestStage.value > RALLY_UNTIL_BEST) return 0
   if (!RALLY_STAGES.includes(ask.stage)) return 0
   if (ask.progress01 < RALLY_FROM_PROGRESS) return 0
@@ -1646,7 +1702,17 @@ const presentResult = async (): Promise<void> => {
     onboarded.value = true
     setState(ONBOARDED_KEY, true)
   }
+
+  // A gift earned by this clear is GRANTED now, with the screen, so a player who
+  // closes the tab here still has it — and announced on the banner of the stage
+  // it opens (`beginStage`). It used to ride the no-screen handover.
+  pendingStageGift = summary.value.cleared && !summary.value.expedition
+    ? grantStageGift(summary.value.stage)
+    : null
 }
+
+/** A gift granted with the last result screen, owed to the next banner. */
+let pendingStageGift: { icon: GameIconName; label: string } | null = null
 
 // ─── The ×3, which is the game's income ─────────────────────────────────────
 //
@@ -2418,12 +2484,31 @@ const beginStage = (next: boolean): void => {
   // back to the start of the stage it lost — which is that same ground, corpse
   // and all, but not where the crowd is standing, so its debris is swept.
   if (next) {
-    continueRoad()
-    // The late skills are handed over here, on the banner of the stage that
-    // opens them — the shield's handover, for stages that come after a result
-    // screen instead of flowing on.
-    const gift = skillGiftFor(summary.value)
-    if (gift) showBanner({ stage: stage.value, unlock: gift })
+    // Read BEFORE the road moves: `summary` is a live view of the sim's own
+    // summary, and `advanceStage` resets it (see `owedCash`).
+    const gift = pendingStageGift ?? skillGiftFor(summary.value)
+    pendingStageGift = null
+    // ── The weapon choice, on the way out of stage 2's result screen ──
+    //
+    // The card that used to ride the no-screen handover into
+    // `WEAPON_PICK_STAGE`. The road waits under it (`overlayUp`), and
+    // `onWeaponPicked` finishes the handover — the next road, and the banner
+    // announcing the pick. A player who already chose (a retry, a reload) goes
+    // straight on with the weapon `startStage` re-arms from the save.
+    if (summary.value.stage === WEAPON_PICK_STAGE - 1 && readWeaponPick() === null) {
+      showWeaponPick.value = true
+    } else {
+      continueRoad()
+      // Every forward start gets the banner now, not only the ones with a gift:
+      // the stage number, what was just handed over (or what is coming), and the
+      // boss waiting at the end of this road (`bossTeaser`).
+      showBanner({
+        stage: stage.value,
+        unlock: gift,
+        next: gift ? null : ladderLine(stage.value),
+        boss: bossTeaser(stage.value)
+      })
+    }
   } else {
     resetVfx()
     resetSkillFx()
@@ -3123,6 +3208,7 @@ onUnmounted(() => {
         :unlock="bannerUnlock"
         :next="bannerNext"
         :title="bannerTitle"
+        :boss="bannerBoss"
       )
       SteerHint(:lane-half-px="laneHalfPx" :show="showSteerHint")
 

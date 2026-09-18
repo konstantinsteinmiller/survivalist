@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "ผู้รอดชีวิต {n} คนกลับมาแล้ว",
 
-    'next': "ต่อไป: {label} · {when}"
+    'next': "ต่อไป: {label} · {when}",
+    'bossAhead': "บอสข้างหน้า: {name}",
+    'bossName': {
+      'grumpling': "กรัมพลิง",
+      'bonecap': "โบนแคป",
+      'snaggletusk': "สแนกเกิลทัสก์",
+      'thornwick': "ธอร์นวิก",
+      'marrowknight': "แมร์โรว์ไนต์",
+      'cinderhound': "ซินเดอร์ฮาวด์",
+      'rattlejack': "แรทเทิลแจ็ก"
+    }
 
   },
 

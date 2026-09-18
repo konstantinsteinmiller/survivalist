@@ -13,11 +13,17 @@
       div.stage-banner__next(v-else-if="next")
         GameIcon.stage-banner__next-icon(:name="next.icon")
         span.stage-banner__next-text {{ next.text }}
+      //- The boss waiting at the end of the road that just opened — a shadow
+      //- and a name, so the kill that came before reads as chapter one.
+      div.stage-banner__boss(v-if="boss")
+        BossSilhouette.stage-banner__boss-shape(:design="boss.design")
+        span.stage-banner__boss-text {{ t('flow.bossAhead', { name: boss.name }) }}
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import GameIcon from '@/components/icons/GameIcon.vue'
+import BossSilhouette from '@/components/game/BossSilhouette.vue'
 import type { GameIconName } from '@/components/icons/iconNames'
 
 /**
@@ -58,8 +64,11 @@ interface Props {
   next?: { icon: GameIconName; text: string } | null
   /** A headline other than "Stage N". */
   title?: string | null
+  /** The boss at the end of this stage's road: its body (`bossDesign`) for
+   *  the silhouette, and its name already translated. */
+  boss?: { design: string; name: string } | null
 }
-withDefaults(defineProps<Props>(), { next: null, title: null })
+withDefaults(defineProps<Props>(), { next: null, title: null, boss: null })
 </script>
 
 <style scoped lang="sass">
@@ -137,6 +146,31 @@ withDefaults(defineProps<Props>(), { next: null, title: null })
   font-weight: 900
   font-size: clamp(0.72rem, 3.4vw, 0.95rem)
   color: #fff
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.85)
+
+// The boss teaser: ember rather than gold or cyan, because it is the one line on
+// the banner that is a THREAT, and the silhouette sits on the pill's edge so the
+// shape reads before the words.
+.stage-banner__boss
+  display: flex
+  align-items: center
+  gap: clamp(0.3rem, 1.6vw, 0.5rem)
+  padding: clamp(0.2rem, 1vw, 0.35rem) clamp(0.7rem, 3.2vw, 1rem) clamp(0.2rem, 1vw, 0.35rem) clamp(0.3rem, 1.4vw, 0.45rem)
+  border-radius: 999px
+  background-color: rgba(28, 8, 10, 0.84)
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 0 0.12rem rgba(255, 90, 50, 0.34)
+
+// Bigger than the pill it sits in, on purpose: the shape breaks out above and
+// below the rim, which is what makes it read as a body and not as an icon.
+.stage-banner__boss-shape
+  width: clamp(2.8rem, 13vw, 3.6rem)
+  height: clamp(2.8rem, 13vw, 3.6rem)
+  margin: -0.9rem 0 -0.5rem
+
+.stage-banner__boss-text
+  font-weight: 900
+  font-size: clamp(0.72rem, 3.4vw, 0.95rem)
+  color: #ffd2c4
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.85)
 
 // Arrives fast and hard — it is a reward, not a notification — and leaves slowly

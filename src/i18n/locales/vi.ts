@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "{n} người sống sót đã trở lại",
 
-    'next': "Tiếp theo: {label} · {when}"
+    'next': "Tiếp theo: {label} · {when}",
+    'bossAhead': "Trùm phía trước: {name}",
+    'bossName': {
+      'grumpling': "Grumpling",
+      'bonecap': "Bonecap",
+      'snaggletusk': "Snaggletusk",
+      'thornwick': "Thornwick",
+      'marrowknight': "Marrowknight",
+      'cinderhound': "Cinderhound",
+      'rattlejack': "Rattlejack"
+    }
 
   },
 

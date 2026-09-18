@@ -29,6 +29,7 @@ import {
   UNIT_R,
   type CrateKind,
   type GateOp,
+  type GatePrize,
   REWARD_CAGE_X,
   GATE_PUMP_BAND
 } from '@/game/survival'
@@ -116,9 +117,15 @@ export interface GateLeaf {
   /** A ceiling for this door alone, below `gatePumpCap`. The opener stops at a
    *  number that reads as a reward, not a glitch. */
   pumpCap?: number
-  /** Face-down: drawn as a `?` and un-pumpable until the bank resolves. The op
-   *  and value are ordinary and roll the ordinary way — see `Gate.mystery`. */
+  /** Face-down: drawn as a `?` door and un-pumpable until the bank resolves.
+   *  What is underneath is DESIGNED, never rolled at contact — authored on the
+   *  hand-made stages, picked by `mysteryPlanFor` on the generated ones. See
+   *  "The face-down door" below and `Gate.mystery`. */
   mystery?: boolean
+  /** A face-down door holding something other than a number. Only ever set
+   *  together with `mystery`; `op`/`value` are then a `+0` placeholder. See
+   *  `GatePrize`. */
+  prize?: GatePrize
 }
 
 export type TrackEvent =
@@ -166,6 +173,9 @@ export type TrackEvent =
        *  a line goes round them — see `stray` below and `Foe.homing`. Absent
        *  everywhere except the taught stages. */
       stray?: boolean
+      /** Targets for a weapon the player was HANDED — spawned only while one is
+       *  armed. See `targetPractice`. */
+      forGift?: boolean
     }
   /** One elite body. `hpScale` multiplies the ARCHETYPE'S BASE HP (`foeDef().hp`)
    *  — it already carries the stage scaling, see `minibossHp()`. */
@@ -1253,52 +1263,118 @@ export const pairChance = (stage: number): number =>
 
 // ─── The face-down door ─────────────────────────────────────────────────────
 //
-// One leaf of a bank drawn as a `?`: the op and value under it are rolled the
-// ordinary way and paid the ordinary way, and the only thing that changes is
-// that the player cannot read them until the crowd commits.
+// A black door with a `?` on it. Under it is one of five things — `+N`, `−N`,
+// `×N`, `÷N`, or the shield (`GatePrize`: the roadside shield box's one-shot
+// absorb) — and nobody can read which until the crowd commits, when the whole
+// bank turns over.
 //
-// It answers a question the other three leaf types cannot. Every bank in this
-// game is arithmetic — two numbers, pick the bigger — and a player who has
-// learned the arithmetic is only executing it. A door with no number on it
-// cannot be executed, so the bank becomes a gamble the player chooses to take
-// or refuse, and the refusal is as real a decision as the acceptance: the known
-// leaf beside it is always still there.
+// Every other bank in this game is arithmetic: two numbers, pick the better
+// one, and a player who has learned the arithmetic is only executing it. A door
+// with no number on it cannot be executed, so the bank becomes a gamble the
+// player takes or refuses — and the refusal is as real a decision as the
+// acceptance, because the readable door beside it is still there.
 //
-// THE RULES THAT KEEP IT FAIR, and each of them is load-bearing:
+// THE CONTRACT (owner spec, 2026-09-18). The design notes are also kept in the
+// `mystery-gate-design` memory so a stage rebalance can follow them:
 //
-//   1. NEVER ALONE. A mystery is only ever one leaf of a bank whose other
-//      leaves are face-up. A bank of two unknowns is a coin flip with no
-//      decision in it, which is the opposite of the point.
-//   2. NEVER ON A DILEMMA. When both doors already take something, the player
-//      is choosing which loss to eat; hiding one of them turns a hard choice
-//      into an unfair one.
-//   3. IT CANNOT BE PUMPED. Fire raises a door's number, and a number nobody
-//      can see cannot be raised in front of them — the crowd would be spending
-//      fire on a promise. See `stepGates`.
-//   4. NOT BEFORE THE ARITHMETIC IS LEARNED. It starts at `MYSTERY_STAGE`,
-//      well after `÷` and `×` have both been met, because a face-down door is
-//      only interesting to someone who knows what a face-up one is worth.
-//
-// Late enough that the four ops and the pump are all familiar, and one stage
-// after the locked pair so two novelties never land on the same road.
+//   1. DESIGNED, NOT ROLLED. What is under a `?` is written down — `hide()` and
+//      `shieldPrize()` on the hand-made stages 2-15, `mysteryPlanFor` on the
+//      generated ones — and the same stage prints the same `?` on every replay.
+//      Nothing is decided at contact, and a retry cannot re-roll it.
+//   2. ONE LOOK FOR ALL. Every `?` door wears the same blackened add-gate frame,
+//      black curtain and dark plate. No op tint, no chevron direction, no
+//      crooked plate, no pump meter: the art may not say what is underneath.
+//      See `drawGates`.
+//   3. RARE. At most one face-down bank a stage, on roughly half the stages,
+//      and usually ONE door of a two- or three-door bank — the rest readable.
+//   4. THE BLIND PAIR. Rarely BOTH doors of a two-door bank are face-down and
+//      the pick is a pure gamble. At most once in any three consecutive stages
+//      (`DOUBLE_MYSTERY_STAGES`, then every `MYSTERY_CYCLE`-th generated
+//      stage), and one of the two always pays.
+//   5. NEVER ON A DILEMMA. When both doors already take something, hiding one
+//      turns a hard choice into an unfair one.
+//   6. IT CANNOT BE PUMPED. Fire raises a door's number, and a number nobody
+//      can see cannot be raised in front of them. See `stepGates`.
+//   7. A HIDDEN LOSS IS CAPPED at `÷3` beside a readable door and `÷2` in a
+//      blind pair (`MYSTERY_DIV_CAP` / `BLIND_DIV_CAP`). A `÷5` nobody could
+//      read is a run ending with no decision in it.
+//   8. THE DEBUT IS STAGE 2's FIRST BANK, AND IT PAYS. The first `?` a player
+//      ever meets rewards the curiosity; stage 3's is the first that bites, and
+//      it bites gently. The shield waits for stage 9, one stage after the
+//      roadside shield box has shown what the crest means.
 
-export const MYSTERY_STAGE = 9
+/** The first stage with a face-down door: stage 2's opening bank. */
+export const MYSTERY_FIRST_STAGE = 2
+
+/** The hand-made stages that carry the blind pair. Three or more apart, and far
+ *  enough from the first generated one (see `mysteryPlanFor`) to keep rule 4. */
+export const DOUBLE_MYSTERY_STAGES: readonly number[] = [6, 12]
+
+/** The generated stages' schedule repeats every this many stages — see
+ *  `mysteryPlanFor`. Also the minimum distance between two blind pairs there. */
+export const MYSTERY_CYCLE = 6
+
+/** Harshest trap a `?` may hide beside a readable door, and in a blind pair. */
+export const MYSTERY_DIV_CAP = 3
+export const BLIND_DIV_CAP = 2
 
 /**
- * Odds a rolled bank hides one of its leaves.
+ * What a generated stage's `?` hides, relative to the bank it lands on.
  *
- * Per bank, like `pairChance`, and tuned to the same feel: a stage rolls 5–13
- * banks, so 0.08 lands roughly one mystery every two stages — often enough to
- * be a thing the road does, rare enough that the player never stops reading
- * numbers because they are expecting a `?`.
+ *   best   — the bank's best door goes face-down: the gamble PAYS, and the
+ *            readable door beside it is the safe, smaller answer.
+ *   worst  — the bank's worst door goes face-down: the gamble COSTS, and the
+ *            readable door was the right call all along.
+ *   shield — the worst door is replaced by the shield: a known number against
+ *            one free blow later in the stage.
+ *   blind  — both doors of a two-door bank, as the road built them.
+ *   blindShield — both doors, with the worse one swapped for the shield.
  */
-export const mysteryChance = (stage: number): number =>
-  stage < MYSTERY_STAGE ? 0 : 0.08
+export type MysteryRecipe = 'best' | 'worst' | 'shield' | 'blind' | 'blindShield'
 
-/** At most one bank per stage may be face-down. Two is a theme; the road's
- *  theme is arithmetic. */
-export const maxMysteries = (stage: number): number =>
-  stage < MYSTERY_STAGE ? 0 : 1
+export interface MysteryPlan {
+  recipe: MysteryRecipe
+  /** Where on the road, as a fraction of `arenaY`: the eligible bank nearest
+   *  to it takes the `?`. */
+  at: number
+}
+
+/**
+ * Singles rotate through this. Five long so it shares no factor with the
+ * six-stage schedule — the same trap `WEAPON_ROTATION` documents: a common
+ * factor would weld one recipe to one slot of the cycle forever.
+ */
+const SINGLE_RECIPES: readonly MysteryRecipe[] = ['best', 'worst', 'shield', 'best', 'worst']
+/** …and three positions, for the same reason. */
+const MYSTERY_AT: readonly number[] = [0.34, 0.52, 0.7]
+
+/**
+ * The generated road's `?`, as a pure function of the stage — a schedule, not
+ * a roll, so it is the same door on every replay and the whole campaign can be
+ * read off this one function.
+ *
+ * Every `MYSTERY_CYCLE` stages: a single on the 1st and the 4th, the blind pair
+ * on the 3rd, nothing on the other three. That is half the stages with a `?`
+ * and one blind pair every six — the first at 21, nine stages after stage 12's.
+ * Stages 1-15 are hand-made and place their own; this returns null there.
+ */
+export const mysteryPlanFor = (stage: number): MysteryPlan | null => {
+  if (stage <= 15) return null
+  const cycle = Math.floor(stage / MYSTERY_CYCLE)
+  const slot = stage % MYSTERY_CYCLE
+  // Indexed off the CYCLE plus the slot, not off the stage: every single sits on
+  // a stage ≡ 1 or 4 (mod 6), so `stage % 3` is the same for all of them and a
+  // stage-indexed position welded every single to one mark on the road.
+  const at = MYSTERY_AT[(cycle + slot) % MYSTERY_AT.length]!
+  if (slot === 3) return { recipe: cycle % 2 === 0 ? 'blindShield' : 'blind', at }
+  // …and the recipes are dealt by the single's own running count, so they come
+  // round in order (best, worst, shield, best, worst) instead of in twos.
+  if (slot === 1 || slot === 4) {
+    const n = cycle * 2 + (slot === 4 ? 1 : 0)
+    return { recipe: SINGLE_RECIPES[n % SINGLE_RECIPES.length]!, at }
+  }
+  return null
+}
 
 /** At most one per stage, ever. Two locked pairs on one road is not a rarity
  *  any more, it is the stage's texture. */
@@ -1521,10 +1597,6 @@ interface Beat {
   mulThreeLeft: number
   /** Locked gate pairs the stage may still print. See `maxPairs`. */
   pairsLeft: number
-  /** Face-down leaves the stage may still print, and their own stream. See
-   *  `maxMysteries` — one bank a stage at most. */
-  mysteriesLeft: number
-  mysteryRng: () => number
   /**
    * A SEPARATE stream for the pair's own coin flips, and it has to be separate.
    *
@@ -1573,12 +1645,29 @@ interface Beat {
 interface LeafSpec {
   op: GateOp
   value: number
+  /** Face-down — see "The face-down door". Carried through `legalise` by
+   *  position, so an authored `hide()` survives whatever the rules repair. */
+  mystery?: boolean
+  /** A non-arithmetic payload (`GatePrize`); `op`/`value` are then `+0`. */
+  prize?: GatePrize
 }
 
 const add = (value: number): LeafSpec => ({ op: 'add', value })
 const sub = (value: number): LeafSpec => ({ op: 'sub', value })
 const mul = (value: number): LeafSpec => ({ op: 'mul', value })
 const div = (value: number): LeafSpec => ({ op: 'div', value })
+
+/**
+ * Turn a door face-down. The door underneath is exactly the one written inside
+ * — `hide(add(6))` is a `+6` nobody can read — and it still goes through every
+ * `legalise` rule like any other door, so a `?` can never smuggle in a leaf the
+ * stage has not earned. See "The face-down door".
+ */
+const hide = (spec: LeafSpec): LeafSpec => ({ ...spec, mystery: true })
+
+/** The shield under a `?`: one free blow later in the stage (`GatePrize`). Always
+ *  face-down — there is no readable shield door. */
+const shieldPrize = (): LeafSpec => ({ op: 'add', value: 0, mystery: true, prize: 'shield' })
 
 /**
  * ─── Pricing a door against the crowd that will reach it ────────────────────
@@ -1849,17 +1938,21 @@ const sameLeaf = (p: LeafSpec, q: LeafSpec): boolean => p.op === q.op && p.value
  * be consistent.
  */
 const offerScore = (stage: number, spec: LeafSpec): number =>
-  spec.op === 'div'
-    ? -100 * spec.value
-    : spec.op === 'sub'
-      // Negative, and deliberately ABOVE any `div`: a subtraction is a bill,
-      // a division is a percentage of everything the player has built. When a
-      // bank offers both, the ranking has to say which one the coin trail
-      // should point away from, and it is always the trap.
-      ? -3 * spec.value
-      : spec.op === 'mul'
-        ? gateAddBase(stage) * 1.4 * (spec.value - 1)
-        : spec.value
+  // The shield is worth about a door: one blow a stage is roughly what one
+  // ordinary `+N` would have bought back. Only ever ranked inside its own bank.
+  spec.prize === 'shield'
+    ? gateAddBase(stage)
+    : spec.op === 'div'
+      ? -100 * spec.value
+      : spec.op === 'sub'
+        // Negative, and deliberately ABOVE any `div`: a subtraction is a bill,
+        // a division is a percentage of everything the player has built. When a
+        // bank offers both, the ranking has to say which one the coin trail
+        // should point away from, and it is always the trap.
+        ? -3 * spec.value
+        : spec.op === 'mul'
+          ? gateAddBase(stage) * 1.4 * (spec.value - 1)
+          : spec.value
 
 /**
  * Which trap this bank gets.
@@ -1904,7 +1997,9 @@ const rollDiv = (b: Beat): LeafSpec => {
  *      as the last bank before the boss (a run should die to the climax, not to
  *      a toll booth three seconds before it).
  */
-const legalise = (b: Beat, specs: readonly LeafSpec[], mulOk: boolean): LeafSpec[] => {
+const legalise = (
+  b: Beat, specs: readonly LeafSpec[], mulOk: boolean, prized = false
+): LeafSpec[] => {
   const base = gateAddBase(b.stage)
   const out = specs.map((s) => sanitiseLeaf(b.stage, s))
 
@@ -2135,7 +2230,10 @@ const legalise = (b: Beat, specs: readonly LeafSpec[], mulOk: boolean): LeafSpec
   //     stages the campaign study was run against. Worth fixing; worth fixing
   //     with its own measurement rather than as a side effect of this one.
   const multiplied = out.some((s) => s.op === 'mul') && b.stage <= ADAPTIVE_BOSS_STAGES
-  if (out.some((s) => s.op === 'div' || s.op === 'sub') && !multiplied) {
+  // A bank carrying a PRIZE door is legalised without it (see `bank`), and the
+  // prize is what stands beside the hostile door here — so rule 5 is already
+  // met, and repairing the trap into an add would undo the author's bank.
+  if (out.some((s) => s.op === 'div' || s.op === 'sub') && !multiplied && !prized) {
     let bestI = 0
     for (let i = 1; i < out.length; i++) {
       if (offerScore(b.stage, out[i]!) > offerScore(b.stage, out[bestI]!)) bestI = i
@@ -2272,6 +2370,60 @@ const mulNear = (b: Beat, y: number): boolean => {
     && e.leaves.some((l) => l.op === 'mul'))
 }
 
+/**
+ * `legalise`, with the face-down flags carried through and the prizes sat out.
+ *
+ * `legalise` builds FRESH specs, so a `hide()` written by the author would be
+ * lost on the way through. Every one of its rules replaces a door in place and
+ * none reorders them (the dilemma branch only truncates), so the flag is put
+ * back by position. A PRIZE door is not arithmetic and takes no part in the
+ * rules at all: the doors beside it are legalised on their own, told a prize is
+ * standing with them (rule 5 is then already met), and the prize is slotted
+ * back exactly where it was written.
+ */
+const legaliseAround = (b: Beat, asked: readonly LeafSpec[], mulOk: boolean): LeafSpec[] => {
+  const arithmetic = asked.filter((s) => !s.prize)
+  const legal = legalise(b, arithmetic, mulOk, arithmetic.length < asked.length)
+  const out: LeafSpec[] = []
+  let k = 0
+  for (const s of asked) {
+    if (s.prize) {
+      out.push(s)
+      continue
+    }
+    const door = legal[k++]
+    if (!door) continue
+    out.push(s.mystery ? { ...door, mystery: true } : door)
+  }
+  return out
+}
+
+/**
+ * The rules a face-down door has to obey, applied to a legal bank — rules 3-7 of
+ * "The face-down door". An authoring mistake degrades the `?`, never the bank:
+ * every repair here turns a door face-UP or softens what it hides, and none of
+ * them changes which doors are offered.
+ */
+const faceDownRules = <T extends LeafSpec>(offers: T[]): T[] => {
+  const hidden = offers.filter((s) => s.mystery).length
+  if (hidden === 0) return offers
+  // Rule 5 — never on a dilemma. Both doors already take something, so the only
+  // thing a `?` could add is the unfairness of not knowing which loss it is.
+  if (isDilemma(offers)) return offers.map((s) => (s.prize ? s : { ...s, mystery: false }))
+  // Rule 4 — the only all-blind bank is a PAIR. Three unknowns is a slot machine
+  // with pillars in it; turn the last one back over.
+  const blind = hidden === offers.length
+  const out = blind && offers.length > 2
+    ? offers.map((s, i) => (i === offers.length - 1 && !s.prize ? { ...s, mystery: false } : s))
+    : offers
+  const blindPair = blind && out.length === 2
+  // Rule 7 — a hidden loss is capped. Beside a readable door the player chose
+  // the gamble with the alternative in plain sight; in a blind pair they chose
+  // nothing, so the trap under it is the gentlest one there is.
+  const cap = blindPair ? BLIND_DIV_CAP : MYSTERY_DIV_CAP
+  return out.map((s) => (s.mystery && s.op === 'div' && s.value > cap ? { ...s, value: cap } : s))
+}
+
 const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
   // Belt and braces on `SUB_EARLIEST`: a bill early enough to zero the crowd is
   // not a hard bank, it is a run ending with no picture of why. Enforced HERE
@@ -2280,7 +2432,7 @@ const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
   // hand-authored stages, which is exactly where a future edit would forget.
   const placed = y > b.arenaY * SUB_EARLIEST
     ? specs
-    : specs.map((s) => (s.op === 'sub' ? add(gateAddBase(b.stage)) : s))
+    : specs.map((s) => (s.op === 'sub' ? { ...s, ...add(gateAddBase(b.stage)) } : s))
   // ── May this bank carry a multiplier? ──
   //
   // Decided HERE for the same reason `SUB_EARLIEST` is: both questions need
@@ -2292,7 +2444,11 @@ const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
   // to back. Every bank in the game goes through here, so this is the one place
   // the rules cannot be walked around.
   const mulOk = y > b.arenaY * MUL_EARLIEST && !mulNear(b, y)
-  const offers = legalise(b, placed.slice(0, 3), mulOk)
+  const offers = faceDownRules(legaliseAround(b, placed.slice(0, 3), mulOk))
+  // Every bookkeeping read below is about the ARITHMETIC on the road — a prize
+  // door is a `+0` placeholder, and counting it as an `add` would tell the next
+  // bank this one offered something to pump.
+  const real = offers.filter((s) => !s.prize)
   const triple = offers.length >= 3
 
   // One pillar per gap between doors. The PAINTED widths tile the lane exactly
@@ -2313,10 +2469,10 @@ const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
     : [-GATE_LEAF_X, GATE_LEAF_X]
   const halfW = triple ? GATE3_LEAF_HALF : GATE_LEAF_HALF
 
-  b.bigDivLast = offers.some(isBigTrap)
-  b.mulLast = offers.some((s) => s.op === 'mul')
-  const trapped = offers.some((s) => s.op === 'div')
-  b.routingNext = offers.some((s) => s.op === 'add')
+  b.bigDivLast = real.some(isBigTrap)
+  b.mulLast = real.some((s) => s.op === 'mul')
+  const trapped = real.some((s) => s.op === 'div')
+  b.routingNext = real.some((s) => s.op === 'add')
   b.trapPlaced = b.trapPlaced || trapped
   b.trapStreak = trapped ? b.trapStreak + 1 : 0
   if (triple) {
@@ -2336,32 +2492,15 @@ const bank = (b: Beat, y: number, ...specs: LeafSpec[]): void => {
   b.trailGoodX = xs[bestI] ?? 0
   b.trailBadX = xs[worstI] ?? 0
 
-  // ── Does one of these doors go face-down? ──
-  //
-  // Decided here, where the whole bank is known, because every rule the feature
-  // has is about the bank rather than the leaf: it needs a second, readable
-  // offer to be measured against, and it must not land on a bank where both
-  // doors already take something. See `MYSTERY_STAGE`.
-  //
-  // The leaf chosen is the WORST one — the door the arithmetic says to refuse.
-  // Hiding the best offer would only ever punish a player for reading well; a
-  // hidden bad door is a real question, because the number they cannot see is
-  // the one they would have walked away from, and now they have to decide
-  // whether to trust that reading without it.
-  const mysteryI = offers.length > 1
-    && b.mysteriesLeft > 0
-    && !isDilemma(offers)
-    && b.mysteryRng() < mysteryChance(b.stage)
-    ? worstI
-    : -1
-  if (mysteryI >= 0) b.mysteriesLeft--
-
+  // Face-down doors were decided by whoever wrote the bank (`hide`,
+  // `shieldPrize`) and survived `faceDownRules` above; nothing is rolled here.
   b.events.push({
     kind: 'gates',
     y: r2(y),
     leaves: offers.map((s, i) => ({
       x: xs[i] ?? 0, halfW, op: s.op, value: s.value,
-      ...(i === mysteryI ? { mystery: true } : {})
+      ...(s.mystery ? { mystery: true } : {}),
+      ...(s.prize ? { prize: s.prize } : {})
     })),
     dividers: triple ? [-GATE3_DIVIDER_X, GATE3_DIVIDER_X] : [0]
   })
@@ -2978,6 +3117,42 @@ const pack = (
 }
 
 /**
+ * TARGET PRACTICE — the first boss's launcher, used within five seconds.
+ *
+ * The stage-1 boss hands over a launcher (`BOSS_REWARD_WEAPON`), and a reward
+ * the player never sees working is a card they closed. So stage 2 opens — right
+ * after its `?` bank — on a tight wedge of the weakest body in the game, packed
+ * so one salvo's blast takes several at once: the gift, proven on the spot,
+ * which is what turns the first kill into chapter one instead of the end.
+ *
+ * Written straight onto the road rather than through `pack`, deliberately: it is
+ * not a mob beat, and two tight pairs is a shape `pack`'s spread cannot make.
+ *
+ * ⚠ SPAWNED ONLY WHILE A WEAPON IS ARMED (`forGift`, read in `streamTrack`), and
+ * the numbers are why. Measured 2026-09-18, six seeds a policy (a scratch probe
+ * of stage 2 to y = 40): WITH the launcher, `good` and `average` lose 0-1
+ * survivors to it — the same as the road without it — and the pairs are dead
+ * 3.7-4.4 s into the stage. WITHOUT it they lose 5-8 more and half the runs'
+ * peaks halve, because a crowd of ten is not built to answer four bodies with a
+ * pistol. Every real stage-2 player holds the launcher (the reward is written
+ * at the stage-1 kill and re-armed on every attempt), but the balance suite
+ * plays stage 2 without it — and a nine-creep wedge, the first version, wiped
+ * five runs in six even WITH it.
+ */
+const targetPractice = (b: Beat, y: number): void => {
+  const rows: ReadonlyArray<readonly [number, number, number]> = [
+    // [y offset, count, spread] — two tight pairs, one salvo's blast wide.
+    [0, 2, 0.9],
+    [0.9, 2, 0.9]
+  ]
+  for (const [dy, count, spread] of rows) {
+    b.events.push({
+      kind: 'foes', y: r2(y + dy), typeId: 'creep', count, spread: r2(spread), forGift: true
+    })
+  }
+}
+
+/**
  * STRAY — one creep, alone, standing in dead air.
  *
  * Not a hazard. A thing to look at.
@@ -3559,7 +3734,19 @@ const stageTwo = (b: Beat): void => {
   // Crowd of three. Nothing multiplicative is worth anything yet, so the
   // opening bank is the wide pair again — and the fat door is the one on the
   // side the crowd is NOT already standing on.
-  bank(b, 14, add(6), add(2))
+  //
+  // ── …and it is the first `?` in the game, and the `?` PAYS ──
+  //
+  // The fat door goes face-down. The first black door a player ever meets
+  // rewards the curiosity that makes them take it — `+6` against the readable
+  // `+2` — and the player who plays safe watches the bank turn over and learns
+  // what they walked past. Stage 3's `?` is the first that bites. See "The
+  // face-down door" (rule 8).
+  bank(b, 14, hide(add(6)), add(2))
+
+  // …and the first boss's launcher gets its first targets while the player is
+  // still deciding what the `?` was worth. See `targetPractice`.
+  targetPractice(b, 31)
 
   splitPair(b, 26, 'rate', 'damage')
 
@@ -3870,7 +4057,12 @@ const stageThree = (b: Beat): void => {
   // also what stops the stage compounding — a road that only ever adds arrives
   // at the boss with a crowd nothing on it has questioned, and the boss is then
   // priced against a snowball instead of against play.
-  bank(b, 140, add(roadDoor(b, 66)), sub(gateSubBase(3)))
+  // Stage 3's `?`, and the first one that BITES — gently. The bill beside the
+  // fat door goes face-down, so a player who gambled on stage 2 and won is asked
+  // the same question again and pays a few survivors for it. A small loss the
+  // player chose is the lesson; a trap would be a punishment. See "The
+  // face-down door".
+  bank(b, 140, add(roadDoor(b, 66)), hide(sub(gateSubBase(3))))
 
   splitPair(b, 150, 'rate', 'damage')
   pack(b, 158, 'hound', packSize(3), 2.6)
@@ -4000,7 +4192,11 @@ const stageFive = (b: Beat): void => {
   // last one sits on the lip of the `÷2`. Nothing about it is different from
   // the trails on stages 1–4 except where it ends.
   coinTrail(b, 58, -2.0, GATE_LEAF_X, 12, 1.05)
-  bank(b, 72, mul(3), div(2))
+  // Stage 5's `?` hides the MULTIPLIER: a readable trap beside a black door is
+  // the one bank where the gamble is the obvious move, and what it turns over
+  // is the first `×` a player ever finds under one. The greedy trail above still
+  // ends on the lip of the `÷2`, so the coins and the `?` now argue.
+  bank(b, 72, hide(mul(3)), div(2))
   // (miniboss lands at ~50 %)
 
   chicane(b, 92, false)
@@ -4098,7 +4294,15 @@ const stageSix = (b: Beat): void => {
   horde(b, A * 0.36, 'creep', packSize(6) + 3)
 
   coinTrail(b, A * 0.46, 1.2, GATE_LEAF_X, 6, 1.2)
-  bank(b, A * 0.52, mul(2), add(base + 4))
+  // ── The first BLIND PAIR ──
+  //
+  // Both doors face-down: no reading, only a pick. The first one in the game is
+  // a gamble between two GOOD answers — a multiplier or a fat add, and which is
+  // better depends on the crowd nobody is counting under pressure — so the lesson
+  // is "sometimes you just choose" rather than "sometimes the game takes". The
+  // trail above still runs to the right-hand door; coins are a claim, never a
+  // reading. See "The face-down door" (rule 4); the next is stage 12.
+  bank(b, A * 0.52, hide(mul(2)), hide(add(base + 4)))
 
   pincer(b, A * 0.62, 'hound', 2)
   crates(b, A * 0.72, 'damage', [CRATE_DETOUR_X + 0.4])
@@ -4125,7 +4329,11 @@ const stageSeven = (b: Beat): void => {
 
   gauntlet(b, A * 0.42, 3)
   coinTrail(b, A * 0.56, -1.4, -GATE_LEAF_X, 6, 1.2)
-  bank(b, A * 0.6, add(base + 4), div(2))
+  // Stage 7's `?` is the first real bite: the trap goes face-down beside a fat,
+  // readable door and a trail that points at it. Stage 3 taught that a `?` can
+  // cost; this is the one that costs half, and only a player who ignored both
+  // the number and the coins pays it.
+  bank(b, A * 0.6, add(base + 4), hide(div(2)))
 
   crates(b, A * 0.7, 'rate', [CRATE_DETOUR_X])
   horde(b, A * 0.8, 'creep', packSize(7) + 2)
@@ -4168,7 +4376,11 @@ const stageEight = (b: Beat): void => {
 const stageNine = (b: Beat): void => {
   const A = b.arenaY
   const base = gateAddBase(9)
-  bank(b, 14, add(base), add(base + 2))
+  // The first SHIELD under a `?`, one stage after the roadside shield box
+  // (`BULWARK_STAGE`) has shown what the crest over the crowd means. A known
+  // `+N` against one free blow somewhere in the next three minutes — the boss's,
+  // if nothing on the road spends it first.
+  bank(b, 14, shieldPrize(), add(base + 2))
 
   boulderField(b, A * 0.16, 3)
   horde(b, A * 0.28, 'flyer', packSize(9) - 2)
@@ -4199,7 +4411,12 @@ const stageTen = (b: Beat): void => {
 
   barricadeRow(b, A * 0.36, 2)
   coinTrail(b, A * 0.44, -1.2, -GATE_LEAF_X, 7, 1.2)
-  bank(b, A * 0.5, mul(3), add(base + 6))
+  // Stage 10's `?` is the fat ADD beside a readable `×3` — the gamble that is
+  // only right for a crowd that has not been worked. This exact door was the
+  // old random roll's pick, and the balance suite is calibrated against it:
+  // turned face-up it can be pumped, and "makes a streak of clears measurably
+  // harder" (`balance.test.ts`) tips from 15 lost to 14. Kept, now by design.
+  bank(b, A * 0.5, mul(3), hide(add(base + 6)))
 
   horde(b, A * 0.62, 'husk', packSize(10))
   crates(b, A * 0.72, 'rate', [-CRATE_DETOUR_X - 0.4])
@@ -4250,7 +4467,10 @@ const stageTwelve = (b: Beat): void => {
   // walled approach on top of them stopped even a well-built run reaching the
   // boss, and a navigational idea repeated twice in forty units is a toll
   // rather than a puzzle.
-  bank(b, A * 0.16, add(base + 1), add(base + 3))
+  // The second BLIND PAIR, six stages after the first, and walled: the rib
+  // commits the crowd to a side long before the doors turn over. A fat add or
+  // the shield — both good, neither readable. See "The face-down door".
+  bank(b, A * 0.16, hide(add(base + 3)), shieldPrize())
   passage(b, A * 0.16, 15)
   boulderField(b, A * 0.28, 4)
   // THE PAIR'S TEACHING BEAT, and the only one in the authored campaign.
@@ -4317,7 +4537,9 @@ const stageFourteen = (b: Beat): void => {
 
   chicane(b, A * 0.14, true)
   pincer(b, A * 0.24, 'hound', 3)
-  bank(b, A * 0.38, add(base + 2), add(base + 3))
+  // A near-twin bank (`+17 | +18` asks nothing) given a question: the smaller
+  // door becomes a face-down `÷2`. Behind a rib, so the gamble is taken early.
+  bank(b, A * 0.38, hide(div(2)), add(base + 3))
   passage(b, A * 0.38, 15)
 
   horde(b, A * 0.48, 'flyer', packSize(14) - 3)
@@ -6220,6 +6442,69 @@ const retireCrateNear = (b: Beat, y: number, kind: CrateKind): void => {
 }
 
 /**
+ * Turn over the generated road's `?`, on the bank `mysteryPlanFor` names.
+ *
+ * No rolls: the bank is the eligible one nearest the planned mark (ties to the
+ * earlier), and which door goes face-down is read off the recipe and the bank's
+ * own doors, ranked with `offerScore` — the same ranking the coin trails and
+ * the prizes use, so the three can never disagree about which door is good.
+ *
+ * A stage with no eligible bank simply has no `?`. Declining is always legal;
+ * forcing one onto a dilemma or a lone door is not (rules 4 and 5).
+ */
+const placeMysteries = (b: Beat): void => {
+  const plan = mysteryPlanFor(b.stage)
+  if (!plan) return
+  const blind = plan.recipe === 'blind' || plan.recipe === 'blindShield'
+  const want = b.arenaY * plan.at
+  const banks = banksOf(b)
+  let pick: Extract<TrackEvent, { kind: 'gates' }> | null = null
+  for (const bank of banks) {
+    if (bank.leaves.length < 2 || (blind && bank.leaves.length !== 2)) continue
+    if (isDilemma(bank.leaves) || bank.leaves.some((l) => l.mystery)) continue
+    // Not on a bank with another standing within a pair's length of it. That is
+    // the locked pair (`rollPair`), whose two banks are ONE authored question —
+    // a bill-then-multiplier lane against two adds — and hiding a door of it
+    // rewrites the question; and it is the deep road's back-to-back banks, where
+    // a `?` would be turned over while the next choice is already on the crowd.
+    if (banks.some((o) => o !== bank && Math.abs(o.y - bank.y) <= PAIR_GAP + 0.1)) continue
+    if (!pick || Math.abs(bank.y - want) < Math.abs(pick.y - want)) pick = bank
+  }
+  if (!pick) return
+
+  const doors = pick.leaves
+  let bestI = 0
+  let worstI = 0
+  for (let i = 1; i < doors.length; i++) {
+    if (offerScore(b.stage, doors[i]!) > offerScore(b.stage, doors[bestI]!)) bestI = i
+    if (offerScore(b.stage, doors[i]!) < offerScore(b.stage, doors[worstI]!)) worstI = i
+  }
+  const faceDown = (l: GateLeaf): GateLeaf => ({ ...l, mystery: true })
+  const shield = (l: GateLeaf): GateLeaf =>
+    ({ x: l.x, halfW: l.halfW, op: 'add', value: 0, mystery: true, prize: 'shield' })
+
+  const out = doors.slice()
+  switch (plan.recipe) {
+    case 'best':
+      out[bestI] = faceDown(out[bestI]!)
+      break
+    case 'worst':
+      out[worstI] = faceDown(out[worstI]!)
+      break
+    case 'shield':
+      out[worstI] = shield(out[worstI]!)
+      break
+    case 'blind':
+      for (let i = 0; i < out.length; i++) out[i] = faceDown(out[i]!)
+      break
+    case 'blindShield':
+      for (let i = 0; i < out.length; i++) out[i] = i === worstI ? shield(out[i]!) : faceDown(out[i]!)
+      break
+  }
+  pick.leaves = faceDownRules(out)
+}
+
+/**
  * Place the stage's rescue cage and its auto-shield box.
  *
  * ── The rule, in one sentence ──
@@ -6382,12 +6667,6 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
     mulLeft: mulLeaves(stage),
     mulThreeLeft: mulThrees(stage),
     pairsLeft: maxPairs(stage),
-    mysteriesLeft: maxMysteries(stage),
-    // A FOURTH private stream, for the same reason the pair and prize streams
-    // are private: a roll drawn from `rng` would advance the main stream on
-    // every bank of every stage from 9 on, and re-roll the entire campaign
-    // downstream of a feature that touches one leaf. See `Beat.pairRng`.
-    mysteryRng: mulberry32(Math.imul(seed, 0x2545f491) ^ 0x94d049bb),
     // Seeded off the same number as `rng`, with a different constant so the two
     // streams do not march in step.
     pairRng: mulberry32(Math.imul(seed, 0x27d4eb2f) ^ 0xc2b2ae35),
@@ -6493,6 +6772,13 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
   // anywhere else — cannot move a single other beat. See `Beat.prizeRng`.
   placeRescues(b)
 
+  // The generated road's `?` goes on the FINISHED road, because it is placed
+  // relative to a bank rather than written as one — and it changes no position
+  // and draws from no stream, so it cannot move any other beat. After the
+  // prizes on purpose: they pick their shoulder off the bank's best door, and
+  // they must read the doors as the road built them. See `mysteryPlanFor`.
+  placeMysteries(b)
+
   // Two obstacle rows in the same piece of road are one wall, and the promise
   // that there is a way through one was only ever made row by row. Before the
   // crates are swept, because it takes blocks OFF the road and a crate has no
@@ -6590,6 +6876,9 @@ export const GATE_PUMP_TICKS_IDEAL = 4
 
 /** What a leaf is worth after a full approach spent firing at it. */
 const pumpedValue = (leaf: GateLeaf, stage: number): number => {
+  // A prize door pays no survivors at all — its `+0` is a placeholder, and
+  // pumping it here would promise bodies the door can never hand over.
+  if (leaf.prize) return 0
   // A hostile door is never pumped, because a perfect player never points the
   // crowd at one — and pumping `-N` or `÷N` makes it WORSE, so assuming it
   // happened would understate the ceiling rather than overstate it.

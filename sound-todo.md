@@ -51,6 +51,12 @@ several of them are doing something a flat sample cannot.
 | `bossGuard` | a round bouncing off the boss's phase shield | fires at the densest rate in the game (a thousand-strong squad, point blank) and is throttled hard. Pitched ABOVE `bossHit` on purpose — the player has to hear their fire stop landing without looking away from the telegraph. |
 | `bossRage` | the boss planting at 66 % / 33 % health | the one beat that says the last third is not the same fight. Rising horn under struck metal; a sample would win here. |
 | `bossSlam` | the boss's ground slam | pairs with the screen shake. Grows with the boss's rage — a late swing is wider and lands sooner than the first. |
+| `windGather` / `windHurl` | the meteor being gathered over the boss's head, then thrown | fired as BEATS on the cast's own clock (`game/bossWindup.ts`), not at a fixed time: the gather swells for exactly the pose's gather (`seconds`, ~0.38 s) and stops on the throw; the hurl is a grunt + whoosh off the hands and then a **falling whistle over the rock's flight** that fades just before the `bossSlam` lands it. A sample must be split the same way, and the whistle has to be stretchable to the flight time. |
+| `windCoil` / `bossCharge` | the lane charge: the coil, then the dash | two beats — a growl-and-rumble that swells for the whole crouch (1.1–1.5 s) with two dust scrapes in it, then a rising rasp for exactly the 0.38 s dash. Both lengths come from the cast, so a coil sample must loop or stretch. |
+| `windRise` / `windDrop` | the ring-of-fire stomp: the body rising, then falling | a slower, quieter `bossRage`-shaped horn under the rise, then a short downward rush that runs into the slam. |
+| `windWhet` / `windStrike` | the claw rake: claws raised, then swung | two blade-on-blade scrapes and a thin ring, then a falling hiss one beat before the slam. Must stay BRIGHT — the rake is told from the meteor by ear. |
+| `windHeal` / `windBolt` / `windZap` | the healer: drawing a heal in, charging a bolt, throwing it | the heal's gather rises INTO `bossHeal`'s first note (420 Hz); the bolt is an electric buzz with sparks, cut off by the zap on the frame the round leaves. |
+| `windCall` | the summoner raising its arms before a wave | a low two-voice drone that beats like breath, swelling into the wave's `eliteSpawn`. |
 
 ## Worth recording (would beat the synth)
 
@@ -61,6 +67,8 @@ several of them are doing something a flat sample cannot.
 | `public/audio/sfx/crowd-run.ogg` | 2 s loop | ambience | A loop of many running footsteps, volume driven by squad size. Nothing in the mix currently says "there are a hundred people here". |
 | `public/audio/sfx/unit-lost-1..3.ogg` | ≤ 0.4 s | `unitLost` | Three short human grunts/cries, randomised. The synth version is a falling saw — it works, but real voices are what make the crowd read as people. |
 | `public/audio/sfx/boss-roar.ogg` | ≤ 1.5 s | boss entry | There is currently NO boss-entry cue at all — the boss simply walks on. This is the biggest single hole in the mix. |
+| `public/audio/sfx/boss-hurl.ogg` | ≤ 0.3 s + stretchable tail | `windHurl` | The meteor leaving the boss's hands. A real heave-grunt and a rock whooshing off would sell the throw the animation now shows. Keep the synthesised flight whistle under it — its length is the flight time, which a fixed sample cannot know. |
+| `public/audio/sfx/boss-coil.ogg` | 1.5 s, loopable | `windCoil` | A beast's growl building before the dash. The synth's sub-growl works; a recorded snarl rising to a roar would make the charge unmistakable. Must be trimmable to the coil length (1.1–1.5 s). |
 | `public/audio/sfx/boss-rage.ogg` | ≤ 1.2 s | `bossRage` | The phase turn at 66 % and 33 % health. The synth builds a rising horn under struck metal, and it works, but this is the game's biggest dramatic beat and a real roar-plus-impact would sell it far better. Layer over the synth rather than replacing it — the low end is doing the screen-shake pairing. |
 
 ## How to wire a new sample

@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { GateOp } from '@/game/survival'
+import type { GateOp, GatePrize } from '@/game/survival'
 import type { WeaponId } from '@/game/weapons'
 import {
   bakeRadialSprite, getRamp, getSprite, putRamp, putSprite, rgbString
@@ -50,7 +50,15 @@ export type FxEvent =
   | { kind: 'gateTick'; x: number; y: number; value: number; step: number; hostile?: boolean }
   /** The crowd ran through a gate. `gain` is the change in squad size: positive
    *  for `add` / `mul`, NEGATIVE for the `div` and `sub` doors. */
-  | { kind: 'gatePass'; x: number; y: number; op: GateOp; value: number; gain: number }
+  | {
+      kind: 'gatePass'; x: number; y: number; op: GateOp; value: number; gain: number
+      /** The door was face-down until this instant — the renderer turns it over
+       *  rather than just swapping the plate. See "The face-down door". */
+      flipped?: boolean
+      /** A prize door (`GatePrize`): `op`/`value`/`gain` are a `+0` placeholder
+       *  and must not be read as a payout. */
+      prize?: GatePrize
+    }
   /**
    * A leaf of the bank the player did NOT take, blowing itself apart.
    *
@@ -68,6 +76,10 @@ export type FxEvent =
       /** How far this leaf is from the one that was taken, in world units —
        *  the shockwave arrives later the further away it is. */
       distance: number
+      /** Was face-down until the bank resolved — see `gatePass.flipped`. */
+      flipped?: boolean
+      /** A prize door; its wreckage wears the prize, not its `+0`. */
+      prize?: GatePrize
     }
   /** A supply crate burst. `crate` picks which stat went up and `value` is the
    *  new total, so the floating text can read "DMG 4" or "RATE 2.4". */

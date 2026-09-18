@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "{n} 名幸存者归队",
 
-    'next': "下一个：{label} · {when}"
+    'next': "下一个：{label} · {when}",
+    'bossAhead': "前方首领：{name}",
+    'bossName': {
+      'grumpling': "嘟囔菇",
+      'bonecap': "骨帽怪",
+      'snaggletusk': "歪牙兽",
+      'thornwick': "荆棘树妖",
+      'marrowknight': "骸骨骑士",
+      'cinderhound': "余烬猎犬",
+      'rattlejack': "咔嗒杰克"
+    }
 
   },
 

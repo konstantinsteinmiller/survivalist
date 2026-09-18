@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "생존자 {n}명이 돌아왔습니다",
 
-    'next': "다음: {label} · {when}"
+    'next': "다음: {label} · {when}",
+    'bossAhead': "다가오는 보스: {name}",
+    'bossName': {
+      'grumpling': "그럼플링",
+      'bonecap': "본캡",
+      'snaggletusk': "스내글터스크",
+      'thornwick': "쏜윅",
+      'marrowknight': "매로나이트",
+      'cinderhound': "신더하운드",
+      'rattlejack': "래틀잭"
+    }
 
   },
 

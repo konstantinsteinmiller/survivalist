@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "عاد {n} من الناجين",
 
-    'next': "التالي: {label} · {when}"
+    'next': "التالي: {label} · {when}",
+    'bossAhead': "الزعيم في الطريق: {name}",
+    'bossName': {
+      'grumpling': "غرامبلينغ",
+      'bonecap': "بونكاب",
+      'snaggletusk': "سناغلتاسك",
+      'thornwick': "ثورنويك",
+      'marrowknight': "مارونايت",
+      'cinderhound': "سيندرهاوند",
+      'rattlejack': "راتلجاك"
+    }
 
   },
 

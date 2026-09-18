@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "{n}人の生存者が復帰",
 
-    'next': "次: {label} · {when}"
+    'next': "次: {label} · {when}",
+    'bossAhead': "この先のボス：{name}",
+    'bossName': {
+      'grumpling': "グランプリング",
+      'bonecap': "ボーンキャップ",
+      'snaggletusk': "スナッグルタスク",
+      'thornwick': "ソーンウィック",
+      'marrowknight': "マロウナイト",
+      'cinderhound': "シンダーハウンド",
+      'rattlejack': "ラトルジャック"
+    }
 
   },
 

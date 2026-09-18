@@ -164,10 +164,21 @@ describe('a +N gate is a decision about TIME, not about firepower', () => {
     // …and to one OP. Late stages put multipliers and traps on the left too,
     // and those climb in tenths, so a timeline that took whatever leaf was
     // there would compare a `+N`'s step against a `x N`'s.
+    //
+    // …and to a READABLE one. A face-down door never pumps (`mysteryGate.test.ts`),
+    // and stage 2 opens on one: its fat left door is the game's first `?`. So
+    // the leaf is the nearest readable `+N`, left side first, and the crowd is
+    // steered onto it.
     let watched = -1
     for (let i = 0; i < 300; i++) {
       const gates = game.getGates()
-      if (watched < 0) watched = gates.find((g) => g.x < 0 && g.op === 'add')?.id ?? -1
+      if (watched < 0) {
+        const pick = gates
+          .filter((g) => g.op === 'add' && !g.mystery && !g.used)
+          .sort((p, q) => p.y - q.y || p.x - q.x)[0]
+        watched = pick?.id ?? -1
+        if (pick) game.steerTo(pick.x)
+      }
       const leaf = gates.find((g) => g.id === watched)
       if (leaf && leaf.value !== last) {
         if (last >= 0) { stamps.push(game.nowMs()); values.push(leaf.value - last) }

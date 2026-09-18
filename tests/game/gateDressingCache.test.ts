@@ -5,10 +5,11 @@ import { resolve } from 'node:path'
 /**
  * ─── A cached ramp is only as honest as its key ─────────────────────────────
  *
- * A face-down door borrows the neutral `add` dressing so that the only thing
- * the player has to go on is where it is. The gradients that dressing is made
- * of are CACHED for the life of the stage, and they were keyed on the leaf's
- * TRUE op while being built from the DISGUISED one — so the first `×` mystery
+ * A face-down door wears ONE dressing whatever it hides — the `mystery` dress:
+ * the add frame blackened, a black curtain, a dark plate — so that the only
+ * thing the player has to go on is where it is. The gradients that dressing is
+ * made of are CACHED for the life of the stage, and they were once keyed on the
+ * leaf's TRUE op while being built from the DISGUISED one — so the first `×` mystery
  * of a stage filed a cyan curtain and a cyan plate under `mul`, and every
  * readable `×1.6` after it in that stage drew in the `+N` blue. Drawn in the
  * other order the same collision paints the mystery magenta, which is worse:
@@ -42,7 +43,9 @@ const drawGates = ((): string => {
 
 describe('the dressing a gate leaf is drawn in', () => {
   it('is decided once, from the op the leaf PRESENTS as', () => {
-    expect(drawGates).toContain("const dressOp: GateOp = mystery ? 'add' : g.op")
+    // `plain` is false for a face-down door, a door mid-turn, and a turned-over
+    // prize door — every one of which wears the disguise, never its true op.
+    expect(drawGates).toContain("const dressOp: GateDress = plain ? g.op : 'mystery'")
     expect(drawGates).toContain('const tint = GATE_TINT[dressOp]')
     // The true op must never reach the tint table directly again.
     expect(drawGates).not.toContain('GATE_TINT[g.op]')
@@ -83,5 +86,13 @@ describe('why the key has to carry it', () => {
     expect(glow('add')).not.toBe('')
     expect(glow('mul')).not.toBe('')
     expect(glow('add')).not.toBe(glow('mul'))
+  })
+
+  it('gives the disguise a colour of its own, borrowed from none of the answers', () => {
+    const table = src.slice(src.indexOf('const GATE_TINT = {'))
+    const glow = (op: string): string =>
+      new RegExp(`${op}: {[^}]*glow: '([^']+)'`).exec(table)?.[1] ?? ''
+    expect(glow('mystery')).not.toBe('')
+    for (const op of ['add', 'sub', 'mul', 'div']) expect(glow('mystery')).not.toBe(glow(op))
   })
 })

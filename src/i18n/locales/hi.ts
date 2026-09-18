@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "{n} बचे हुए लौट आए",
 
-    'next': "आगे: {label} · {when}"
+    'next': "आगे: {label} · {when}",
+    'bossAhead': "आगे बॉस: {name}",
+    'bossName': {
+      'grumpling': "ग्रम्पलिंग",
+      'bonecap': "बोनकैप",
+      'snaggletusk': "स्नैगलटस्क",
+      'thornwick': "थॉर्नविक",
+      'marrowknight': "मैरोनाइट",
+      'cinderhound': "सिंडरहाउंड",
+      'rattlejack': "रैटलजैक"
+    }
 
   },
 

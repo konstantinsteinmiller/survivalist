@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "{n} survivants sont de retour",
 
-    'next': "Ensuite : {label} · {when}"
+    'next': "Ensuite : {label} · {when}",
+    'bossAhead': "Boss en approche : {name}",
+    'bossName': {
+      'grumpling': "Grumpling",
+      'bonecap': "Bonecap",
+      'snaggletusk': "Snaggletusk",
+      'thornwick': "Thornwick",
+      'marrowknight': "Marrowknight",
+      'cinderhound': "Cinderhound",
+      'rattlejack': "Rattlejack"
+    }
 
   },
 

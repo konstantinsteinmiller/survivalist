@@ -89,7 +89,17 @@ export default {
 
     'guardianSub': "{n} тірі қалған оралды",
 
-    'next': "Келесі: {label} · {when}"
+    'next': "Келесі: {label} · {when}",
+    'bossAhead': "Алда бос: {name}",
+    'bossName': {
+      'grumpling': "Грамплинг",
+      'bonecap': "Бонкэп",
+      'snaggletusk': "Снэгглтаск",
+      'thornwick': "Торнвик",
+      'marrowknight': "Мэрроунайт",
+      'cinderhound': "Синдерхаунд",
+      'rattlejack': "Рэттлджек"
+    }
 
   },
 

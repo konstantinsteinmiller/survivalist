@@ -37,6 +37,12 @@ export type FxSound =
   | 'foeDie' | 'unitLost' | 'coin' | 'eliteSpawn' | 'eliteSweep' | 'eliteDie'
   | 'bossHit' | 'bossGuard' | 'bossRage' | 'bossSlam' | 'bossHeal' | 'bossDie'
   | 'bossEnrage' | 'bossCharge'
+  // The boss's wind-ups, one per beat of its pose (`game/bossWindup.ts`):
+  // the meteor gathered and hurled, the dash coiled, the stomp risen and
+  // dropped, the claws whetted and swung, the heal drawn in, the bolt charged
+  // and thrown, the summoner's call. `bossCharge` is the dash itself.
+  | 'windGather' | 'windHurl' | 'windCoil' | 'windRise' | 'windDrop'
+  | 'windWhet' | 'windStrike' | 'windHeal' | 'windBolt' | 'windZap' | 'windCall'
   | 'stageClear' | 'wipe' | 'rally'
   | 'squadMilestone'
   | 'countUp'
@@ -99,7 +105,22 @@ const THROTTLES: Partial<Record<FxSound, Throttle>> = {
   // A crowd walking into a frozen pack shatters a body a frame — the crack has
   // to keep coming for as long as they keep coming apart, without becoming one
   // continuous hiss of glass.
-  frostShatter: { minGapMs: 45, maxPerWindow: 5, windowMs: 350 }
+  frostShatter: { minGapMs: 45, maxPerWindow: 5, windowMs: 350 },
+  // The wind-ups are one-a-swing by construction, so these rows are a guard
+  // rather than a budget: a crossrake puts two rakes on the road together, and
+  // the second pass's whet lands 0.7 s after the first — well outside the gap —
+  // while a cue that somehow fired twice in one frame is refused.
+  windGather: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windHurl: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windCoil: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windRise: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windDrop: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windWhet: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windStrike: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windHeal: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windBolt: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windZap: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windCall: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 }
 }
 
 const lastAt: Partial<Record<FxSound, number>> = {}
@@ -240,6 +261,10 @@ interface NoiseOpts extends Route {
   type?: BiquadFilterType
   q?: number
   delay?: number
+  /** Seconds to the peak. Absent (the default) is a hit: full gain at once and
+   *  decaying from there. The wind-ups set it to SWELL — a noise that grows
+   *  toward the moment it describes rather than away from it. */
+  attack?: number
 }
 
 /** A filtered noise burst — the backbone of impacts, bursts and debris. */
@@ -247,6 +272,10 @@ const noiseBurst = (ctx: AudioContext, o: NoiseOpts): void => {
   const src = ctx.createBufferSource()
   src.buffer = getNoise(ctx)
   src.playbackRate.value = 0.85 + Math.random() * 0.3
+  // The shared buffer is 1.2 s. Every cue shorter than that plays it once; a
+  // wind-up texture can outlast it (a coil at a slow cadence), and a one-shot
+  // source would stop dead mid-swell.
+  if (o.duration > 1) src.loop = true
 
   const filter = ctx.createBiquadFilter()
   filter.type = o.type ?? 'lowpass'
@@ -256,7 +285,13 @@ const noiseBurst = (ctx: AudioContext, o: NoiseOpts): void => {
   filter.frequency.exponentialRampToValueAtTime(Math.max(40, o.filterTo), now + o.duration)
 
   const gain = ctx.createGain()
-  gain.gain.setValueAtTime(o.gain, now)
+  if (o.attack && o.attack > 0) {
+    const peak = Math.min(o.attack, o.duration * 0.95)
+    gain.gain.setValueAtTime(0.0001, now)
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, o.gain), now + peak)
+  } else {
+    gain.gain.setValueAtTime(o.gain, now)
+  }
   gain.gain.exponentialRampToValueAtTime(0.0001, now + o.duration)
 
   src.connect(filter).connect(gain)
@@ -406,7 +441,7 @@ export const tickFreq = (step: number): number => {
  * has been pumped, how many survivors just arrived). It never changes WHICH
  * sound plays — only how big it is — so the mix stays legible.
  */
-const synth = (ctx: AudioContext, id: FxSound, power: number, pan = 0): void => {
+const synth = (ctx: AudioContext, id: FxSound, power: number, pan = 0, seconds = 0): void => {
   const r = Math.random()
 
   switch (id) {
@@ -724,21 +759,159 @@ const synth = (ctx: AudioContext, id: FxSound, power: number, pan = 0): void => 
       noiseBurst(ctx, { duration: 1.2, gain: vol(0.09), filterFrom: 1800, filterTo: 120 })
       break
 
-    case 'bossCharge':
-      // The wind-up on the lane charge, and the one boss cue that is a TEXTURE
-      // rather than a hit: a rising filtered rasp that keeps going for as long
-      // as the band is on the road. A percussive tell would put the player's
-      // attention on the moment it fired, and the moment that matters here is
-      // the second and a half AFTER it — the whole point of the attack is that
-      // there is time to get out of the way, so the sound has to still be there
-      // while they are doing it.
+    case 'bossCharge': {
+      // THE DASH — the body leaving its line, fired on the beat the simulation
+      // starts moving it (`windupBeats`), and lasting exactly as long as the
+      // run. This used to be the whole charge's tell, a second-long rasp from
+      // the moment the band went down; the band's first second is now the
+      // COIL (`windCoil`), so the charge reads as two beats — something
+      // building, then something coming — instead of one long noise.
       //
       // Pitched between `bossGuard`'s ricochets and `bossSlam`'s sub so it has
-      // somewhere to sit when the shield is up and forty rounds a second are
-      // landing on it, which is exactly the frame it arrives in at the gate.
-      noiseBurst(ctx, { duration: 0.9, gain: vol(0.11), filterFrom: 260, filterTo: 1700, type: 'bandpass', q: 1.1 })
-      tone(ctx, { freq: 62, toFreq: 128, duration: 1.1, gain: vol(0.13), type: 'sawtooth', filter: 700 })
+      // somewhere to sit when forty rounds a second are landing on the shield,
+      // and it RISES into the `bossSlam` that lands at the far end of the lane.
+      const d = Math.max(0.2, seconds || 0.38)
+      noiseBurst(ctx, { duration: d + 0.12, gain: vol(0.12), filterFrom: 380, filterTo: 2600, type: 'bandpass', q: 1.1, attack: d * 0.6 })
+      tone(ctx, { freq: 86, toFreq: 210, duration: d + 0.06, gain: vol(0.12), type: 'sawtooth', filter: 900, attack: d * 0.5 })
       break
+    }
+
+    // ─── The wind-ups ───────────────────────────────────────────────────────
+    //
+    // Every boss attack now starts from the body (`game/bossWindup.ts`), and
+    // every one of those poses has a sound on the same clock. The rules they
+    // share, so the family reads as one voice:
+    //
+    //   • TEXTURES SWELL, MOMENTS STRIKE. A gather, a coil or a rise grows
+    //     toward the beat it is building to (an `attack` most of its length)
+    //     and stops there; the throw, the dash, the drop, the swing are short
+    //     and hit on their frame. `seconds` is the pose's own length, so a
+    //     raging boss's quicker wind-up is a quicker sound.
+    //   • UNDER THE PAYOUTS. Peaks sit at or below `bossCharge`'s and well
+    //     under `bossSlam` and the gate chords: a wind-up is a warning, and
+    //     the thing it warns about is louder than it.
+    //   • LOW FOR WEIGHT, HIGH FOR EDGES. The meteor and the stomp live in the
+    //     boss's register (the `bossSlam` family); the claws and the bolt get
+    //     the metallic top the elite sweeps use, so an ear can tell a rake from
+    //     a rock without the eyes.
+    case 'windGather': {
+      // The rock forming over the boss's head: a fire roar swelling from the
+      // floor of the mix, spitting as it grows. Stops on the throw.
+      const g = Math.max(0.15, seconds || 0.38)
+      const big = power >= 1 ? 1.3 : 1
+      tone(ctx, { freq: 64, toFreq: 132, duration: g + 0.04, gain: vol(0.085 * big), type: 'sawtooth', filter: 520, attack: g * 0.85 })
+      noiseBurst(ctx, { duration: g + 0.04, gain: vol(0.06 * big), filterFrom: 260, filterTo: 2200, attack: g * 0.85 })
+      crackle(ctx, { count: 6, from: g * 0.2, to: g, gain: vol(0.028), lo: 1600, hi: 4200 })
+      break
+    }
+
+    case 'windHurl': {
+      // The throw: a grunt and a whoosh off the hands, then the rock COMING —
+      // a falling whistle over the flight that swells as it nears and fades a
+      // hair before the `bossSlam` that lands it. The whistle is the part that
+      // tells a player who never looked up that something is in the air.
+      const f = Math.max(0.2, seconds || 0.62)
+      const big = power >= 1 ? 1.25 : 1
+      tone(ctx, { freq: 150, toFreq: 58, duration: 0.16, gain: vol(0.08 * big), type: 'sine' })
+      noiseBurst(ctx, { duration: 0.24, gain: vol(0.1 * big), filterFrom: 420, filterTo: 2600, type: 'bandpass', q: 0.9 })
+      tone(ctx, { freq: 1350, toFreq: 480, duration: f * 0.94, gain: vol(0.03 * big), type: 'sine', attack: f * 0.7, delay: 0.05 })
+      noiseBurst(ctx, { duration: f * 0.94, gain: vol(0.035 * big), filterFrom: 3200, filterTo: 900, type: 'bandpass', q: 1.4, attack: f * 0.75, delay: 0.05 })
+      break
+    }
+
+    case 'windCoil': {
+      // The charge being loaded: a growl in the sub, a ground rumble under it,
+      // and two paw-scrapes of dust — the same kicks the pose throws — so the
+      // build has a pulse and does not read as a drone.
+      const c = Math.max(0.3, seconds || 1.1)
+      tone(ctx, { freq: 46, toFreq: 74, duration: c + 0.04, gain: vol(0.11), type: 'sawtooth', filter: 360, attack: c * 0.9 })
+      noiseBurst(ctx, { duration: c + 0.04, gain: vol(0.06), filterFrom: 110, filterTo: 460, attack: c * 0.9 })
+      for (const at of [0.38, 0.72]) {
+        noiseBurst(ctx, { duration: 0.1, gain: vol(0.045), filterFrom: 1100, filterTo: 280, type: 'bandpass', q: 1.2, delay: c * at })
+      }
+      break
+    }
+
+    case 'windRise': {
+      // The stomp being lifted: a horn climbing out of the boss's register —
+      // `bossRage`'s shape, under it and slower, because the rage cue means
+      // "the fight turned" and this only means "it is about to come down".
+      const u = Math.max(0.3, seconds || 0.9)
+      tone(ctx, { freq: 78, toFreq: 176, duration: u + 0.03, gain: vol(0.1), type: 'sawtooth', filter: 720, attack: u * 0.8 })
+      tone(ctx, { freq: 236, toFreq: 380, duration: u + 0.03, gain: vol(0.035), type: 'triangle', attack: u * 0.8 })
+      noiseBurst(ctx, { duration: u + 0.03, gain: vol(0.035), filterFrom: 400, filterTo: 1400, attack: u * 0.8 })
+      break
+    }
+
+    case 'windDrop': {
+      // The fall onto the stomp: a short downward rush that runs straight into
+      // the `bossSlam` on the impact frame.
+      const d = Math.max(0.1, seconds || 0.1)
+      noiseBurst(ctx, { duration: d + 0.06, gain: vol(0.09), filterFrom: 2400, filterTo: 300, type: 'bandpass', q: 0.9 })
+      tone(ctx, { freq: 260, toFreq: 70, duration: d + 0.04, gain: vol(0.06), type: 'triangle' })
+      break
+    }
+
+    case 'windWhet': {
+      // Claws being raised: two metal scrapes, blade on blade, and a thin ring
+      // that grows under them. Bright on purpose — the rake has to be told
+      // from the meteor by ear, and the meteor lives in the low end.
+      const w = Math.max(0.25, seconds || 0.85)
+      // The scrape's gain looks loud and is not: a narrow band of white noise
+      // keeps a sliver of its energy, and at 0.045 it measured a 0.014 peak in
+      // an OfflineAudioContext — a sixth of the swing it leads into. 0.2 puts it
+      // near the other wind-ups (~0.05).
+      for (const at of [0, 0.42]) {
+        noiseBurst(ctx, { duration: 0.26, gain: vol(0.2), filterFrom: 2600, filterTo: 6200, type: 'bandpass', q: 5, attack: 0.18, delay: w * at })
+      }
+      tone(ctx, { freq: 1880, toFreq: 2060, duration: w + 0.03, gain: vol(0.028), type: 'triangle', attack: w * 0.8 })
+      break
+    }
+
+    case 'windStrike':
+      // The swing across — a hiss that falls as the blades cross the lanes,
+      // landing on the `bossSlam` a beat later.
+      noiseBurst(ctx, { duration: 0.16, gain: vol(0.1), filterFrom: 4200, filterTo: 700, type: 'bandpass', q: 1.1 })
+      tone(ctx, { freq: 520, toFreq: 170, duration: 0.11, gain: vol(0.05), type: 'triangle' })
+      break
+
+    case 'windHeal': {
+      // The healer drawing its heal in: a breathy swell rising INTO the note
+      // `bossHeal` starts on (420 Hz), so the heal lands as the gather's
+      // resolution rather than as a second event. Soft — a heal takes nothing.
+      const h = Math.max(0.2, seconds || 0.5)
+      tone(ctx, { freq: 280, toFreq: 420, duration: h + 0.04, gain: vol(0.045), type: 'sine', attack: h * 0.85 })
+      noiseBurst(ctx, { duration: h + 0.04, gain: vol(0.03), filterFrom: 1200, filterTo: 3400, type: 'bandpass', q: 2, attack: h * 0.8 })
+      break
+    }
+
+    case 'windBolt': {
+      // A round charging in the healer's hands: a rising electric buzz with
+      // sparks in it, cut off by the throw (`windZap`).
+      const b = Math.max(0.2, seconds || 0.5)
+      tone(ctx, { freq: 170, toFreq: 520, duration: b + 0.03, gain: vol(0.05), type: 'square', filter: 1400, attack: b * 0.85 })
+      crackle(ctx, { count: 5, from: b * 0.3, to: b, gain: vol(0.035), lo: 3000, hi: 7000 })
+      break
+    }
+
+    case 'windZap':
+      // The bolt leaving: a bright descending zap. The flight and the hit have
+      // their own sounds (`bossBoltHit` lands as a half-weight slam).
+      tone(ctx, { freq: 940, toFreq: 230, duration: 0.13, gain: vol(0.07), type: 'sawtooth', filter: 3000 })
+      noiseBurst(ctx, { duration: 0.1, gain: vol(0.05), filterFrom: 6500, filterTo: 2000, type: 'bandpass', q: 1.5 })
+      break
+
+    case 'windCall': {
+      // The summoner raising its arms: a low chanted drone, two voices a hair
+      // apart so it beats like breath, swelling into the wave's own arrival
+      // (`eliteSpawn`), which is the sound of the bodies coming up.
+      const c = Math.max(0.3, seconds || 0.9)
+      for (const f of [98, 99.6]) {
+        tone(ctx, { freq: f, toFreq: f * 1.12, duration: c + 0.05, gain: vol(0.05), type: 'sawtooth', filter: 520, attack: c * 0.8 })
+      }
+      noiseBurst(ctx, { duration: c + 0.05, gain: vol(0.03), filterFrom: 160, filterTo: 600, attack: c * 0.8 })
+      break
+    }
 
     case 'bossSlam':
       // Sub thump + wide body + a long dark tail. Pairs with the screen shake.
@@ -1095,8 +1268,11 @@ export const stopFlareBurn = (): void => {
  *              `gateSubTick`, a rung for `squadMilestone`.
  * @param pan   -1 left … 1 right, read only by the cues that have a side (the
  *              flare's). Everything else is centred, as it always was.
+ * @param seconds how long the thing the cue describes lasts, read only by the
+ *              boss wind-ups, whose textures fit their envelope to the pose
+ *              they are sounding (`game/bossWindup.ts`). 0 = the cue's own.
  */
-export const playFx = (id: FxSound, power = 0, pan = 0): void => {
+export const playFx = (id: FxSound, power = 0, pan = 0, seconds = 0): void => {
   if (!canPlay()) return
   if (!passesThrottle(id)) return
 
@@ -1123,12 +1299,22 @@ export const playFx = (id: FxSound, power = 0, pan = 0): void => {
   if (ctx.state !== 'running') return
 
   try {
-    synth(ctx, id, power, pan)
+    synth(ctx, id, power, pan, seconds)
   } catch {
     // A browser refusing to allocate more nodes is not worth interrupting a
     // frame for — the visual feedback carries the moment on its own.
   }
 }
+
+/**
+ * Test seam: build one cue into a caller's context — an `OfflineAudioContext`
+ * in a browser, to measure what a cue actually peaks at, or a stub in a spec
+ * to prove it builds at all. Bypasses the throttle and the mute gates on
+ * purpose: those are `playFx`'s, and they are specced where they live.
+ */
+export const synthCueForTest = (
+  ctx: BaseAudioContext, id: FxSound, power = 0, seconds = 0
+): void => synth(ctx as AudioContext, id, power, 0, seconds)
 
 /** Warm the synthesis path (build the noise buffer) so the first burst of a
  *  session doesn't pay for a 1.2 s buffer fill mid-frame. */
