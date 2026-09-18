@@ -7,6 +7,10 @@
         div.stage-banner__unlock-text
           span.stage-banner__unlock-name {{ unlock.label }}
           span.stage-banner__unlock-tag {{ unlock.tag ?? t('flow.unlocked') }}
+      //- The leaderboard climb a new best just bought — see `climb`.
+      div.stage-banner__climb(v-else-if="climb")
+        GameIcon.stage-banner__climb-icon(name="trophy")
+        span.stage-banner__climb-text {{ climb }}
       //- What is coming. Only when nothing has just been handed over — the
       //- gift and the promise on one banner would be two things to read in
       //- 1.7 seconds, and the gift is the one that matters.
@@ -67,8 +71,12 @@ interface Props {
   /** The boss at the end of this stage's road: its body (`bossDesign`) for
    *  the silhouette, and its name already translated. */
   boss?: { design: string; name: string } | null
+  /** The new rank and the places this clear gained, already worded ("Rank
+   *  #2,702 ▲214"). Shown instead of `next` — the HUD chip carries that
+   *  promise all stage — and never over a gift. */
+  climb?: string | null
 }
-withDefaults(defineProps<Props>(), { next: null, title: null, boss: null })
+withDefaults(defineProps<Props>(), { next: null, title: null, boss: null, climb: null })
 </script>
 
 <style scoped lang="sass">
@@ -143,6 +151,28 @@ withDefaults(defineProps<Props>(), { next: null, title: null, boss: null })
   color: #ffd93c
 
 .stage-banner__next-text
+  font-weight: 900
+  font-size: clamp(0.72rem, 3.4vw, 0.95rem)
+  color: #fff
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.85)
+
+// The climb: gold like the result screen's rank chip, because it IS that
+// number, moving.
+.stage-banner__climb
+  display: flex
+  align-items: center
+  gap: clamp(0.3rem, 1.6vw, 0.5rem)
+  padding: clamp(0.28rem, 1.4vw, 0.45rem) clamp(0.6rem, 3vw, 0.95rem)
+  border-radius: 999px
+  background-color: rgba(10, 20, 38, 0.84)
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 0 0.12rem rgba(255, 217, 60, 0.45)
+
+.stage-banner__climb-icon
+  width: clamp(1rem, 4.6vw, 1.3rem)
+  height: clamp(1rem, 4.6vw, 1.3rem)
+  color: #ffd93c
+
+.stage-banner__climb-text
   font-weight: 900
   font-size: clamp(0.72rem, 3.4vw, 0.95rem)
   color: #fff

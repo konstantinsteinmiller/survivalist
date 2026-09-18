@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': '次のボーナスまでのステージ数',
+    'bonus': "ボーナス +{coins}",
     'fireRate': '連射',
     'incoming': '攻撃が来る！',
     'dodge': '回避',
@@ -91,6 +92,7 @@ export default {
 
     'next': "次: {label} · {when}",
     'bossAhead': "この先のボス：{name}",
+    'rankUp': "順位 #{rank} ▲{n}",
     'bossName': {
       'grumpling': "グランプリング",
       'bonecap': "ボーンキャップ",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "武器を選ぶ",
     'nextStage': "次のステージ",
-    'stagesAway': "{n}ステージ後"
+    'stagesAway': "{n}ステージ後",
+    'thisStage': "このステージ"
   },
   'weaponPick': {
     'title': "武器を選ぼう",

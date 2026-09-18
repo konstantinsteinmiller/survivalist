@@ -29,7 +29,7 @@ const fresh = async () => {
  * Drive one ISOLATED barricade block two different ways and report the cost.
  *
  * Isolated matters, and it is the whole reason this hunts for a block rather
- * than naming one. Stage 4's wall is a PAIR: aiming at the outer edge of one
+ * than naming one. A wall is usually a PAIR: aiming at the outer edge of one
  * puts the crowd squarely into the face of the other, so "clipping an edge"
  * measures a head-on collision with its neighbour and the test learns nothing.
  * A block with clear road beside it is the only shape that can answer the
@@ -45,13 +45,18 @@ const fresh = async () => {
  */
 const driveInto = async (aim: 'face' | 'edge') => {
   const game = await fresh()
-  // The opening three stages carry no barricades at all now — a beginner cannot
-  // lose a run to scenery they have not been taught to read (see
-  // `earlyObstacleKeep`) — so this starts where hard obstacles are introduced.
-  game.startStage(4)
+  // STAGE 5, and its first gauntlet (y = 46): a rail with the whole channel to
+  // its left, which is exactly the shape this needs. It was stage 4 while stage
+  // 4's first wall was a lone trimmed block; since stages 2-8 were re-cut
+  // (2026-09-18) stage 4 opens on a CLOSED chicane, whose outer block becomes
+  // "isolated" the moment the crowd shoots its inner neighbour away — and
+  // riding its edge then drives straight into the second wall of the S, which
+  // measures the chicane rather than the contact rule.
+  game.startStage(5)
   game.debugAddUnits(70)
 
   let picked: number | null = null
+  let lockedId: number | null = null
   let lost = 0
   let contactFrames = 0
 
@@ -60,10 +65,23 @@ const driveInto = async (aim: 'face' | 'edge') => {
     const blocks = game.getBarricades().filter((b) => !b.dead && b.y > a.y - 2)
     // Clear road on at least one side, wider than the crowd that has to fit
     // through it.
-    const room = game.crowdRadius() + BARRICADE_W
-    const block = blocks.find((b) => blocks.every(
-      (o) => o === b || Math.abs(o.y - b.y) > 2 || b.x - o.x > room
-    ))
+    //
+    // The block's OWN width, not `BARRICADE_W`: the re-cut roads carry
+    // closed-chicane blocks two units wide and gauntlet rails 1.2 wide, and an
+    // "edge" line computed off the standard block drove into the wider ones —
+    // a face hit with the wrong label on it.
+    const room = (b: { w: number }) => game.crowdRadius() + b.w
+    // LOCKED onto the first block it picks. A gauntlet is rows of rails, and a
+    // search re-run every frame hands the approach from one row to the next and
+    // then down the rest of the road — measuring whatever the road does after
+    // the block rather than the block.
+    const block = lockedId !== null
+      ? blocks.find((b) => b.id === lockedId)
+      : blocks.find((b) => blocks.every(
+        (o) => o === b || Math.abs(o.y - b.y) > 2 || b.x - o.x > room(b)
+      ))
+    if (block && lockedId === null) lockedId = block.id
+    if (!block && lockedId !== null) break
 
     if (block) {
       block.hp = 1e9
@@ -74,7 +92,7 @@ const driveInto = async (aim: 'face' | 'edge') => {
         aim === 'face'
           ? block.x
           // The crowd's near edge inside the block's edge, its body outside.
-          : block.x - (BARRICADE_W / 2 + game.crowdRadius())
+          : block.x - (block.w / 2 + game.crowdRadius())
       )
       if (Math.abs(gap) < 2.5) {
         contactFrames++
@@ -98,7 +116,7 @@ describe('sweeping into an obstacle from the side', () => {
     const face = await driveInto('face')
     const edge = await driveInto('edge')
 
-    expect(face.found && edge.found, 'no isolated barricade on stage 4').toBe(true)
+    expect(face.found && edge.found, 'no isolated barricade on stage 5').toBe(true)
     expect(face.contactFrames, 'the face run never reached the block').toBeGreaterThan(5)
     expect(edge.contactFrames, 'the edge run never reached the block').toBeGreaterThan(5)
 

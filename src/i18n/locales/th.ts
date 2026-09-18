@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'ด่านที่เหลือถึงโบนัสถัดไป',
+    'bonus': "โบนัส +{coins}",
     'fireRate': 'อัตรา',
     'incoming': 'การโจมตีกำลังมา!',
     'dodge': 'หลบ',
@@ -91,6 +92,7 @@ export default {
 
     'next': "ต่อไป: {label} · {when}",
     'bossAhead': "บอสข้างหน้า: {name}",
+    'rankUp': "อันดับ #{rank} ▲{n}",
     'bossName': {
       'grumpling': "กรัมพลิง",
       'bonecap': "โบนแคป",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "เลือกอาวุธ",
     'nextStage': "ด่านถัดไป",
-    'stagesAway': "อีก {n} ด่าน"
+    'stagesAway': "อีก {n} ด่าน",
+    'thisStage': "ด่านนี้"
   },
   'weaponPick': {
     'title': "เลือกอาวุธของคุณ",

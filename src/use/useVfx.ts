@@ -258,6 +258,27 @@ export type FxEvent =
   /** A bolt went off on somebody. `radius` is the burst the kill was measured
    *  against, so the flash and the hit are the same size. */
   | { kind: 'bossBoltHit'; x: number; y: number; radius: number }
+  /**
+   * The healer is winding up a DRAIN down the column at `x`.
+   *
+   * The cast contract, exactly: pushed at the START of the wind-up (the drain is
+   * aimed the instant its cycle opens), `ttl` the seconds until the beam lands.
+   * `halfW` is the column's lethal half-width — the kill reads the same number
+   * (`inDrainColumn`). `y` is the crowd's line, `fromY` the boss, so the band is
+   * painted over exactly the road the beam will reach down.
+   */
+  | { kind: 'drainCast'; x: number; y: number; fromY: number; halfW: number; ttl: number }
+  /** …and the beam landed. It holds for `hold` seconds, pulling. */
+  | { kind: 'bossDrain'; x: number; y: number; fromY: number; halfW: number; hold: number }
+  /**
+   * Survivors pulled out of the crowd this tick — ONE event per tick with a
+   * count, not one per body. At depth a drain eaten whole takes a thousand of
+   * them, and the effect queue is a 512-slot ring.
+   */
+  | { kind: 'drainPull'; x: number; y: number; n: number }
+  /** The beam let go. `healed` is the share of the bar it put back (0 when the
+   *  crowd gave it nobody), so the renderer can say what the mistake cost. */
+  | { kind: 'drainEnd'; x: number; y: number; taken: number; healed: number }
   /** A summoner spent one of its waves. `wave` is which — the last one should
    *  land differently from the first, because it is the last. */
   /**

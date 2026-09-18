@@ -9,7 +9,9 @@ import {
   contourPoints, pivot,
   dyingAt, deathBeats, deathArm, deathLeg, deathLoll, deathLid, deathShadow,
   fallOntoBack, fallOntoFlank, deathFlankFoot, deathHandAngle, deathSpan, UPRIGHT_FALL,
-  type DeathBeats
+  hurlingAt, hurlBeats, hurlArm, hurlLeg, hurlTorso, hurlHeadTurn, hurlGrip, hurlTrack,
+  flankHurl, rearOnHaunches, SIDEARM_THROW,
+  type DeathBeats, type HurlBeats, type FlankHurl
 } from '@/game/monsterKit'
 import { drawDustmoth, drawSkewer, drawGloomcrow } from '@/game/monstersAir'
 
@@ -79,20 +81,28 @@ const drawGrumpling = (ctx: CanvasRenderingContext2D, S: number, t: number): voi
   // same body; only the joint targets and one transform over it change.
   const dk = dyingAt()
   const D: DeathBeats | null = dk === null ? null : deathBeats(dk)
+  // Hurling a meteor instead — see "Hurling" in `monsterKit`. Right-handed,
+  // and side-arm: its arms are too short to go over that head.
+  const hk = D ? null : hurlingAt()
+  const H: HurlBeats | null = hk === null ? null : hurlBeats(hk, 1)
   // Short legs take short, fast steps.
   const g = gait(t, 880)
-  // Dying, the whole upper body sinks with the knees.
-  const b = D ? deathLeg(D, 1, S).hipDrop : breathe(t, 1.1, 0.01) * S + bodyBob(g, 0.011) * S
+  // Dying, the whole upper body sinks with the knees; throwing, it sinks into
+  // the scoop and the follow-through.
+  const b = D
+    ? deathLeg(D, 1, S).hipDrop
+    : H ? H.crouch * S : breathe(t, 1.1, 0.01) * S + bodyBob(g, 0.011) * S
   // Weight shifts onto whichever foot is down. Seen from the front that lean
   // is most of what sells the walk.
-  const sway = D ? 0 : Math.sin(t / 1400) * 0.02 * S + weightShift(g + 0.5, 0.016) * S
+  const sway = D || H ? 0 : Math.sin(t / 1400) * 0.02 * S + weightShift(g + 0.5, 0.016) * S
   // Ears are light and hinged: they arrive late. The lag is the DIFFERENCE
   // between the body's bob now and where it was a moment ago, which is what
   // secondary motion actually is. Dying, they whip up at the blow and flop on
-  // the bounce.
+  // the bounce; throwing, they flap up on the cock and down on the release.
   const earLag = D
     ? (0.08 * D.bounce - 0.07 * D.recoil) * S
-    : (bodyBob(g - 0.12, 0.011) - bodyBob(g, 0.011)) * S * 2.4
+    : H ? -0.06 * Math.sin(Math.PI * 2 * H.k) * S
+      : (bodyBob(g - 0.12, 0.011) - bodyBob(g, 0.011)) * S * 2.4
 
   if (D) deathShadow(ctx, S, D, 0.44)
   else groundShadow(ctx, S, 0.44)
@@ -109,8 +119,10 @@ const drawGrumpling = (ctx: CanvasRenderingContext2D, S: number, t: number): voi
     // A front view foreshortens fore/aft travel almost to nothing, so the step
     // is mostly lift. A big horizontal stride here just swings the feet past
     // each other.
-    const st: Pt = D ? deathLeg(D, side, S).foot : footStep(g + ph, 0.13 * S, 0.12 * S)
-    const hip: Pt = [sway + side * 0.15 * S, 0.7 * S + b + (D ? 0 : hipDrop(g + ph, 0.013) * S)]
+    const st: Pt = D
+      ? deathLeg(D, side, S).foot
+      : H ? hurlLeg(H, side, S) : footStep(g + ph, 0.13 * S, 0.12 * S)
+    const hip: Pt = [sway + side * 0.15 * S, 0.7 * S + b + (D || H ? 0 : hipDrop(g + ph, 0.013) * S)]
     const foot: Pt = [side * 0.12 * S + st[0], 0.92 * S + st[1]]
     // Knees bulge outward — `-side` — which is bowed, and is most of why this
     // one walks like a toddler rather than like a soldier.
@@ -124,6 +136,9 @@ const drawGrumpling = (ctx: CanvasRenderingContext2D, S: number, t: number): voi
         0.03 * S, 0.006 * S, '#f0e6c8', 40 + i)
     }
   }
+
+  // Throwing, everything above the hips swings over the planted legs.
+  if (H) hurlTorso(ctx, H, [0, 0.7 * S + b])
 
   // ── Body: small and pear-shaped, dwarfed by the head ──
   const body = egg(sway, 0.62 * S + b, 0.3 * S, 0.29 * S, 0.72, 12, 0.07)
@@ -145,38 +160,47 @@ const drawGrumpling = (ctx: CanvasRenderingContext2D, S: number, t: number): voi
   ink(ctx, body, { width: 0.05 * S, color: INK, seed: 16, breakUp: 0.22 })
 
   // ── Arms ──
+  // The throwing arm is drawn AFTER the head: raised beside it, it would
+  // otherwise vanish behind that ear, which is exactly when it has to be seen.
+  let throwArm: (() => void) | null = null
   for (const side of [-1, 1] as const) {
     const sx = side * 0.26 * S + sway
     const droop = side === 1 ? 0.1 : 0
     // Counter-swing: the arm opposes the leg on its own side. Arms and legs
     // moving together is the classic broken-walk tell.
     const aw = swing(g + (side > 0 ? 0.5 : 0) + 0.7, 0.055) * S
-    const A = D ? deathArm(D, side, 0.4 * S) : null
-    const arm: Pt[] = A
-      ? [
-        [sx, 0.52 * S + b],
-        [sx + A.elbow[0], 0.52 * S + b + A.elbow[1]],
-        [sx + A.hand[0], 0.52 * S + b + A.hand[1]]
-      ]
-      : [
-        [sx, 0.52 * S + b],
-        [sx + side * 0.13 * S + aw, 0.66 * S + b + droop * S * 0.2],
-        [sx + side * 0.09 * S + aw * 1.7, 0.82 * S + b + droop * S * 0.3]
-      ]
-    stroke(ctx, arm, 0.128 * S, 0.09 * S, INK, 50 + side)
-    stroke(ctx, arm, 0.105 * S, 0.07 * S, TONES.base, 50 + side)
-    const hand = blob(arm[2]![0], arm[2]![1] + 0.03 * S, 0.075 * S, 0.07 * S, 52 + side, 0.14)
-    paint(ctx, S, hand, TONES, 52 + side, { line: LINE.mid, breakUp: 0.25, deep: false })
+    const A = D ? deathArm(D, side, 0.4 * S) : H ? hurlArm(H, side, 0.5 * S, SIDEARM_THROW) : null
+    const drawArm = (): void => {
+      const arm: Pt[] = A
+        ? [
+          [sx, 0.52 * S + b],
+          [sx + A.elbow[0], 0.52 * S + b + A.elbow[1]],
+          [sx + A.hand[0], 0.52 * S + b + A.hand[1]]
+        ]
+        : [
+          [sx, 0.52 * S + b],
+          [sx + side * 0.13 * S + aw, 0.66 * S + b + droop * S * 0.2],
+          [sx + side * 0.09 * S + aw * 1.7, 0.82 * S + b + droop * S * 0.3]
+        ]
+      stroke(ctx, arm, 0.128 * S, 0.09 * S, INK, 50 + side)
+      stroke(ctx, arm, 0.105 * S, 0.07 * S, TONES.base, 50 + side)
+      const hand = blob(arm[2]![0], arm[2]![1] + 0.03 * S, 0.075 * S, 0.07 * S, 52 + side, 0.14)
+      paint(ctx, S, hand, TONES, 52 + side, { line: LINE.mid, breakUp: 0.25, deep: false })
+      if (H && side === H.side) hurlGrip(ctx, arm[2]![0], arm[2]![1] - 0.02 * S)
+    }
+    if (H && side === H.side) throwArm = drawArm
+    else drawArm()
   }
 
   // ── Head: the whole character. Huge, tilted, top-heavy ──
-  const hy = 0.06 * S + b * (D ? 1 : 1.6)
+  const hy = 0.06 * S + b * (D || H ? 1 : 1.6)
   const hx = sway * 1.4
   // Dying, it lolls on its neck — rolled about where it meets the body, for the
-  // rest of the drawing (the save at the top is restored at the bottom).
-  if (D) {
+  // head's own parts; throwing, it keeps its eyes on the mark.
+  ctx.save()
+  if (D || H) {
     ctx.translate(hx, hy + 0.34 * S)
-    ctx.rotate(deathLoll(D, UPRIGHT_FALL))
+    ctx.rotate(D ? deathLoll(D, UPRIGHT_FALL) : hurlHeadTurn(H!))
     ctx.translate(-hx, -(hy + 0.34 * S))
   }
   const head = egg(hx, hy, 0.46 * S, 0.42 * S, 0.86, 20, 0.055)
@@ -273,6 +297,8 @@ const drawGrumpling = (ctx: CanvasRenderingContext2D, S: number, t: number): voi
   // A single crooked tooth wart / mole for character.
   fillShape(ctx, blob(hx + 0.3 * S, hy - 0.16 * S, 0.026 * S, 0.022 * S, 90, 0.2), TONES.deep)
   ctx.restore()
+  throwArm?.()
+  ctx.restore()
 }
 
 // ─── 2 · Bonecap ────────────────────────────────────────────────────────────
@@ -280,15 +306,22 @@ const drawGrumpling = (ctx: CanvasRenderingContext2D, S: number, t: number): voi
 const drawBonecap = (ctx: CanvasRenderingContext2D, S: number, t: number): void => {
   const dk = dyingAt()
   const D: DeathBeats | null = dk === null ? null : deathBeats(dk)
+  // Hurling: right-handed and side-arm — long as those arms are, they cannot
+  // reach over the cap, and under it they vanish.
+  const hk = D ? null : hurlingAt()
+  const H: HurlBeats | null = hk === null ? null : hurlBeats(hk, 1)
   const g = gait(t, 1300)
-  const b = D ? deathLeg(D, 1, S).hipDrop : breathe(t, 0.7, 0.008) * S + bodyBob(g, 0.018) * S
-  const sway = D ? 0 : Math.sin(t / 2100) * 0.025 * S + weightShift(g + 0.5, 0.024) * S
+  const b = D
+    ? deathLeg(D, 1, S).hipDrop
+    : H ? H.crouch * S : breathe(t, 0.7, 0.008) * S + bodyBob(g, 0.018) * S
+  const sway = D || H ? 0 : Math.sin(t / 2100) * 0.025 * S + weightShift(g + 0.5, 0.024) * S
   // The cap is heavy and sits on a neck: it lags the body and overshoots.
   // Dying, it is jolted up off the skull by the blow and bangs back down on the
-  // bounce.
+  // bounce; throwing, it rocks back on the cock and forward on the release.
   const capLag = D
     ? (0.06 * D.bounce - 0.09 * D.recoil) * S
-    : (bodyBob(g - 0.14, 0.018) - bodyBob(g, 0.018)) * S * 2.6
+    : H ? -0.05 * Math.sin(Math.PI * 2 * H.k) * S
+      : (bodyBob(g - 0.14, 0.018) - bodyBob(g, 0.018)) * S * 2.6
 
   if (D) deathShadow(ctx, S, D, 0.4, UPRIGHT_FALL, 1.0, 0.24)
   else groundShadow(ctx, S, 0.4, 1.0, 0.24)
@@ -305,14 +338,18 @@ const drawBonecap = (ctx: CanvasRenderingContext2D, S: number, t: number): void 
   // leaving the anatomy out.
   for (const side of [-1, 1] as const) {
     const ph = side > 0 ? 0.5 : 0
-    const st = D ? deathLeg(D, side, S).foot : footStep(g + ph, 0.12 * S, 0.1 * S)
-    const hip: Pt = [sway + side * 0.09 * S, 0.58 * S + b + (D ? 0 : hipDrop(g + ph, 0.014) * S)]
+    const st = D
+      ? deathLeg(D, side, S).foot
+      : H ? hurlLeg(H, side, S) : footStep(g + ph, 0.12 * S, 0.1 * S)
+    const hip: Pt = [sway + side * 0.09 * S, 0.58 * S + b + (D || H ? 0 : hipDrop(g + ph, 0.014) * S)]
     const foot: Pt = [side * 0.085 * S + st[0], 0.96 * S + st[1]]
     limb(ctx, hip, foot, 0.21 * S, 0.21 * S, -side, BONE, 100 + side * 4,
       { width: 0.05 * S, taper: 0.82, outline: 0.019 * S, joint: 0.72 })
     clawFoot(ctx, foot[0], foot[1] + 0.04 * S, 0.14 * S, side > 0 ? 0.1 : Math.PI - 0.1,
       BONE, 108 + side * 4, 3, '#c8b78d')
   }
+
+  if (H) hurlTorso(ctx, H, [0, 0.58 * S + b])
 
   // ── Ribcage torso: an open basket, which is the whole silhouette gag ──
   const spineTop = -0.1 * S + b
@@ -345,38 +382,49 @@ const drawBonecap = (ctx: CanvasRenderingContext2D, S: number, t: number): void 
   // One elbow drops further than the other, and the two hands are splayed by
   // different amounts — a matched pair of limbs is the fastest way to make a
   // character look like a paper doll.
+  // The throwing arm goes on AFTER the skull and cap, which would otherwise
+  // swallow it at the top of the throw.
+  let throwArm: (() => void) | null = null
   for (const side of [-1, 1] as const) {
     const droop = side === 1 ? 0.06 : -0.02
     const aw = swing(g + (side > 0 ? 0.5 : 0) + 0.7, 0.05) * S
     const shoulder: Pt = [sway + side * 0.2 * S, 0.26 * S + b]
-    const A = D ? deathArm(D, side, 0.56 * S) : null
-    const wrist: Pt = A
-      ? [shoulder[0] + A.hand[0], shoulder[1] + A.hand[1]]
-      : [sway + side * 0.3 * S + aw * 1.4, 0.78 * S + b]
-    boneLimb(ctx,
-      shoulder,
-      A ? [shoulder[0] + A.elbow[0], shoulder[1] + A.elbow[1]]
-        : [sway + side * 0.38 * S + aw, 0.5 * S + b + droop * S],
-      wrist,
-      0.042 * S, BONE, 130 + side * 3)
-    if (A) {
-      // The fingers carry on along the forearm, and fall open.
-      const ha = deathHandAngle(A)
-      boneHand(ctx, wrist[0] + Math.cos(ha) * 0.04 * S, wrist[1] + Math.sin(ha) * 0.04 * S,
-        0.15 * S, ha, BONE, 134 + side * 3, 0.18 * (1 - A.open))
-    } else {
-      boneHand(ctx, wrist[0], wrist[1] + 0.05 * S, 0.15 * S, side > 0 ? 1.35 : 1.75,
-        BONE, 134 + side * 3, side > 0 ? 0.18 : 0.05)
+    const A = D ? deathArm(D, side, 0.56 * S) : H ? hurlArm(H, side, 0.56 * S, SIDEARM_THROW) : null
+    const drawArm = (): void => {
+      const wrist: Pt = A
+        ? [shoulder[0] + A.hand[0], shoulder[1] + A.hand[1]]
+        : [sway + side * 0.3 * S + aw * 1.4, 0.78 * S + b]
+      boneLimb(ctx,
+        shoulder,
+        A ? [shoulder[0] + A.elbow[0], shoulder[1] + A.elbow[1]]
+          : [sway + side * 0.38 * S + aw, 0.5 * S + b + droop * S],
+        wrist,
+        0.042 * S, BONE, 130 + side * 3)
+      if (A) {
+        // The fingers carry on along the forearm, and fall open.
+        const ha = deathHandAngle(A)
+        const hx = wrist[0] + Math.cos(ha) * 0.04 * S
+        const hy = wrist[1] + Math.sin(ha) * 0.04 * S
+        boneHand(ctx, hx, hy, 0.15 * S, ha, BONE, 134 + side * 3, 0.18 * (1 - A.open))
+        if (H && side === H.side) hurlGrip(ctx, hx + Math.cos(ha) * 0.05 * S, hy + Math.sin(ha) * 0.05 * S)
+      } else {
+        boneHand(ctx, wrist[0], wrist[1] + 0.05 * S, 0.15 * S, side > 0 ? 1.35 : 1.75,
+          BONE, 134 + side * 3, side > 0 ? 0.18 : 0.05)
+      }
     }
+    if (H && side === H.side) throwArm = drawArm
+    else drawArm()
   }
 
   // ── Skull ──
-  const hy = -0.16 * S + b * (D ? 1 : 1.5)
+  const hy = -0.16 * S + b * (D || H ? 1 : 1.5)
   const hx = sway * 1.3
-  // Dying, skull and cap loll together on the neck, for the rest of the drawing.
-  if (D) {
+  // Dying, skull and cap loll together on the neck; throwing, they keep facing
+  // the mark while the body swings.
+  ctx.save()
+  if (D || H) {
     ctx.translate(hx, hy + 0.3 * S)
-    ctx.rotate(deathLoll(D))
+    ctx.rotate(D ? deathLoll(D) : hurlHeadTurn(H!))
     ctx.translate(-hx, -(hy + 0.3 * S))
   }
   const skull = egg(hx, hy, 0.3 * S, 0.31 * S, 0.78, 140, 0.05)
@@ -481,6 +529,33 @@ const drawBonecap = (ctx: CanvasRenderingContext2D, S: number, t: number): void 
   }
   ctx.restore()
   ctx.restore()
+  throwArm?.()
+  ctx.restore()
+}
+
+/**
+ * Where a side-on body's FRONT foot goes while it throws, in the body's own
+ * (reared) drawing space: planted on the ground while the forequarters are
+ * down, carried up with them — and tucked higher still — once they rear.
+ *
+ * `stood` is where the foot would stand, and `hind` the pivot the body rears
+ * about (`rearOnHaunches`), in S; the body turns by `F.rear` about it.
+ */
+const flankHurlFoot = (F: FlankHurl, S: number, stood: Pt, hind: number, headDir: -1 | 1): Pt => {
+  const a = -headDir * F.rear
+  const px = -headDir * hind * S
+  const py = 1.0 * S
+  const c = Math.cos(a)
+  const sn = Math.sin(a)
+  // Where the standing foot would be carried to by the rear, on screen.
+  const wx = px + (stood[0] - px) * c - (stood[1] - py) * sn
+  const wy = py + (stood[0] - px) * sn + (stood[1] - py) * c
+  // Off the ground only when the rear lifts it; tucked up by the fold.
+  const ty = Math.min(wy, 1.0 * S) - F.foreLift * S
+  // …and back into the body's own space.
+  const dx = wx - px
+  const dy = ty - py
+  return [px + dx * c + dy * sn, py - dx * sn + dy * c]
 }
 
 // ─── 3 · Snaggletusk ────────────────────────────────────────────────────────
@@ -490,16 +565,22 @@ const drawSnaggletusk = (ctx: CanvasRenderingContext2D, S: number, t: number): v
   // body dips four times per cycle rather than twice.
   const dk = dyingAt()
   const D: DeathBeats | null = dk === null ? null : deathBeats(dk)
+  // Hurling: no hands, so the TUSKS — it roots the rock up on them, rears
+  // with its head tossed back, and flings it off with a slam of the head.
+  const hk = D ? null : hurlingAt()
+  const F: FlankHurl | null = hk === null ? null : flankHurl(hk)
   const g = gait(t, 1350)
-  const b = D ? 0 : breathe(t, 1.4, 0.012) * S + bodyBob(g * 2, 0.012) * S
+  const b = D || F ? 0 : breathe(t, 1.4, 0.012) * S + bodyBob(g * 2, 0.012) * S
   // Dying: one last snort knocked out of it by the blow, then nothing.
-  const huff = D ? D.recoil : Math.max(0, Math.sin(t / 1100)) ** 3
+  // Throwing: snorting with the effort.
+  const huff = D ? D.recoil : F ? F.effort : Math.max(0, Math.sin(t / 1100)) ** 3
 
   if (D) deathShadow(ctx, S, D, 0.62, 0, 1.0, 0.3)
   else groundShadow(ctx, S, 0.62, 1.0, 0.3)
   ctx.save()
   // Drawn head-left: it rears, pitches onto its knees and keels over on its flank.
   if (D) fallOntoFlank(ctx, S, D, -1, 0.45, 0.33)
+  if (F) rearOnHaunches(ctx, S, F, -1, 0.33)
 
   const HIDE = tones('#8f6340', 1.05)
   const TUSK = tones('#f2e7cc', 0.95)
@@ -525,6 +606,8 @@ const drawSnaggletusk = (ctx: CanvasRenderingContext2D, S: number, t: number): v
     if (D) {
       foot = deathFlankFoot(D, [hipX, hipY], [footX, 1.0 * S], 2 * bone * S, hipX < 0, -1,
         tone === HIDE_FAR ? -0.22 : 0)
+    } else if (F) {
+      foot = hipX < 0 ? flankHurlFoot(F, S, [footX, 1.0 * S], 0.33, -1) : [footX, 1.0 * S]
     } else {
       const st = footStep(g + phase, 0.16 * S, 0.055 * S)
       foot = [footX + st[0], 1.0 * S + st[1]]
@@ -579,10 +662,11 @@ const drawSnaggletusk = (ctx: CanvasRenderingContext2D, S: number, t: number): v
   const hy = 0.22 * S + b * 1.2
   const hx = -0.44 * S
   // Dying, the head is flung up with the rear and then dropped, snout to the
-  // road — about the neck, for the rest of the drawing.
-  if (D) {
+  // road — about the neck, for the rest of the drawing. Throwing, it scoops
+  // low, tosses back and slams forward on the same hinge.
+  if (D || F) {
     ctx.translate(hx + 0.3 * S, hy - 0.06 * S)
-    ctx.rotate(0.18 * D.recoil - 0.3 * D.lifeless)
+    ctx.rotate(D ? 0.18 * D.recoil - 0.3 * D.lifeless : F!.toss)
     ctx.translate(-(hx + 0.3 * S), -(hy - 0.06 * S))
   }
 
@@ -656,6 +740,8 @@ const drawSnaggletusk = (ctx: CanvasRenderingContext2D, S: number, t: number): v
   horn(ctx, hx - 0.19 * S, hy + 0.32 * S, 0.26 * S, 0.044 * S, -1.62, 1.0,
     { base: TUSK.shade, shade: TUSK.deep! }, 274)
   horn(ctx, hx - 0.33 * S, hy + 0.29 * S, 0.36 * S, 0.058 * S, -1.78, 1.15, TUSK, 270)
+  // The rock rides on the snout, cradled between the tusks.
+  if (F) hurlGrip(ctx, hx - 0.42 * S, hy - 0.08 * S)
 
   // Iron nose ring — a bit of story: something owned this thing once.
   ctx.save()
@@ -838,10 +924,15 @@ const drawWispling = (ctx: CanvasRenderingContext2D, S: number, t: number): void
 const drawMarrowKnight = (ctx: CanvasRenderingContext2D, S: number, t: number): void => {
   const dk = dyingAt()
   const D: DeathBeats | null = dk === null ? null : deathBeats(dk)
+  // Hurling: with the LEFT hand, the free one — the right stays on the sword.
+  const hk = D ? null : hurlingAt()
+  const H: HurlBeats | null = hk === null ? null : hurlBeats(hk, -1)
   // Heavy and unhurried: a long cycle with a shallow bob. Rank is pace.
   const g = gait(t, 1700)
-  const b = D ? deathLeg(D, 1, S).hipDrop : breathe(t, 0.55, 0.006) * S + bodyBob(g, 0.022) * S
-  const sway = D ? 0 : Math.sin(t / 2600) * 0.012 * S + weightShift(g + 0.5, 0.03) * S
+  const b = D
+    ? deathLeg(D, 1, S).hipDrop
+    : H ? H.crouch * S : breathe(t, 0.55, 0.006) * S + bodyBob(g, 0.022) * S
+  const sway = D || H ? 0 : Math.sin(t / 2600) * 0.012 * S + weightShift(g + 0.5, 0.03) * S
 
   if (D) deathShadow(ctx, S, D, 0.46, UPRIGHT_FALL, 1.04, 0.34)
   else groundShadow(ctx, S, 0.46, 1.04, 0.34)
@@ -899,7 +990,10 @@ const drawMarrowKnight = (ctx: CanvasRenderingContext2D, S: number, t: number): 
   // ── Cape ──
   // Narrower at the shoulders than at the hem, and TORN — a rectangle of red
   // behind a figure is a background, whereas a shape with a silhouette of its
-  // own is a garment.
+  // own is a garment. Throwing, it hangs from shoulders that swing, so it
+  // swings with them.
+  ctx.save()
+  if (H) hurlTorso(ctx, H, [0, 0.46 * S + b])
   const capePts: Pt[] = [
     [sway - 0.26 * S, -0.14 * S + b],
     [sway - 0.38 * S, 0.24 * S],
@@ -931,15 +1025,18 @@ const drawMarrowKnight = (ctx: CanvasRenderingContext2D, S: number, t: number): 
     ], 0.008 * S, 0.045 * S, 'rgba(58,10,10,0.5)', fs)
   }
   ink(ctx, capePts, { width: 0.034 * S, color: '#380c0b', seed: 405, breakUp: 0.35 })
+  ctx.restore()
 
   // ── Legs: bare femurs into armoured shins ──
   // Greave and boot are positioned FROM the solved joints rather than from
   // fixed coordinates, so the armour travels with the leg instead of the leg
   // sliding through the armour.
   for (const [lx, ph, sd] of [[-0.15, 0.0, 410], [0.16, 0.5, 414]] as const) {
-    const st = D ? deathLeg(D, lx < 0 ? -1 : 1, S).foot : footStep(g + ph, 0.13 * S, 0.085 * S)
+    const st = D
+      ? deathLeg(D, lx < 0 ? -1 : 1, S).foot
+      : H ? hurlLeg(H, lx < 0 ? -1 : 1, S) : footStep(g + ph, 0.13 * S, 0.085 * S)
     const foot: Pt = [lx * S * 0.72 + st[0], 0.99 * S + st[1]]
-    const knee = limb(ctx, [sway + lx * S, 0.46 * S + b + (D ? 0 : hipDrop(g + ph, 0.015) * S)], foot,
+    const knee = limb(ctx, [sway + lx * S, 0.46 * S + b + (D || H ? 0 : hipDrop(g + ph, 0.015) * S)], foot,
       0.285 * S, 0.285 * S, lx < 0 ? 1 : -1, BONE, sd,
       { width: 0.072 * S, taper: 0.76, outline: 0.026 * S, joint: 0.62 })
     const gx = knee[0] * 0.42 + foot[0] * 0.58
@@ -960,6 +1057,8 @@ const drawMarrowKnight = (ctx: CanvasRenderingContext2D, S: number, t: number): 
     cel(ctx, boot, IRON, { shade: terminator(boot, SHADOW_DIR, -0.05, 0.12, sd + 4) })
     ink(ctx, boot, { width: 0.028 * S, color: INK, seed: sd + 5 })
   }
+
+  if (H) hurlTorso(ctx, H, [0, 0.46 * S + b])
 
   // ── Faulds: overlapping skirt plates over the hips ──
   for (let i = 0; i < 3; i++) {
@@ -1048,21 +1147,26 @@ const drawMarrowKnight = (ctx: CanvasRenderingContext2D, S: number, t: number): 
   // reads as an arm, whereas one drawn behind it reads as a floating fist.
   const arm = (sx: number, hand: Pt, angle: number, grip: number, sd: number): void => {
     const shoulder: Pt = [sway + sx * S, 0.08 * S + b]
+    const side: -1 | 1 = sx < 0 ? -1 : 1
     // Dying, both arms are the death's: the hands empty, thrown out and dropped.
-    const A = D ? deathArm(D, sx < 0 ? -1 : 1, 0.36 * S) : null
+    // Throwing, only the free arm moves; the sword hand keeps its grip.
+    const A = D ? deathArm(D, side, 0.36 * S) : H && side === H.side ? hurlArm(H, side, 0.42 * S) : null
     const wrist: Pt = A ? [shoulder[0] + A.hand[0], shoulder[1] + A.hand[1]] : hand
     boneLimb(ctx,
       shoulder,
       A ? [shoulder[0] + A.elbow[0], shoulder[1] + A.elbow[1]] : [sway + sx * S * 1.18, 0.26 * S + b],
       wrist,
       0.046 * S, BONE, sd)
-    boneHand(ctx, wrist[0], wrist[1], 0.16 * S, A ? deathHandAngle(A) : angle, BONE, sd + 6,
+    const ha = A ? deathHandAngle(A) : angle
+    boneHand(ctx, wrist[0], wrist[1], 0.16 * S, ha, BONE, sd + 6,
       A ? 0.2 * (1 - A.open) : grip)
+    if (H && side === H.side) hurlGrip(ctx, wrist[0] + Math.cos(ha) * 0.07 * S, wrist[1] + Math.sin(ha) * 0.07 * S)
   }
   // Off hand open and relaxed; sword hand closed. Armour stops at the wrist —
   // bare bone at the extremities is what keeps this a skeleton in plate rather
-  // than a suit of armour with lights in it.
-  arm(-0.3, [sway - 0.34 * S, 0.42 * S + b], 1.45, 0.12, 460)
+  // than a suit of armour with lights in it. Throwing, the off hand is the one
+  // with the rock, and it goes on after the skull so the helm cannot hide it.
+  if (!H) arm(-0.3, [sway - 0.34 * S, 0.42 * S + b], 1.45, 0.12, 460)
 
   if (!D) sword()
 
@@ -1073,11 +1177,12 @@ const drawMarrowKnight = (ctx: CanvasRenderingContext2D, S: number, t: number): 
   // The helm is a BAND, not a hood. Covering the cranium while leaving the face
   // bare is what keeps this a skeleton wearing armour rather than an anonymous
   // silhouette with two lights in it.
-  const hy = -0.34 * S + b * (D ? 1 : 1.4)
+  const hy = -0.34 * S + b * (D || H ? 1 : 1.4)
   const hx = sway
-  if (D) {
+  ctx.save()
+  if (D || H) {
     ctx.translate(hx, hy + 0.3 * S)
-    ctx.rotate(deathLoll(D))
+    ctx.rotate(D ? deathLoll(D) : hurlHeadTurn(H!))
     ctx.translate(-hx, -(hy + 0.3 * S))
   }
   const skull = egg(hx, hy, 0.215 * S, 0.235 * S, 0.82, 450, 0.05)
@@ -1150,6 +1255,8 @@ const drawMarrowKnight = (ctx: CanvasRenderingContext2D, S: number, t: number): 
     ], 'rgba(190,244,255,0.9)')
     ctx.restore()
   }
+  ctx.restore()
+  if (H) arm(-0.3, [sway - 0.34 * S, 0.42 * S + b], 1.45, 0.12, 460)
   ctx.restore()
 }
 
@@ -1291,16 +1398,22 @@ const drawCinderhound = (ctx: CanvasRenderingContext2D, S: number, t: number): v
   // beats instead of four. It is the gait of something covering ground.
   const dk = dyingAt()
   const D: DeathBeats | null = dk === null ? null : deathBeats(dk)
+  // Hurling: in its JAWS — it snaps the rock up off the road, rears with its
+  // head thrown back and slings it with a whip of the neck.
+  const hk = D ? null : hurlingAt()
+  const F: FlankHurl | null = hk === null ? null : flankHurl(hk)
   const g = gait(t, 620)
-  const b = D ? 0 : breathe(t, 1.7, 0.008) * S + bodyBob(g, 0.016) * S
+  const b = D || F ? 0 : breathe(t, 1.7, 0.008) * S + bodyBob(g, 0.016) * S
   // Dying, its fire goes out: the licks sink to embers as the light goes.
-  const ember = D ? 1 - 0.85 * D.lifeless : 1
+  // Throwing, it flares with the effort.
+  const ember = D ? 1 - 0.85 * D.lifeless : F ? 1 + 0.3 * F.effort : 1
 
   if (D) deathShadow(ctx, S, D, 0.5, 0, 1.02, 0.3)
   else groundShadow(ctx, S, 0.5, 1.02, 0.3)
   ctx.save()
   // Drawn head-left: it rears, pitches onto its knees and keels over on its flank.
   if (D) fallOntoFlank(ctx, S, D, -1, 0.26, 0.46)
+  if (F) rearOnHaunches(ctx, S, F, -1, 0.46)
 
   // Charcoal, not brown: it must not be mistaken for Snaggletusk at a glance.
   const HIDE = tones('#4a4048', 1.15)
@@ -1352,6 +1465,8 @@ const drawCinderhound = (ctx: CanvasRenderingContext2D, S: number, t: number): v
     let foot: Pt
     if (D) {
       foot = deathFlankFoot(D, hip, [footX, 1.0 * S], 0.73 * S, hip[0] < 0, -1, tone === DARK ? -0.24 : 0)
+    } else if (F) {
+      foot = hip[0] < 0 ? flankHurlFoot(F, S, [footX, 1.0 * S], 0.46, -1) : [footX, 1.0 * S]
     } else {
       const st = footStep(g + phase, 0.17 * S, 0.09 * S)
       foot = [footX + st[0], 1.0 * S + st[1]]
@@ -1395,7 +1510,7 @@ const drawCinderhound = (ctx: CanvasRenderingContext2D, S: number, t: number): v
   // ── Cracks: molten seams that follow the form, with the glow bleeding out ──
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
-  ctx.globalAlpha = 0.25 + 0.75 * ember
+  ctx.globalAlpha = Math.min(1, 0.25 + 0.75 * ember)
   for (const [cx, cy, dx, dy, sd] of [
     [0.3, 0.14, 0.06, 0.14, 730], [0.06, 0.28, 0.07, 0.07, 732]
   ] as const) {
@@ -1440,7 +1555,7 @@ const drawCinderhound = (ctx: CanvasRenderingContext2D, S: number, t: number): v
 
   // Dying, the head is flung up with the rear and then dropped, muzzle to the
   // road — turned about the top of the neck, for the head's own parts.
-  const headTurn = D ? 0.2 * D.recoil - 0.32 * D.lifeless : 0
+  const headTurn = D ? 0.2 * D.recoil - 0.32 * D.lifeless : F ? F.toss : 0
   const nape: Pt = [hx + 0.2 * S, hy]
   ctx.save()
   if (headTurn !== 0) {
@@ -1486,6 +1601,8 @@ const drawCinderhound = (ctx: CanvasRenderingContext2D, S: number, t: number): v
   }
   stroke(ctx, [[hx - 0.31 * S, hy + 0.11 * S], [hx - 0.06 * S, hy + 0.15 * S]],
     0.014 * S, 0.02 * S, 'rgba(16,10,16,0.75)', 767)
+  // The rock is carried in the front of the jaws.
+  if (F) hurlGrip(ctx, hx - 0.36 * S, hy + 0.06 * S)
 
   // Ears swept flat back — an animal that is not asking a question.
   for (const [ex, ey, len2, sd] of [[0.08, -0.16, 0.28, 770], [0.16, -0.1, 0.22, 774]] as const) {
@@ -1540,7 +1657,7 @@ const drawCinderhound = (ctx: CanvasRenderingContext2D, S: number, t: number): v
   // sells that faster than the edge it catches.
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
-  ctx.globalAlpha = ember
+  ctx.globalAlpha = Math.min(1, ember)
   occlude(ctx, torso, 0.05, 0.2, 0.014 * S, 'rgba(255,150,60,0.22)', 795)
   ctx.restore()
   ctx.restore()
@@ -1659,14 +1776,27 @@ const drawBlorp = (ctx: CanvasRenderingContext2D, S: number, t: number): void =>
 
 // ─── 9 · Thornwick ──────────────────────────────────────────────────────────
 
+/**
+ * Thornwick's throwing bough (the high left one), turned from where it grew,
+ * radians, clockwise positive, one per panel of the hurl: dropped low to the
+ * left to scoop, raised, cocked high, snapped over the top of the crown and
+ * slung down across the trunk to the right. The low bough only balances.
+ */
+const THORN_THROW: readonly number[] = [0, -1.2, -0.3, 0.25, 0.95, 3.1, -0.2, 0]
+const THORN_BALANCE: readonly number[] = [0, -0.2, -0.3, -0.45, 0.25, 0.35, 0.1, 0]
+
 const drawThornwick = (ctx: CanvasRenderingContext2D, S: number, t: number): void => {
   // Very slow, and it leans into each step. A tree that walks should look like
   // it is deciding to.
   const dk = dyingAt()
   const D: DeathBeats | null = dk === null ? null : deathBeats(dk)
+  // Hurling: the high left bough is the arm — it scoops the rock up low, cocks
+  // it high and swings it over the crown like a catapult's beam (`THORN_THROW`).
+  const hk = D ? null : hurlingAt()
+  const H: HurlBeats | null = hk === null ? null : hurlBeats(hk, -1)
   const g = gait(t, 3200)
-  const b = D ? deathLeg(D, 1, S).hipDrop : bodyBob(g, 0.019) * S
-  const creak = D ? 0 : Math.sin(t / 2400) * 0.018 * S + weightShift(g + 0.5, 0.05) * S
+  const b = D ? deathLeg(D, 1, S).hipDrop : H ? H.crouch * S : bodyBob(g, 0.019) * S
+  const creak = D || H ? 0 : Math.sin(t / 2400) * 0.018 * S + weightShift(g + 0.5, 0.05) * S
   // Dying, the canopy thrashes when it hits the ground. (Not thrown up by the
   // blow as well: the crown already fills the top of its frame.)
   const whip = D ? -0.1 * D.bounce * S : 0
@@ -1762,14 +1892,19 @@ const drawThornwick = (ctx: CanvasRenderingContext2D, S: number, t: number): voi
 
   // Two of the roots take the weight and walk.
   for (const [rx, ph, sd] of [[-0.28, 0.0, 912], [0.26, 0.5, 918]] as const) {
-    const st = D ? deathLeg(D, rx < 0 ? -1 : 1, S).foot : footStep(g + ph, 0.13 * S, 0.075 * S)
+    const st = D
+      ? deathLeg(D, rx < 0 ? -1 : 1, S).foot
+      : H ? hurlLeg(H, rx < 0 ? -1 : 1, S) : footStep(g + ph, 0.13 * S, 0.075 * S)
     const foot: Pt = [rx * S * 0.95 + st[0], 1.0 * S + st[1]]
-    limb(ctx, [rx * S * 0.4, 0.54 * S + b + (D ? 0 : hipDrop(g + ph, 0.016) * S)], foot,
+    limb(ctx, [rx * S * 0.4, 0.54 * S + b + (D || H ? 0 : hipDrop(g + ph, 0.016) * S)], foot,
       0.255 * S, 0.255 * S, rx < 0 ? 1 : -1,
       BARK, sd, { width: 0.115 * S, taper: 0.55, joint: 0.52 })
     clawFoot(ctx, foot[0], foot[1] + 0.02 * S, 0.16 * S, rx < 0 ? Math.PI : 0,
       BARK, sd + 3, 3, BARK.lit)
   }
+
+  // Throwing, the whole tree above its roots sways back and over.
+  if (H) hurlTorso(ctx, H, [0, 0.6 * S + b])
 
   // ── Trunk ──
   // Built from a continuous profile rather than from ten authored corners: a
@@ -1855,13 +1990,20 @@ const drawThornwick = (ctx: CanvasRenderingContext2D, S: number, t: number): voi
    * The wood is rigid, so the whole branch turns and its twigs with it.
    */
   const dyingArm = (joints: Pt[], side: -1 | 1): { joints: Pt[]; turn: number } => {
-    if (!D) return { joints, turn: 0 }
+    if (!D && !H) return { joints, turn: 0 }
     const root = joints[0]!
     const tip = joints[joints.length - 1]!
-    const A = deathArm(D, side, 1)
-    const d = Math.atan2(A.hand[1], A.hand[0]) - Math.atan2(tip[1] - root[1], tip[0] - root[0])
-    // The short way round: each branch only ever swings through its own side.
-    const turn = Math.atan2(Math.sin(d), Math.cos(d))
+    let turn: number
+    if (H) {
+      // Throwing: keyed turns from the bough's own rest, not a hand target —
+      // the rest pose of a tree's arm is wherever it grew.
+      turn = hurlTrack(side === H.side ? THORN_THROW : THORN_BALANCE, H.k)
+    } else {
+      const A = deathArm(D!, side, 1)
+      const d = Math.atan2(A.hand[1], A.hand[0]) - Math.atan2(tip[1] - root[1], tip[0] - root[0])
+      // The short way round: each branch only ever swings through its own side.
+      turn = Math.atan2(Math.sin(d), Math.cos(d))
+    }
     return {
       joints: pivot(joints.map(([x, y]) => [x - root[0], y - root[1]] as Pt), root[0], root[1], turn),
       turn
@@ -1909,6 +2051,8 @@ const drawThornwick = (ctx: CanvasRenderingContext2D, S: number, t: number): voi
     { a: -1.15, len: 0.2 * S, r: 0.13 * S, lag: 0.17 },
     { a: -2.7, len: 0.22 * S, r: 0.14 * S, lag: 0.13 }
   ], armL.turn)
+  // The rock rides in the twigs at the end of the throwing bough.
+  if (H) hurlGrip(ctx, armL.joints[2]![0], armL.joints[2]![1])
 
   // Low right arm, reaching out.
   const armR = dyingArm([
@@ -2025,14 +2169,22 @@ const drawRattlejack = (ctx: CanvasRenderingContext2D, S: number, t: number): vo
   // the biggest bob relative to its height.
   const dk = dyingAt()
   const D: DeathBeats | null = dk === null ? null : deathBeats(dk)
+  // Hurling: with the SHIELD arm — the shield stays strapped to the forearm and
+  // the hand is free — while the sword stays up.
+  const hk = D ? null : hurlingAt()
+  const H: HurlBeats | null = hk === null ? null : hurlBeats(hk, -1)
   const g = gait(t, 760)
-  const b = D ? deathLeg(D, 1, S).hipDrop : breathe(t, 1.5, 0.008) * S + bodyBob(g, 0.024) * S
-  const jig = D ? 0 : weightShift(g + 0.5, 0.03) * S
+  const b = D
+    ? deathLeg(D, 1, S).hipDrop
+    : H ? H.crouch * S : breathe(t, 1.5, 0.008) * S + bodyBob(g, 0.024) * S
+  const jig = D || H ? 0 : weightShift(g + 0.5, 0.03) * S
   // The skull is on a loose neck and swings a beat behind everything else —
-  // dying, snapped back by the blow and rattled on the bounce.
+  // dying, snapped back by the blow and rattled on the bounce; throwing,
+  // flung back on the cock and forward on the release.
   const skullLag = D
     ? (0.05 * D.bounce - 0.06 * D.recoil) * S
-    : (bodyBob(g - 0.13, 0.024) - bodyBob(g, 0.024)) * S * 2.4
+    : H ? -0.03 * Math.sin(Math.PI * 2 * H.k) * S
+      : (bodyBob(g - 0.13, 0.024) - bodyBob(g, 0.024)) * S * 2.4
 
   if (D) deathShadow(ctx, S, D, 0.38, UPRIGHT_FALL, 1.02, 0.3)
   else groundShadow(ctx, S, 0.38, 1.02, 0.3)
@@ -2074,9 +2226,11 @@ const drawRattlejack = (ctx: CanvasRenderingContext2D, S: number, t: number): vo
 
   // ── Legs ──
   for (const [lx, ph, sd] of [[-0.14, 0.0, 1000], [0.15, 0.5, 1006]] as const) {
-    const st = D ? deathLeg(D, lx < 0 ? -1 : 1, S).foot : footStep(g + ph, 0.14 * S, 0.11 * S)
+    const st = D
+      ? deathLeg(D, lx < 0 ? -1 : 1, S).foot
+      : H ? hurlLeg(H, lx < 0 ? -1 : 1, S) : footStep(g + ph, 0.14 * S, 0.11 * S)
     const foot: Pt = [lx * S * 0.72 + st[0], 0.98 * S + st[1]]
-    limb(ctx, [lx * S + jig * 0.4, 0.48 * S + b + (D ? 0 : hipDrop(g + ph, 0.016) * S)], foot,
+    limb(ctx, [lx * S + jig * 0.4, 0.48 * S + b + (D || H ? 0 : hipDrop(g + ph, 0.016) * S)], foot,
       0.272 * S, 0.272 * S, lx < 0 ? 1 : -1, BONE, sd,
       { width: 0.04 * S, taper: 0.85, outline: 0.016 * S, joint: 0.72 })
     const sole = rough([
@@ -2087,6 +2241,8 @@ const drawRattlejack = (ctx: CanvasRenderingContext2D, S: number, t: number): vo
     ], 0.006 * S, sd + 1)
     paint(ctx, S, sole, BONE, sd + 2, { line: LINE.fine, deep: false })
   }
+
+  if (H) hurlTorso(ctx, H, [0, 0.48 * S + b])
 
   // ── Pelvis and spine ──
   const pelvis = rough([
@@ -2117,36 +2273,42 @@ const drawRattlejack = (ctx: CanvasRenderingContext2D, S: number, t: number): vo
   stroke(ctx, [[jig, -0.02 * S + b], [jig * 0.8, 0.4 * S + b]], 0.05 * S, 0.038 * S, BONE.shade, 1030)
 
   // ── Left arm: a pot-lid shield strapped to it ──
-  const armSw = D ? 0 : swing(g + 0.7, 0.05) * S
+  // Throwing, it is the arm with the rock, swung out BESIDE the skull rather
+  // than over it (`SIDEARM_THROW`): overhead, the shield would cover the face.
+  const armSw = D || H ? 0 : swing(g + 0.7, 0.05) * S
   const lShoulder: Pt = [-0.17 * S + jig, 0.02 * S + b]
-  const LA = D ? deathArm(D, -1, 0.4 * S) : null
-  const lWrist: Pt = LA
-    ? [lShoulder[0] + LA.hand[0], lShoulder[1] + LA.hand[1]]
-    : [-0.4 * S + armSw, 0.36 * S + b]
-  boneLimb(ctx,
-    lShoulder,
-    LA ? [lShoulder[0] + LA.elbow[0], lShoulder[1] + LA.elbow[1]] : [-0.34 * S + armSw, 0.16 * S + b],
-    lWrist,
-    0.036 * S, BONE, 1040)
-  // Strapped to the forearm, so it goes where the wrist goes.
-  const cx = lWrist[0] - 0.08 * S
-  const cy = lWrist[1] - 0.02 * S
-  const shield = blob(cx, cy, 0.23 * S, 0.25 * S, 1044, 0.06)
-  paint(ctx, S, shield, WOOD, 1045, { line: LINE.mid, breakUp: 0.24 })
-  for (let i = 0; i < 3; i++) {
-    stroke(ctx, [
-      [cx - 0.2 * S, cy + (i * 0.11 - 0.14) * S], [cx + 0.2 * S, cy + (i * 0.11 - 0.16) * S]
-    ], 0.008 * S, 0.014 * S, 'rgba(48,28,12,0.45)', 1046 + i)
+  const LA = D ? deathArm(D, -1, 0.4 * S) : H ? hurlArm(H, -1, 0.46 * S, SIDEARM_THROW) : null
+  {
+    const lWrist: Pt = LA
+      ? [lShoulder[0] + LA.hand[0], lShoulder[1] + LA.hand[1]]
+      : [-0.4 * S + armSw, 0.36 * S + b]
+    const lElbow: Pt = LA
+      ? [lShoulder[0] + LA.elbow[0], lShoulder[1] + LA.elbow[1]]
+      : [-0.34 * S + armSw, 0.16 * S + b]
+    boneLimb(ctx, lShoulder, lElbow, lWrist, 0.036 * S, BONE, 1040)
+    // Strapped to the forearm, so it goes where the forearm goes. Throwing, it
+    // rides up the forearm toward the elbow, so the hand is out past its rim.
+    const cx = H ? lElbow[0] * 0.62 + lWrist[0] * 0.38 - 0.03 * S : lWrist[0] - 0.08 * S
+    const cy = H ? lElbow[1] * 0.62 + lWrist[1] * 0.38 : lWrist[1] - 0.02 * S
+    const shield = blob(cx, cy, 0.23 * S, 0.25 * S, 1044, 0.06)
+    paint(ctx, S, shield, WOOD, 1045, { line: LINE.mid, breakUp: 0.24 })
+    for (let i = 0; i < 3; i++) {
+      stroke(ctx, [
+        [cx - 0.2 * S, cy + (i * 0.11 - 0.14) * S], [cx + 0.2 * S, cy + (i * 0.11 - 0.16) * S]
+      ], 0.008 * S, 0.014 * S, 'rgba(48,28,12,0.45)', 1046 + i)
+    }
+    const boss = blob(cx, cy - 0.01 * S, 0.07 * S, 0.072 * S, 1050, 0.12)
+    paint(ctx, S, boss, IRON, 1051, { line: LINE.fine })
+    // A bite taken out of the rim, so it reads as scavenged.
+    ctx.save()
+    ctx.globalCompositeOperation = 'destination-out'
+    fillShape(ctx, blob(cx - 0.12 * S, cy - 0.18 * S, 0.06 * S, 0.055 * S, 1052, 0.24), '#000')
+    ctx.restore()
+    const lha = LA ? deathHandAngle(LA) : 1.5
+    boneHand(ctx, lWrist[0], lWrist[1], 0.13 * S, lha, BONE, 1054,
+      LA ? 0.75 * (1 - LA.open) : 0.75)
+    if (H) hurlGrip(ctx, lWrist[0] + Math.cos(lha) * 0.06 * S, lWrist[1] + Math.sin(lha) * 0.06 * S)
   }
-  const boss = blob(cx, cy - 0.01 * S, 0.07 * S, 0.072 * S, 1050, 0.12)
-  paint(ctx, S, boss, IRON, 1051, { line: LINE.fine })
-  // A bite taken out of the rim, so it reads as scavenged.
-  ctx.save()
-  ctx.globalCompositeOperation = 'destination-out'
-  fillShape(ctx, blob(cx - 0.12 * S, cy - 0.18 * S, 0.06 * S, 0.055 * S, 1052, 0.24), '#000')
-  ctx.restore()
-  boneHand(ctx, lWrist[0], lWrist[1], 0.13 * S, LA ? deathHandAngle(LA) : 1.5, BONE, 1054,
-    LA ? 0.75 * (1 - LA.open) : 0.75)
 
   // ── Right arm: shortsword up ──
   const swSw = D ? 0 : swing(g + 0.2, 0.04) * S
@@ -2172,9 +2334,10 @@ const drawRattlejack = (ctx: CanvasRenderingContext2D, S: number, t: number): vo
   // ── Skull, cocked to one side ──
   const hy = -0.28 * S + b * 0.7 + skullLag
   const hx = jig * 0.6 - skullLag * 0.4
-  if (D) {
+  ctx.save()
+  if (D || H) {
     ctx.translate(hx, hy + 0.26 * S)
-    ctx.rotate(deathLoll(D))
+    ctx.rotate(D ? deathLoll(D) : hurlHeadTurn(H!))
     ctx.translate(-hx, -(hy + 0.26 * S))
   }
   const skull = egg(hx, hy, 0.19 * S, 0.2 * S, 0.82, 1080, 0.05)
@@ -2219,6 +2382,7 @@ const drawRattlejack = (ctx: CanvasRenderingContext2D, S: number, t: number): vo
   stroke(ctx, [
     [hx - 0.06 * S, hy - 0.3 * S], [hx + 0.0 * S, hy - 0.42 * S], [hx + 0.08 * S, hy - 0.3 * S]
   ], 0.016 * S, 0.016 * S, IRON.shade, 1105)
+  ctx.restore()
   ctx.restore()
 }
 

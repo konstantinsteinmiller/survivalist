@@ -9,12 +9,13 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  METEOR_RELEASE, POSE_AFTER_S, REST_POSE, bossPose, chargeDashAt, hurlArc, hurlPoint,
-  type BossPose, type WindupKind
+  DRAIN_REACH_AT, HURL_FOLLOW_SHARE, METEOR_RELEASE, POSE_AFTER_S, REST_POSE, bossPose, chargeDashAt,
+  hurlArc, hurlPoint, meteorHurlPanel, type BossPose, type WindupKind
 } from '@/game/bossWindup'
+import { HURL_KEYS, HURL_RELEASE_PANEL } from '@/game/monsterKit'
 import { CHARGE_DASH_S } from '@/game/threats'
 
-const KINDS: WindupKind[] = ['meteor', 'shock', 'charge', 'rake', 'heal', 'bolt', 'summon']
+const KINDS: WindupKind[] = ['meteor', 'shock', 'charge', 'rake', 'heal', 'bolt', 'summon', 'drain']
 
 const atRest = (q: BossPose, eps = 1e-6): boolean =>
   (Object.keys(REST_POSE) as Array<keyof BossPose>).every((k) => Math.abs(q[k] - REST_POSE[k]) < eps)
@@ -55,25 +56,53 @@ describe('the pose curves', () => {
 })
 
 describe('the meteor is thrown, not dropped', () => {
-  it('rears up with the rock, snaps forward on the release, and is still by the impact', () => {
-    const held = bossPose('meteor', METEOR_RELEASE - 1e-6, { side: 1 })
-    expect(held.sy).toBeGreaterThan(1.05)
-    expect(held.lean).toBeLessThan(0) // wound back, away from the target side
-    const thrown = bossPose('meteor', METEOR_RELEASE + (1 - METEOR_RELEASE) * 0.16, { side: 1 })
-    expect(thrown.sy).toBeLessThan(0.95)
-    expect(thrown.lean).toBeGreaterThan(0) // follow-through toward it
-    expect(atRest(bossPose('meteor', 1, { side: 1 }))).toBe(true)
+  // The owner's call: the squash-and-stretch throw "distorts the boss instead
+  // of animating its arms". The throw is in the DRAWING now; the body pose on
+  // top of it must stay at rest for the whole cast, charged or not.
+  it('never stretches, squashes, tilts or shakes the body', () => {
+    for (let i = 0; i <= 100; i++) {
+      for (const charged of [false, true]) {
+        for (const side of [-1, 1]) {
+          const q = bossPose('meteor', i / 100, { side, charged })
+          expect(atRest({ ...q, glow: REST_POSE.glow })).toBe(true)
+        }
+      }
+    }
   })
 
-  it('leans toward whichever side the mark is on', () => {
-    const post = METEOR_RELEASE + (1 - METEOR_RELEASE) * 0.16
-    expect(bossPose('meteor', post, { side: -1 }).lean).toBeLessThan(0)
-    expect(bossPose('meteor', post, { side: 1 }).lean).toBeGreaterThan(0)
+  it('plays the drawn throw in order, releasing on the frame the rock leaves', () => {
+    let last = -1
+    let released = false
+    for (let i = 0; i <= 1000; i++) {
+      const p = i / 1000
+      const panel = meteorHurlPanel(p)
+      if (panel === null) {
+        // Back on the walk before the rock lands — and it stays there.
+        expect(p).toBeGreaterThan(METEOR_RELEASE)
+        last = HURL_KEYS
+        continue
+      }
+      expect(last).toBeLessThan(HURL_KEYS)
+      expect(panel).toBeGreaterThanOrEqual(last)
+      expect(panel).toBeLessThan(HURL_KEYS)
+      // Holding the rock strictly before the release, empty-handed after it.
+      if (p < METEOR_RELEASE) expect(panel).toBeLessThan(HURL_RELEASE_PANEL)
+      else expect(panel).toBeGreaterThanOrEqual(HURL_RELEASE_PANEL)
+      if (panel === HURL_RELEASE_PANEL) released = true
+      last = panel
+    }
+    expect(released).toBe(true)
+    expect(meteorHurlPanel(0)).toBe(0)
+    expect(meteorHurlPanel(METEOR_RELEASE)).toBe(HURL_RELEASE_PANEL)
+    expect(meteorHurlPanel(1)).toBeNull()
   })
 
-  it('a charged rock gets the bigger wind-up', () => {
-    const p = METEOR_RELEASE - 1e-6
-    expect(bossPose('meteor', p, { charged: true }).sy).toBeGreaterThan(bossPose('meteor', p).sy)
+  it('gives every panel of the throw the same beat, either side of the release', () => {
+    const gather = METEOR_RELEASE / HURL_RELEASE_PANEL
+    const follow = ((1 - METEOR_RELEASE) * HURL_FOLLOW_SHARE) / (HURL_KEYS - HURL_RELEASE_PANEL)
+    // Within a fifth of each other: a throw whose wind-up plays at one speed
+    // and its follow-through at another reads as a hitch.
+    expect(Math.abs(gather - follow) / gather).toBeLessThan(0.2)
   })
 
   it('leaves the hands and lands EXACTLY on the mark at the impact', () => {
@@ -123,5 +152,26 @@ describe('the stomp and the dash land on their beat', () => {
     expect(late.sy).toBeLessThan(0.9) // crouched
     const running = bossPose('charge', 1, o)
     expect(running.sy).toBeGreaterThan(1.05) // stretched along the run
+  })
+})
+
+describe('the drain reaches down the column it announced', () => {
+  it('gathers with the arms up, then reaches FORWARD on the beat', () => {
+    const gathered = bossPose('drain', DRAIN_REACH_AT - 1e-6)
+    expect(gathered.sy, 'the gather is not a rise').toBeGreaterThan(1.05)
+    expect(gathered.shake, 'the gather does not tremble into the reach').toBeGreaterThan(0)
+    const reached = bossPose('drain', 1)
+    // Down the road toward the crowd — a lunge at the camera, not a lean to one
+    // side: the column comes straight down from the boss.
+    expect(reached.dip, 'the reach does not point down the column').toBeGreaterThan(0.08)
+    expect(reached.sy).toBeLessThan(1)
+  })
+
+  it('holds the reach, trembling, for as long as the beam pulls', () => {
+    const holding = bossPose('drain', 1, { holding: true })
+    expect(holding.dip).toBeCloseTo(bossPose('drain', 1).dip, 9)
+    expect(holding.shake, 'a beam that pulls with a still body reads as a picture').toBeGreaterThan(0)
+    // …and lets go like any landed strike once the beam does.
+    expect(atRest(bossPose('drain', 1, { after: POSE_AFTER_S }))).toBe(true)
   })
 })

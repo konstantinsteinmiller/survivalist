@@ -18,7 +18,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { CAGE_JOIN_MAX_S, CAGE_JOIN_SPEED, stageSpeed } from '@/game/survival'
+import { CAGE_JOIN_MAX_S, CAGE_JOIN_SPEED, LANE_HALF, stageSpeed } from '@/game/survival'
 import {
   CAGE_STAGE, CAGE_WALL_SHARE, barricadeHp, buildTrack, cageHp, cageSurvivors
 } from '@/game/track'
@@ -146,14 +146,21 @@ describe('the people in it walk over and join the squad', () => {
       // holding the next stage's squad (`Cage.warden`), and it is the first
       // entry in the array. Steering at THAT is steering at something three
       // hundred units away that can never be opened.
-      const cage = game.getCages().find((c) => !c.dead && !c.warden)
+      //
+      // `!c.sealed` for the same reason, one landmark earlier: since stage 2 was
+      // re-cut into acts (2026-09-18) its roadside cage stands AFTER the first
+      // elite, and that elite's own cage — in the verge at `REWARD_CAGE_X`,
+      // opened by the kill and holding `minibossCageHold(2)` — is the first
+      // cage to break on the road. The spec is about the roadside one, so it
+      // steers at it and counts only a break inside the lane.
+      const cage = game.getCages().find((c) => !c.dead && !c.warden && !c.sealed)
       if (broke < 0) {
         for (const u of game.getUnits()) before.add(u)
         squadBefore = game.squadCount.value
         game.steerTo(cage ? cage.x : 0)
       }
       game.step(STEP_MS)
-      const hit = drainFx().find((e) => e.kind === 'cageBreak')
+      const hit = drainFx().find((e) => e.kind === 'cageBreak' && Math.abs(e.x) < LANE_HALF)
       if (hit && hit.kind === 'cageBreak' && broke < 0) {
         broke = i
         freed = hit.count

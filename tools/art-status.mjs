@@ -33,12 +33,14 @@ const { ART_FOLDERS } = await load('game/art.ts')
 const { MONSTERS } = await load('game/monsters.ts')
 const { OUTFITS } = await load('game/heroSprites.ts')
 const { bossDesigns } = await load('game/foes.ts')
+const { hurlDesigns } = await load('game/artSheet.ts')
 
 const catalogue = {
   monster: MONSTERS.map((m) => m.id),
   hero: OUTFITS.map((o) => o.id),
   ...ART_CATALOGUE,
-  death: bossDesigns()
+  death: bossDesigns(),
+  hurl: hurlDesigns()
 }
 const artTarget = (kind, id) => `${ART_FOLDERS[kind]}/${id}.webp`
 

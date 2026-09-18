@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'अगले बोनस तक के चरण',
+    'bonus': "बोनस +{coins}",
     'fireRate': 'दर',
     'incoming': 'हमला आ रहा है!',
     'dodge': 'बचें',
@@ -91,6 +92,7 @@ export default {
 
     'next': "आगे: {label} · {when}",
     'bossAhead': "आगे बॉस: {name}",
+    'rankUp': "रैंक #{rank} ▲{n}",
     'bossName': {
       'grumpling': "ग्रम्पलिंग",
       'bonecap': "बोनकैप",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "हथियार चुनें",
     'nextStage': "अगला स्टेज",
-    'stagesAway': "{n} स्टेज बाद"
+    'stagesAway': "{n} स्टेज बाद",
+    'thisStage': "यह स्टेज"
   },
   'weaponPick': {
     'title': "अपना हथियार चुनें",

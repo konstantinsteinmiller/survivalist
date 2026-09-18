@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': '다음 보너스까지 남은 스테이지',
+    'bonus': "보너스 +{coins}",
     'fireRate': '연사',
     'incoming': '공격이 온다!',
     'dodge': '회피',
@@ -91,6 +92,7 @@ export default {
 
     'next': "다음: {label} · {when}",
     'bossAhead': "다가오는 보스: {name}",
+    'rankUp': "순위 #{rank} ▲{n}",
     'bossName': {
       'grumpling': "그럼플링",
       'bonecap': "본캡",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "무기 선택",
     'nextStage': "다음 스테이지",
-    'stagesAway': "{n}스테이지 후"
+    'stagesAway': "{n}스테이지 후",
+    'thisStage': "이번 스테이지"
   },
   'weaponPick': {
     'title': "무기를 선택하세요",

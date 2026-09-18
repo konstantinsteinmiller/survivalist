@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'Etapy do następnej premii',
+    'bonus': "Bonus +{coins}",
     'fireRate': 'Tempo',
     'incoming': 'Nadchodzi atak!',
     'dodge': 'Unik',
@@ -91,6 +92,7 @@ export default {
 
     'next': "Dalej: {label} · {when}",
     'bossAhead': "Boss przed tobą: {name}",
+    'rankUp': "Miejsce #{rank} ▲{n}",
     'bossName': {
       'grumpling': "Grumpling",
       'bonecap': "Bonecap",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "Wybierz broń",
     'nextStage': "następny poziom",
-    'stagesAway': "za {n} poziomy"
+    'stagesAway': "za {n} poziomy",
+    'thisStage': "ten poziom"
   },
   'weaponPick': {
     'title': "Wybierz swoją broń",

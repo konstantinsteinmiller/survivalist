@@ -265,7 +265,18 @@ describe('reload round-trip', () => {
     game.startStage(5)
     game.debugAddUnits(400)
     game.debugAddDamage(400)
-    for (let i = 0; i < 4000 && game.phase.value !== 'clear'; i++) game.step(16)
+    // Straight to the arena, and the boss finished off the moment it stands.
+    // Every boss is priced off the crowd's own fire since the 2026-09-18 pass,
+    // so the old trick — 400 damage to one-shot it — now buys a boss with 400
+    // times the bar, and a crowd walked down a 60 s road without steering does
+    // not reach it anyway. What is under test is the save at the checkpoint,
+    // not the fight.
+    game.debugSkipToArena()
+    for (let i = 0; i < 4000 && game.phase.value !== 'clear'; i++) {
+      const boss = game.getBoss()
+      if (boss && !boss.dead) { boss.hp = 1; boss.guard = 0 }
+      game.step(16)
+    }
     expect(game.phase.value).toBe('clear')
     await m1.flush()
 

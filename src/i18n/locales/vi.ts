@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'Số màn đến phần thưởng tiếp theo',
+    'bonus': "Thưởng +{coins}",
     'fireRate': 'Tốc độ',
     'incoming': 'Sắp bị tấn công!',
     'dodge': 'Né',
@@ -91,6 +92,7 @@ export default {
 
     'next': "Tiếp theo: {label} · {when}",
     'bossAhead': "Trùm phía trước: {name}",
+    'rankUp': "Hạng #{rank} ▲{n}",
     'bossName': {
       'grumpling': "Grumpling",
       'bonecap': "Bonecap",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "Chọn vũ khí",
     'nextStage': "màn tiếp theo",
-    'stagesAway': "sau {n} màn"
+    'stagesAway': "sau {n} màn",
+    'thisStage': "màn này"
   },
   'weaponPick': {
     'title': "Chọn vũ khí của bạn",

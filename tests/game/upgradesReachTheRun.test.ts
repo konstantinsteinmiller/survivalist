@@ -113,7 +113,16 @@ describe('a purchase DURING a run reaches that run', () => {
   const live = async (): Promise<Game> => {
     const game = await importGame()
     game.startStage(7)
-    for (let i = 0; i < 200; i++) game.step(STEP_MS)
+    // The steering target is module state and survives `startStage`: a spec
+    // that left the crowd steered at a crate hands the next one a crowd heading
+    // for the shoulder. Centred, and kept above a handful, because since the
+    // 2026-09-18 re-cut stage 7 opens on seven hounds that meet an un-upgraded
+    // starting crowd inside these 200 frames — the warm-up is not what is tested.
+    game.steerTo(0)
+    for (let i = 0; i < 200; i++) {
+      if (game.squadCount.value < 12) game.debugAddUnits(12 - game.squadCount.value)
+      game.step(STEP_MS)
+    }
     expect(game.phase.value).toBe('run')
     return game
   }
@@ -156,6 +165,11 @@ describe('a purchase DURING a run reaches that run', () => {
     game.debugAddUnits(60)
     let broke = false
     for (let i = 0; i < 4000 && !broke; i++) {
+      // Topped up, because stage 7's first damage crate is 103 units in since the
+      // 2026-09-18 re-cut, behind seven hounds and ten husks — sixty survivors
+      // steering at a crate do not reach it on their own. The crate still has to
+      // break through the real path; only the crowd is kept alive to get there.
+      if (game.squadCount.value < 40) game.debugAddUnits(40 - game.squadCount.value)
       const crate = game.getCrates().find((c) => !c.dead && c.kind === 'damage')
       if (crate) {
         crate.hp = Math.min(crate.hp, 1)

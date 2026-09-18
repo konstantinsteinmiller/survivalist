@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'Sonraki bonusa kalan bölüm',
+    'bonus': "Bonus +{coins}",
     'fireRate': 'Hız',
     'incoming': 'Saldırı geliyor!',
     'dodge': 'Kaç',
@@ -91,6 +92,7 @@ export default {
 
     'next': "Sırada: {label} · {when}",
     'bossAhead': "Sıradaki patron: {name}",
+    'rankUp': "Sıra #{rank} ▲{n}",
     'bossName': {
       'grumpling': "Grumpling",
       'bonecap': "Bonecap",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "Silah seç",
     'nextStage': "sonraki bölüm",
-    'stagesAway': "{n} bölüm sonra"
+    'stagesAway': "{n} bölüm sonra",
+    'thisStage': "bu bölüm"
   },
   'weaponPick': {
     'title': "Silahını seç",

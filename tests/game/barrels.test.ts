@@ -118,11 +118,13 @@ describe('the blast', () => {
     // takes the boss to at most the next gate, plants it, and owes the player
     // the swing. Chaining barrels therefore chains phases rather than skipping
     // them, which is why three sticks of TNT cannot fast-forward a boss.
-    const { BOSS_GUARD_GATES } = await import('@/game/survival')
     const game = await atBoss(10)
     const boss = game.getBoss()!
 
-    const nextGate = BOSS_GUARD_GATES[boss.guarded]
+    // The gates THIS boss owes — read from the sim, not assumed: stage 10's is a
+    // summoner since the 2026-09-18 boss pass, and it pays a wave every seventh
+    // of its bar (`SUMMON_GUARD_GATES`) rather than the ordinary two.
+    const nextGate = game.guardGatesFor(10)[boss.guarded]
     if (nextGate === undefined) return
     const gatesBefore = boss.guarded
 

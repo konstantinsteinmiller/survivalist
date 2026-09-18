@@ -951,3 +951,294 @@ export const deathShadow = (
   fillShape(ctx, blob(0, 0, (w + (lean ? 0.6 : 0.2) * D.fall) * S, (0.1 + (lean ? 0.26 : 0.1) * D.fall) * S, 21, 0.14), '#20141c')
   ctx.restore()
 }
+
+// ─── Hurling ────────────────────────────────────────────────────────────────
+//
+// The meteor, THROWN — by the arms. The first version of the throw was the
+// walk frame reared back and snapped forward with a squash and a stretch, and
+// the owner read it, correctly, as the boss being distorted rather than doing
+// anything: nothing that throws a rock throws it with its whole body going
+// rubber. So the hurl is drawn by the rigs the way the death is: the same
+// body, the throwing arm scooping the rock up, cocking it back over the
+// shoulder, whipping it over the top and following through across the body,
+// while the other arm points the way and the hips carry the weight across.
+//
+// The drawing is the reference the painted hurl strips are painted over
+// (`artSheet.BOSS_HURLS`) and the game's own throw until they exist
+// (`monsterSprites.monsterHurlFrame`). The rock is NOT part of it: the renderer
+// draws the burning rock into the hand (`hurlGrip` says where the hand is), so
+// it can grow while it is gathered and leave from exactly where it was held.
+//
+// Parts move, shapes never change — the death's rule, for the same reason.
+
+let hurlKv: number | null = null
+/** Where the throwing hand was in the hurl being drawn, in the CANVAS's own
+ *  pixels (the transform applied), or null when the design never said. */
+let gripAt: Pt | null = null
+
+/**
+ * Draw `fn` as the hurl at `k`: 0 standing ready, 1 back at rest after the
+ * follow-through. Returns where the throwing hand's palm was drawn, canvas
+ * pixels — the point the rock sits on — or null for a design that has not
+ * learned to throw.
+ */
+export const drawHurl = (k: number, fn: () => void): Pt | null => {
+  const prev = hurlKv
+  const prevGrip = gripAt
+  hurlKv = Math.max(0, Math.min(1, k))
+  gripAt = null
+  try {
+    fn()
+    return gripAt
+  } finally {
+    hurlKv = prev
+    gripAt = prevGrip
+  }
+}
+
+/** The hurl being drawn right now, or `null` for the living cycle. */
+export const hurlingAt = (): number | null => hurlKv
+
+/**
+ * Report where the throwing hand's PALM is — the point the rock sits on — in
+ * the design's own drawing units. Mapped through the context's current
+ * transform, so a design may call it from inside any number of saves.
+ */
+export const hurlGrip = (ctx: CanvasRenderingContext2D, x: number, y: number): void => {
+  if (hurlKv === null) return
+  const m = ctx.getTransform()
+  gripAt = [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]
+}
+
+/**
+ * The eight moments of a throw, one per panel of the strip (`k = i / 7`). The
+ * prompt's `HURL_POSES` names them in the same order; a line that stops
+ * matching its panel is a line to fix there.
+ */
+export const HURL_KEYS = 8
+/** The panel the rock leaves the hand on. The renderer plays the gather up to
+ *  it and lets the rock go on it (`HURL_RELEASE_K`). */
+export const HURL_RELEASE_PANEL = 4
+export const HURL_RELEASE_K = HURL_RELEASE_PANEL / (HURL_KEYS - 1)
+
+/**
+ * The throwing hand, relative to its shoulder, one per panel, in ARM LENGTHS:
+ * x outward on the throwing side, y down the screen.
+ *
+ * Drawn front-on, a throw toward the camera is mostly up-and-over and then
+ * down across the body — the forward part of it is foreshortened away, so
+ * what has to read is the arm going UP behind the head and coming DOWN across
+ * the front.
+ */
+const THROW_HAND: readonly Pt[] = [
+  [0.3, 0.9], // ready — hanging, a little out
+  [0.8, 0.4], // scoop — swung out and low, palm up, the rock forming in it
+  [0.88, -0.3], // rising — out and up past the shoulder
+  [0.44, -0.74], // cocked — elbow high, the rock held back over the shoulder
+  [0.02, -0.97], // release — whipped straight up and over the top
+  [-0.6, 0.5], // follow-through — swept down across the body to the far hip
+  [-0.1, 0.86], // recovering
+  [0.3, 0.9] // at rest
+]
+/**
+ * The other hand: out low for balance. Never POINTING — a pointing arm is the
+ * gesture an image model paints first, and both painted throws that were
+ * given one swapped the arms for it, raising the wrong hand on the cock.
+ */
+const OFF_HAND: readonly Pt[] = [
+  [0.3, 0.9],
+  [0.55, 0.72],
+  [0.55, 0.74],
+  [0.5, 0.8], // hanging out low, bracing the throw
+  [0.4, 0.62], // yanked down as the throw comes over
+  [0.62, 0.6],
+  [0.42, 0.84],
+  [0.3, 0.9]
+]
+/** How open the throwing hand is, 0 closed round the rock → 1 splayed. */
+const THROW_OPEN: readonly number[] = [0.3, 0.55, 0.3, 0.15, 0.95, 0.9, 0.5, 0.3]
+/** Tilt above the hips, radians, head toward the THROWING side positive —
+ *  back over the throwing leg on the cock, across onto the other one through
+ *  the release. */
+const TILT: readonly number[] = [0, 0.1, 0.08, 0.2, -0.08, -0.24, -0.1, 0]
+/** How far the hips sink, in S — into the scoop and into the follow-through. */
+const CROUCH: readonly number[] = [0, 0.07, 0.03, 0.02, 0.04, 0.09, 0.04, 0]
+/** The stance, in S: the throwing foot braced out wide, the other foot
+ *  striding across into the release. */
+const PLANT: readonly number[] = [0, 0.04, 0.05, 0.07, 0.07, 0.06, 0.03, 0]
+const STRIDE: readonly number[] = [0, 0.02, 0.04, 0.07, 0.1, 0.1, 0.05, 0]
+/** How far the throwing heel comes up on the follow-through, in S. */
+const HEEL: readonly number[] = [0, 0, 0, 0, 0.02, 0.05, 0.02, 0]
+
+/** A track at `k`, linear between panels — only the panels are ever shown.
+ *  Exported for a design with a joint of its own to key (a treant's bough). */
+export const hurlTrack = (keys: readonly number[], k: number): number => {
+  const x = Math.max(0, Math.min(1, k)) * (keys.length - 1)
+  const i = Math.min(keys.length - 2, Math.floor(x))
+  return mix(keys[i]!, keys[i + 1]!, x - i)
+}
+const track = hurlTrack
+const trackPt = (keys: readonly Pt[], k: number): Pt => {
+  const x = Math.max(0, Math.min(1, k)) * (keys.length - 1)
+  const i = Math.min(keys.length - 2, Math.floor(x))
+  const a = keys[i]!
+  const b = keys[i + 1]!
+  return [mix(a[0], b[0], x - i), mix(a[1], b[1], x - i)]
+}
+
+export interface HurlBeats {
+  k: number
+  /** Which arm throws, as drawn: −1 the panel's left, +1 its right — the one
+   *  whose hand is free. Fixed per design. */
+  side: -1 | 1
+  /** Tilt above the hips, radians, canvas sense (positive clockwise). */
+  tilt: number
+  /** How far the hips sink, in S. */
+  crouch: number
+  /** 0..1, how hard the body is working: 0 at rest, 1 through the release. */
+  effort: number
+}
+
+export const hurlBeats = (k: number, side: -1 | 1): HurlBeats => ({
+  k,
+  side,
+  // Canvas `rotate(θ)` carries a point above the pivot toward +x for θ > 0,
+  // so leaning the head toward the throwing side is a rotation of its sign.
+  tilt: side * track(TILT, k),
+  crouch: track(CROUCH, k),
+  effort: track([0, 0.4, 0.7, 1, 1, 0.7, 0.3, 0], k)
+})
+
+/**
+ * Where a hand goes from its shoulder, and where the elbow bends — the hurl's
+ * `deathArm`. `side` is which side of the body this arm hangs on; the arm on
+ * the hurl's own side is the throwing arm.
+ *
+ * The elbow bends OUTWARD, away from the body: a thrower's elbow is high and
+ * out on the cock and out and down on the follow-through, and an elbow folded
+ * in across the chest reads as a hug.
+ */
+export const hurlArm = (
+  H: HurlBeats, side: -1 | 1, reach: number, keys?: readonly Pt[]
+): { hand: Pt; elbow: Pt; open: number; throwing: boolean } => {
+  const throwing = side === H.side
+  const p = trackPt(throwing ? keys ?? THROW_HAND : OFF_HAND, H.k)
+  const hand: Pt = [side * p[0] * reach, p[1] * reach]
+  const d = Math.min(reach * 0.999, Math.hypot(hand[0], hand[1]) || 1e-4)
+  const ux = hand[0] / d
+  const uy = hand[1] / d
+  // Of the two perpendiculars: for the throwing arm the one pointing away from
+  // the body's middle (outward on this arm's side; on a tie, down). The other
+  // arm's elbow always bends DOWN — bent up and out it reads as a second raised
+  // arm, and painters raised it in place of the throwing one.
+  let px = -uy
+  let py = ux
+  if (throwing
+    ? px * side < -1e-3 || (Math.abs(px) <= 1e-3 && py < 0)
+    : py < 0) { px = -px; py = -py }
+  const bend = Math.sqrt(Math.max(0, (reach / 2) ** 2 - (d / 2) ** 2))
+  const elbow: Pt = [hand[0] / 2 + px * bend, hand[1] / 2 + py * bend]
+  return { hand, elbow, open: throwing ? track(THROW_OPEN, H.k) : 0.6, throwing }
+}
+
+/** The angle a hand points along its forearm — for a hand drawn as its own part. */
+export const hurlHandAngle = (A: { hand: Pt; elbow: Pt }): number =>
+  Math.atan2(A.hand[1] - A.elbow[1], A.hand[0] - A.elbow[0])
+
+/**
+ * Where a foot goes during the throw, as an offset from where it stands, in
+ * drawing units: the throwing-side foot braced out wide with its heel lifting
+ * on the follow-through, the other foot striding across.
+ */
+export const hurlLeg = (H: HurlBeats, side: -1 | 1, S: number): Pt => {
+  const throwing = side === H.side
+  const out = throwing ? track(PLANT, H.k) : track(STRIDE, H.k)
+  return [side * out * S, -(throwing ? track(HEEL, H.k) : 0) * S]
+}
+
+/**
+ * Tilt everything drawn after this about the hips at `hip` (drawing units) —
+ * torso, arms and head. The crouch is NOT applied here: a design sinks its own
+ * hips by it, so the legs under them bend at the knee rather than the whole
+ * body sliding down its own feet. Call after the legs; the design's closing
+ * restore takes it off.
+ */
+export const hurlTorso = (ctx: CanvasRenderingContext2D, H: HurlBeats, hip: Pt): void => {
+  ctx.translate(hip[0], hip[1])
+  ctx.rotate(H.tilt)
+  ctx.translate(-hip[0], -hip[1])
+}
+
+/**
+ * The throwing hand's track for a design whose arms cannot reach over its own
+ * head (a big-headed imp): the same scoop and follow-through, but the cock and
+ * the release stay out beside the head, where the arm can be seen.
+ */
+export const SIDEARM_THROW: readonly Pt[] = [
+  [0.3, 0.9],
+  [0.7, 0.62],
+  [1.0, -0.05],
+  [0.72, -0.7],
+  [0.55, -0.85],
+  [-0.6, 0.5],
+  [-0.1, 0.86],
+  [0.3, 0.9]
+]
+
+/** The head's own turn on its neck: it keeps its eyes on the mark while the
+ *  body swings under it, so it turns back about half the tilt. */
+export const hurlHeadTurn = (H: HurlBeats): number => -H.tilt * 0.55
+
+// ── Side-on bodies ──
+//
+// A boar and a hound have no hands. They throw with the HEAD: the snout goes
+// down and scoops the rock up, the forequarters rear as the head tosses back
+// with it, and the front end comes down hard as the head whips forward and
+// lets go. The rock rides on the snout (`hurlGrip` at its tip).
+
+/** Pitch of the whole body about the hind feet, radians, head UP positive. */
+const REAR: readonly number[] = [0, -0.06, 0.1, 0.3, 0.12, -0.08, -0.03, 0]
+/** The head's own swing on the neck, radians, snout UP positive. */
+const TOSS: readonly number[] = [0, -0.55, -0.05, 0.55, 0.15, -0.45, -0.15, 0]
+/** How far the front feet come up off the ground, in S. */
+const FORE_LIFT: readonly number[] = [0, 0, 0.05, 0.14, 0.07, 0, 0, 0]
+/** How wide the jaw is open, 0..1 — wide on the release. */
+const JAW: readonly number[] = [0.1, 0.25, 0.15, 0.35, 1, 0.8, 0.3, 0.1]
+
+export interface FlankHurl {
+  k: number
+  /** Body pitch about the hind feet, radians, head up positive. */
+  rear: number
+  /** Head swing on the neck, radians, snout up positive. */
+  toss: number
+  /** Front feet lift, in S. */
+  foreLift: number
+  /** Jaw open 0..1. */
+  jaw: number
+  /** 0..1, how hard the body is working. */
+  effort: number
+}
+
+export const flankHurl = (k: number): FlankHurl => ({
+  k,
+  rear: track(REAR, k),
+  toss: track(TOSS, k),
+  foreLift: track(FORE_LIFT, k),
+  jaw: track(JAW, k),
+  effort: track([0, 0.4, 0.7, 1, 1, 0.7, 0.3, 0], k)
+})
+
+/**
+ * Pitch a side-on body about its hind feet, head up for a positive `rear`.
+ * `headDir` is the side the head is drawn on (−1 left), `hind` how far behind
+ * the middle the hind feet stand, in S. Call between a save and a restore.
+ */
+export const rearOnHaunches = (
+  ctx: CanvasRenderingContext2D, S: number, F: FlankHurl, headDir: -1 | 1, hind = 0.35, ground = 1.0
+): void => {
+  const px = -headDir * hind * S
+  ctx.translate(px, ground * S)
+  // Head on the left going UP is a clockwise turn about a pivot on its right.
+  ctx.rotate(-headDir * F.rear)
+  ctx.translate(-px, -ground * S)
+}

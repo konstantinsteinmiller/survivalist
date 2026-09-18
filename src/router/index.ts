@@ -13,7 +13,9 @@ const routes: RouteRecordRaw[] = [
   ...(import.meta.env.DEV
     ? [
       { path: '/art-sheets', name: 'art-sheets', component: () => import('@/views/ArtSheets.vue') },
-      { path: '/playground', name: 'playground', component: () => import('@/views/Playground.vue') }
+      { path: '/playground', name: 'playground', component: () => import('@/views/Playground.vue') },
+      // Every boss wind-up as it was beside how it is now, on one clock.
+      { path: '/boss-motion', name: 'boss-motion', component: () => import('@/views/BossMotion.vue') }
     ]
     : []),
   { path: '/:pathMatch(.*)*', redirect: '/' }

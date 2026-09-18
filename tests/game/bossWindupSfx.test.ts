@@ -18,7 +18,7 @@ import {
   advanceBeats, chargeDashAt, windupBeats,
   type WindupBeat, type WindupCue, type WindupKind
 } from '@/game/bossWindup'
-import { CHARGE_DASH_S } from '@/game/threats'
+import { CHARGE_DASH_S, DRAIN_HOLD_S } from '@/game/threats'
 
 /** Step a cast from 0 past its end in uneven frames, recording each beat's
  *  firing time. A seeded LCG, so the frame pattern is the same every run. */
@@ -67,10 +67,10 @@ describe('the beats of a wind-up', () => {
   })
 
   it('fires every beat of every wind-up exactly once, in order', () => {
-    const kinds: WindupKind[] = ['meteor', 'shock', 'charge', 'rake', 'heal', 'bolt', 'summon']
+    const kinds: WindupKind[] = ['meteor', 'shock', 'charge', 'rake', 'heal', 'bolt', 'summon', 'drain']
     for (const kind of kinds) {
       for (const life of [0.4, 0.7, 1, 1.7]) {
-        const beats = windupBeats(kind, life, { dashS: CHARGE_DASH_S, raiseS: 1 })
+        const beats = windupBeats(kind, life, { dashS: CHARGE_DASH_S, raiseS: 1, holdS: DRAIN_HOLD_S })
         const fired = drive(beats, life, 3)
         expect(fired.map((f) => f.cue), `${kind} @ ${life}`).toEqual(beats.map((b) => b.cue))
         for (const f of fired) expect(f.firedAt).toBeGreaterThanOrEqual(f.at)
@@ -194,5 +194,18 @@ describe('the wind-up cues', () => {
       expect(end(short.stops), id).toBeLessThan(0.4 + 0.1)
       expect(end(long.stops), id).toBeGreaterThan(1.2)
     }
+  })
+})
+
+describe('the drain is heard in two halves', () => {
+  it('gathers under the raised arms, then pulls ON the beat for exactly the hold', () => {
+    const life = 1.7
+    const beats = windupBeats('drain', life, { holdS: DRAIN_HOLD_S })
+    expect(beats.map((b) => b.cue)).toEqual(['siphon', 'drain'])
+    expect(beats[0]!.atS).toBe(0)
+    // The pull is the hit, so it sounds on the frame the beam lands — the end of
+    // the cast — and it lasts as long as the beam is still taking bodies.
+    expect(beats[1]!.atS).toBeCloseTo(life, 9)
+    expect(beats[1]!.seconds).toBeCloseTo(DRAIN_HOLD_S, 9)
   })
 })

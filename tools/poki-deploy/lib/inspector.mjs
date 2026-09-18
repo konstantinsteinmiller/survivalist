@@ -145,25 +145,72 @@ const QA_ROWS = `(() => {
   }).filter(Boolean)
 })()`
 
-/** Goes in BEFORE the game's own scripts. */
+/** Goes in BEFORE the game's own scripts.
+ *
+ *  ── Two ways this probe lied about audio, both measured on Bug Crunch v0.3.1, 2026-09 ──
+ *
+ *  1. IT COUNTED THE AD. The Poki core runs in the game's own frame and plays
+ *     its own media there: an autoplay-probe clip (a `data:` mp4, never attached)
+ *     and, during every Inspector break, the house-ad `<video>`
+ *     (`#pokiSDKHouseAdContainer`, unmuted on desktop). The `play()` hook caught
+ *     both, so every sample taken during a break read "1 audible element" with
+ *     the game completely silent — reproduced locally against the real core in
+ *     Inspector mode: 30 of 36 in-break samples failed, 0 of them because of the
+ *     game. An audible ad is the ad working. So every element and context is
+ *     tagged with WHO made it — the first script URL on the stack when it was
+ *     constructed or first played — and only the game's are judged.
+ *
+ *  2. IT SAMPLED WHENEVER THE LOG HAD A BREAK IN IT. The event log says a break
+ *     HAPPENED, not that one is happening: a break earlier in the pass (during
+ *     the 45 s of play, say) leaves its entry behind, the wait returns at once,
+ *     and the "during the break" sample is ordinary gameplay — music playing,
+ *     context running. Sampling ~3 s after a local break ended reproduces the
+ *     v0.3.1 report exactly: 1 audible, 1 running, 3 tracked. So the probe
+ *     samples from INSIDE the frame, starting the moment an SDK-owned video
+ *     attached to the page starts to play (that video IS the ad on screen) and
+ *     every 250 ms until none is playing, and the verdict is read from those. */
 const GAME_PROBE = `
 (() => {
   if (window.__pokiQa) return
-  var qa = window.__pokiQa = { media: [], contexts: [], errors: [], pointerLock: 0 }
+  var qa = window.__pokiQa = { media: [], contexts: [], errors: [], pointerLock: 0, breakSamples: [] }
+  var SDK_SRC = /game-cdn\\.poki\\.com|poki-sdk|imasdk\\.googleapis\\.com|googlesyndication|doubleclick\\.net|googletagservices|amazon-adsystem/
+  var ownerOf = function () {
+    var lines = String(new Error().stack || '').split('\\n')
+    for (var i = 1; i < lines.length; i++) {
+      var m = /(https?:\\/\\/[^\\s)]+)/.exec(lines[i])
+      if (m) return SDK_SRC.test(m[1]) ? 'sdk' : 'game'
+    }
+    return 'game'
+  }
+  var isAdVideo = function (a) { return a.__qaOwner === 'sdk' && a.tagName === 'VIDEO' && a.isConnected }
+  var loud = function (a) { return !a.paused && !a.muted && a.volume > 0.001 }
+  var sampling = null
+  var take = function () { var s = qa.audible(); s.at = Date.now(); qa.breakSamples.push(s) }
+  var adPlaying = function () { return qa.media.some(function (a) { return isAdVideo(a) && !a.paused && !a.ended }) }
+  var startBreakSampling = function () {
+    if (sampling) return
+    setTimeout(take, 0)
+    sampling = setInterval(function () {
+      if (!adPlaying()) { clearInterval(sampling); sampling = null; return }
+      take()
+    }, 250)
+  }
   var RealAudio = window.Audio
   if (RealAudio) {
-    var WrappedAudio = function (src) { var a = new RealAudio(src); qa.media.push(a); return a }
+    var WrappedAudio = function (src) { var a = new RealAudio(src); a.__qaOwner = ownerOf(); qa.media.push(a); return a }
     WrappedAudio.prototype = RealAudio.prototype
     window.Audio = WrappedAudio
   }
   var realPlay = HTMLMediaElement.prototype.play
   HTMLMediaElement.prototype.play = function () {
-    if (qa.media.indexOf(this) === -1) qa.media.push(this)
-    return realPlay.apply(this, arguments)
+    if (qa.media.indexOf(this) === -1) { this.__qaOwner = this.__qaOwner || ownerOf(); qa.media.push(this) }
+    var r = realPlay.apply(this, arguments)
+    if (isAdVideo(this)) startBreakSampling()
+    return r
   }
   var RealCtx = window.AudioContext || window.webkitAudioContext
   if (RealCtx) {
-    var WrappedCtx = function (o) { var c = new RealCtx(o); qa.contexts.push(c); return c }
+    var WrappedCtx = function (o) { var c = new RealCtx(o); c.__qaOwner = ownerOf(); qa.contexts.push(c); return c }
     WrappedCtx.prototype = RealCtx.prototype
     window.AudioContext = WrappedCtx
   }
@@ -172,10 +219,14 @@ const GAME_PROBE = `
   window.addEventListener('error', function (e) { qa.errors.push(String(e.message || e.error)) })
   window.addEventListener('unhandledrejection', function (e) { qa.errors.push('unhandled rejection: ' + String(e.reason)) })
   qa.audible = function () {
+    var game = qa.media.filter(function (a) { return a.__qaOwner !== 'sdk' })
+    var ctxs = qa.contexts.filter(function (c) { return c.__qaOwner !== 'sdk' })
     return {
-      loudElements: qa.media.filter(function (a) { return !a.paused && !a.muted && a.volume > 0.001 }).length,
-      runningContexts: qa.contexts.filter(function (c) { return c.state === 'running' }).length,
-      total: qa.media.length,
+      loudElements: game.filter(loud).length,
+      runningContexts: ctxs.filter(function (c) { return c.state === 'running' }).length,
+      total: game.length,
+      contexts: ctxs.length,
+      sdkMedia: qa.media.length - game.length,
     }
   }
 })()`
@@ -216,7 +267,16 @@ export const runInspectorQa = async (cdp, {
     }
     if (!frame || m.sessionId !== frame) return
     if (m.method === 'Network.requestWillBeSent') {
-      try { const h = new URL(m.params.request.url).hostname; netHosts.set(h, (netHosts.get(h) ?? 0) + 1) } catch { /* data: */ }
+      // A HOSTLESS url is not an external resource. `data:`, `blob:` and
+      // `about:` never leave the machine — and `new URL()` does NOT throw on
+      // them, it returns `hostname === ''`, so the old `catch` here never fired
+      // and every inline asset was counted as a host called "". Which then read
+      // back as `unapproved host(s):  (1)` and crossed a box over a base64
+      // image the game inlined at build time.
+      try {
+        const h = new URL(m.params.request.url).hostname
+        if (h) netHosts.set(h, (netHosts.get(h) ?? 0) + 1)
+      } catch { /* not a url we can parse at all */ }
     }
     if (m.method === 'Runtime.exceptionThrown') {
       consoleErrors.push(m.params.exceptionDetails?.exception?.description ?? m.params.exceptionDetails?.text ?? 'exception')
@@ -415,17 +475,8 @@ export const runInspectorQa = async (cdp, {
     { timeout: adWaitMs, every: 2000 })
   if (adSeen) {
     set('commercialBreak', 'pass', 'Event log: commercial break, with "Force show ads" on')
-    const audible = await cdp.eval(`window.__pokiQa ? JSON.stringify(window.__pokiQa.audible()) : 'no probe'`, { sessionId: frame })
-      .catch(() => 'unreadable')
-    const parsed = typeof audible === 'string' && audible.startsWith('{') ? JSON.parse(audible) : null
-    if (parsed && parsed.total === 0) {
-      set('adAudioMuted', 'unproven', 'the game created no media elements during this run — nothing to prove muted')
-    } else if (parsed) {
-      const quiet = parsed.loudElements === 0 && parsed.runningContexts === 0
-      set('adAudioMuted', quiet ? 'pass' : 'fail',
-        `${parsed.loudElements} audible element(s), ${parsed.runningContexts} running AudioContext(s) of ${parsed.total} tracked, sampled during the break`)
-    } else set('adAudioMuted', 'unproven', `could not read the audio probe (${audible})`)
 
+    // Keys FIRST, while the break that was just seen is most likely still up.
     const beforeKeys = (await events()).length
     for (const k of [{ key: ' ', code: 'Space', keyCode: 32 }, { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 }, { key: 'Escape', code: 'Escape', keyCode: 27 }]) {
       await pressKey(cdp, k)
@@ -435,6 +486,37 @@ export const runInspectorQa = async (cdp, {
     const endedEarly = afterKeys.slice(beforeKeys).some(e => /commercial break (done|finished|complete)/i.test(e))
     set('adNotInterrupted', endedEarly ? 'fail' : 'pass',
       endedEarly ? 'the break ended right after space/arrow/escape' : 'space, arrow and escape did not end the break')
+
+    // Audio: judged ONLY on samples the probe took while an ad video was
+    // actually playing, and ONLY on media/contexts the game created — see the
+    // note on GAME_PROBE for the two ways the old single sample lied. The
+    // samples accumulate in the frame from the first ad of the pass, so a break
+    // that came and went before this wait began is still judged on what was
+    // true WHILE it played.
+    await cdp.waitFor('!!(window.__pokiQa && window.__pokiQa.breakSamples.length > 3)',
+      { sessionId: frame, timeout: 20000, every: 500 }).catch(() => null)
+    const probe = await cdp.eval(
+      `window.__pokiQa ? JSON.stringify({ samples: window.__pokiQa.breakSamples || [], now: window.__pokiQa.audible() }) : 'no probe'`,
+      { sessionId: frame },
+    ).catch(() => 'unreadable')
+    const parsed = typeof probe === 'string' && probe.startsWith('{') ? JSON.parse(probe) : null
+    if (!parsed) {
+      set('adAudioMuted', 'unproven', `could not read the audio probe (${probe})`)
+    } else if (parsed.samples.length === 0) {
+      set('adAudioMuted', 'unproven',
+        `the break never put an ad video on screen in the game frame, so there was no moment to sample during (outside any ad: ${parsed.now.loudElements} audible, ${parsed.now.runningContexts} running)`)
+    } else if (parsed.now.total === 0 && parsed.now.contexts === 0) {
+      set('adAudioMuted', 'unproven', 'the game created no media elements and no AudioContexts during this run — nothing to prove muted')
+    } else {
+      const worst = parsed.samples.reduce((w, x) => ({
+        loud: Math.max(w.loud, x.loudElements), running: Math.max(w.running, x.runningContexts),
+      }), { loud: 0, running: 0 })
+      const quiet = worst.loud === 0 && worst.running === 0
+      set('adAudioMuted', quiet ? 'pass' : 'fail',
+        `${parsed.samples.length} sample(s) while the ad video played: worst ${worst.loud} audible game element(s), `
+        + `${worst.running} running AudioContext(s) — of ${parsed.now.total} element(s) + ${parsed.now.contexts} context(s) the game created `
+        + `(the SDK's own ${parsed.now.sdkMedia} ad/probe media excluded)`)
+    }
   } else {
     set('commercialBreak', 'unproven', `no commercial break within ${Math.round(adWaitMs / 1000)} s of play, even with "Force show ads" on`)
     set('adAudioMuted', 'unproven', 'no break occurred to sample audio during')

@@ -78,7 +78,11 @@ describe('monsters are recycled', () => {
 
   it('hands back a body with nothing left of its previous life', async () => {
     const game = await importGame()
-    game.startStage(12)
+    // Stage 13, the one road with no layout at all: this spec never steers, and
+    // since the 2026-09-18 re-cut stage 12 is an authored maze of stone fields
+    // and ribs that takes a crowd on the centre line apart before its first
+    // landmark. Any road with an elite on it serves; the herd has two.
+    game.startStage(13)
     game.debugAddUnits(300)
     game.debugAddDamage(30)
 
@@ -91,7 +95,7 @@ describe('monsters are recycled', () => {
       game.step(STEP_MS)
       elite = game.getFoes().find((f) => f.elite && !f.dead) ?? null
     }
-    expect(elite, 'stage 12 never fielded a miniboss').toBeTruthy()
+    expect(elite, 'stage 13 never fielded a miniboss').toBeTruthy()
     elite!.kind = 'roller'
     elite!.lane = -1
     elite!.hold = 9

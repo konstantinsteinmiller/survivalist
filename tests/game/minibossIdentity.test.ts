@@ -107,7 +107,13 @@ describe('the spawn actually applies the pairing', () => {
     const { drainFx } = await import('@/use/useVfx')
     const { __resetTowerState } = await import('@/use/useTowerState')
 
-    for (const stage of [1, 5, 6, 9]) {
+    // 10 rather than 9 for the late tier (both field it). Stage 9 was re-cut on
+    // 2026-09-18 around authored stone fields (`stones` in track.ts) whose
+    // offset gaps are the stage's whole lesson, and a crowd held on one line —
+    // which is all this spec does to keep the road scrolling — is cut apart by
+    // them before its first landmark. Stage 10's layout is two half-walls, so
+    // the same held line reaches its burrower and its scythe.
+    for (const stage of [1, 5, 6, 10]) {
       localStorage.clear()
       __resetTowerState()
       const game = await import('@/use/useSurvivalGame')

@@ -47,13 +47,16 @@ const eventsOn = (stage: number) =>
     .sort((a, b) => (a.y as number) - (b.y as number))
 
 describe('where the strays are', () => {
-  it('puts two on stage 1 and one each on stages 2 and 3', () => {
-    // Stage 1 gets two because it HAS two holes: it is more than twice the
-    // length of either of the others and its only 18-unit gaps are at 68→86 and
-    // 148→166. Stages 2 and 3 top out at twelve.
-    expect(straysOn(1).length).toBe(2)
+  it('puts four on stage 1, one on stage 2 and two on stage 3', () => {
+    // Stage 1 got two more with the owner's "more to shoot" pass (2026-09-18):
+    // 196 → 240 and the run-in after the second elite were the last stretches
+    // of the first road with nothing alive on them. Stages 2 and 3 were re-cut
+    // into sixty-second acts the same day and put their strays where THEIR
+    // holes are: stage 2's run-in, stage 3's shoulder beside the first pincer
+    // and the lane out of the gauntlet.
+    expect(straysOn(1).length).toBe(4)
     expect(straysOn(2).length).toBe(1)
-    expect(straysOn(3).length).toBe(1)
+    expect(straysOn(3).length).toBe(2)
   })
 
   it('leaves the rest of the campaign alone', () => {
@@ -123,13 +126,14 @@ describe('where the strays are', () => {
     // before the feature.
     const at = (stage: number) =>
       eventsOn(stage).filter((e) => e.kind === 'miniboss').map((e) => Math.round((e.y as number) * 100) / 100)
-    // Stages 2 and 3 moved when their roads did — `placeMinibosses` puts the
-    // first elite at a FRACTION of `arenaY` (0.45-0.60), so a road that goes
-    // from 138 to 226 units carries the landmark with it. Stage 1 is untouched,
-    // which is the half of this assertion that still guards the original claim.
+    // Stages 2 and 3 moved when their roads did, and then again when they were
+    // re-cut into acts around TWO landmarks each (2026-09-18) — their marks are
+    // authored now (`AUTHORED_ELITES`) and these are those marks, unnudged.
+    // Stage 1 is untouched, which is the half of this assertion that still
+    // guards the original claim.
     expect(at(1)).toEqual([120.08, 271.76])
-    expect(at(2)).toEqual([117.3])
-    expect(at(3)).toEqual([152.62])
+    expect(at(2)).toEqual([118, 246])
+    expect(at(3)).toEqual([118, 254])
   })
 })
 

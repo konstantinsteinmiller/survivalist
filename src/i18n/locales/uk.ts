@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'Етапів до наступного бонусу',
+    'bonus': "Бонус +{coins}",
     'fireRate': 'Темп',
     'incoming': 'Атака!',
     'dodge': 'Ухилися',
@@ -91,6 +92,7 @@ export default {
 
     'next': "Далі: {label} · {when}",
     'bossAhead': "Попереду бос: {name}",
+    'rankUp': "Місце #{rank} ▲{n}",
     'bossName': {
       'grumpling': "Бурчунчик",
       'bonecap': "Кісткоголов",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "Обери зброю",
     'nextStage': "наступний рівень",
-    'stagesAway': "через {n} рівні"
+    'stagesAway': "через {n} рівні",
+    'thisStage': "цей рівень"
   },
   'weaponPick': {
     'title': "Обери свою зброю",

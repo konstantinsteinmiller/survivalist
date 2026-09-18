@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CAGE_JOIN_MAX_S, CROWD_SQUASH, WARDEN_CAGE_LEAD } from '@/game/survival'
+import {
+  CAGE_JOIN_MAX_S, CAGE_R, CROWD_SCREEN_Y, CROWD_SQUASH, WARDEN_CAGE_LEAD, WARDEN_CAGE_SCALE,
+  cameraScale
+} from '@/game/survival'
+import { CAGE_BOX } from '@/game/artBoxes'
 import { buildTrack } from '@/game/track'
 import {
   BOSS_REWARD_DAMAGE_MUL, BOSS_REWARD_STAGE, BOSS_REWARD_WEAPON, WEAPON_PICK_STAGE
@@ -72,24 +76,35 @@ describe('the cage the boss is standing in front of', () => {
     }
   })
 
-  it('stays inside the fourteen units of road the player can actually see', () => {
-    // `CROWD_SCREEN_Y` x `VIEW_HEIGHT` is NOT this number. `setViewport` fits
-    // `VIEW_HEIGHT` into the viewport MINUS the two HUD bars, and the top of
-    // what can be read is the bottom of the top bar — so the honest figure is
-    // `(cssH x CROWD_SCREEN_Y - topInset) / scale`, measured in a browser:
-    //
-    //   420x900 phone   14.35     1280x800  desktop   14.28
-    //   360x780 phone   14.11     1600x1000 desktop   14.13
-    //   820x1180 tablet 14.04     1920x1080 desktop   14.08
-    //
-    // The spread is tight because the fit rule trades width against height to
-    // keep it so. 14.04 is the floor across every shape the game fits into.
-    const SEEN_AHEAD = 14.04
-    expect(WARDEN_CAGE_LEAD).toBeLessThan(SEEN_AHEAD)
-    // …and near enough to the edge that it is cut rather than centred. Its lid
-    // reaches roughly a unit above its ground, so anything more than two units
-    // of clearance is a cage sitting comfortably in frame — which is scenery.
-    expect(SEEN_AHEAD - WARDEN_CAGE_LEAD).toBeLessThan(2)
+  it('stands inside the frame with its lid over the top edge, on every ratio', () => {
+    // Derived from the camera itself (`cameraScale`) rather than from a table
+    // of browser measurements: since 2026-09-18 the frame is solved from the
+    // gun's range, so the top edge is arithmetic — 14.31 units ahead wherever
+    // the lane is not the limit, 14.5-14.9 on a portrait phone. Insets are the
+    // HUD bars as measured in the browser that day (top bar + 8, bottom + 8).
+    const shapes: Array<[number, number, number, number]> = [
+      [360, 780, 108, 57], [390, 844, 109, 60], [430, 932, 111, 66], [412, 915, 110, 64],
+      [360, 640, 108, 57], [820, 1180, 127, 75], [1280, 720, 127, 75], [1366, 768, 127, 75],
+      [1920, 1080, 127, 75], [2560, 1080, 127, 75], [1000, 1300, 127, 75]
+    ]
+    // The drawn body runs `y - 0.93 … y + 1.94` (`CAGE_BOX` / `CAGE_DRAW_TALL`
+    // at `WARDEN_CAGE_SCALE`); the lid is the top of it.
+    const lid = WARDEN_CAGE_LEAD + CAGE_R * WARDEN_CAGE_SCALE * CAGE_BOX.top
+    for (const [w, h, top, bottom] of shapes) {
+      const scale = cameraScale(w, h, top, bottom)
+      const edge = (CROWD_SCREEN_Y * h) / scale
+      const underHud = (CROWD_SCREEN_Y * h - top) / scale
+      // Its ground is on the canvas, and near the top of it — two and a half
+      // units of clearance is the most a cage "pinned to the top" can have…
+      expect(WARDEN_CAGE_LEAD, `${w}x${h}: the cage is off the top of the frame`)
+        .toBeLessThan(edge)
+      expect(edge - WARDEN_CAGE_LEAD, `${w}x${h}: the cage sits mid-frame`).toBeLessThan(2.5)
+      // …and its lid is never readable whole: a prize the screen cannot quite
+      // contain is a place you have to get to, one it frames whole is scenery.
+      // Cut by the top edge on most shapes and by the HUD strip on all of them
+      // (a 20:9 phone's canvas is tall enough to hold the lid; its strip is not).
+      expect(lid, `${w}x${h}: the whole cage reads — it is scenery`).toBeGreaterThan(underHud)
+    }
   })
 
   it('is never passed by the boss on its way down', async () => {

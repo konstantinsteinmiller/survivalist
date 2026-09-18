@@ -309,11 +309,17 @@ export const rollerLaneFor = (stage: number, index = 0): number =>
  * How fast the ball rolls down the road, world units per second.
  *
  * It closes on the crowd at this PLUS the stage's run speed — about 8.5 u/s on
- * stage 4 — and the road visible ahead of the crowd is `CROWD_SCREEN_Y` ×
- * `VIEW_HEIGHT` ≈ 13.7 units. So it is on screen for a little over a second and
- * a half before it arrives, against a crowd whose anchor crosses the whole lane
+ * stage 4 — and the road visible ahead of the crowd is ~14.3 units to the top
+ * edge (`cameraScale`; ~11-12 under the HUD bar). So it is on screen for a
+ * little over a second and a half before it arrives, against a crowd whose anchor crosses the whole lane
  * in about a third of a second. That is the margin the dodge is priced at: two
  * reaction times, not five.
+ *
+ * (Camera note, 2026-09-18: the zoom now solves the gun's range to 17.5 % below
+ * the top edge — `cameraScale` — so the road readable under the HUD strip is
+ * 11–12.4 units, and the ball's centre is in view ~1.4 s before it arrives
+ * rather than ~1.6. Still well over two lane crossings; `ROLLER_WARN_AHEAD`
+ * keeps its 14 and now lands as the ball's front clears the strip.)
  *
  * Deliberately slower than a hound. A ball that outran the eye would read as
  * unfair however wide the free lane beside it was.
@@ -589,27 +595,30 @@ export const BOLT_TRAIL = 12
 // ─── What each boss kind costs, before it is played ─────────────────────────
 
 /**
- * Health multiplier for a boss kind, on top of `bossHpScale`.
+ * The share of a boss's fight that is its printed bar.
  *
- * A kind is not just a different animation: two of the four carry EFFECTIVE
- * health that never appears on the bar. The healer puts `HEAL_FRACTION` back
- * three times, so its bar is worth x1.3 of itself; the summoner spends
- * `SUMMON_WAVES_MAX * SUMMON_PER_WAVE * SUMMON_HP_SHARE` of its own bar on
- * bodies that have to be shot at (or run from) before the bar can be. Pricing
- * that off the printed number instead of correcting for it would make the same
- * stage number mean four different fight lengths, and the one the player learns
- * the stage on would be whichever they met first.
+ * Every boss is priced in seconds of the run's own fire (`game/adaptive.ts`),
+ * and a kind is not just a different animation: two of the four carry
+ * EFFECTIVE health that never appears on the bar. The healer puts
+ * `HEAL_FRACTION` back, so its bar is worth more than itself; the summoner
+ * stands `SUMMON_WALL_SHARE` of the whole fight in the road as bodies that have
+ * to be shot through before the bar can be. Pricing the printed bar at the full
+ * target instead would make the same stage four different fight lengths, and
+ * the one the player learns the stage on would be whichever they met first.
  *
- * So the printed bar is cut by exactly what the kind gives back:
+ * So the printed bar is cut by exactly what the kind adds back:
  *
  *   healer    1 / (1 + HEAL_FRACTION x HEAL_EXPECTED)
- *   summoner  1 / (1 + SUMMON_BUDGET x SUMMON_HP_SHARE)
+ *   summoner  1 - SUMMON_WALL_SHARE
  *
- * The summoner's is exact — every body it fields is health it definitely spends.
- * The healer's is not, and that is what `HEAL_EXPECTED` is for: it is priced on
- * the heals a fight ACTUALLY sees rather than on the cap, because pricing on the
- * cap charges every player for three heals and only a losing one ever meets the
- * third.
+ * The summoner's is exact — the wall is priced in the same seconds as the bar,
+ * out of the same target (`summonBodyHp` in the simulation). The healer's is
+ * not, and that is what `HEAL_EXPECTED` is for: it is priced on the heals a
+ * fight ACTUALLY sees rather than on the cap, because pricing on the cap charges
+ * every player for three heals and only a losing one ever meets the third. The
+ * drain's heal is left out on purpose: it only exists for a crowd that stood in
+ * the column, and the bar is priced for the player who did not (see
+ * `DRAIN_HEAL_FRACTION`).
  *
  * The claw is 1 on purpose: its rake is priced at exactly a slam's share and
  * lands on the same cadence, so it adds no health, only a different question.
@@ -617,7 +626,7 @@ export const BOLT_TRAIL = 12
 export const bossHpMulFor = (kind: BossKind): number => {
   switch (kind) {
     case 'healer': return 1 / (1 + HEAL_FRACTION * HEAL_EXPECTED)
-    case 'summoner': return 1 / (1 + SUMMON_BUDGET * SUMMON_HP_SHARE)
+    case 'summoner': return 1 - SUMMON_WALL_SHARE
     default: return 1
   }
 }
@@ -1158,8 +1167,21 @@ export const HEAL_MAX_CASTS = 3
  * Deliberately a separate number from `HEAL_MAX_CASTS` rather than the same one
  * reused: one is a safety bound and the other is a price, and collapsing them
  * would mean a tuning pass on either silently moved the other.
+ *
+ * ── One, since every boss is priced by the run (2026-09-18) ──
+ *
+ * "About two" was measured on fights that ran as long as the authored curve
+ * made them. Priced in the run's own seconds, a healer fight is about as long as
+ * any other boss's (8-10 s at depth), and the heal's own rules put the first
+ * heal on the third cast (~5 s) and the second a `HEAL_MIN_GAP_S` after it — so
+ * a crowd that answers the telegraphs sees one. Priced for two, the dodging
+ * crowd the bar is promised to was handed a discount for a heal that never
+ * came: the healer was the SHORTEST fight in the arena probe at every depth
+ * (4.6-6.3 s against the meteor's 6.8-7.8 on the same rungs). A crowd that
+ * feeds the drain pays its own surcharge; that is `DRAIN_HEAL_FRACTION`'s job,
+ * not this one's.
  */
-export const HEAL_EXPECTED = 2
+export const HEAL_EXPECTED = 1
 
 /**
  * How long a bolt spends in the air, seconds — a TIME, not a speed.
@@ -1182,8 +1204,18 @@ export const HEAL_EXPECTED = 2
  * gets the same window every time, so the window is learnable — and it makes the
  * bolt visibly hurry when it is thrown from further away, which is the correct
  * read on a thing that has further to come.
+ *
+ * ── 0.9, not 1.2 (2026-09-18) ──
+ *
+ * "Super easy to dodge" was the owner's word for it, and at 1.2 s it was not a
+ * dodge at all: the aim is locked at the wind-up (0.7 s before the throw), so a
+ * crowd that noticed the bolt LEAVE the hand still had 1.2 s to take a 3-unit
+ * step — three reaction times. 0.9 s is a reaction, the move (`STEER_SPRING`
+ * settles three units in about 0.45 s) and a margin, which is the window every
+ * other attack in the game gives. It is still longer than the gunner's line and
+ * still a projectile the player watches the whole way down.
  */
-export const BOLT_FLIGHT_S = 1.2
+export const BOLT_FLIGHT_S = 0.9
 
 /**
  * How hard the bolt leads the crowd's drift.
@@ -1195,7 +1227,7 @@ export const BOLT_FLIGHT_S = 1.2
  * lands — and the day one of the three is retuned the other two must not move
  * with it.
  */
-export const BOLT_LEAD = 0.35
+export const BOLT_LEAD = 0.5
 
 /** How close a survivor has to be for the bolt to go off. Smaller than the
  *  blast: the thing that trips it is a body, the thing that kills is the burst. */
@@ -1212,18 +1244,158 @@ export const BOLT_BLAST_R = 1.35
  * healer a bolt on two casts in every three of a 1.7 s loop — one every 2.55 s —
  * so equal cost per second would price a bolt at 1.06 slams.
  *
- * It is deliberately well UNDER that. The healer already charges a slow player
- * 60 % of a health bar for being slow; charging them the crowd at the same rate
- * as a meteor is the same mistake billed twice, and the compounding is what
- * turns a hard fight into an unwinnable one — the fight gets longer, so more
- * bossBolts land, so the crowd shrinks, so the fight gets longer. At 0.6 the healer
- * costs about 57 % of a meteor per second across a fight roughly 1.6x as long,
- * which lands the TOTAL within about a tenth of the control.
+ * It was deliberately well UNDER that — 0.6 — on the argument that the healer
+ * already charges a slow player part of its bar back, and a fight that gets
+ * longer lands more bolts. Both halves of the argument have since been taken
+ * away from under it:
+ *
+ *   • the fight no longer gets longer on its own. Every boss is priced in
+ *     seconds of the run's fire (`game/adaptive.ts`), so the compounding the
+ *     note was afraid of — slow fight, more bolts, smaller crowd, slower fight —
+ *     is integrated into the bar rather than left to run away;
+ *   • the bolt is no longer two casts in three. The drain (`DRAIN_SHARE_MUL`)
+ *     takes half of the non-heal casts, so a bolt lands about one cast in
+ *     three, and the healer's cost per second is the bolt AND the drain.
+ *
+ * And the owner's call was that 0.6 of a slam that nobody ever took was "a
+ * joke": measured, every steering policy lost 0 % to it from stage 11 on. At 0.9
+ * a missed bolt is a real hit (about 28 % of a crowd on a stage-7 road), and with
+ * the drain on the other casts the healer's crowd-loss per second sits within a
+ * few percent of the meteor's: (0.9 + 1.3) × 0.31 across a heal, a bolt and a
+ * drain (5.3 s with the drain's hold) against 0.31 every 2.4 s.
  */
-export const BOLT_SHARE_MUL = 0.6
+export const BOLT_SHARE_MUL = 0.9
 
 /** Backstop only — a bolt that hits nothing leaves the arena long before this. */
 export const BOSS_BOLT_LIFE = 6
+
+// ─── The healer's drain ─────────────────────────────────────────────────────
+//
+// The owner, after playing it: "the Healer's projectile is a joke — it does not
+// do much damage and is super easy to dodge. The Healer needs ANOTHER
+// high-impact attack that makes him a threat and not just a shooting target."
+// Measured on the shipping build, that is exactly what the fight was: from
+// stage 11 on, the three scripted players that steer at all lost **0 %** of
+// their crowd to a healer in most cells, and the heal the archetype is named for
+// fired in a minority of fights because the fights were four seconds long.
+//
+// So the healer gets the one attack its name was always promising: it FEEDS.
+// A column opens from the boss down the road, locked on the crowd's own line;
+// when it lands, whoever is still standing in it is pulled out of the crowd and
+// up the beam, and every survivor it takes puts health back on the boss's bar.
+//
+//   • It is the fight's high-impact verb. A crowd that eats the whole beam loses
+//     `DRAIN_SHARE_MUL` of a slam — more than any single ring — AND undoes a
+//     heal's worth of its own work. Two costs for one mistake, which is what
+//     makes it the thing on the screen the player cannot ignore.
+//   • It has a clean answer, and the answer is the one every other column in
+//     the game teaches: leave the line. The column is locked with NO lead (the
+//     charge's rule — a lane is a place to get OUT of, and leading it would move
+//     the answer while the player was on the way to it), it is sized so the
+//     crowd always fits beside it (`DRAIN_HALF_W`), and the wind-up is the whole
+//     cast, so the move is never a reflex test.
+//   • It is not over when it lands. The beam HOLDS for `DRAIN_HOLD_S`, taking
+//     the rest of its budget from whoever is still in the column, so a crowd that
+//     is caught and reacts on the flash still keeps the second half — and a
+//     crowd that walks back under the boss too early pays for it. Half the bite
+//     lands on the beat (`DRAIN_FIRST_BITE`), which keeps the telegraph contract:
+//     the thing announced arrives exactly when the cast said it would.
+//
+// ── Why the heal is graded by what it took ──
+//
+// The ward already made the heal contestable by standing on a mark. This is the
+// same bargain from the other side: the boss can only put back what the crowd
+// hands it. A crowd that dodges the beam gives it nothing, one that half-dodges
+// gives it half — so the healer's regeneration stops being a clock the player
+// cannot touch and becomes a price on every drain they misread. It never enters
+// the bar's price (`bossHpMulFor`): the bar is priced for the player who dodges,
+// exactly as every other boss's is, and the heal is what not dodging costs.
+//
+// ── …and why its heal is capped per fight ──
+//
+// A heal on a loop is a regeneration RATE, and `HEAL_MAX_CASTS` exists because a
+// rate under which a player cannot out-damage never ends. The drain's heal is
+// paid for in survivors, which bounds it already — every point it puts back cost
+// the crowd the firepower to take it off again — but "the crowd will run out
+// first" is a proof that holds for a crowd that stands still, and a crowd that
+// half-dodges every drain is the case it does not cover. `DRAIN_HEAL_MAX` turns
+// the drain's regeneration into a total, the same way the heal's cap does.
+
+/**
+ * Half-width of the column the drain pulls from.
+ *
+ * The charge's own number, for the charge's own inequality (see
+ * `CHARGE_HALF_W`): the crowd's centre reaches ±4.1 and its bodies sit within
+ * `CROWD_MAX_R` of it, so a column down the dead centre of the road still leaves
+ * 0.95 units of rail beside it, and the dodge is a 3.15-unit lateral move — the
+ * size of decision a slam asks for. Flat with depth: what the drain costs is
+ * `bossHitShare`, which already carries the stage.
+ */
+export const DRAIN_HALF_W = 1.5
+
+/**
+ * The wind-up, and the guard-gate path's shorter one.
+ *
+ * A drain is announced the instant its cycle opens — the charge's rule for an
+ * attack whose answer is a lateral commitment — so its wind-up is the healer's
+ * whole cast, `HEALER_CAST_CD` (1.7 s). That is longer than the bolt's 0.7 s on
+ * purpose: the bolt is a projectile the player watches cross the road, the drain
+ * is a mark with nothing flying at them, so the mark itself has to be the long
+ * warning.
+ *
+ * A guard gate re-arms the cycle at the kind's telegraph, and the healer's
+ * (`HEALER_TELEGRAPH`, 0.7 s) is too short to cross 3.15 units for a median
+ * thumb once the column is also being read. 1.2 s is the gate's floor — a
+ * reaction time plus the move (`STEER_SPRING` settles a full-lane move in about
+ * a third of a second) plus the margin `SLAM_TELEGRAPH`'s history says a human
+ * needs on top.
+ */
+export const DRAIN_TELEGRAPH = HEALER_CAST_CD
+export const DRAIN_TELEGRAPH_MIN = 1.2
+
+/**
+ * How long the beam holds after it lands, seconds.
+ *
+ * Long enough that "I got out after it hit" is an answer worth giving — half the
+ * budget is still in the beam when it connects — and short enough that the
+ * healer's cadence barely moves: the next cast is pushed back by exactly this
+ * much (`throwHealerCast`), so nothing else the boss does can be armed while a
+ * beam is on the road.
+ */
+export const DRAIN_HOLD_S = 0.9
+
+/**
+ * What a drain the crowd eats whole takes, as a multiple of one slam's share —
+ * clamped to `SLAM_FRACTION_MAX` like the charged ring.
+ *
+ * Above one on purpose: this is the healer's big blow, and the owner's brief was
+ * a threat, not a bolt with a different sprite. At 1.3 a crowd standing in the
+ * whole beam loses 0.40 of itself on a stage-7 road where the meteor's ring
+ * takes 0.31 — and heals the boss for its trouble. It is not undodgeable and not
+ * a coin flip: the column never covers the road and never leads the crowd.
+ */
+export const DRAIN_SHARE_MUL = 1.3
+
+/** The share of the drain's budget that lands on the beat; the rest is pulled
+ *  over the hold. */
+export const DRAIN_FIRST_BITE = 0.5
+
+/**
+ * What a drain eaten WHOLE puts back on the boss, as a share of its bar — one
+ * heal's worth (`HEAL_FRACTION`), graded by the share of the budget it actually
+ * took. A drain that took nobody heals nothing.
+ */
+export const DRAIN_HEAL_FRACTION = HEAL_FRACTION
+
+/** …and the most all of a fight's drains may ever put back between them. Three
+ *  full drains' worth — the heal's own cap (`HEAL_MAX_CASTS`) applied to the
+ *  second way the healer can put its bar back up. */
+export const DRAIN_HEAL_MAX = DRAIN_HEAL_FRACTION * HEAL_MAX_CASTS
+
+/** Is a body at `x` inside the column centred on `lane`? The kill test and
+ *  nothing else — the telegraph is drawn from the same two numbers. */
+export const inDrainColumn = (x: number, lane: number, halfW = DRAIN_HALF_W): boolean =>
+  Math.abs(x - lane) <= halfW
 
 /**
  * A healer's projectile, in flight.
@@ -1263,7 +1435,8 @@ export interface BossBolt {
 // road stops filling and the fight becomes an ordinary fight against whatever is
 // left standing, which a losing player can still win.
 
-/** Seconds between waves. */
+/** Seconds between waves on a fight of `SUMMON_CD_REF_S` seconds of fire — the
+ *  number the cadence was measured at, and what `summonCdFor` scales from. */
 export const SUMMON_CD = 1.4
 
 /**
@@ -1317,23 +1490,25 @@ export const SUMMON_WAVES_MAX = 6
  * five seconds longer to finish and the suppression outlasts the crowd.
  *
  * The budget therefore gets SMALLER rather than rearranged or stretched, and
- * `SUMMON_BUDGET` — which prices the boss's bar — is derived from this array so
- * the two can never drift apart.
+ * `SUMMON_BUDGET` is derived from this array so the two can never drift apart.
+ * (The wall's HEALTH is no longer priced off the body count at all — it is
+ * seconds of the crowd's fire, split across however many bodies the crowd scale
+ * raises; see `SUMMON_WALL_SHARE`. The ramp still decides how the bodies are
+ * spread across the waves.)
  */
 export const SUMMON_WAVE_RAMP: readonly number[] = [2, 4, 4, 4, 4, 4]
 
 /** Bodies in wave `n` (1-based). Past the ramp it is the flat size, but the
  *  budget in `SUMMON_WAVES_MAX` means nothing ever asks. */
 /**
- * Every body the summoner will ever field — the ramp's own sum.
+ * Every body the summoner will ever field at the authored size — the ramp's own
+ * sum, before the crowd scale (`summonBudgetBodies`).
  *
- * `bossHpMulFor` prices the printed health bar off this: the health the boss
- * gives away in bodies is taken back off its own bar, so the fight is the same
- * size as every other kind's. DERIVED from the ramp rather than written down as
- * `SUMMON_WAVES_MAX x SUMMON_PER_WAVE`, because the two can now disagree — the
- * opening wave is deliberately smaller than the flat size — and a price that
- * reads a product the ramp no longer matches is a boss quietly resized by a
- * pacing edit.
+ * It priced the printed bar until the wall was priced in seconds of fire
+ * (`SUMMON_WALL_SHARE`); it is kept as the ramp's total because the ramp is
+ * still what decides how a budget is spread across its waves. DERIVED from the
+ * ramp rather than written down as `SUMMON_WAVES_MAX x SUMMON_PER_WAVE`, because
+ * the two disagree — the opening wave is deliberately smaller than the flat size.
  */
 export const SUMMON_BUDGET = SUMMON_WAVE_RAMP.reduce((a, b) => a + b, 0)
 
@@ -1341,30 +1516,137 @@ export const summonWaveSize = (n: number): number =>
   SUMMON_WAVE_RAMP[n - 1] ?? SUMMON_PER_WAVE
 
 /**
- * One summon's health, as a share of the BOSS's own bar.
+ * ─── The wall, priced like the boss ─────────────────────────────────────────
  *
- * Priced off the boss and not off the stage's husk, and that is a correction
- * rather than a preference: foe health is LINEAR in the stage (`foeHpScale`) and
- * boss health is exponential over stages 5-12 (`bossHpScale`), so a wall priced
- * as husks is a real wall at stage 6 and wet paper by stage 20 — the summoner
- * would quietly stop being a summoner exactly where the player got good.
+ * The share of the summoner's whole fight that stands in the road as bodies.
  *
- * 2.5 % x 24 bodies is 60 % of the boss's bar, which `bossHpMulFor` takes
- * back off the printed number so the whole fight is the same size as everyone
- * else's.
+ * Each body used to be 2.5 % of the boss's own bar (`SUMMON_HP_SHARE`, retired
+ * 2026-09-18), itself a correction of an older wall priced as husks. Both were
+ * fractions of something that had become tiny: measured on the shipping build,
+ * the summoner died in 3.5-5.7 s on every stage from 6 to 38, spent one or two
+ * of its six waves, and cost the crowd **0 %** — every body died a fraction of a
+ * second after it rose, long before it reached anybody. The owner: "the summoner
+ * also needs a rebalance, and his minions based on the adaptive difficulty".
+ *
+ * The fight is now `bossFightSeconds` of the run's own fire like every boss,
+ * and this share of it is WALL: the bodies across the whole budget add up to
+ * half the fight, the printed bar to the other half (`bossHpMulFor`). So the
+ * wall follows the run exactly as the bar does — a crowd twice as strong meets
+ * bodies twice as tough, a weak run's longer rung is a thicker wall — and a
+ * wave is always worth the same seconds of THIS crowd's fire, whoever it is.
  */
-export const SUMMON_HP_SHARE = 0.025
+export const SUMMON_WALL_SHARE = 0.45
+
+/**
+ * How many bodies a wave raises, as a multiple of the ramp, against the crowd
+ * that walked in.
+ *
+ * Four skeletons in front of three thousand survivors is not a wall, it is a
+ * rounding error with a sprite — and it plays like one: a wave that is one or
+ * two targets dies to a volley or two however tough it is priced. So the COUNT
+ * follows the crowd, log-scaled from the ramp as authored at `SUMMON_CROWD_REF`
+ * up to `SUMMON_CROWD_SCALE_MAX` times it. The wall's HEALTH does not move with
+ * this — it is seconds of fire, split across however many bodies there are — so
+ * a bigger crowd meets a wider wall of weaker bodies: the same seconds of
+ * shooting, spread across more of the road and more of the crowd's front.
+ */
+export const SUMMON_CROWD_REF = 80
+export const SUMMON_CROWD_SCALE_MAX = 2
+
+export const summonCrowdScale = (squad: number): number =>
+  Math.max(1, Math.min(
+    SUMMON_CROWD_SCALE_MAX,
+    1 + 0.5 * Math.log2(Math.max(1, squad) / SUMMON_CROWD_REF)
+  ))
+
+/** Bodies in wave `n` for a crowd of `squad` at the arena door. */
+export const summonWaveBodies = (n: number, squad: number): number =>
+  Math.max(1, Math.round(summonWaveSize(n) * summonCrowdScale(squad)))
+
+/** …and in the whole budget — what the wall's price is divided across. */
+export const summonBudgetBodies = (squad: number): number => {
+  let n = 0
+  for (let w = 1; w <= SUMMON_WAVES_MAX; w++) n += summonWaveBodies(w, squad)
+  return n
+}
+
+/**
+ * How fast a summon walks, against the husk it wears.
+ *
+ * Faster, and the reason is arithmetic about contact: a body that takes 2.1 s to
+ * cross `SUMMON_AHEAD` meets a crowd that has had 2.1 s to shoot it, and at any
+ * wall price a crowd can live with, that is a wall that never arrives. At ×1.4
+ * the walk to the front rank is 1.5 s — a wave the crowd does not start shooting
+ * promptly reaches it, one it does mostly does not.
+ */
+export const SUMMON_SPEED_MUL = 1.5
 
 /**
  * How hard a summon bites, against the husk it is wearing.
  *
- * Cut, because eighteen of them arrive at a crowd that cannot walk away from
- * them: the boss phase gives the crowd no forward speed, so a summoned pack
- * stands on the squad for the rest of the fight rather than being driven past.
- * At the husk's full bite the wave cap bounds the fight's LENGTH and nothing
- * bounds its COST.
+ * It was cut to 0.7 when the wave cap bounded the fight's LENGTH and nothing
+ * bounded its COST: eighteen bodies at a full bite standing on a crowd that
+ * cannot walk away from them. The wall is priced now — its health is seconds of
+ * the crowd's fire, not a free total — so the husk's own bite is back. A wall
+ * the crowd shoots down costs nothing; the bodies that get through are the price
+ * of not shooting it, and they should be felt.
  */
-export const SUMMON_BITE_MUL = 0.7
+export const SUMMON_BITE_MUL = 2
+
+/**
+ * Seconds between waves, as a function of how long the fight is priced to run.
+ *
+ * `SUMMON_CD` (1.4 s) was measured on a fight of about eight seconds of fire,
+ * and a fixed cadence under a fight priced by the run arrives wrong for
+ * everybody else: a strong run's short fight is over after two waves (the
+ * "0 % lost" rows of the old table), and a long fight's waves bunch at its front
+ * and leave a bare second half. So the cadence stretches with the fight —
+ * `SUMMON_CD` per `SUMMON_CD_REF_S` of fire, clamped. That also keeps the wall's
+ * PRESSURE flat: each wave is worth a fixed share of the fight and they arrive
+ * a fixed share of the fight apart, so the fraction of the crowd's fire the wall
+ * claims while it is rising is the same at every depth and on every rung — the
+ * compounding `summonSpan`'s history warns about, held constant by
+ * construction rather than by a tuned number.
+ */
+export const SUMMON_CD_REF_S = 8
+export const SUMMON_CD_MIN = 1.6
+export const SUMMON_CD_MAX = 3
+export const summonCdFor = (fightSeconds: number): number =>
+  Math.max(SUMMON_CD_MIN, Math.min(SUMMON_CD_MAX, 2 * SUMMON_CD * (fightSeconds / SUMMON_CD_REF_S)))
+
+/**
+ * The summoner's guard gates: one every seventh of the bar, where every other
+ * boss has two.
+ *
+ * A guard gate is where a boss plants, goes immune and pays the player a beat
+ * (see `bossGuardPayoff`), and the summoner's beat is a WAVE. Two gates were
+ * enough while the summoner's waves ran on their own clock. They stopped being
+ * enough the moment the wall was priced in the fight's own seconds: measured
+ * with the depth band in, the stage-10 to stage-30 summoner died in 3.7-6.6 s
+ * having raised ONE to three of its six waves — the crowd took the bar in the
+ * 2.4 s before the first wave and the gaps after it, and the wall the fight was
+ * priced against never stood.
+ *
+ * So the wall answers the bar. Every seventh of it, the summoner plants and
+ * calls the next wave, and the damage that would carry it past the gate is
+ * forfeit — the same clamp that stops a thousand-strong crowd skipping a
+ * meteor's swing (`damageBoss`). The whole budget (`SUMMON_WAVES_MAX`) is
+ * fielded before the bar can be finished, however hard the crowd hits, which is
+ * what "a wall between you and the boss" means and what makes the fight the
+ * length it was priced at.
+ *
+ * One gate PER WAVE rather than one per wave after the opener, and the spare is
+ * the point: a strong crowd reaches the first gate inside the opening beat, and
+ * then the opening wave is the one that pays it (the gate may not pull the
+ * lesson earlier — see `damageBoss`). With a gate short, that crowd saw five
+ * waves of six. It is the SAME budget the cadence spends, so a gate can only
+ * bring a wave earlier, never add one — and a gate that finds the budget spent
+ * is not there at all (`damageBoss`), rather than a plant with nothing in it.
+ */
+export const SUMMON_GUARD_GATES: readonly number[] = Array.from(
+  { length: SUMMON_WAVES_MAX },
+  (_, i) => 1 - (i + 1) / (SUMMON_WAVES_MAX + 1)
+)
 
 /** Which body they wear. A skeleton knight — the roster's marrowknight, so the
  *  summoner is calling up something the player has already learned to read. */
@@ -2347,8 +2629,8 @@ export const GAZE_STRIKE_HALF_W = CROWD_MAX_R + 0.35
 
 /** The attacks a boss can draw. `primary` is the kind's own attack (the ring,
  *  the rake, the bolt, the line wave); `variant` its second verb; `charge` the
- *  phase-two lane charge. */
-export type BossVerb = 'primary' | 'variant' | 'gaze' | 'charge'
+ *  phase-two lane charge; `drain` the healer's big blow (`DRAIN_SHARE_MUL`). */
+export type BossVerb = 'primary' | 'variant' | 'gaze' | 'charge' | 'drain'
 
 /**
  * Every attack this fight can draw, right now.
@@ -2371,6 +2653,14 @@ export type BossVerb = 'primary' | 'variant' | 'gaze' | 'charge'
  */
 export const bossVerbPool = (kind: BossKind, stage: number, enraged: boolean): BossVerb[] => {
   const pool: BossVerb[] = ['primary']
+  // ── The drain is the healer's from its first fight ──
+  //
+  // Not a tier like the second verbs. It is the answer to "the healer is a
+  // shooting target", and a healer met on stage 7 without it would be the fight
+  // the owner rejected, met first. In the bag rather than on a schedule of its
+  // own, so bolts and drains come out equally often in a shuffled order — the
+  // heal keeps its own clock either way (see below).
+  if (kind === 'healer') pool.push('drain')
   const variant = bossVariantFor(kind)
   // The ward is the healer's variant and it rides on the heal (see above), so
   // it is the one second verb that never enters the bag.

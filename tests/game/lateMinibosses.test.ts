@@ -314,9 +314,18 @@ describe('the burrower arrives where the crowd was, not where it is', () => {
   it('costs a moving crowd far less than one that stops, and a reversing one most', async () => {
     // The three answers, side by side. This is the whole fight: movement in any
     // direction buys separation, stopping does not, and turning around spends it.
+    // MOVING means moving: the same constant-speed triangle the trail spec above
+    // uses, for the reason written there. This was a square wave — hold one rail
+    // for 1.76 s, cross, hold the other — which is mostly STANDING at an edge, so
+    // whether it dodged came down to where the eruptions fell in that cycle. The
+    // 2026-09-18 re-cut of stage 9 moved the burrower's spawn frame and the same
+    // policy measured 221 against 308 for standing; swept continuously it is 36.
     const moving = await road({
       stage: BURROWER_STAGE, kind: 'burrower', squad: 320,
-      steer: (_g, _e, tick) => (Math.floor(tick / 110) % 2 === 0 ? -3.8 : 3.8)
+      steer: (_g, _e, tick) => {
+        const t = (tick % 160) / 160
+        return t < 0.5 ? -3.8 + t * 2 * 7.6 : 3.8 - (t - 0.5) * 2 * 7.6
+      }
     })
     const still = await road({
       stage: BURROWER_STAGE, kind: 'burrower', squad: 320, steer: () => 0

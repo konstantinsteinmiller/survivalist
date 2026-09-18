@@ -1,4 +1,4 @@
-import { BULLET_R, CRATE_R, LANE_HALF, SHOOTERS, stageSpeed } from '@/game/survival'
+import { BULLET_R, CRATE_R, LANE_HALF, SHOOTERS, STAGE_RUN_BLEND_TO, stageSpeed } from '@/game/survival'
 
 /**
  * ─── Weapon upgrades — the puzzle prize ─────────────────────────────────────
@@ -658,6 +658,22 @@ export const WEAPON_STAGE = 4
  */
 export const WEAPON_PICK_STAGE = 3
 
+/**
+ * …and the stage the choice is OFFERED on the way into: straight after the
+ * first boss (owner's call, 2026-09-18 — "a session extender for first-time
+ * players").
+ *
+ * The first kill is the funnel's biggest exit, and a choice is the strongest
+ * reason to press on the game has: a player who picked the rockets wants to see
+ * the rockets. So the stage-1 kill no longer hands over a fixed launcher — the
+ * player picks the boss's reward, once, and the pick is theirs for stage 2 at
+ * the loaner's power (`BOSS_REWARD_DAMAGE_MUL`, the stage-2 lesson stays
+ * intact) and for `WEAPON_PICK_STAGE` at full power, exactly as before. A player
+ * who closed the tab on the card still opens stage 2 holding the launcher, and
+ * is offered the choice on the way into stage 3 instead.
+ */
+export const WEAPON_PICK_OFFER_STAGE = 2
+
 /** The two cards on the reveal, in the order they are laid out. */
 export const WEAPON_PICK_CHOICES: readonly WeaponId[] = ['rocket', 'gatling']
 
@@ -714,10 +730,53 @@ export const isWeaponId = (v: unknown): v is WeaponId =>
  */
 export const WEAPON_EVERY = 2
 
+/**
+ * ─── …except on the long middle road, where every stage carries one ─────────
+ *
+ * 2026-09-18, the owner's length pass ("weapon upgrade distribution anew"). The
+ * every-other cadence above is right where it was written — the teaching road,
+ * 4-15, where every box is a DEBUT or the return of one of the first two, and
+ * the bare road between two boxes is what sells the next one. It is kept there
+ * exactly, box for box.
+ *
+ * From 16 it stops paying for itself, for two measured reasons:
+ *
+ *   • THE ARSENAL IS COMPLETE. Six weapons, one box every other stage, and the
+ *     rotation needs FOURTEEN stages to show each weapon once — about twenty
+ *     minutes of play between two meetings with the same gun, against a shop
+ *     that sells each one its own power track (`weaponPowerMul`). A purchase the
+ *     player cannot use for twenty minutes is dead money.
+ *   • THE ROADS GOT LONGER. 16-29 went from 38-45 s of running to 47-57 s, so
+ *     "every other stage" became a box every ~2.5 minutes of play, and the
+ *     stretch a player spends on the squad's own gun between two of them grew
+ *     with it.
+ *
+ * So the long middle road (`LONG_ROAD_FROM`..`STAGE_RUN_BLEND_TO` − 1 in
+ * `track.ts`) carries a box on EVERY stage, and the arsenal comes round every
+ * seven. What stops it from becoming furniture is the thing the prize always
+ * was: it is optional, it costs attention (two levers, a stone each), and it
+ * MOVES — the box's place is dealt stage by stage (`LONG_ROAD_SLOTS` in
+ * track.ts), so one stage's launcher is a whole-road weapon and the next one's
+ * a weapon for the boss alone. It pairs with the other half of the same pass:
+ * the long road carries half again the bodies it did (`fillFoeGaps`,
+ * `layGuards`) and the scripted players kill 57 % more on it, and more to
+ * shoot wants more to shoot it with. (The scripted players never solve a lever
+ * puzzle, so the sims only see the furniture — measured, taking the odd-stage
+ * boxes back off moved no clear rate on the stages checked (19, 27, 28). What a
+ * box is worth to a player is the forced A/B in `scratch.weapons.test.ts`.)
+ *
+ * From `STAGE_RUN_BLEND_TO` (30) the road is the frozen legacy one
+ * (`lateStagesFrozen.test.ts`) and keeps its every-other cadence, box for box.
+ */
+export const WEAPON_EVERY_STAGE_FROM = 16
+
 /** Does this stage's road carry a puzzle at all? The one answer, so the track
  *  generator, the art preloader and the tests cannot drift apart. */
 export const stageHasWeapon = (stage: number): boolean =>
-  stage >= WEAPON_STAGE && (stage - WEAPON_STAGE) % WEAPON_EVERY === 0
+  stage >= WEAPON_STAGE && (
+    (stage >= WEAPON_EVERY_STAGE_FROM && stage < STAGE_RUN_BLEND_TO)
+    || (stage - WEAPON_STAGE) % WEAPON_EVERY === 0
+  )
 
 /**
  * Which weapon this stage's box holds.
@@ -764,10 +823,23 @@ export const WEAPON_DEBUT: Readonly<Record<WeaponId, number>> = {
 }
 
 /** The campaign's hand-authored deal, stage by stage. The stages between the
- *  debuts go back to the originals, so the first two never disappear. */
+ *  debuts go back to the originals, so the first two never disappear.
+ *
+ *  The ODD stages 17-29 are the long middle road's extra boxes (see
+ *  `WEAPON_EVERY_STAGE_FROM`). The even ones keep exactly the weapon they always
+ *  dealt — 20-28 fall through to `WEAPON_ROTATION` below, unchanged — and the
+ *  odd ones were searched (all 6^7 deals) against three rules at once: never
+ *  the weapon either side of it (29 included, against 30's dynamo); never a
+ *  weapon twice in the same place on the road (`LONG_ROAD_SLOTS` in track.ts);
+ *  and EVERY seven consecutive boxes show all six weapons, which exactly one
+ *  deal manages — 16-29 reads rocket, gravecall, hoard, rocket, grapeshot,
+ *  dynamo, gatling, hoard, gravecall, grapeshot, rocket, dynamo, hoard, gatling.
+ *  The hoard keeps its debut on 18, so 17 is not it. */
 const WEAPON_CAMPAIGN: Readonly<Record<number, WeaponId>> = {
   4: 'gatling', 6: 'rocket', 8: 'grapeshot', 10: 'dynamo',
-  12: 'gatling', 14: 'gravecall', 16: 'rocket', 18: 'hoard'
+  12: 'gatling', 14: 'gravecall', 16: 'rocket', 18: 'hoard',
+  17: 'gravecall', 19: 'rocket', 21: 'dynamo', 23: 'hoard',
+  25: 'grapeshot', 27: 'dynamo', 29: 'gatling'
 }
 
 /**
@@ -1347,8 +1419,10 @@ export interface WeaponBox {
    * no armour to be locked by — so what actually opened it was the proximity
    * test at the top of `stepWeaponBoxes` ("nothing is covering this any more"),
    * which does not run until the box is inside `anchorY + 6`. Measured on
-   * stage 2 (speed 5.21 u/s, `CROWD_SCREEN_Y × VIEW_HEIGHT` = 13.68 units of
-   * visible road):
+   * stage 2 under the pre-2026-09-18 camera (speed 5.21 u/s, 13.68 units of
+   * visible road — ~14.3 to the top edge and ~11-12 under the HUD bar since the
+   * zoom, which shortens the first bullet below by a few tenths and changes
+   * none of the argument):
    *
    *   • the box slides on screen 13.68 units out — 2.63 s before contact;
    *   • it read as a SHUT grey crate under a cross-brace for the first 7.68 of

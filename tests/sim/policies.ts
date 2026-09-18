@@ -75,7 +75,10 @@ import {
   type Pickup,
   type Rock
 } from '@/game/survival'
-import { BURROWER_BLAST_R, WARDEN_SLAB_HALF_W, wardenSlabXs } from '@/game/threats'
+import {
+  BURROWER_BLAST_R, CLAW_SPACING, DRAIN_HALF_W, SHOCK_EYE_MARGIN, WARDEN_SLAB_HALF_W, wardenSlabXs
+} from '@/game/threats'
+import { slamRadiusFor } from '@/game/survival'
 import type { Incoming } from '@/use/useSurvivalGame'
 
 // ─── The world, as a policy sees it ─────────────────────────────────────────
@@ -541,6 +544,9 @@ export const safeLeafAnchor = (leaf: Gate, view: View): number => {
 
 /** Is the column between the crowd and this leaf clear enough to charge it? */
 const canPump = (leaf: Gate, view: View): boolean => {
+  // The sim refuses to charge a face-down door (`stepGates`), so no policy may
+  // count on pumping one.
+  if (leaf.mystery) return false
   const aim = safeLeafAnchor(leaf, view)
   for (const b of view.barricades) {
     if (b.dead || b.y <= view.anchorY || b.y >= leaf.y) continue
@@ -568,8 +574,16 @@ const canPump = (leaf: Gate, view: View): boolean => {
  *   div — strictly negative, always.
  */
 export const leafValue = (leaf: Gate, view: View, withPump: boolean): number => {
+  // A shield door pays no survivors (`GatePrize`); its `+0` is a placeholder.
+  if (leaf.prize) return 0
   if (leaf.op === 'div') return -view.squad * (1 - 1 / Math.max(2, leaf.value))
   if (leaf.op === 'mul') return view.squad * (leaf.value - 1)
+  // A `−N` is a BILL. It fell through to the add branch below until
+  // 2026-09-18 and was scored as `+N`, so `good` and `optimal` chose a bill
+  // over any smaller add and always took the bill in a dilemma — two stage
+  // agents priced whole roads around that bug before it was fixed. Never
+  // pumped: fire only makes a bill bigger.
+  if (leaf.op === 'sub') return -Math.min(view.squad, Math.max(1, Math.round(leaf.value)))
   let value = leaf.value
   if (withPump && canPump(leaf, view)) {
     const dist = Math.max(0, leaf.y - view.anchorY)
@@ -592,7 +606,7 @@ export const leafValue = (leaf: Gate, view: View, withPump: boolean): number => 
  * crowdR` away from `slamX` before the timer runs out, then come back under the
  * boss so the rounds keep landing.
  */
-const bossDance = (view: View, dodge: boolean): number => {
+const bossDance = (view: View, dodge: boolean, reads = false): number => {
   const b = view.boss
   if (!b || b.dead) return view.anchorX
   // ── The gaze: the one attack answered by NOT moving ──
@@ -609,10 +623,74 @@ const bossDance = (view: View, dodge: boolean): number => {
   // stops dead the moment the target does, which is what a thumb coming off the
   // glass looks like.
   if (dodge && view.incoming?.kind === 'gaze') return view.anchorX
+  // ── The healer's drain, once it has LANDED ──
+  //
+  // The wind-up needs nothing new: the column is locked on `slamX` like every
+  // aimed attack, so the generic dodge below already leaves it. What it does
+  // not know is that this attack goes on after its beat — the beam HOLDS
+  // (`DRAIN_HOLD_S`) and takes whoever walks back into the column, while the
+  // generic dodge walks straight back under the boss the moment the cooldown
+  // resets. The sim says a beam is holding by reporting `drain` with nothing
+  // left to count down, and the column is still `slamX` (nothing is aimed under
+  // a beam).
+  //
+  // Given to `optimal` and `good` only — the rule the elite pool follows (see
+  // `eliteAttackIntervals`): `average` still dodges the wind-up with its
+  // latency, and pays for walking back early, which is the spread the study
+  // exists to measure. Handing it the whole answer would erase it; handing it
+  // to nobody would make the balance suite read the hold as an unanswerable tax.
+  if (dodge && reads && view.incoming?.kind === 'drain' && view.incoming.ttl <= 0) {
+    const need = DRAIN_HALF_W + view.crowdR + 0.2
+    const left = b.slamX - need
+    const right = b.slamX + need
+    if (Math.abs(view.anchorX - b.slamX) >= need) return view.anchorX
+    const opts = [left, right].filter((x) => x >= -STEER_CLAMP && x <= STEER_CLAMP)
+    if (opts.length === 0) return clampLane(b.slamX >= 0 ? -STEER_CLAMP : STEER_CLAMP)
+    return clampLane(opts.sort((p, q) => Math.abs(p - view.anchorX) - Math.abs(q - view.anchorX))[0]!)
+  }
   // Bullets fly straight up, so damage only lands while the crowd is roughly
   // under the body. A dodge that never comes back never kills anything.
   if (!dodge) return clampLane(b.x)
   if (b.slamCd > SLAM_TELEGRAPH + 0.02) return clampLane(b.x)
+
+  // ── The three swings whose answer is not "3.6 units off the mark" ──
+  //
+  // Added with the depth band (2026-09-18), for the reason the drain's hold is
+  // above: once every boss is priced to last as long as stage 1's, a policy
+  // that answers an attack with the wrong geometry pays for it three times as
+  // often, and the suite reads the attack as an unanswerable tax. Measured on
+  // stage 12's claw with the generic step, `optimal` lost 45-97 % of a 327-strong
+  // crowd to rakes it had "dodged" — 3.6 units off a rake's centre is the edge of
+  // its outer furrow. Each answer below is the one the attack's own telegraph
+  // draws. `optimal` and `good` only, the rule `eliteAttackIntervals` follows.
+  if (reads && b.aimed) {
+    const kind = view.incoming?.kind
+    if (kind === 'rake') {
+      // Into the nearer POCKET, halfway between the centre furrow and an outer
+      // one — the only ground the rake leaves.
+      const pockets = [b.slamX - CLAW_SPACING / 2, b.slamX + CLAW_SPACING / 2]
+        .filter((x) => Math.abs(x) <= STEER_CLAMP)
+      if (pockets.length > 0) {
+        return clampLane(pockets.sort((p, q) => Math.abs(p - view.anchorX) - Math.abs(q - view.anchorX))[0]!)
+      }
+    }
+    if (kind === 'shock') {
+      // INTO the eye — the one attack whose mark is the safe ground. Aimed a
+      // hair inside it (`SHOCK_EYE_MARGIN`), so the spring's overshoot lands in
+      // the eye rather than on the band.
+      const off = b.slamX - view.anchorX
+      return clampLane(Math.abs(off) <= SHOCK_EYE_MARGIN * 0.5 ? view.anchorX : b.slamX)
+    }
+    if (kind === 'slam' && b.charging) {
+      // The charged ring is twice the size, so the step off it is too.
+      const need = slamRadiusFor(b.slams, true) + view.crowdR + 0.2
+      const opts = [b.slamX - need, b.slamX + need].filter((x) => Math.abs(x) <= STEER_CLAMP)
+      if (opts.length > 0) {
+        return clampLane(opts.sort((p, q) => Math.abs(p - view.anchorX) - Math.abs(q - view.anchorX))[0]!)
+      }
+      return clampLane(b.slamX >= 0 ? -STEER_CLAMP : STEER_CLAMP)
+    }
+  }
 
   const need = SLAM_RADIUS + view.crowdR + 0.2
   const left = b.slamX - need
@@ -679,13 +757,27 @@ const mulberry32 = (seed: number): (() => number) => {
 /**
  * How far ahead a policy is allowed to look.
  *
- * The camera leads the crowd by `CAMERA_LEAD` (5.4) and shows `VIEW_HEIGHT`
- * (19) units, so a real player can see roughly 15 units of road. `optimal` is
- * allowed the full streaming window (30) because it is a benchmark, not a
- * claim about what a human can see; everyone else is capped at what is on the
- * screen.
+ * `optimal` is allowed the full streaming window (30) because it is a
+ * benchmark, not a claim about what a human can see; everyone else is capped
+ * at what is on the screen.
+ *
+ * THIRTEEN since the camera was re-solved from the gun's range (2026-09-18,
+ * `cameraScale` in `game/survival.ts`). It was 15, off the old HUD-fitted
+ * frame's 14.0–14.6 units readable under the HUD strip and 16–19 to the canvas
+ * edge. Now the canvas edge is 14.31 units ahead (14.5–14.9 on a portrait
+ * phone), the strip's lower edge 10.8–12.4, and what an eye actually reads a
+ * door through is the gap between the strip's widgets down to the progress
+ * rail across the lane — measured in the browser at 13.1 (390x844, 360x780),
+ * 12.8 (1920x960) and 12.3 (1280x720). 13 is that line.
+ *
+ * Measured impact, A/B in one process on stages 1–12 x seeds 1–3: `good`,
+ * `average` and `careless` are IDENTICAL run for run — they read a bank only
+ * once it is inside `COMMIT_LATE` (7.5), so any vision past that changes
+ * nothing. Only `trailFollower`'s coin chase sees it (9 of 36 runs differ,
+ * squad at the boss +7 % summed, clears 12 vs 12), and that policy feeds the
+ * study tables, not the balance gates.
  */
-const VISION_SCREEN = 15
+const VISION_SCREEN = 13
 const VISION_ORACLE = 29
 
 /** Committing to a leaf this many units out. Early = more pump, more exposure. */
@@ -706,7 +798,7 @@ export const optimal: Policy = {
   describes: 'Plays the intended line: values every leaf, pumps early, takes every safe crate, never touches a pillar.',
   reset() {},
   decide(view) {
-    if (view.phase === 'boss') return bossDance(view, true)
+    if (view.phase === 'boss') return bossDance(view, true, true)
 
     const bank = nearestBank(view, VISION_ORACLE)
     const crate = crateWorthDetour(view, VISION_ORACLE)
@@ -757,7 +849,7 @@ export const good: Policy = {
   describes: 'Routes correctly and aims properly, but takes leaves at face value, commits late and never detours for supplies.',
   reset() {},
   decide(view) {
-    if (view.phase === 'boss') return bossDance(view, true)
+    if (view.phase === 'boss') return bossDance(view, true, true)
 
     const bank = nearestBank(view, VISION_SCREEN)
     let desired = view.anchorX

@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import {
   BARRICADE_COIN_MAX, BARRICADE_COIN_MIN,
-  BARRICADE_H, BASE_FIRE_RATE, ROCK_H, BOSS_BASE_HP, bossGuardGates, dividerCrushFor,
+  BARRICADE_H, BASE_FIRE_RATE, ROCK_H, bossGuardGates, dividerCrushFor,
   GATE_SCALE_STEP, gatePumpCap, gatePumpStep, gateTickMs, isScaleOp,
   earlyBigHitMul,
   BULLET_LIFE_MS, BULLET_R, BULLET_SPEED, effectiveBulletRange,
@@ -37,7 +37,7 @@ import {
   WARDEN_CAGE_LEAD,
   WARDEN_CAGE_X
 } from '@/game/survival'
-import { arenaKit, bossDesign, bossHpScale, foeDef, foeHpScale } from '@/game/foes'
+import { arenaKit, bossDesign, foeDef, foeHpScale } from '@/game/foes'
 import {
   BOSS_REWARD_DAMAGE_MUL, BOSS_REWARD_STAGE, BOSS_REWARD_WEAPON,
   GUARD_H, LEVER_R, ROCKET_SPLASH_SHARE, STONE_H, WEAPONS, WEAPON_BOX_R, WEAPON_PICK_STAGE,
@@ -56,7 +56,8 @@ import {
   adaptiveBigHitMul, adaptiveBossHp, adaptiveBossSeconds, adaptiveBossStage, adaptiveEliteHp,
   adaptiveYardstick,
   ADAPTIVE_BOSS_STAGES,
-  clampAdaptiveSeconds, meltFloorStage, BOSS_MIN_FIRE_SECONDS, BOSS_FLOOR_GRENADE_MULT,
+  clampAdaptiveSeconds, depthBandStage, bossFightSeconds, BOSS_BAR_DIALS_MAX, BOSS_GRENADE_BAR_SHARE,
+  DEPTH_BAR_SWING,
   type AdaptiveFight,
   ELITE_FIRE_SECONDS,
   tutorialEliteFireSeconds
@@ -91,6 +92,14 @@ import {
   GUNNER_TELEGRAPH,
   HEALER_CAST_CD,
   HEALER_TELEGRAPH,
+  DRAIN_FIRST_BITE,
+  DRAIN_HALF_W,
+  DRAIN_HEAL_FRACTION,
+  DRAIN_HEAL_MAX,
+  DRAIN_HOLD_S,
+  DRAIN_SHARE_MUL,
+  DRAIN_TELEGRAPH_MIN,
+  inDrainColumn,
   HEAL_EVERY,
   HEAL_FRACTION,
   HEAL_MAX_CASTS,
@@ -104,7 +113,12 @@ import {
   SUMMON_BITE_MUL,
   SUMMON_CD,
   SUMMON_DESIGN,
-  SUMMON_HP_SHARE,
+  SUMMON_SPEED_MUL,
+  SUMMON_WALL_SHARE,
+  summonBudgetBodies,
+  summonCdFor,
+  summonWaveBodies,
+  SUMMON_GUARD_GATES,
   SUMMON_MERCY_CD,
   SUMMON_MERCY_CD_MIN,
   SUMMON_MERCY_FLANK,
@@ -168,7 +182,6 @@ import {
   shockEyeX,
   shockOuterR,
   shuffleBag,
-  summonWaveSize,
   wardX,
   wardenSlabXs,
   wardenSlotX,
@@ -404,7 +417,7 @@ let bossBolts: BossBolt[] = []
  * ─── Phase two, as module state ─────────────────────────────────────────────
  *
  * There is exactly one boss in flight at a time, so this lives beside the boss
- * itself rather than on the `Boss` record — the same decision `bossFloored` and
+ * itself rather than on the `Boss` record — the same decision `bossDepthPriced` and
  * `bossSwingMul` made, for the same reason: they are facts about the fight
  * standing in the arena, not fields every spawn site has to remember to seed.
  * Declared HERE, with `boss`, rather than beside `stepBoss` where the rest of
@@ -513,6 +526,21 @@ const BOSS_PATTERN_SALT: number = import.meta.env.MODE === 'test'
 let summonFlankNext = false
 
 /**
+ * The summoner's wall, priced once when the arena opens — see
+ * `SUMMON_WALL_SHARE`. `summonBodyHp` is one body's health (the wall's seconds
+ * of fire split across every body the budget will raise), `summonSquad` the
+ * crowd that walked in (which sets how many bodies a wave raises —
+ * `summonWaveBodies`), and `summonCd` the cadence this fight's length earned
+ * (`summonCdFor`). Latched rather than read live for `bossSwingMul`'s reason:
+ * a wall that shrank as it ate the crowd would get easier exactly as the
+ * player started losing to it, and one that grew would be the compounding the
+ * whole archetype is built to avoid.
+ */
+let summonBodyHp = 1
+let summonSquad = 0
+let summonCd = SUMMON_CD
+
+/**
  * The crossrake's second pass, in flight.
  *
  * `left` is the budget the two passes SHARE, which is the whole of why this is
@@ -542,6 +570,37 @@ let crossrake: {
 let bossWarded = false
 let bossWardX = 0
 let bossWardY = 0
+
+/**
+ * ─── The healer's drain, as module state ────────────────────────────────────
+ *
+ * `bossDraining` is the latch for the cycle being WOUND UP, with the discipline
+ * every other latch here keeps: set where the healer decides its next cast
+ * (`throwHealerCast`, and the opener in `spawnBoss`), read where it is announced
+ * (`aimBoss`) and where it resolves.
+ *
+ * `drainBeam` is the beam once it has LANDED and is holding (`DRAIN_HOLD_S`) —
+ * the one boss attack that goes on taking survivors after its beat, and so the
+ * one that needs its own object. `budget` is the most the whole drain may take
+ * (priced once, on the beat, so the bulwark sees all of it), `taken` what it has
+ * so far. Module scratch for the crossrake's reason: one boss, and nothing
+ * outside this module writes it.
+ *
+ * `drainHealed` is what this FIGHT's drains have put back between them, as a
+ * share of the bar — see `DRAIN_HEAL_MAX`.
+ */
+let bossDraining = false
+let drainBeam: {
+  x: number
+  halfW: number
+  y: number
+  fromY: number
+  t: number
+  budget: number
+  taken: number
+  healed: number
+} | null = null
+let drainHealed = 0
 /** The column a charge is committed to, locked at the start of the wind-up. The
  *  band the player reads and the bodies the charge bills are the same numbers. */
 let bossChargeLane = 0
@@ -1314,6 +1373,9 @@ const resetWorld = (): void => {
   summonFlankNext = false
   bossWarded = false
   crossrake = null
+  bossDraining = false
+  drainBeam = null
+  drainHealed = 0
   // The late skills belong to the road they were cast on. The cooldown does not
   // (`useSkills` keeps it in the save); the freeze and the flare do.
   frostLeft = 0
@@ -1569,7 +1631,7 @@ export const primeCutsceneWorld = (): void => {
     phase: 0,
     // ── More than twice the size it fights at, and that is the camera's job ──
     //
-    // The playing camera fits the LANE — 13.7 units of road on screen — which
+    // The playing camera fits the LANE — ~14 units of road on screen — which
     // makes a 2.5-unit boss about a fifth of the frame. That is right for a game
     // where the player has to see what is coming, and wrong for a shot whose
     // whole point is that the thing at the end of the road is enormous.
@@ -1630,9 +1692,12 @@ export const startStage = (n?: number, seed?: number): void => {
   // retry that quietly took back a reward already handed over reads as a
   // punishment for dying.
   const bossGift = !expedition && target === BOSS_REWARD_STAGE + 1 && readBossReward()
+  // The boss's reward is the player's own PICK since it moved to the stage-1
+  // kill (`WEAPON_PICK_OFFER_STAGE`); the launcher is what a player who closed
+  // the tab on the card, or picked nothing yet, is handed instead.
   activeWeapon.value = target === WEAPON_PICK_STAGE
     ? readWeaponPick()
-    : bossGift ? BOSS_REWARD_WEAPON : null
+    : bossGift ? (readWeaponPick() ?? BOSS_REWARD_WEAPON) : null
   weaponPower.value = bossGift ? BOSS_REWARD_DAMAGE_MUL : 1
   sideWeapon.value = null
   sideWeaponPower.value = 1
@@ -2719,7 +2784,18 @@ const streamTrack = (): void => {
  * one place, `useGamePause`, so the simulation never has to know why it stopped.
  */
 export const step = (dtMs: number): void => {
-  if (phase.value === 'clear' || phase.value === 'wipe') return
+  // ── The rounds already in the air finish their flight ──
+  //
+  // A clear stops the world for the boss-felled hold, and the squad keeps firing
+  // right up to that frame — so without this every tracer in flight hung in the
+  // air over the corpse for the whole two seconds. They fly on, hit nothing, and
+  // run out at their range (half a second at most), which is what they would
+  // have done anyway. Nothing else moves: the hold is about the body.
+  if (phase.value === 'clear') {
+    if (bullets.length > 0) stepBullets(Math.min(dtMs, 60) / 1000, false)
+    return
+  }
+  if (phase.value === 'wipe') return
 
   // Ease the slow-motion factor back toward 1. Frame-rate independent, so a
   // 30 fps phone gets the same amount of drama as a 120 Hz tablet.
@@ -3097,9 +3173,9 @@ const stepAnchor = (dt: number): void => {
  * The fight, as the model sees it: this run's firepower and what the boss will
  * do to the crowd producing it.
  *
- * Shared by the ladder (stages 1-5) and the melt floor (6+) so the two can
- * never disagree about what a second of this run's fire is worth — the floor's
- * whole promise is denominated in that number.
+ * Shared by the ladder (stages 1-5) and the depth band (6+) so the two can
+ * never disagree about what a second of this run's fire is worth — every boss
+ * in the game is denominated in that number.
  */
 /**
  * What the crowd's guns multiply its raw `squadDps` by.
@@ -3119,7 +3195,8 @@ const weaponDamageMul = (): number => {
   // fires (`fireGun`), never folded into it. So a main gun priced on `damageMul`
   // alone was priced as a fraction of what it shoots. The gatling (rate ×2.2)
   // got a bar sized for less than half its real output and every adaptive fight
-  // it walked into — bosses on stages 1-5, their elites, the melt floor from 6 —
+  // it walked into — bosses on stages 1-5, their elites, the melt floor from 6 then
+  // (the depth band, now) —
   // ran at about 45 % of its promised length; the launcher (rate ×0.6) ran long.
   // Reported in play as the weapons "boosting survivability by ~4x". The side
   // gun was always priced this way; now the main gun is too.
@@ -3134,10 +3211,24 @@ const weaponDamageMul = (): number => {
   return side ? first + trueMul(side, sideWeaponPower.value) : first
 }
 
+/**
+ * The guard gates this stage's boss owes the player — `bossGuardGates`, except
+ * the summoner's, which pays a wave every sixth of its bar
+ * (`SUMMON_GUARD_GATES`). One function for the two places that need it — the
+ * gate itself (`damageBoss`) and the model that prices the fight around the
+ * immune windows (`fightModel`) — so the two can never disagree about how many
+ * there are.
+ */
+export const guardGatesFor = (s: number): readonly number[] =>
+  s > 1 && bossKindFor(s) === 'summoner' ? SUMMON_GUARD_GATES : bossGuardGates(s)
+
 const fightModel = (openingCd: number): AdaptiveFight => {
   const damageMul = weaponDamageMul()
-  // The bar is priced on the SOFT swing — see the note in `adaptiveHp`.
-  const soft = earlyBigHitMul(stage.value)
+  // The bar is priced on the SOFT swing — see the note in `adaptiveHp`. From
+  // stage 6 there is no beginner's discount left to be soft with, so the depth
+  // band prices on the swing the ladder was calibrated against instead — see
+  // `DEPTH_BAR_SWING` for what pricing on the real one did to the fight.
+  const soft = depthBandStage(stage.value) ? DEPTH_BAR_SWING : earlyBigHitMul(stage.value)
   return {
     squad: squadCount.value,
     perSurvivorDps: damage.value * runFireRate.value * damageMul,
@@ -3150,7 +3241,7 @@ const fightModel = (openingCd: number): AdaptiveFight => {
     // Handing it the budget at full strength would charge a crowd of twenty the
     // bite a crowd of four hundred pays.
     slamMinKill: bossHitFloor(soft),
-    guardPhases: bossGuardGates(stage.value).length,
+    guardPhases: guardGatesFor(stage.value).length,
     openingCd,
     slamCd: SLAM_CD_BASE,
     slamCdDecay: SLAM_CD_DECAY,
@@ -3159,46 +3250,35 @@ const fightModel = (openingCd: number): AdaptiveFight => {
 }
 
 /**
- * The smallest bar this run may be handed on a stage the ladder does not cover.
+ * The bar a boss from the depth band (stage 6 and up) is worth.
  *
- * `BOSS_MIN_FIRE_SECONDS` of this crowd's own fire, integrated the same way the
- * ladder integrates — so it shrinks as the boss kills survivors, exactly like a
- * real fight.
+ * The ladder rung this run earned, stretched by depth (`bossFightSeconds`), cut
+ * to the kind's own share of the fight (`bossHpMulFor` — the healer's give-back,
+ * the summoner's wall) and integrated against what the fight will do to the
+ * crowd, exactly as stages 1-5 are. See `game/adaptive.ts` § "the depth band".
  *
  * ⚠ THE DIALS MULTIPLY THE BAR HERE, not the clock — the opposite of
- * `adaptiveHp` one function up, and the difference is load-bearing.
+ * `adaptiveHp` one function down, and the difference is load-bearing.
  *
- * This number does not replace the authored bar, it sits under it in a
- * `Math.max`. For the difficulty setting and the autobalancer to keep working at
- * all, that max has to COMMUTE with them: `max(a, f) * k` is only the same thing
- * as `max(a * k, f * k)` when both terms scale the same way, and the authored
- * bar scales by the bar.
- *
- * Scaling the clock instead does not, because `adaptiveBossHp` integrates crowd
- * decay and is therefore sub-linear in seconds — 1.78x the clock buys well under
- * 1.78x the health. Both wrong versions were measured:
- *
- *   dials ignored      the floor became the binding number for every stage-6+
- *                      boss and silently switched the autobalancer off. A player
- *                      failing stage 10 three times had the bar go 91 751 ->
- *                      101 424 -> 109 223 instead of being given relief, and a
- *                      clear streak moved it 0.87x where it promises 1.78x.
- *   dials on the clock relief worked again, but the streak still only reached
- *                      1.39x of the 1.78x it advertises.
- *
- * So "three seconds" means three seconds at neutral dials — the same contract
- * stages 1-5 already have. Hard buys a longer climax; a player the balancer has
- * decided to help gets a shorter one, which is the whole point of the balancer
- * and is never the player melting bosses at stage 45.
+ * `adaptiveBossHp` integrates crowd decay and is therefore sub-linear in
+ * seconds, so a dial on the clock under-delivers: measured when this was still
+ * the melt floor, a clear streak that promises ×1.78 enemy health reached only
+ * ×1.39 of bar that way, and with the dials left out entirely a player failing
+ * stage 10 three times had the bar go UP (91 751 → 101 424 → 109 223) instead
+ * of being given relief. On the bar, both work exactly as advertised: Hard buys
+ * a longer climax, a streak a longer one still, and a player the balancer has
+ * decided to help a shorter one.
  */
-const meltFloorHp = (kind: BossKind, openingCd: number): number =>
-  adaptiveBossHp(fightModel(openingCd), BOSS_MIN_FIRE_SECONDS * bossHpMulFor(kind))
-    * difficultyFactor() * hpRelief
+const depthHp = (kind: BossKind, openingCd: number): number =>
+  adaptiveBossHp(
+    fightModel(openingCd),
+    bossFightSeconds(stage.value, squadCount.value, perfectSquad) * bossHpMulFor(kind)
+  ) * Math.min(BOSS_BAR_DIALS_MAX, difficultyFactor() * hpRelief)
 
 const adaptiveHp = (kind: BossKind, openingCd: number): number => {
   // The FLOOR is per stage — see `adaptiveFloorSeconds`. The first fight in the
   // game is the one the session is decided on and it gets five seconds of fire
-  // whatever the run brought; everything deeper keeps the anti-melt floor.
+  // whatever the run brought; stages 2-5 keep the anti-melt floor.
   const seconds = clampAdaptiveSeconds(
     adaptiveBossSeconds(squadCount.value, perfectSquad) * difficultyFactor() * hpRelief,
     stage.value
@@ -3231,33 +3311,33 @@ const adaptiveHp = (kind: BossKind, openingCd: number): number => {
 }
 
 /**
- * True while the boss standing in the arena was priced by the melt floor rather
- * than by the authored curve — i.e. this run is strong enough that the curve
- * had nothing left to offer it. Read by `detonateGrenade`; see
- * `BOSS_FLOOR_GRENADE_MULT`.
+ * True while the boss standing in the arena was priced by the depth band — every
+ * boss from stage 6. Read by `detonateGrenade`, which caps what one bomb may
+ * take of such a bar at `BOSS_GRENADE_BAR_SHARE`.
  */
-let bossFloored = false
+let bossDepthPriced = false
 
 const spawnBoss = (): void => {
-  // Two prices, and which one applies is the whole of `game/adaptive.ts`.
+  // ONE price, read two ways, and which way is the whole of `game/adaptive.ts`.
   //
-  // Stages 1-5 are sized against the run that turned up: the firepower in the
-  // arena times the seconds this player has earned the fight to last. Stage 1
-  // used to be priced separately and far lower (a flat `tutorialBossHp`) so a
-  // first-timer could not lose their first climax, and it no longer needs to
-  // be — a first-timer arrives with a small crowd and is handed the bottom of
-  // the ladder automatically, while the returning player who used to delete
-  // that same boss in half a second now gets three seconds of real fight.
+  // Every boss is sized against the run that turned up: the firepower in the
+  // arena times the seconds this player has earned the fight to last, off one
+  // ladder of rungs (`adaptiveBossSeconds`). Stage 1 used to be priced
+  // separately and far lower (a flat `tutorialBossHp`) so a first-timer could
+  // not lose their first climax, and it no longer needs to be — a first-timer
+  // arrives with a small crowd and is handed the bottom of the ladder
+  // automatically, while the returning player who used to delete that same boss
+  // in half a second now gets a real fight.
   //
-  // From stage 6 the authored curve takes over — with a FLOOR under it, and
-  // nothing else. The curve is still the bar for every run it was authored for;
-  // the floor only bites when that bar would not survive three seconds of this
-  // run's fire, which is a thing that only happens to a run that read the whole
-  // road. Mid and low crowds never reach it and are untouched. See
-  // `game/adaptive.ts` § "The melt floor".
+  // Stages 1-5 read the ladder as it is, with the dials on the clock and a band
+  // around it (`adaptiveHp`). From stage 6 the rung is stretched with depth and
+  // the dials go on the bar (`depthHp`). It used to be the authored curve from
+  // stage 6 with a three-second "melt floor" under it, and measured, that curve
+  // had stopped pricing anything — a summoner died in four seconds on every
+  // stage it appeared on. See `game/adaptive.ts` § "the depth band".
   //
-  // The KIND prices both of them. A healer gives 60 % of its bar back and a
-  // summoner spends a quarter of it on bodies, so charging all four the same
+  // The KIND prices both of them. A healer gives part of its bar back and a
+  // summoner spends part of its fight as bodies, so charging all four the same
   // printed number would make the same stage four different lengths. See
   // `bossHpMulFor`.
   const kind = bossKindFor(stage.value)
@@ -3272,20 +3352,12 @@ const spawnBoss = (): void => {
   // which cast is being wound up.
   const openCd = kind === 'healer' ? HEALER_CAST_CD : 2.6
   // Resolved BEFORE the bar, and read by it: the model has to know what the
-  // fight is going to do to this crowd. See `bossSwingMul`.
-  bossSwingMul = adaptive
-    ? adaptiveBigHitMul(earlyBigHitMul(stage.value), squadCount.value, perfectSquad)
-    : earlyBigHitMul(stage.value)
-  const authored = Math.max(60, Math.round(
-    BOSS_BASE_HP * bossHpScale(stage.value) * bossHpMulFor(kind)
-      * difficultyFactor() * hpRelief
-  ))
-  // `bossFloored` is read by the grenade at detonation, so it has to be decided
-  // here and it has to mean "the authored bar LOST to the floor" rather than
-  // "this stage has a floor". A stage where the curve is already the bigger
-  // number is an ordinary fight and the bomb stays the crowd's answer to it.
-  const floor = adaptive || !meltFloorStage(stage.value) ? 0 : meltFloorHp(kind, openCd)
-  bossFloored = floor > authored
+  // fight is going to do to this crowd. See `bossSwingMul`. Every stage reads
+  // the run now — `earlyBigHitMul` is 1 from stage 6, so there the swing is the
+  // authored share for a crowd that arrived whole and up to `HOPELESS_SLAM_MUL`
+  // of it for one that did not, exactly the promise stage 1 makes.
+  bossSwingMul = adaptiveBigHitMul(earlyBigHitMul(stage.value), squadCount.value, perfectSquad)
+  bossDepthPriced = depthBandStage(stage.value)
   // Phase two belongs to the boss standing in the arena, so it is cleared where
   // that boss is made rather than only where a run is. A rally hands a wiped
   // crowd back mid-run without respawning the boss, and a retry re-enters
@@ -3302,11 +3374,15 @@ const spawnBoss = (): void => {
   summonFlankNext = false
   bossWarded = false
   crossrake = null
+  bossDraining = false
+  drainBeam = null
+  drainHealed = 0
+  if (kind === 'summoner') priceSummonWall(adaptive, openCd)
   // A fresh stream per ATTEMPT — see `bossPatternSeed`. Counted here, where a
   // boss is made, so a retry, a rally-and-retry and a fresh career all count as
   // a new fight and none of them can replay the order the last one drew.
   bossRng = mulberry32(bossPatternSeed(stage.value, bossTry++, BOSS_PATTERN_SALT))
-  const hp = adaptive ? adaptiveHp(kind, openCd) : Math.max(authored, floor)
+  const hp = adaptive ? adaptiveHp(kind, openCd) : Math.max(60, Math.round(depthHp(kind, openCd)))
   boss = {
     kind,
     attacks: 0,
@@ -3358,7 +3434,9 @@ const spawnBoss = (): void => {
     bossVarying = first === 'variant'
     bossGazing = first === 'gaze'
   } else if (kind === 'healer' && !boss.charging) {
-    bossGazing = drawBossVerb(boss) === 'gaze'
+    const first = drawBossVerb(boss)
+    bossGazing = first === 'gaze'
+    bossDraining = first === 'drain'
   }
 
   // ── Furnish the arena ──
@@ -4318,6 +4396,8 @@ export type IncomingKind =
   | 'shock' | 'ward' | 'gap' | 'burrow'
   // …and the one whose answer is neither away nor into: STOP. See `GAZE_WATCH`.
   | 'gaze'
+  // The healer's drain: a column to leave. `away`, like the charge's lane.
+  | 'drain'
 
 export interface Incoming {
   kind: IncomingKind
@@ -4386,6 +4466,12 @@ export const incomingThreat = (): Incoming | null => {
       }
     }
   }
+  // A drain HOLDING is still an instruction — the beam is taking whoever stays
+  // in the column — so the badge stays up through the hold, with nothing left
+  // to count down. A beam down a flare's line is not coming at the crowd.
+  if (b && !b.dead && drainBeam && !bossAimedAtDecoy) {
+    return { kind: 'drain', dodgeable: true, ttl: 0 }
+  }
   // A swing aimed at the flare is not coming at the crowd. The elites below are
   // still asked — they are their own fights.
   if (b && !b.dead && b.aimed && b.slamCd > 0 && !bossAimedAtDecoy) {
@@ -4404,6 +4490,8 @@ export const incomingThreat = (): Incoming | null => {
         ? { kind: 'rake', dodgeable: true, ttl: b.slamCd }
         : { kind: 'shock', dodgeable: true, ttl: b.slamCd }
     }
+    // A drain is a column to leave, so it is `away` — DODGE is the true word.
+    if (b.kind === 'healer' && bossDraining) return { kind: 'drain', dodgeable: true, ttl: b.slamCd }
     if (b.kind === 'healer') {
       // A warded heal is the first version of that cast with an answer in it, so
       // it is reported as its own thing. `dodgeable` still says false — the
@@ -4597,8 +4685,8 @@ export interface Grenade {
   t: number
   power: number
   /** The crowd's DPS and the skill's multiplier at the moment it was thrown,
-   *  kept apart so the boss can be charged a capped multiplier without
-   *  re-deriving either. See `BOSS_FLOOR_GRENADE_MULT`. */
+   *  kept apart so the boss can be charged a capped share without
+   *  re-deriving either. See `BOSS_GRENADE_BAR_SHARE`. */
   dps: number
   mult: number
 }
@@ -5074,14 +5162,16 @@ const detonateGrenade = (g: Grenade): void => {
     // where the road takes 3x), so the bomb is one answer in the fight rather
     // than the whole of it.
     //
-    // Against a FLOORED boss that multiplier is capped as well. The floor prices
-    // the bar at `BOSS_MIN_FIRE_SECONDS` of `squadDps`, and the grenade deals
-    // `squadDps × mult` in one hit — so an upgraded bomb is worth more than the
-    // whole guarantee. Every boss the authored curve still prices takes the
-    // boss multiplier uncapped.
-    const onBoss = grenadeBossMult(g.mult)
-    const mult = bossFloored ? Math.min(onBoss, BOSS_FLOOR_GRENADE_MULT) : onBoss
-    damageBoss(boss, Math.max(1, g.dps * mult), true)
+    // Against a boss from the depth band the HIT is capped as well, at a share of
+    // the bar rather than at a multiplier: that bar is priced in seconds of
+    // `squadDps`, and the grenade deals `squadDps × mult` in one hit, so on the
+    // shortest fights an upgraded bomb would be worth the whole boss. A cap on
+    // the multiplier would make every grenade level past the first worthless
+    // against every boss in the game; a cap on the share only ever bites where
+    // the fight is short. See `BOSS_GRENADE_BAR_SHARE`.
+    const onBoss = Math.max(1, g.dps * grenadeBossMult(g.mult))
+    const hit = bossDepthPriced ? Math.min(onBoss, boss.maxHp * BOSS_GRENADE_BAR_SHARE) : onBoss
+    damageBoss(boss, hit, true)
   }
   for (const bl of barrels) {
     if (bl.dead || bl.fuse >= 0) continue
@@ -5624,8 +5714,10 @@ const fireGun = (
  * bullet's window is a handful of objects, and a hash would cost more to
  * maintain than it saves. The `dy` early-out is what keeps it honest — a bullet
  * never looks at anything it cannot reach this frame.
+ *
+ * `resolve: false` only flies and expires them — the boss-felled hold, see `step`.
  */
-const stepBullets = (dt: number): void => {
+const stepBullets = (dt: number, resolve = true): void => {
   // Read ONCE per frame, not per bullet: `rangeBonus` is a Vue computed and a
   // thousand rounds in flight is a thousand dependency reads for a number that
   // cannot change mid-tick.
@@ -5649,7 +5741,7 @@ const stepBullets = (dt: number): void => {
       releaseBullet(i)
       continue
     }
-    if (resolveBullet(b)) releaseBullet(i)
+    if (resolve && resolveBullet(b)) releaseBullet(i)
   }
 }
 
@@ -6577,7 +6669,9 @@ const stepGates = (dt: number): void => {
       // `firingAtGate` drives the "you are pumping something" feedback, so it is
       // set only for the doors that pay: a player making the mistake of hosing a
       // trap should not be told they are earning.
-      if (g.op === 'add' || g.op === 'mul') firingAtGate = true
+      // …and only while it can still climb: a door already at its own cap (the
+      // fixed × of a priced twin, `pricesBareTwins`) earns nothing for the fire.
+      if ((g.op === 'add' || g.op === 'mul') && g.value < pumpCap) firingAtGate = true
       // Two multipliers on the clock, both 1 on an ordinary door with the
       // squad's own gun: the weapon's (`pumpMul` on the def) and the door's
       // (`pumpMul` on the leaf, stage 1's racing opener).
@@ -8583,6 +8677,14 @@ const stepBoss = (dt: number): void => {
     return
   }
 
+  // The drain's beam, holding. AFTER the death check, and that is the opposite
+  // call from the bolts and the crossrake above, for a reason about what the
+  // thing IS: a bolt in the air is an object the boss has let go of, while the
+  // beam is the boss reaching down the road — with nobody at the top of it there
+  // is no beam. `killBoss` ends it on the kill, and a frozen fight (above)
+  // leaves it hanging exactly where the ice found it.
+  if (drainBeam) stepDrainBeam(b, dt)
+
   // ── While the eye is open, the rest of the boss is not ──
   //
   // Returned BEFORE the walk-in, the tracker and every attack clock, and each
@@ -8610,7 +8712,10 @@ const stepBoss = (dt: number): void => {
   if (bossCharging && b.aimed) stepBossCharge(b)
   // Walk into the arena, then hold the line just ahead of the crowd. A guarded
   // boss is planted — it has stopped chasing and is committing to the swing.
-  else if (b.guard <= 0) {
+  // So is a healer holding a drain: the beam is drawn from its hands, and a body
+  // that drifted after the crowd would bend the one column on the road the
+  // player is reading.
+  else if (b.guard <= 0 && !drainBeam) {
     const holdY = anchorY + BOSS_HOLD_AHEAD
     if (b.y > holdY) b.y = Math.max(holdY, b.y - b.speed * dt)
     else b.y += (holdY - b.y) * Math.min(1, dt * 1.4)
@@ -8680,7 +8785,13 @@ const stepBoss = (dt: number): void => {
   // attack whose wind-up IS the telegraph: the band goes on the road at the
   // start and the body arrives at the end of it, and a charge announced a second
   // in would give the player a fraction of the lateral move it asks for.
-  if (!b.aimed && (bossCharging || b.slamCd <= bossTelegraph(b.kind))) {
+  //
+  // A DRAIN is aimed the instant its cycle opens too, for the charge's reason —
+  // its answer is a lateral commitment, so the column is on the road for the
+  // whole cast. And nothing is aimed at all while a beam is still holding: two
+  // columns on the road at once is two promises the player cannot read apart,
+  // and the next cast's clock already starts after the hold (`throwHealerCast`).
+  if (!b.aimed && !drainBeam && (bossCharging || bossDraining || b.slamCd <= bossTelegraph(b.kind))) {
     b.aimed = true
     aimBoss(b)
   }
@@ -8746,7 +8857,12 @@ const stepBossCharge = (b: Boss): void => {
 const bossTelegraph = (kind: BossKind): number =>
   // A gaze opens for the same `GAZE_OPEN` on every kind — the eye has to mean
   // the same thing wherever it opens, and that includes how long it gives you.
-  bossGazing ? GAZE_OPEN : kind === 'healer' ? HEALER_TELEGRAPH : SLAM_TELEGRAPH
+  // A drain only ever reaches this through a guard gate (its ordinary cycle is
+  // aimed at the start and IS its wind-up), and gets the column's floor there —
+  // see `DRAIN_TELEGRAPH_MIN`.
+  bossGazing ? GAZE_OPEN
+    : bossDraining ? DRAIN_TELEGRAPH_MIN
+      : kind === 'healer' ? HEALER_TELEGRAPH : SLAM_TELEGRAPH
 
 /**
  * The cycle this boss runs next, phase two included.
@@ -9130,6 +9246,29 @@ const aimBoss = (b: Boss, leadMul = 1): void => {
       eye: SHOCK_EYE_R,
       outer: shockOuterR(b.slams + 1),
       ttl
+    })
+    return
+  }
+
+  if (b.kind === 'healer' && bossDraining) {
+    // ── The drain: a column down the crowd's own line, with NO lead ──
+    //
+    // The charge's rule, for the charge's reason: a column is a place to GET OUT
+    // OF, and leading it would move the answer while the player was on the way
+    // to it. Locked here, at the start of the cast, on where the crowd is
+    // standing — or down a burning flare's line, which is a drain the crowd was
+    // never in.
+    const lane = Math.max(-LANE_HALF + 1, Math.min(LANE_HALF - 1, aim.x))
+    if (aim.lured) bossAimedAtDecoy = true
+    b.slamX = lane
+    b.slamY = anchorY
+    pushFx({
+      kind: 'drainCast',
+      x: lane,
+      y: anchorY,
+      fromY: b.y,
+      halfW: DRAIN_HALF_W,
+      ttl: Math.max(0.15, b.slamCd)
     })
     return
   }
@@ -9817,7 +9956,7 @@ const healCastDue = (n: number, healCd: number, leadS: number): boolean =>
  * being a thing to merely survive and becomes a thing to survive ON THE WAY
  * somewhere.
  */
-const plantWard = (): void => {
+const plantWard = (ttl = HEALER_CAST_CD): void => {
   bossWarded = true
   bossWardX = wardX(anchorX)
   bossWardY = anchorY
@@ -9826,11 +9965,14 @@ const plantWard = (): void => {
   // `damageBoss`), which makes the ring on the ground finish closing before the
   // heal lands; the resolve reads the crowd at the moment the heal actually
   // fires, so the arithmetic stays honest even when the drawing runs out early.
-  pushFx({ kind: 'wardCast', x: bossWardX, y: bossWardY, radius: WARD_R, ttl: HEALER_CAST_CD })
+  pushFx({ kind: 'wardCast', x: bossWardX, y: bossWardY, radius: WARD_R, ttl })
 }
 
 const throwHealerCast = (b: Boss, gaze = false): void => {
   const healing = b.charging
+  // The drain this cast was winding up, read BEFORE the next cycle is decided —
+  // that decision may set the latch again for the cast after this one.
+  const draining = bossDraining
   // ── Read the ward BEFORE the next cycle is armed ──
   //
   // Arming it can plant a new ward (below), and the heal landing this instant
@@ -9874,7 +10016,12 @@ const throwHealerCast = (b: Boss, gaze = false): void => {
   // and that is not a smaller feature, it is the one that does not quietly
   // re-tune the archetype whose whole promise is that the bolt is answerable.
   b.slamSpan = HEALER_CAST_CD
-  b.slamCd = HEALER_CAST_CD
+  // A drain holds the road for `DRAIN_HOLD_S` after it lands, and the next cast
+  // does not start until it lets go: the beam is the boss's whole attention, and
+  // a bolt or a second column armed underneath it would be two answers asked
+  // for at once. Pushing the clock back only ever makes a heal LATER, so the
+  // gap below is asked against the clock actually set.
+  b.slamCd = HEALER_CAST_CD + (draining ? DRAIN_HOLD_S : 0)
   // Decide the NEXT cycle now, while it is beginning, for the same reason the
   // meteor decides its charged swing here: the telegraph is drawn from this flag
   // and it must never describe a different cast than the one that arrives.
@@ -9883,18 +10030,20 @@ const throwHealerCast = (b: Boss, gaze = false): void => {
   // cooldown handed to the decision is the one that cast is about to set, not
   // the one still on the boss. Read off `b.healCd` instead and a healer would
   // wave its own next heal through on a gap it had not started yet.
-  b.charging = healCastDue(b.attacks + 1, healing ? HEAL_MIN_GAP_S : b.healCd, HEALER_CAST_CD)
+  b.charging = healCastDue(b.attacks + 1, healing ? HEAL_MIN_GAP_S : b.healCd, b.slamCd)
   // A heal keeps its own schedule and is never drawn — see `bossVerbPool` for
   // why a regeneration rate may not be decided by a shuffle. When the next cast
-  // is NOT the heal, the bag says whether it is a bolt or a gaze, and a heal that
-  // comes due takes the cycle without spending a draw, so the other two stay
-  // level with each other.
-  bossGazing = !b.charging && drawBossVerb(b) === 'gaze'
+  // is NOT the heal, the bag says whether it is a bolt, a drain or a gaze, and a
+  // heal that comes due takes the cycle without spending a draw, so the others
+  // stay level with each other.
+  const next = b.charging ? null : drawBossVerb(b)
+  bossGazing = next === 'gaze'
+  bossDraining = next === 'drain'
 
   // If the cycle just armed is the heal, the circle goes down NOW. Gated on the
   // stage rather than on the kind, because this is the healer's second verb and
   // the second verbs are a tier — see `BOSS_VARIANT_FROM_STAGE`.
-  if (b.charging && bossHasVariant(stage.value)) plantWard()
+  if (b.charging && bossHasVariant(stage.value)) plantWard(b.slamCd)
 
   if (healing) {
     const before = b.hp
@@ -9919,6 +10068,12 @@ const throwHealerCast = (b: Boss, gaze = false): void => {
     return
   }
 
+  // …or the drain: the column lands, and the beam starts pulling.
+  if (draining) {
+    startDrain(b)
+    return
+  }
+
   // A bolt is launched at the ground the wind-up marked and then flies straight.
   // No homing: the crowd is stationary during the boss phase, so a bolt that
   // corrected would be undodgeable, and undodgeable is not the same as slow.
@@ -9939,6 +10094,111 @@ const throwHealerCast = (b: Boss, gaze = false): void => {
     radius: BOLT_BLAST_R
   })
 }
+
+/**
+ * ─── The drain, landed ──────────────────────────────────────────────────────
+ *
+ * The beam connects on the beat the cast promised, prices the WHOLE drain once,
+ * takes the first half of it from whoever is in the column, and then holds —
+ * see `DRAIN_HOLD_S` and `stepDrainBeam`.
+ *
+ * ── Priced once, up front, and the bulwark sees all of it ──
+ *
+ * The crossrake's rule for an attack with two landings: the budget is one
+ * number for the whole drain (`DRAIN_SHARE_MUL` of a slam, clamped to the one
+ * ceiling every big hit shares), so a crowd caught for the whole hold pays one
+ * drain and never two, and the pickup that promises to stop the next big blow
+ * stops ALL of it — a dome that ate the first bite and let the hold through
+ * would be the worst possible reading of that promise. What the pickup is shown
+ * is what the column holds right now, capped by the budget.
+ */
+const startDrain = (b: Boss): void => {
+  const lane = b.slamX
+  const budget = bossHitBudget(Math.min(SLAM_FRACTION_MAX, bossHitShare() * DRAIN_SHARE_MUL))
+  drainBeam = {
+    x: lane, halfW: DRAIN_HALF_W, y: anchorY, fromY: b.y,
+    t: 0, budget, taken: 0, healed: 0
+  }
+  pushFx({ kind: 'bossDrain', x: lane, y: anchorY, fromY: b.y, halfW: DRAIN_HALF_W, hold: DRAIN_HOLD_S })
+  if (absorbedBlow(budget, lane, anchorY, (u) => inDrainColumn(u.x, lane))) {
+    // The beam still shows — the boss reached, and the dome is what it found —
+    // but it has nothing left to take.
+    drainBeam.budget = 0
+    return
+  }
+  pullDrain(b, Math.ceil(budget * DRAIN_FIRST_BITE))
+}
+
+/**
+ * Pull survivors out of the column until the beam has taken `upTo` of its
+ * budget, and put what they were worth back on the boss.
+ *
+ * ── The heal is graded by what the crowd handed over ──
+ *
+ * Each body is worth `DRAIN_HEAL_FRACTION / budget` of the bar, so a drain eaten
+ * whole is one heal's worth and a drain dodged is nothing — the ward's bargain
+ * from the other side. It stops at the fight's cap (`DRAIN_HEAL_MAX`) and at a
+ * full bar; like every heal it may lift the bar back over a guard gate already
+ * spent, and `guarded` has already counted that gate so it can never re-arm.
+ *
+ * Billed as `slam`, the vocabulary every one of the boss's big attacks shares
+ * (see `throwRake`), and flung TOWARD the boss rather than away from the hit:
+ * the bodies are being pulled up the beam, not knocked off it.
+ */
+const pullDrain = (b: Boss, upTo: number): void => {
+  const beam = drainBeam
+  if (!beam || beam.taken >= beam.budget) return
+  const want = Math.min(upTo, beam.budget)
+  let n = 0
+  for (const u of units) {
+    if (beam.taken >= want) break
+    if (u.dying > 0) continue
+    if (!inDrainColumn(u.x, beam.x, beam.halfW)) continue
+    killUnit(u, Math.sign(b.x - u.x) || 1, 'slam')
+    beam.taken++
+    n++
+  }
+  if (n === 0) return
+  const room = Math.max(0, DRAIN_HEAL_MAX - drainHealed)
+  const share = Math.min(room, (DRAIN_HEAL_FRACTION * n) / Math.max(1, beam.budget))
+  const before = b.hp
+  b.hp = Math.min(b.maxHp, b.hp + b.maxHp * share)
+  const healed = (b.hp - before) / b.maxHp
+  drainHealed += healed
+  beam.healed += healed
+  bossHp01.value = Math.max(0, b.hp / b.maxHp)
+  pushFx({ kind: 'drainPull', x: beam.x, y: anchorY, n })
+}
+
+/**
+ * One frame of the beam holding: the rest of the budget comes out of the column
+ * evenly over `DRAIN_HOLD_S`, so a crowd that left on the flash kept the second
+ * half and one that stayed paid it. It lets go on the hold's last frame.
+ */
+const stepDrainBeam = (b: Boss, dt: number): void => {
+  const beam = drainBeam
+  if (!beam) return
+  beam.t += dt
+  const k = Math.min(1, beam.t / DRAIN_HOLD_S)
+  pullDrain(b, Math.ceil(beam.budget * (DRAIN_FIRST_BITE + (1 - DRAIN_FIRST_BITE) * k)))
+  if (beam.t >= DRAIN_HOLD_S) endDrain()
+}
+
+/** Take the beam off the road — at the end of its hold, or with the boss. */
+const endDrain = (): void => {
+  const beam = drainBeam
+  if (!beam) return
+  drainBeam = null
+  pushFx({ kind: 'drainEnd', x: beam.x, y: beam.y, taken: beam.taken, healed: beam.healed })
+}
+
+/**
+ * The beam while it is on the road, for the renderer and the badge. `null` the
+ * moment the boss is dead — the beam is its reach, not an object in the world.
+ */
+export const getBossDrain = (): Readonly<{
+  x: number; halfW: number; y: number; fromY: number; t: number
+}> | null => (drainBeam && boss && !boss.dead ? drainBeam : null)
 
 /**
  * Move the healer's bossBolts and let them go off on whoever they reach.
@@ -10012,6 +10272,44 @@ const stepBossBolts = (dt: number): void => {
  * only reason the fight has a floor under it. See the note on `SUMMON_WAVES_MAX`.
  */
 /**
+ * Price the summoner's wall, once, the instant the arena opens.
+ *
+ * The fight is `seconds` of this run's fire — the same target every boss gets
+ * — and the printed bar is priced on the first `1 - SUMMON_WALL_SHARE` of it
+ * (`bossHpMulFor`). The wall is exactly the REST: the damage the crowd lands
+ * over the whole target less the damage it lands over the bar's share, off the
+ * same integration (`expectedDamage`). Not simply "the same number again for
+ * the other half" — the model is sub-linear, because the crowd is being bitten
+ * while it shoots, so the second half of a fight is worth less damage than the
+ * first, and pricing it as the first would make the wall the longer half.
+ *
+ * Split across every body the budget will raise for this crowd
+ * (`summonBudgetBodies`), so a wave of any size is worth its share of the wall.
+ * The dials are applied where the bar applies them: on the clock for stages 1-5
+ * (none of which field a summoner today, but the path must price one correctly
+ * if the rotation ever moves) and on the health from stage 6.
+ */
+const priceSummonWall = (adaptive: boolean, openingCd: number): void => {
+  const model = fightModel(openingCd)
+  const seconds = adaptive
+    ? clampAdaptiveSeconds(
+      adaptiveBossSeconds(squadCount.value, perfectSquad) * difficultyFactor() * hpRelief,
+      stage.value
+    )
+    : bossFightSeconds(stage.value, squadCount.value, perfectSquad)
+  // The same capped dials the bar takes (`depthHp`, `BOSS_BAR_DIALS_MAX`): the
+  // wall is a share of the fight, and a wall priced on the uncapped streak
+  // would out-grow the bar it is supposed to be part of.
+  const dials = adaptive ? 1 : Math.min(BOSS_BAR_DIALS_MAX, difficultyFactor() * hpRelief)
+  const wall = Math.max(0,
+    adaptiveBossHp(model, seconds) - adaptiveBossHp(model, seconds * (1 - SUMMON_WALL_SHARE))
+  ) * dials
+  summonSquad = squadCount.value
+  summonBodyHp = Math.max(1, Math.round(wall / Math.max(1, summonBudgetBodies(summonSquad))))
+  summonCd = summonCdFor(seconds)
+}
+
+/**
  * One summoned body, placed.
  *
  * Shared by the wave and by the flank trickle below so the two can never drift
@@ -10020,12 +10318,12 @@ const stepBossBolts = (dt: number): void => {
  */
 const placeSummon = (b: Boss, x: number, y: number): void => {
   const def = foeDef(SUMMON_TYPE)
-  // Priced off the BOSS's bar, not the stage's husk — see `SUMMON_HP_SHARE`.
-  // `b.maxHp` already carries everything that sized the boss — the stage curve
-  // or, on stages 1-5, the run's own firepower, and the difficulty factor and
-  // retry relief either way — so the wall softens for a stuck player exactly as
-  // the boss does and there is no second place for those to be applied.
-  const hp = Math.max(1, Math.round(b.maxHp * SUMMON_HP_SHARE))
+  // Priced in seconds of the crowd's own fire, once, when the arena opened —
+  // see `priceSummonWall`. That price carries everything that sized the boss
+  // (the run's firepower, the rung it earned, the depth, the difficulty and the
+  // autobalancer), so the wall softens for a stuck player exactly as the bar
+  // does and there is no second place for any of those to be applied.
+  const hp = summonBodyHp
   const f = takeFoe()
   f.id = entityId++
   f.typeId = def.id
@@ -10034,9 +10332,13 @@ const placeSummon = (b: Boss, x: number, y: number): void => {
   f.y = y
   f.hp = hp
   f.maxHp = hp
-  f.speed = def.speed
+  f.speed = def.speed * SUMMON_SPEED_MUL
+  // The SHARE reads the run, exactly as a swing does (`bossSwingMul`): a crowd
+  // that arrived whole is bitten at the wall's own rate, one that arrived gutted
+  // at up to `HOPELESS_SLAM_MUL` of it. The flat bite is the archetype's and is
+  // left alone, as it is for every foe on the road.
   f.bite = Math.max(1, Math.round(def.bite * challengeBiteFactor(challenge.value) * SUMMON_BITE_MUL))
-  f.biteShare = biteShareFor(def.id) * challengeBiteFactor(challenge.value) * SUMMON_BITE_MUL
+  f.biteShare = biteShareFor(def.id) * challengeBiteFactor(challenge.value) * SUMMON_BITE_MUL * bossSwingMul
   f.scale = def.scale
   f.phase = Math.random()
   f.swayPhase = Math.random() * 6.28
@@ -10111,8 +10413,12 @@ const stepSummonerMercy = (b: Boss, dt: number): void => {
  * So the summoner's phase two is the colour and the sound, and the wall keeps
  * the cadence it was measured at. See the note in `throwHealerCast` for the
  * general rule this and the healer arrived at from opposite directions.
+ *
+ * The cadence is priced per FIGHT now (`summonCdFor`, latched in
+ * `priceSummonWall`) — longer for a fight priced longer — and still never per
+ * phase: the turn does not touch it.
  */
-const summonSpan = (): number => SUMMON_CD
+const summonSpan = (): number => summonCd
 
 const stepSummoner = (b: Boss, dt: number): void => {
   // Runs on its own clock, and only once the wall is spent — the budget is
@@ -10154,7 +10460,7 @@ const stepSummoner = (b: Boss, dt: number): void => {
   // instead, a two-body wave would arrive squeezed into the left third of the
   // road rather than spanning it, and "wider than the crowd" is the whole reason
   // a wave cannot simply be stood beside.
-  const size = summonWaveSize(b.attacks)
+  const size = summonWaveBodies(b.attacks, summonSquad)
 
   // ── A drawn wave may come up at the RAILS instead of in front ──
   //
@@ -10167,6 +10473,12 @@ const stepSummoner = (b: Boss, dt: number): void => {
   // meets both packs at once. A rail meets them one at a time.
   if (flank) {
     const xs = flankXs()
+    // A pack never reaches further in than a crowd-width off its rail, however
+    // many ranks the crowd scale gives it (`summonCrowdScale`): the middle of
+    // the road is the ground the attack makes expensive, and a pack whose back
+    // rank stood in it would be a line wave with extra steps.
+    const ranks = Math.ceil(size / 2)
+    const stepIn = Math.min(0.55, (CROWD_MAX_R - 0.3) / Math.max(1, ranks - 1))
     for (let i = 0; i < size; i++) {
       const side = xs[i % 2] ?? 0
       const rank = Math.floor(i / 2)
@@ -10175,7 +10487,7 @@ const stepSummoner = (b: Boss, dt: number): void => {
       // point — and so the back of it is already a little way toward the crowd,
       // which is what stops a rail-hugger from answering one pack with a single
       // burst and then strolling.
-      placeSummon(b, side - Math.sign(side) * rank * 0.55, waveY + rank * 0.8)
+      placeSummon(b, side - Math.sign(side) * rank * stepIn, waveY + rank * 0.8)
     }
     pushFx({ kind: 'summonWave', x: anchorX, y: waveY, count: size, wave: b.attacks, flank: true })
     return
@@ -10189,7 +10501,13 @@ const stepSummoner = (b: Boss, dt: number): void => {
     // opening wave made the marginal fight LONGER (23 s to 57 s) and cost
     // more of the crowd than the bigger wave it replaced. At the full size
     // this is arithmetically identical to what it replaced.
-    const step = (2 * SUMMON_SPREAD) / Math.max(1, SUMMON_PER_WAVE - 1)
+    //
+    // …until a wave is BIGGER than the flat size, which the crowd scale makes
+    // it for a big crowd (`summonCrowdScale`): at the flat spacing eight bodies
+    // span fifteen units of a nine-unit road and half of them come up on the
+    // rails. Past the flat size they share `SUMMON_SPREAD` instead — a denser
+    // line across the same width, which is what a bigger wall should look like.
+    const step = (2 * SUMMON_SPREAD) / Math.max(1, Math.max(SUMMON_PER_WAVE, size) - 1)
     const spread = (i - (size - 1) / 2) * step
     placeSummon(b, anchorX + spread, waveY + (i % 2) * 0.7)
   }
@@ -10217,7 +10535,13 @@ const damageBoss = (b: Boss, amount: number, throughGuard = false): void => {
   // applies, so a blast can carry the boss TO its next phase but never past it —
   // the boss still plants and swings at every gate it owes the player.
   if (b.guard > 0 && !throughGuard) return
-  const gate = bossGuardGates(stage.value)[b.guarded]
+  const gates = guardGatesFor(stage.value)
+  // A summoner whose wall is spent has nothing left to pay a gate with, and a
+  // plant with nothing in it is a second of immunity and dead air. So once the
+  // budget is gone its remaining gates are simply not there — see
+  // `SUMMON_GUARD_GATES`. Asked here, at the one place gates are enforced.
+  if (b.kind === 'summoner' && b.attacks >= SUMMON_WAVES_MAX) b.guarded = Math.max(b.guarded, gates.length)
+  const gate = gates[b.guarded]
   const floor = gate === undefined ? 0 : gate * b.maxHp
   // Frozen is brittle, the boss included — and still CLAMPED at the gate below,
   // so a freeze can carry a boss to its next phase and never past it.
@@ -10267,7 +10591,15 @@ const damageBoss = (b: Boss, amount: number, throughGuard = false): void => {
       // …unless the eye is already opening. A gaze announced a moment ago IS the
       // beat this gate owes; pulling its clock in would draw an eye whose
       // countdown no longer matches the one on screen.
-      if (!bossGazing) b.summonCd = SUMMON_TELEGRAPH
+      //
+      // …and never EARLIER than the opening beat. Six gates put the first one at
+      // five sixths of the bar, which a strong crowd reaches before the 2.4 s
+      // lesson is over; pulling the first wave in would cut the one beat the
+      // archetype spends teaching what it is (`SUMMON_OPENING_CD`). The boss
+      // stays planted until it rises.
+      if (!bossGazing) {
+        b.summonCd = b.attacks === 0 ? Math.max(b.summonCd, SUMMON_TELEGRAPH) : SUMMON_TELEGRAPH
+      }
     } else {
       // ── The teaching gaze ──
       //
@@ -10287,6 +10619,12 @@ const damageBoss = (b: Boss, amount: number, throughGuard = false): void => {
         // An eye already opening IS the beat this gate owes. Re-timing it would
         // put a second eye on screen with a different countdown from the first,
         // which is the one kind of telegraph this game refuses to draw.
+      } else if ((bossDraining && b.aimed) || drainBeam) {
+        // The same for a drain: a column already on the road IS the beat this
+        // gate owes, and re-aiming it would paint a second column with a second
+        // countdown. A beam still HOLDING is left alone too — nothing is aimed
+        // under a beam (`stepBoss`), and the next cast's clock already starts
+        // where the hold ends.
       } else {
         // Start the wind-up now rather than on the old clock: the phase turn IS
         // the telegraph, so the player gets the full window from the moment they
@@ -10349,6 +10687,11 @@ const killBoss = (): void => {
   // fade it out on the same frame as the death rather than leaving a mark
   // counting down over a corpse.
   clearWard(0)
+  // …and the drain lets go. The beam is the boss's reach; with nothing at the
+  // top of it, it takes nobody else. A drain still winding up is dropped with it
+  // — the renderer takes its column off the road on `bossDie` (`bossOwnsCast`).
+  endDrain()
+  bossDraining = false
   // …and shuts the eye. A watch left running over a corpse would freeze
   // nothing (the dead boss has no clock) and still hold the corner badge up.
   bossGazing = false
@@ -10491,6 +10834,10 @@ export const debugChargeDynamo = (v: number): void => {
 /** Test seam: what the boss's bar is priced against right now. The bolt and the
  *  thralls must never appear in it — see `DYNAMO_BOLT_MULT`. */
 export const debugWeaponDamageMul = (): number => weaponDamageMul()
+
+/** Test seam: the perfect-play crowd this stage's boss is judged against
+ *  (`adaptiveYardstick`), so a probe can place a crowd at a known `perf`. */
+export const debugPerfectSquad = (): number => perfectSquad
 
 /** Test-only: wipe both the world and the persisted failure record. */
 export const __resetForTest = (): void => {

@@ -454,6 +454,11 @@ describe('a boss swing is never a scratch', () => {
      * allowed to vary.
      */
     const pin = (): void => {
+      // …and nothing ELSE bites. Since the 2026-09-18 re-cut, stage 7's first
+      // elite stands among hordes, and their bites wiped the crowd after two
+      // sweeps — a measurement of the road, not of the arc. The ordinary bodies
+      // are parked far up the road; the scythe is the only thing billing.
+      for (const f of game.getFoes()) if (!f.elite && !f.dead) f.y = game.anchor().y + 500
       const e = game.getFoes().find((f) => f.elite)
       if (!e) return
       e.hp = 1e9
@@ -473,6 +478,9 @@ describe('a boss swing is never a scratch', () => {
       if (settled(game)) break
     }
     expect(met, `stage ${scytheStage} streamed no miniboss the crowd reached`).toBe(true)
+    // The window this is sized for, restored at the moment the fight starts: the
+    // longer road costs an unsteered crowd more on the way in than it used to.
+    if (game.squadCount.value < 110) game.debugAddUnits(110 - game.squadCount.value)
 
     // Stand in the arc and let it eat. The crowd shrinks as it does, which is
     // exactly how the small-crowd case gets exercised: a share of 150 is thirty

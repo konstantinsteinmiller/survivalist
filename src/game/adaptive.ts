@@ -1,8 +1,11 @@
 /**
- * ─── Adaptive difficulty, stages 1–5 ────────────────────────────────────────
+ * ─── Adaptive difficulty, every boss ────────────────────────────────────────
  *
- * The opening five stages size their boss against the run that actually turned
- * up, instead of against a curve authored for an imaginary average player.
+ * Every boss is sized against the run that actually turned up, instead of
+ * against a curve authored for an imaginary average player. The opening five
+ * stages were first and most of this file is about them; since 2026-09-18 the
+ * rest of the campaign is priced by the same ladder, stretched with depth — see
+ * "the depth band" at the bottom of the file.
  *
  * ─── The problem it exists to fix ───────────────────────────────────────────
  *
@@ -77,10 +80,11 @@
  * print it, and "I had a big army so the boss went down fast" is a sentence a
  * seven-year-old can say out loud.
  *
- * It also stops at stage 5. From stage 6 the authored curve takes over
- * unchanged — by then the player has committed, the shop matters, and a boss
- * whose bar is always exactly as big as you are is a boss your upgrades cannot
- * beat.
+ * It used to stop at stage 5, on the argument that from stage 6 "a boss whose
+ * bar is always exactly as big as you are is a boss your upgrades cannot beat".
+ * Measured, the authored curve it handed over to had stopped pricing anything —
+ * see "the depth band" below for the numbers, and for where the shop's worth
+ * went instead.
  */
 
 /**
@@ -658,74 +662,186 @@ export const adaptiveBigHitMul = (authored: number, squad: number, perfect: numb
 }
 
 /**
- * ─── The melt floor, stage 6 and up ─────────────────────────────────────────
+ * ─── Every boss after the fifth: the depth band ─────────────────────────────
  *
- * Everything above prices the boss BOTH ways: a strong run gets a smaller bar
- * and a weak one gets a bigger bar. That is right for stages 1-5 and wrong
- * from 6, for the reason stated above — a bar that is always exactly as big as
- * you are is a bar your upgrades can never beat, and from stage 6 the shop is
- * most of the game.
+ * Until 2026-09-18 everything above stopped at stage 5. From stage 6 the bar was
+ * the authored curve (`BOSS_BASE_HP × bossHpScale`) with a "melt floor" of three
+ * seconds of the run's fire under it, on the argument that a bar always exactly
+ * as big as you are is a bar your upgrades can never beat.
  *
- * So from stage 6 the adaptive number stops being the price and becomes a
- * FLOOR. The authored curve is still the bar; the floor only raises it, and
- * only when the authored bar would not survive three seconds of this run's
- * fire.
+ * The owner's verdict on playing it was that every boss after the tutorial felt
+ * like nothing — "ALL bosses need to have the same adaptive difficulty as the
+ * stage 1 boss, otherwise the player feels bored". Measured on the shipping
+ * build (arena probe at a career-shaped build, 2 seeds a cell), that is exactly
+ * what the curve was doing:
  *
- * That single `Math.max` is what makes the whole thing scoped without needing a
- * squad-size threshold to argue about:
+ *   summoner  3.5–5.7 s on every stage 6-38 for any crowd worth the name, one or
+ *             two waves spent, **0 %** of the crowd lost. The archetype was a
+ *             cutscene with a health bar.
+ *   healer    3.7–4.4 s from stage 23 on, the heal never reached, a bolt the
+ *             dodging policies lost 0 % to.
+ *   deep      every stage past ~20 sat on the melt floor for any run above the
+ *             bottom rung, so the "authored" curve was not authoring anything:
+ *             the floor was the price, and the floor was three seconds.
+ *   weak      the bottom of the table ran 23-43 s against the authored bar on
+ *             stages 7-8 — a grind, which is the other kind of boring.
  *
- *   a mid or low run   the authored bar is already worth far more than three
- *                      seconds of their fire, so the floor is below it and
- *                      NOTHING changes. No new difficulty, anywhere, for the
- *                      players this was not written for.
- *   an overpowered run the floor is above it and takes over. Upgrades keep
- *                      shortening the fight right up to three seconds and then
- *                      stop mattering, which is the correct place for a power
- *                      curve to run out rather than at "the bar vanishes".
+ * So from stage 6 the boss is priced like the opening five: seconds of the
+ * run's OWN fire, off the same ladder (`adaptiveBossSeconds`), integrated
+ * against what the fight will do to the crowd (`adaptiveBossHp`). The authored
+ * curve no longer prices any boss; it still prices the minibosses it always
+ * did (`track.minibossHp`).
  *
- * ─── Why it was needed ──────────────────────────────────────────────────────
+ * ─── …with the fight getting longer as the road gets deeper ─────────────────
  *
- * Reported from stage 45+: a run read well enough arrives at the arena with
- * ~1500 survivors and a launcher, and `BOSS_BASE_HP * bossHpScale(stage)` is a
- * curve authored against an ordinary crowd. The bar is gone before the boss has
- * finished walking in — the climax of a two-minute stage is a flash. Playing
- * perfectly should buy a SHORT fight (three seconds, the top rung of the ladder
- * above); it should not buy no fight at all.
+ * A flat ladder would make stage 40 the same climax as stage 6, and progression
+ * would have nothing to say at the arena. The depth term is a multiplier on the
+ * rung the run earned (`depthFightMul`): ×1 at stage 5, rising to
+ * `DEPTH_FIGHT_MUL_MAX` by `DEPTH_FULL_STAGE`, then flat — the other two depth
+ * dials take over from there, and both were already in the game:
+ *
+ *   endlessPressure  from stage 30 the swing takes a bigger share of the crowd
+ *                    (quadratic, capped at ×2.2 — see `endlessPressure`);
+ *   the streak       `challengeFactor` multiplies the BAR, so a player on a run
+ *                    of clears meets a longer fight that keeps swinging.
+ *
+ * ─── Why upgrades still matter when the bar follows the run ─────────────────
+ *
+ * The honest objection to "the boss is always as big as you are" is the one the
+ * old header made: then nothing the shop sells can shorten a boss. It is answered
+ * by what the ladder READS rather than by keeping a curve that had stopped
+ * pricing anything:
+ *
+ *   • the RUNG is the crowd against `perfectSquadFor` — a crowd that kept more of
+ *     itself down the road climbs toward the top rung, and the road is still
+ *     authored: foe, elite, crate and barricade health are functions of the
+ *     stage (`foeHpScale`, `track.minibossHp`), so Power and Rate are what keep
+ *     the crowd alive to the door. Across the ladder that is a 2.3× spread in
+ *     fight length between a run that kept everything and one that kept a fifth;
+ *   • the SWING reads the same ratio (`adaptiveBigHitMul`): a crowd that arrived
+ *     whole takes the authored share, one that arrived gutted takes up to
+ *     `HOPELESS_SLAM_MUL` of it;
+ *   • the SKILLS are denominated in the bar's own unit: a grenade is
+ *     `grenadeBossMult` seconds of the crowd's fire, so every grenade level is
+ *     worth exactly as much of a stage-40 boss as of a stage-6 one — see
+ *     `BOSS_GRENADE_BAR_SHARE` for the one limit on it.
+ *
+ * ─── The dials multiply the BAR here, not the clock ─────────────────────────
+ *
+ * The opposite of stages 1-5 (see `adaptiveHp` in the simulation), and it was
+ * measured rather than chosen when the melt floor was built: `adaptiveBossHp`
+ * integrates the crowd's decay, so it is sub-linear in seconds, and a streak of
+ * ×1.78 applied to the CLOCK bought only ×1.39 of bar. The streak is sold as an
+ * enemy-health multiplier; from stage 6 it is exactly that again.
  */
 
-/** First stage the floor applies to. Below this the full ladder already runs. */
-export const MELT_FLOOR_STAGE = ADAPTIVE_BOSS_STAGES + 1
+/** First stage priced by the depth band. Below this the ladder's own band runs. */
+export const DEPTH_BAND_STAGE = ADAPTIVE_BOSS_STAGES + 1
 
-/** True for the stages whose boss gets a floor but not the full ladder. */
-export const meltFloorStage = (stage: number): boolean => stage >= MELT_FLOOR_STAGE
+/** True for the stages whose boss is priced by the depth band. */
+export const depthBandStage = (stage: number): boolean => stage >= DEPTH_BAND_STAGE
 
 /**
- * Seconds of straight fire the floor guarantees.
+ * How much longer than the opening five a boss fight is allowed to become.
  *
- * Not a new number: it is `ADAPTIVE_RUNGS[0].seconds`, the top rung, which is
- * already the game's answer to "how long should a fight last for someone who
- * played it about as well as it can be played". A player who melts a stage-45
- * boss has done exactly that, so they get exactly that.
+ * Aimed at the ladder's middle rung (5.0 s of fire): at 1.6 it is 8 s of fire,
+ * which with two guard phases, the walk-in and the dodging is a stage-1 length
+ * stopwatch — the length the owner asked every boss to have. The top rung
+ * becomes 4.8 s (a clean run still gets the short, loud fight it earned) and the
+ * bottom 10.9 s. Measured first at 1.45, a dodging crowd's stopwatch at depth
+ * ran 6.8-7.8 s for the meteor and 5-6 s for the healer — a notch under stage
+ * 1's 10.9 s rather than level with it.
+ */
+export const DEPTH_FIGHT_MUL_MAX = 1.6
+
+/**
+ * ─── …and the most the dials may stretch one fight ──────────────────────────
+ *
+ * The streak (`challengeFactor`, +0.13 a clear), the decline lean and the
+ * autobalancer all multiply the BAR, and since that bar follows the run they
+ * multiply the FIGHT: a good career on an eleven-clear streak met ×2.4 and
+ * stood in front of the stage-12 boss for 22 s, the stage-17 one for 26 s —
+ * measured the day this landed, seed 5000, `value` shop. That is the sponge the
+ * owner asked the adaptive pass to remove ("otherwise the player feels bored"),
+ * so together they may add at most half again. Relief (below 1) is untouched.
+ *
+ * The streak still bites everywhere else it always did — more bodies on the
+ * road (`challengePackFactor`), bigger bites (`challengeBiteFactor`) — which
+ * is harder rather than merely longer. `balance.test.ts` › "makes a streak of
+ * clears measurably harder" pins the capped ratio.
+ */
+export const BOSS_BAR_DIALS_MAX = 1.5
+
+/**
+ * …and the stage it is reached by. Ten stages of ramp: the first repeat of every
+ * kind (stage 8, `BOSS_VARIANT_FROM_STAGE`) sits a third of the way up it, so a
+ * player meets each boss once at a length close to the tutorial's and then
+ * watches the fights grow with the rotation.
+ */
+export const DEPTH_FULL_STAGE = 15
+
+/** The depth multiplier on the seconds a run has earned. 1 through stage 5. */
+export const depthFightMul = (stage: number): number => {
+  if (stage <= ADAPTIVE_BOSS_STAGES) return 1
+  const k = Math.min(1, (stage - ADAPTIVE_BOSS_STAGES) / (DEPTH_FULL_STAGE - ADAPTIVE_BOSS_STAGES))
+  return 1 + (DEPTH_FIGHT_MUL_MAX - 1) * k
+}
+
+/**
+ * Seconds of straight fire a boss from the depth band is worth, BEFORE the
+ * kind's own share (`bossHpMulFor`) and before the dials multiply the bar.
+ *
+ * The ladder rung this run earned, stretched by depth. No clamp is needed and
+ * none is applied: the rungs are bounded (3.0-6.8) and so is the multiplier, and
+ * the dials act on the bar, where no band can quietly turn them into a no-op.
+ */
+export const bossFightSeconds = (stage: number, squad: number, perfect: number): number =>
+  adaptiveBossSeconds(squad, perfect) * depthFightMul(stage)
+
+/**
+ * The swing the depth band's BAR is priced against, as a multiple of the swing
+ * the boss actually throws.
+ *
+ * `expectedDamage` walks the fight forward taking one swing's bite out of the
+ * crowd every cycle (`SLAM_CONNECT_RATE`), and that constant was calibrated on
+ * stages 1-5, where the swing the bar is priced on carries the beginner's
+ * discount (`earlyBigHitMul`: 0.6 on stages 1-3). From stage 6 there is no
+ * discount, and fed the full swing the model shrank its imaginary crowd by
+ * almost a third a cycle — so it priced a bar about half the size of the fight
+ * it named, and a crowd that dodged everything killed a "7.25-second" boss in
+ * 5.7 s (measured: healer and summoner at perf 0.45, stages 15-39).
+ *
+ * The opening five already decouple the bar's swing from the real one for
+ * exactly this reason (`adaptiveHp`: "the BAR is always priced for a player who
+ * takes the beginner's discount"), so the depth band keeps that contract rather
+ * than inventing a second calibration: priced on the swing the constant was
+ * measured against, a second of the model is a second of a dodger's fight at
+ * every depth. The swing that LANDS is untouched — it is still the full share,
+ * read against the run (`adaptiveBigHitMul`), and a crowd that stands in it
+ * still burns down faster than the bar was priced for.
+ */
+export const DEPTH_BAR_SWING = 0.6
+
+/**
+ * The shortest fight the depth band hands anybody, in seconds of fire — the
+ * ladder's top rung. Stretched by `depthFightMul` from stage 6, so nothing past
+ * the opening five is ever priced under it.
  */
 export const BOSS_MIN_FIRE_SECONDS = ADAPTIVE_RUNGS[0]!.seconds
 
 /**
- * What the grenade's multiplier is capped at while the floor is holding the bar
- * up — against the BOSS only, and never against anything else on the road.
+ * The most of a depth-priced bar one grenade may take.
  *
- * The cap is not decoration, it is what stops the floor being cosmetic. A
- * grenade deals `squadDps × mult` as one instant hit, and the floor prices the
- * bar at `BOSS_MIN_FIRE_SECONDS` of `squadDps`. A boss already takes a reduced
- * multiplier (`grenadeBossMult`: 2.2 at level 0), but upgrades take that to 4.4
- * — well past the three seconds the floor just bought — so without this the
- * guaranteed fight is a bomb and a corpse for anyone who has spent on the track.
+ * The melt floor used to cap the bomb's MULTIPLIER at 2 against a floored boss,
+ * because a grenade deals `squadDps × mult` in one hit and the floor was worth
+ * three seconds of the same `squadDps`. With every boss past stage 5 priced in
+ * that unit, a multiplier cap would be permanent — every grenade level past the
+ * first would be worthless against every boss in the game, which is the
+ * opposite of an upgrade that feels useful.
  *
- * Capped rather than scaled, deliberately: the point is a guarantee that does
- * not depend on how much the player has spent.
- *
- * Two seconds of the three, so a bomb thrown into a floored fight is a real
- * decision (it ends the climax in about a second) rather than a delete button.
- * Below the floor nothing changes: the grenade is the crowd's answer to a big
- * bar and it stays that way everywhere the bar is honest.
+ * So the cap is on the SHARE instead. A bomb takes `grenadeBossMult` seconds of
+ * fire, up to half the bar: on a long fight (a weak run, a deep stage) even a
+ * fully-upgraded grenade is never capped, and on the shortest fight the band
+ * hands out the remainder is still seconds of shooting rather than a corpse.
  */
-export const BOSS_FLOOR_GRENADE_MULT = 2
+export const BOSS_GRENADE_BAR_SHARE = 0.5

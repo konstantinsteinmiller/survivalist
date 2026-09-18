@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': '距离下一个奖励的关卡数',
+    'bonus': "奖励 +{coins}",
     'fireRate': '射速',
     'incoming': '攻击来袭！',
     'dodge': '闪避',
@@ -91,6 +92,7 @@ export default {
 
     'next': "下一个：{label} · {when}",
     'bossAhead': "前方首领：{name}",
+    'rankUp': "排名 #{rank} ▲{n}",
     'bossName': {
       'grumpling': "嘟囔菇",
       'bonecap': "骨帽怪",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "选择武器",
     'nextStage': "下一关",
-    'stagesAway': "{n} 关后"
+    'stagesAway': "{n} 关后",
+    'thisStage': "本关"
   },
   'weaponPick': {
     'title': "选择你的武器",

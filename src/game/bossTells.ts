@@ -32,15 +32,21 @@
  * down the road for a second and a half, painted straight from the world by
  * `drawRollers`, so it has no entry in the cast pool at all.
  */
-export type CastKind = 'meteor' | 'slice' | 'bomb' | 'bolt' | 'charge' | 'shock' | 'ward'
+export type CastKind = 'meteor' | 'slice' | 'bomb' | 'bolt' | 'charge' | 'shock' | 'ward' | 'drain'
 
 /**
  * Does the BOSS own this wind-up?
  *
  * The mapping is exact today and each half of it is emitted from one place:
  *
- *   BOSS       `meteor`, `charge`, `shock` — all three from `aimBoss`
+ *   BOSS       `meteor`, `charge`, `shock`, `drain` — all four from `aimBoss`
  *   MINIBOSS   `bomb` (bomber, burrower), `bolt` (gunner), `slice` (scythe)
+ *
+ * `drain` is the healer's column, and it is the boss's in the strongest sense:
+ * the beam it announces is the boss reaching down the road, so the moment the
+ * boss is gone there is nothing left at the top of it. The simulation ends the
+ * beam itself on the kill (`killBoss`); this is the renderer's half of the same
+ * promise, for the wind-up that never got to land.
  *
  * `ward` is the healer's, and so the boss's — but it is deliberately NOT listed
  * as one here, because it is not taken down this way. `killBoss` already ends it
@@ -59,6 +65,7 @@ export const bossOwnsCast = (kind: CastKind): boolean => {
     case 'meteor':
     case 'charge':
     case 'shock':
+    case 'drain':
       return true
     case 'slice':
     case 'bomb':

@@ -38,9 +38,12 @@ beforeEach(async () => {
 })
 
 describe('which wind-ups belong to the boss', () => {
-  it('claims the three the boss actually casts, and nothing else', () => {
-    // All three come out of `aimBoss` and nowhere else.
-    for (const kind of ['meteor', 'charge', 'shock'] as const) {
+  it('claims the four the boss actually casts, and nothing else', () => {
+    // All four come out of `aimBoss` and nowhere else — the healer's drain
+    // column among them: the beam is the boss reaching down the road, and a
+    // column still counting down over a corpse would promise a pull nobody is
+    // left to make.
+    for (const kind of ['meteor', 'charge', 'shock', 'drain'] as const) {
       expect(bossOwnsCast(kind), `${kind} stopped being the boss's`).toBe(true)
     }
   })

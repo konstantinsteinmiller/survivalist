@@ -69,6 +69,11 @@ const watch = async (stage: number, units: number) => {
   let ms = 0
 
   for (let i = 0; i < 9000; i++) {
+    // Kept alive to reach the swings. Since the 2026-09-18 re-cut, stage 4 is a
+    // 60 s road of chicanes and packs and an unsteered crowd of 140 wipes at
+    // ~88 % of it — before any big attack ever lands, which left the ordering
+    // under test unmeasured rather than broken.
+    if (game.squadCount.value < units / 2) game.debugAddUnits(units - game.squadCount.value)
     game.step(STEP_MS)
     ms += STEP_MS
     if (game.attackIncoming()) warned.push(ms)

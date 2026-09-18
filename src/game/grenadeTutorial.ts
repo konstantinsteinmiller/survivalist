@@ -106,16 +106,28 @@ export const GRENADE_TUTORIAL_SCALE = 0.12
  * a tutorial that can refuse its own instruction must be impossible by
  * construction and not merely by arithmetic.
  *
- * TWELVE, and the number comes off the camera rather than off taste. The frame
- * fits `VIEW_HEIGHT` (19) world units with the crowd at `CROWD_SCREEN_Y` (0.72)
- * down the screen, so a phone shows about 13.7 units of road AHEAD of the squad
+ * TWELVE, and the number came off the camera rather than off taste. The frame
+ * used to fit `VIEW_HEIGHT` (19) world units with the crowd at `CROWD_SCREEN_Y`
+ * (0.72) down the screen, so a phone showed about 13.7 units of road AHEAD of the squad
  * — and on a wide screen, where the lane's width wins the fit, rather more. The
  * first attempt at this used 20, which was still above the top edge: measured in
  * a browser, the world stopped with the off-screen chevron marker on screen and
  * the miniboss itself nowhere. Twelve is on screen on every ratio the game
  * ships on, with room for the health bar above it.
+ *
+ * NINE since 2026-09-18, when the camera zoomed in (`cameraScale`: the base
+ * fire now ends 17.5 % below the top edge). The road readable UNDER the HUD
+ * strip fell from 14.0–14.6 units to 10.8–12.4, so an elite stopped at twelve
+ * stood with its whole body under the stage chip on a phone. An elite is drawn
+ * at 1.9x and its bar sits 2.57 units above its feet (`size * 1.08`), so the
+ * bar is the thing to fit: at nine it is at 11.6, under the strip's lower edge
+ * on every portrait phone (11.84–12.24) and on a 960 px desktop (11.68). On a
+ * shorter desktop the strip's widgets stand beside the lane, not over it. Nine
+ * is also inside `BULLET_RANGE` (10.83), which the camera guarantees is
+ * readable under the strip on every ratio — the elite takes about half a
+ * second of fire before the world stops, which its ×4 health shrugs off.
  */
-export const GRENADE_TUTORIAL_RANGE = 12
+export const GRENADE_TUTORIAL_RANGE = 9
 
 /**
  * What the tutorial miniboss's health is multiplied by — and why it is ONE.

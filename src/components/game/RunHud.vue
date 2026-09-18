@@ -107,6 +107,12 @@ interface Props {
    */
   nextUnlock?: { icon: GameIconName; text: string } | null
   /**
+   * The long-term goal: the next milestone payout, already worded ("Bonus +185
+   * · in 4 stages"). It SHARES the ladder chip's slot, alternating with it every
+   * `GOAL_ROTATE_MS` — see `goal` below.
+   */
+  bonus?: { text: string } | null
+  /**
    * The beats worth a mark on the rail, as fractions of the road: the weapon
    * box (a detour worth taking) and the elites (a fight coming). The boss is
    * the skull the rail already ends in.
@@ -114,10 +120,32 @@ interface Props {
   beats?: ReadonlyArray<{ at: number; icon: GameIconName; kind: 'weapon' | 'elite' }>
 }
 
-const props = withDefaults(defineProps<Props>(), { label: null, nextUnlock: null, beats: () => [] })
+const props = withDefaults(defineProps<Props>(), { label: null, nextUnlock: null, bonus: null, beats: () => [] })
 const { t } = useI18n()
 
 const isBoss = computed(() => props.phase === 'boss')
+
+/**
+ * ─── Two goals, one slot ────────────────────────────────────────────────────
+ *
+ * The ladder's promise ("Shield · next stage") and the milestone payout ("Bonus
+ * +185 · in 4 stages") are both reasons to play the NEXT stage, and both belong
+ * under the stage label — but a third line in that column pushes the progress
+ * rail down a phone, which is why the old milestone countdown was taken out
+ * (it was also a bare star and a digit, which nobody read). So they take turns:
+ * whichever is on shows for `GOAL_ROTATE_MS`, then the other. One goal alone
+ * simply stays up.
+ */
+const GOAL_ROTATE_MS = 4000
+const goalTick = ref(0)
+const goalTimer = setInterval(() => { goalTick.value++ }, GOAL_ROTATE_MS)
+const goals = computed(() => {
+  const out: Array<{ icon: GameIconName; text: string }> = []
+  if (props.nextUnlock) out.push(props.nextUnlock)
+  if (props.bonus) out.push({ icon: 'star', text: props.bonus.text })
+  return out
+})
+const goal = computed(() => goals.value.length === 0 ? null : goals.value[goalTick.value % goals.value.length]!)
 const railPct = computed(() =>
   Math.round(Math.max(0, Math.min(1, num(isBoss.value ? props.bossHp : props.progress))) * 100)
 )
@@ -315,6 +343,7 @@ watch(() => props.stage, () => rearmMilestones())
 // the menu — and a timer holding a ref past that is the classic way a "the
 // component is gone" warning appears in a portal QA console.
 onBeforeUnmount(() => {
+  clearInterval(goalTimer)
   if (milestoneTimer) clearTimeout(milestoneTimer)
   milestoneTimer = null
   clearSquadMove()
@@ -345,9 +374,14 @@ onBeforeUnmount(() => {
         span.run-hud__stage-label {{ label ?? t('hud.stage', { n: stage }) }}
         //- The promise. Gold, like the banner's, and never during the boss:
         //- the fight is the only thing the player should be reading then.
-        span.run-hud__next(v-if="nextUnlock && !isBoss")
-          GameIcon.run-hud__next-icon(:name="nextUnlock.icon")
-          span.run-hud__next-text {{ nextUnlock.text }}
+        //- …and the long-term bonus, taking turns with it — see `goal`.
+        //- A one-cell grid, so the leaving and the arriving chip overlap while
+        //- they cross-fade instead of the column collapsing between them.
+        span.run-hud__goal-slot(v-if="goal && !isBoss")
+          Transition(name="run-hud-goal")
+            span.run-hud__next(:key="goal.text")
+              GameIcon.run-hud__next-icon(:name="goal.icon")
+              span.run-hud__next-text {{ goal.text }}
 
       div.run-hud__stats
         //- Re-keyed on every milestone so the punch animation restarts from
@@ -451,6 +485,23 @@ onBeforeUnmount(() => {
   line-height: 1
   text-shadow: 2px 2px 0 #000
   white-space: nowrap
+
+// The swap between the two goals: a quick cross-fade, no movement — the slot
+// must never shift the row it sits in. Both chips stand in the same grid cell.
+.run-hud__goal-slot
+  display: inline-grid
+  justify-items: start
+
+.run-hud__goal-slot > .run-hud__next
+  grid-area: 1 / 1
+
+.run-hud-goal-enter-active,
+.run-hud-goal-leave-active
+  transition: opacity 0.25s ease
+
+.run-hud-goal-enter-from,
+.run-hud-goal-leave-to
+  opacity: 0
 
 .run-hud__next .run-hud__next-icon
   width: clamp(0.65rem, 3vw, 0.9rem)

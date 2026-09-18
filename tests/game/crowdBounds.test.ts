@@ -189,11 +189,40 @@ describe('the crowd behaves like a swarm against the rail, not a ghost through i
     game.debugAddUnits(40)
     game.steerTo(GATE_LEAF_X)
 
+    // ── …and the lane steps round the stone on the way there ──
+    //
+    // Stage 9 was re-cut on 2026-09-18 around authored stone fields (`stones`
+    // in track.ts) whose two ranks deliberately open on DIFFERENT sides — the
+    // stage's whole lesson is that one held line does not survive them. A crowd
+    // pinned to `GATE_LEAF_X` from the first frame was cut apart before its
+    // first landmark and this spec proved nothing. So the fixture steers the
+    // way the physics under test does not care about: the door lane, except
+    // where the NEXT unbreakable row is about to close it, and then the nearest
+    // line that row leaves open (one row at a time — the two ranks of a field
+    // share at most one slot, so asking for a line through both at once finds
+    // none). Nothing near the elite changes: the steer stops once it is up.
+    const laneRoundStone = (): number => {
+      const ahead = game.anchor().y
+      const reach = game.crowdRadius() + UNIT_R + 0.15
+      const near = game.getRocks().filter((r) => r.y > ahead - 0.6 && r.y < ahead + 6)
+      const next = Math.min(...near.map((r) => r.y))
+      const rows = near.filter((r) => Math.abs(r.y - next) < 0.5)
+      const blocked = (x: number): boolean => rows.some((r) => Math.abs(r.x - x) < r.w / 2 + reach)
+      if (!blocked(GATE_LEAF_X)) return GATE_LEAF_X
+      for (let d = 0.2; d <= 9; d += 0.2) {
+        for (const x of [GATE_LEAF_X - d, GATE_LEAF_X + d]) {
+          if (Math.abs(x) <= 4.2 && !blocked(x)) return x
+        }
+      }
+      return GATE_LEAF_X
+    }
+
     let sawElite = false
     let sawInBand = false
     let sawItPass = false
 
     for (let i = 0; i < 2600; i++) {
+      if (!game.getFoes().some((f) => f.elite && !f.dead)) game.steerTo(laneRoundStone())
       game.step(16)
       // The one landmark on this road that is a body for its whole fight — see
       // `ALWAYS_SOLID`. Stage 9 on, the rotation also puts a burrower and a

@@ -6,6 +6,7 @@
  *   pnpm art:export                # in another; writes art-sheets/
  *   pnpm art:export http://localhost:2050/#/art-sheets
  *   pnpm art:export -- --deaths    # the boss deaths only (+ the whole index)
+ *   pnpm art:export -- --hurls     # the boss meteor throws only (+ the whole index)
  *   pnpm art:export -- --only still-prop-cage,still-prop-cage-sealed
  *                                  # just those references (+ the index, the
  *                                  # stills key and the prompt documents)
@@ -22,6 +23,7 @@ import { join } from 'node:path'
 
 const ARGS = process.argv.slice(2)
 const DEATHS_ONLY = ARGS.includes('--deaths')
+const HURLS_ONLY = ARGS.includes('--hurls')
 const ONLY_AT = ARGS.indexOf('--only')
 const ONLY = ONLY_AT >= 0 ? (ARGS[ONLY_AT + 1] ?? '') : ''
 if (ONLY_AT >= 0 && !ONLY) { console.error('--only needs a comma-separated list of reference stems'); process.exit(1) }
@@ -119,7 +121,7 @@ try {
   // ── Press export ──
   const label = await evaluate(`(() => {
     const b = [...document.querySelectorAll('.art-sheets .bar button')]
-      .find((x) => ${DEATHS_ONLY ? '/Export boss deaths/i' : '/Export all/i'}.test(x.textContent));
+      .find((x) => ${DEATHS_ONLY ? '/Export boss deaths/i' : HURLS_ONLY ? '/Export boss throws/i' : '/Export all/i'}.test(x.textContent));
     if (!b) return null;
     b.click();
     return b.textContent.trim();

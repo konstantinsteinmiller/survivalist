@@ -420,10 +420,21 @@ describe('traps and multipliers arrive on schedule', () => {
     expect(swell.y).toBeGreaterThan(track(1).arenaY * 0.6)
   })
 
+  // A PRICED twin's multiplier (`pricesBareTwins`, stages 16-29) is a
+  // different object: fixed (its `pumpCap` is its value), priced to tie with
+  // the add beside it at a middling crowd, so it prints tenths like ×1.1 and
+  // is not part of the rolled budget below. Measured when it landed: stages
+  // 16-29 × good/average × 3 seeds at a mid-career shop, clears 75/84 against
+  // 74/84 without it, mean peak +5 % — no compounding to ration. Its own
+  // bounds are pinned in `longRoad.test.ts`.
+  const isPriced = (l: { op: string; value: number; pumpCap?: number }): boolean =>
+    l.op === 'mul' && l.pumpCap !== undefined && l.pumpCap === l.value
+
   it('holds ÷3 until stage 4, ÷5 until stage 6 and ×3 until stage 8', () => {
     for (const stage of STAGES) {
       for (const bank of gateBanks(stage)) {
         for (const leaf of bank.leaves) {
+          if (isPriced(leaf)) continue
           // Doors are on the road at their OPEN value, so the schedule is
           // asserted there: a `x3` is a `x2.4` until the crowd shoots it.
           if (leaf.op === 'mul') {
@@ -449,7 +460,7 @@ describe('traps and multipliers arrive on schedule', () => {
     for (const stage of STAGES) {
       if (stage < 6) continue // stages 1–5 are hand-placed and measured
       const leaves = gateBanks(stage).flatMap((b) => b.leaves)
-      const muls = leaves.filter((l) => l.op === 'mul')
+      const muls = leaves.filter((l) => l.op === 'mul' && !isPriced(l))
       expect(muls.length, `stage ${stage} compounds ${muls.length} multipliers`)
         .toBeLessThanOrEqual(mulLeaves(stage))
       // The `×3` budget grows with the road for the same reason `mulLeaves`
@@ -622,9 +633,15 @@ describe('a bank owns the road either side of it', () => {
     // correctly, and disastrously, moved the CRATE. That crate is the whole
     // reason the chicane spits the crowd out on the right; shifting it cost the
     // benchmark run stage 4. A filler is pacing, not intent: it yields.
+    //
+    // Re-pinned when stage 4 was re-cut into acts (2026-09-18): the crate past
+    // the chicane is a DAMAGE crate at 42 now — the stage's roadside cage
+    // retires the rate crate nearest it, and on the new road that was this one.
+    // The claim is unchanged: the box the chicane is built around stays where
+    // it was written.
     const t = track(4)
-    const crate = t.events.find((e) => e.kind === 'crates' && e.crates[0]?.kind === 'rate')
-    expect(crate?.y, 'stage 4 keeps its authored rate crate at y=38').toBe(38)
+    const crate = t.events.find((e) => e.kind === 'crates' && e.crates[0]?.kind === 'damage')
+    expect(crate?.y, 'stage 4 keeps its authored damage crate at y=42').toBe(42)
   })
 })
 
@@ -746,10 +763,13 @@ describe('a stage gives the run what it needs', () => {
     expect(foeDef(typeId).designs[0]).toBe(bossDesign(2))
   })
 
-  it('puts a miniboss on every stage from 2, a second from 6 and a third from 20', () => {
+  it('puts two minibosses on every stage from 2 and a third from 20', () => {
+    // "A second from 6" until 2026-09-18, when stages 2-5 went to stage 1's
+    // sixty seconds of road and were re-written in acts around two landmarks
+    // (`AUTHORED_ELITES`) — the shape stage 1 already had.
     for (const stage of STAGES) {
       if (stage < 2) continue
-      const want = stage >= MINIBOSS_STAGE_THIRD ? 3 : stage >= 6 ? 2 : 1
+      const want = stage >= MINIBOSS_STAGE_THIRD ? 3 : 2
       const elites = track(stage).events.filter((e) => e.kind === 'miniboss')
       expect(elites.length, `stage ${stage} is short of elites`).toBeGreaterThanOrEqual(want)
       for (const elite of elites) {
@@ -757,6 +777,89 @@ describe('a stage gives the run what it needs', () => {
         expect(elite.kind === 'miniboss' && elite.hpScale).toBeGreaterThan(1)
         expect(elite.y).toBeLessThan(track(stage).arenaY)
       }
+    }
+  })
+})
+
+/**
+ * ─── Stages 2-8 are written for their sixty-second roads ────────────────────
+ *
+ * The re-cut of 2026-09-18 (see "Stages 2-8" above `stageTwo`): each of these
+ * roads is authored in acts around two elites, with something alive between
+ * every pair of banks. These pin the SHAPE so a length change or a lazy edit
+ * cannot quietly turn them back into forty per cent filler.
+ */
+describe('stages 2-8 are three acts around two landmarks', () => {
+  const ACTS = [2, 3, 4, 5, 6, 7, 8]
+
+  it('finishes every authored beat before the run-in bank', () => {
+    // The road the stage writes has to END where its closing bank starts. A
+    // length that shrank under an absolute-unit body would push beats into the
+    // run-in or past the arena; this is the check that fails first.
+    for (const stage of ACTS) {
+      const t = track(stage)
+      const closing = Math.max(...gateBanks(stage).map((b) => b.y))
+      expect(closing, `stage ${stage}`).toBeCloseTo(t.arenaY - 12, 5)
+      for (const e of t.events) {
+        if (e.kind === 'gates' && e.y === closing) continue
+        expect(e.y, `stage ${stage}: ${e.kind} at ${e.y} is inside the run-in`).toBeLessThan(closing)
+      }
+    }
+  })
+
+  it('gives each landmark open road in front of it, one per half-and-a-bit', () => {
+    for (const stage of ACTS) {
+      const t = track(stage)
+      const elites = t.events.filter((e) => e.kind === 'miniboss').map((e) => e.y).sort((a, b) => a - b)
+      expect(elites, `stage ${stage}`).toHaveLength(2)
+      // The first closes act one, the second closes act two.
+      expect(elites[0]! / t.arenaY, `stage ${stage}`).toBeGreaterThan(0.3)
+      expect(elites[0]! / t.arenaY, `stage ${stage}`).toBeLessThan(0.45)
+      expect(elites[1]! / t.arenaY, `stage ${stage}`).toBeGreaterThan(0.72)
+      expect(elites[1]! / t.arenaY, `stage ${stage}`).toBeLessThan(0.88)
+      // Twelve clear units in front of each (`MINIBOSS_LEAD`): no bank and no
+      // wall inside the run-up, so the fight opens on open road.
+      for (const y of elites) {
+        for (const e of t.events) {
+          if (e.kind !== 'gates' && e.kind !== 'barricade') continue
+          const gap = y - e.y
+          expect(gap >= 0 && gap < 12, `stage ${stage}: ${e.kind} at ${e.y} crowds the elite at ${y}`)
+            .toBe(false)
+        }
+      }
+    }
+  })
+
+  it('puts something alive between every pair of banks', () => {
+    // The owner's "more to shoot": shooting is the primary verb, and the old
+    // roads spent whole screens on furniture between two doors.
+    for (const stage of ACTS) {
+      const t = track(stage)
+      const banks = gateBanks(stage).map((b) => b.y).sort((a, b) => a - b)
+      for (let i = 1; i < banks.length; i++) {
+        const lo = banks[i - 1]!
+        const hi = banks[i]!
+        // A locked pair's two banks are one decision five units apart.
+        if (hi - lo < 6) continue
+        const alive = t.events.some((e) =>
+          (e.kind === 'foes' || e.kind === 'miniboss') && e.y > lo && e.y < hi)
+        expect(alive, `stage ${stage}: nothing alive between the banks at ${lo} and ${hi}`).toBe(true)
+      }
+    }
+  })
+
+  it('fields more bodies than the stretched roads ever did', () => {
+    // Measured before the re-cut (the lengthened roads, bodies as dealt by
+    // `pack`): 23 / 19 / 9 / 12 / 16 / 16 / 14 on stages 2-8 — and after it
+    // 37 / 40 / 29 / 49 / ~70 / ~80 / ~100. Pinned loosely (half as many again,
+    // and never under 25) so a pack-size pass does not trip it and a road that
+    // went quiet does.
+    const before: Record<number, number> = { 2: 23, 3: 19, 4: 9, 5: 12, 6: 16, 7: 16, 8: 14 }
+    for (const stage of ACTS) {
+      const bodies = track(stage).events.reduce((n, e) => n + (e.kind === 'foes' ? e.count : 0), 0)
+      expect(bodies, `stage ${stage} fields ${bodies} bodies`).toBeGreaterThanOrEqual(
+        Math.max(25, Math.ceil(before[stage]! * 1.5))
+      )
     }
   })
 })

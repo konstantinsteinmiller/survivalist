@@ -3,10 +3,10 @@ import { ref, onMounted } from 'vue'
 import {
   WALKS, STILLS, GATE_POST, GATE_REF_POST_W,
   framesOf, colsOf, rowsOf,
-  BOSS_DEATHS, promptDocs,
-  type WalkSpec, type StillSpec, type DeathSpec
+  BOSS_DEATHS, BOSS_HURLS, promptDocs,
+  type WalkSpec, type StillSpec, type DeathSpec, type HurlSpec
 } from '@/game/artSheet'
-import { paintMonsterDeathFrame, paintMonsterFrame } from '@/game/monsterSprites'
+import { paintMonsterDeathFrame, paintMonsterFrame, paintMonsterHurlFrame } from '@/game/monsterSprites'
 import { paintSurvivorFrame, OUTFITS } from '@/game/heroSprites'
 import { paintSmokeRef } from '@/use/useVfx'
 import {
@@ -223,6 +223,40 @@ const renderDeath = (d: DeathSpec): HTMLCanvasElement => {
   // union onto it, standing height and lying length together.
   const fit = fitOf(alpha, d.cols, d.rows, d.panelW, d.panelH)
   if (fit) fits.set(`death/${d.id}`, fit)
+  return onGround(alpha, 'magenta')
+}
+
+// ─── Hurls ──────────────────────────────────────────────────────────────────
+
+/**
+ * A boss's meteor THROW on a transparent canvas: the drawn throw, panel by
+ * panel, through the bake's own painter (`paintMonsterHurlFrame`) — the same
+ * frames the game plays until a painting arrives, with the hand where the game
+ * will put the rock.
+ */
+const renderHurlAlpha = (d: HurlSpec): HTMLCanvasElement => {
+  const cv = document.createElement('canvas')
+  cv.width = d.w
+  cv.height = d.h
+  const ctx = cv.getContext('2d')!
+  for (let i = 0; i < d.frames; i++) {
+    ctx.save()
+    ctx.translate((i % d.cols) * d.panelW, Math.floor(i / d.cols) * d.panelH)
+    ctx.beginPath()
+    ctx.rect(0, 0, d.panelW, d.panelH)
+    ctx.clip()
+    paintMonsterHurlFrame(ctx, d.design, i, d.frames, d.panelW, d.panelH)
+    ctx.restore()
+  }
+  return cv
+}
+
+const renderHurl = (d: HurlSpec): HTMLCanvasElement => {
+  const alpha = renderHurlAlpha(d)
+  // The union of all eight, like a walk's and a death's: the slicer registers
+  // the return's union onto it, arm raised and all.
+  const fit = fitOf(alpha, d.cols, d.rows, d.panelW, d.panelH)
+  if (fit) fits.set(`hurl/${d.id}`, fit)
   return onGround(alpha, 'magenta')
 }
 
@@ -723,6 +757,25 @@ const buildIndex = () => ({
       tight: false,
       maxEdge: d.maxEdge,
       target: d.target
+    })),
+    // A throw is cut exactly like a death: the same wide feet-anchored panels,
+    // under its own `hurl-` id.
+    ...BOSS_HURLS.map((d) => ({
+      id: d.id,
+      file: `${d.file}.png`,
+      width: d.w,
+      height: d.h,
+      cols: d.cols,
+      rows: d.rows,
+      frames: d.frames,
+      kind: d.kind,
+      panel: { w: d.panelW, h: d.panelH },
+      ...(fits.has(`hurl/${d.id}`) ? { fit: fits.get(`hurl/${d.id}`) } : {}),
+      faces: d.faces,
+      anchor: 'feet',
+      tight: false,
+      maxEdge: d.maxEdge,
+      target: d.target
     }))
   ]
 })
@@ -764,6 +817,11 @@ const preview = async (): Promise<void> => {
     out.push({ id: d.id, title: `${d.name} — death (layout)`, url: cv.toDataURL('image/png'),
       dims: `${cv.width}x${cv.height} · ${d.cols}x${d.rows} panels` })
   }
+  for (const d of BOSS_HURLS.slice(0, 2)) {
+    const cv = renderHurl(d)
+    out.push({ id: d.id, title: `${d.name} — throw (layout)`, url: cv.toDataURL('image/png'),
+      dims: `${cv.width}x${cv.height} · ${d.cols}x${d.rows} panels` })
+  }
   previews.value = out
 }
 
@@ -772,11 +830,12 @@ const preview = async (): Promise<void> => {
  *
  * `deaths` writes the boss deaths and nothing else of the cast — the references,
  * their key and their prompts — so adding a sheet kind does not re-stamp fifty
- * reference files that did not change. The INDEX is still written whole, which
- * is why every other sheet is still rendered (in memory only): the slicer reads
- * one index, and an index with holes in it would forget how to cut the walks.
+ * reference files that did not change; `hurls` does the same for the boss
+ * throws. The INDEX is still written whole, which is why every other sheet is
+ * still rendered (in memory only): the slicer reads one index, and an index
+ * with holes in it would forget how to cut the walks.
  */
-const exportSheets = async (scope: 'all' | 'deaths'): Promise<void> => {
+const exportSheets = async (scope: 'all' | 'deaths' | 'hurls'): Promise<void> => {
   busy.value = true
   const every = scope === 'all'
   // `?only=<stem>,<stem>` narrows "all" to the named references: a NEW sheet
@@ -826,6 +885,7 @@ const exportSheets = async (scope: 'all' | 'deaths'): Promise<void> => {
       status.value = `rendering ${d.file}`
       await tick()
       const cv = renderDeath(d)
+      if (scope === 'hurls') continue
       if (wanted(d.file)) await put(`${d.file}.png`, { dataUrl: cv.toDataURL('image/png') })
       // The key shows the LAST panel — the body the game keeps on screen.
       const last = document.createElement('canvas')
@@ -835,12 +895,33 @@ const exportSheets = async (scope: 'all' | 'deaths'): Promise<void> => {
         d.panelW, d.panelH, 0, 0, d.panelW, d.panelH)
       deathKeys.push({ title: d.name, sub: d.target, cv: last })
     }
-    if (only === null) await put('key-deaths.png', { dataUrl: renderKey(deathKeys, 192, 8).toDataURL('image/png') })
+    if (only === null && scope !== 'hurls') {
+      await put('key-deaths.png', { dataUrl: renderKey(deathKeys, 192, 8).toDataURL('image/png') })
+    }
+
+    const hurlKeys: { title: string; sub: string; cv: HTMLCanvasElement }[] = []
+    for (const d of BOSS_HURLS) {
+      status.value = `rendering ${d.file}`
+      await tick()
+      const cv = renderHurl(d)
+      if (scope === 'deaths') continue
+      if (wanted(d.file)) await put(`${d.file}.png`, { dataUrl: cv.toDataURL('image/png') })
+      // The key shows the COCKED panel — the moment the throw is recognised by.
+      const cocked = document.createElement('canvas')
+      cocked.width = d.panelW
+      cocked.height = d.panelH
+      cocked.getContext('2d')!.drawImage(cv, 3 * d.panelW, 0, d.panelW, d.panelH, 0, 0, d.panelW, d.panelH)
+      hurlKeys.push({ title: d.name, sub: d.target, cv: cocked })
+    }
+    if (only === null && scope !== 'deaths') {
+      await put('key-hurls.png', { dataUrl: renderKey(hurlKeys, 192, 8).toDataURL('image/png') })
+    }
 
     // The text is the manifest's (`promptDocs`), so this route and
     // `pnpm art:prompts` write byte-identical documents.
     const docs = promptDocs()
-    await put('PROMPTS-DEATHS.md', { text: docs['PROMPTS-DEATHS.md']! })
+    if (scope !== 'hurls') await put('PROMPTS-DEATHS.md', { text: docs['PROMPTS-DEATHS.md']! })
+    if (scope !== 'deaths') await put('PROMPTS-HURLS.md', { text: docs['PROMPTS-HURLS.md']! })
     if (every) await put('PROMPTS-WALKS.md', { text: docs['PROMPTS-WALKS.md']! })
     if (every) await put('PROMPTS-STILLS.md', { text: docs['PROMPTS-STILLS.md']! })
 
@@ -855,6 +936,7 @@ const exportSheets = async (scope: 'all' | 'deaths'): Promise<void> => {
 
 const exportAll = (): Promise<void> => exportSheets('all')
 const exportDeaths = (): Promise<void> => exportSheets('deaths')
+const exportHurls = (): Promise<void> => exportSheets('hurls')
 
 onMounted(preview)
 </script>
@@ -869,6 +951,7 @@ onMounted(preview)
       .bar
         button(:disabled="busy" @click="exportAll") {{ busy ? 'Exporting…' : 'Export all sheets' }}
         button.ghost(:disabled="busy" @click="exportDeaths") Export boss deaths
+        button.ghost(:disabled="busy" @click="exportHurls") Export boss throws
         button.ghost(:disabled="busy" @click="preview") Re-render preview
         span.status {{ status }}
 

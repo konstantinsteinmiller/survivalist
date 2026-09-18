@@ -170,6 +170,13 @@ describe('the autobalancer tracks the player, not the stage number', () => {
     game.debugAddUnits(400)
     game.debugAddDamage(400)
     game.debugAddFireRate(4)
+    // Straight to the arena. The streak is about the CLEAR, not the road, and
+    // the road stopped being walkable by a crowd that never steers when stages
+    // 2-8 were re-cut into sixty-second acts (2026-09-18): a dozen pillars bill
+    // a centre-line crowd on the way in, and the adaptive boss — priced on the
+    // crowd's own fire — out-lasts what is left of it. `debugSkipToArena` is
+    // the seam the boss specs already use for exactly this.
+    game.debugSkipToArena()
     for (let i = 0; i < 6000 && game.phase.value !== 'clear'; i++) game.step(STEP_MS)
     expect(game.phase.value).toBe('clear')
   }

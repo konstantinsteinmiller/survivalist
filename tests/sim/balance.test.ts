@@ -432,6 +432,13 @@ describe('the autobalancer', () => {
     // 0.055 when this was written and is 0.13 now, and a literal here would
     // have to be chased every time the curve is tuned.
     const { challengeFactor } = await import('@/game/survival')
+    // …and CAPPED since 2026-09-18: the dials together may stretch a boss bar
+    // by at most `BOSS_BAR_DIALS_MAX` (a streak was turning adaptive fights
+    // into 22-26 s sponges). At a six-clear streak the cap binds, so the
+    // handicap this pins is the capped one; the streak's other two levers (pack
+    // size, bite) are untouched and the survivor clause below still has to hold.
+    const { BOSS_BAR_DIALS_MAX } = await import('@/game/adaptive')
+    const handicap = Math.min(challengeFactor(6), BOSS_BAR_DIALS_MAX)
     // …and adjusted for the FIREPOWER each probe brought to the arena, which is
     // new. This build is maxed for stage 10, so the melt floor
     // (`game/adaptive.ts`) is what prices this boss, and the floor is a function
@@ -446,11 +453,11 @@ describe('the autobalancer', () => {
     const dpsRatio = median(hot.map((r) => r.dpsAtBoss)) / median(fresh.map((r) => r.dpsAtBoss))
     const ratio = median(hot.map((r) => r.bossHp)) / median(fresh.map((r) => r.bossHp))
     expect(ratio, `streak ratio ${ratio.toFixed(3)}, dps ratio ${dpsRatio.toFixed(3)}`)
-      .toBeGreaterThan(challengeFactor(6) * Math.min(1, dpsRatio) * 0.95)
+      .toBeGreaterThan(handicap * Math.min(1, dpsRatio) * 0.95)
     // The upper bound is what stops the floor inventing difficulty of its own:
     // whichever term binds, the streak may never buy MORE than the handicap.
     expect(ratio, `streak ratio ${ratio.toFixed(3)}`)
-      .toBeLessThanOrEqual(challengeFactor(6) * 1.05)
+      .toBeLessThanOrEqual(handicap * 1.05)
     expect(
       median(hot.map((r) => r.lost)),
       'a twelve-clear streak cost the player no more survivors than a cold start'

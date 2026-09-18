@@ -11,7 +11,7 @@ import {
   DECOY_GIFT_STAGE, FROST_GIFT_STAGE, SHIELD_GIFT_STAGE, nextUnlock, nextWeaponStage, stagesAway
 } from '@/game/ladder'
 import {
-  WEAPON_EVERY, WEAPON_PICK_STAGE, WEAPON_STAGE, stageHasWeapon, weaponForStage
+  WEAPON_EVERY, WEAPON_PICK_OFFER_STAGE, WEAPON_PICK_STAGE, WEAPON_STAGE, stageHasWeapon, weaponForStage
 } from '@/game/weapons'
 
 describe('the ladder', () => {
@@ -19,23 +19,26 @@ describe('the ladder', () => {
     expect(WEAPON_PICK_STAGE).toBe(3)
     expect(SHIELD_GIFT_STAGE).toBe(WEAPON_PICK_STAGE + 1)
     expect(WEAPON_STAGE).toBe(SHIELD_GIFT_STAGE)
-    // …and the puzzle keeps coming every other stage, forever.
+    // …and the puzzle keeps coming every other stage, forever — every stage on
+    // the long middle road, 16-29 (see `longRoad.test.ts`).
     expect(WEAPON_EVERY).toBe(2)
     for (const s of [4, 6, 8, 100, 400]) expect(stageHasWeapon(s)).toBe(true)
     for (const s of [1, 2, 3, 5, 7, 101]) expect(stageHasWeapon(s)).toBe(false)
   })
 
-  it('promises the weapon choice on stages 1 and 2, the shield on 3', () => {
-    for (const s of [1, 2]) {
-      const u = nextUnlock(s)!
-      expect(u.kind).toBe('weaponPick')
-      expect(u.atStage).toBe(WEAPON_PICK_STAGE)
-      expect(u.icon).toBe('gift')
+  it('promises the weapon choice on stage 1, the shield on 2 and 3', () => {
+    // The choice is offered at the first boss's kill (`WEAPON_PICK_OFFER_STAGE`,
+    // 2026-09-18), so stage 1 is the only road that promises it.
+    const u = nextUnlock(1)!
+    expect(u.kind).toBe('weaponPick')
+    expect(u.atStage).toBe(WEAPON_PICK_OFFER_STAGE)
+    expect(u.icon).toBe('gift')
+    for (const s of [2, 3]) {
+      const shield = nextUnlock(s)!
+      expect(shield.kind).toBe('shield')
+      expect(shield.atStage).toBe(SHIELD_GIFT_STAGE)
+      expect(shield.icon).toBe('shield')
     }
-    const shield = nextUnlock(3)!
-    expect(shield.kind).toBe('shield')
-    expect(shield.atStage).toBe(SHIELD_GIFT_STAGE)
-    expect(shield.icon).toBe('shield')
   })
 
   it('promises the two late skills when they open before (or with) the next box', () => {
@@ -75,8 +78,8 @@ describe('the ladder', () => {
   })
 
   it('counts the stages to go from the stage the player is on', () => {
-    expect(stagesAway(1, nextUnlock(1)!)).toBe(2)
-    expect(stagesAway(2, nextUnlock(2)!)).toBe(1)
+    expect(stagesAway(1, nextUnlock(1)!)).toBe(1)
+    expect(stagesAway(2, nextUnlock(2)!)).toBe(2)
     expect(stagesAway(3, nextUnlock(3)!)).toBe(1)
     // A puzzle stage promises the one after next: two stages away.
     expect(stagesAway(4, nextUnlock(4)!)).toBe(2)
@@ -88,7 +91,7 @@ describe('the ladder', () => {
   it('survives nonsense stage numbers', () => {
     expect(nextUnlock(0)!.kind).toBe('weaponPick')
     expect(nextUnlock(-5)!.kind).toBe('weaponPick')
-    expect(nextUnlock(2.7)!.kind).toBe('weaponPick')
+    expect(nextUnlock(1.7)!.kind).toBe('weaponPick')
     expect(nextWeaponStage(4, 1)).toBeNull()
   })
 })

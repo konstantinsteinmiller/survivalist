@@ -1,5 +1,5 @@
 import { MONSTERS, type MonsterDef } from '@/game/monsters'
-import { drawDeath, UPRIGHT_FALL } from '@/game/monsterKit'
+import { drawDeath, drawHurl, UPRIGHT_FALL } from '@/game/monsterKit'
 import { stripFrame, stripFrames } from '@/game/spriteStrip'
 import { spriteFor } from '@/game/art'
 
@@ -140,6 +140,8 @@ const DEATH_CACHE = new Map<string, (HTMLCanvasElement | undefined)[]>()
 const DEATH_W = Math.round(FRAME_H * DEATH_FRAME_ASPECT)
 /** Designs whose death is wanted, baked after every walk strip is done. */
 let deathQueue: string[] = []
+/** Designs whose meteor HURL is wanted, baked after the deaths. */
+let hurlQueue: string[] = []
 
 let queue: string[] = []
 let building: { id: string; def: MonsterDef; frames: HTMLCanvasElement[] } | null = null
@@ -320,6 +322,133 @@ export const monsterDeathLength = (id: string): number => {
 }
 
 /**
+ * ─── A boss's meteor HURL ───────────────────────────────────────────────────
+ *
+ * Eight panels of the boss throwing its meteor with its ARMS (`drawHurl` in
+ * `monsterKit`) — scoop, cock, release, follow-through — played over the
+ * cast's own clock (`bossWindup.hurlPanel`) instead of the walk. Same box as a
+ * death panel: the walk's height, so the swap from the walk cannot pop, and
+ * 7/6 as wide, for an arm swung out to the side.
+ *
+ * The painted strip (`images/hurls/<design>.webp`, `artSheet.BOSS_HURLS`) is
+ * painted over the same drawing, so the hand the rock sits in is where the
+ * drawing put it — which is why the anchors below are measured off the bake
+ * and used for the painting too.
+ */
+export const HURL_FRAME_ASPECT = DEATH_FRAME_ASPECT
+/** Panels in a hurl — the painted strip's count, and the bake's. */
+export const HURL_FRAMES = 8
+const HURL_W = DEATH_W
+
+/** How far into the throw panel `i` of `n` is: ready first, at rest last. */
+export const hurlK = (i: number, n: number): number => (n > 1 ? i / (n - 1) : 0)
+
+/**
+ * Draw panel `i` of a design's HURL into a `w x h` panel, through the walk's
+ * transform. Returns where the throwing hand's palm was drawn, in the
+ * context's own pixels, or null for a design that has not learned to throw.
+ * The art bench exports the reference sheet with it; the game bakes with it.
+ */
+export const paintMonsterHurlFrame = (
+  ctx: CanvasRenderingContext2D,
+  id: string, i: number, frames: number, w: number, h: number
+): [number, number] | null => {
+  const def = DEFS.get(id)
+  if (!def) return null
+  ctx.save()
+  ctx.translate(w / 2, h * (ORIGIN_Y / FRAME_H))
+  try {
+    return drawHurl(hurlK(i, frames), () => def.draw(ctx, SPRITE_S * (h / FRAME_H), 0))
+  } finally {
+    ctx.restore()
+  }
+}
+
+interface HurlSlot {
+  frame: HTMLCanvasElement
+  /** The palm, as a FRACTION of the panel — resolution-free, so it holds for
+   *  a painted panel of any size. */
+  grip: [number, number] | null
+}
+const HURL_CACHE = new Map<string, (HurlSlot | undefined)[]>()
+
+const hurlSlots = (id: string): (HurlSlot | undefined)[] => {
+  let slots = HURL_CACHE.get(id)
+  if (!slots) {
+    slots = new Array<HurlSlot | undefined>(HURL_FRAMES).fill(undefined)
+    HURL_CACHE.set(id, slots)
+  }
+  return slots
+}
+
+const bakeHurlFrame = (id: string, i: number): HurlSlot | undefined => {
+  if (typeof document === 'undefined' || !DEFS.has(id)) return undefined
+  const c = document.createElement('canvas')
+  c.width = HURL_W
+  c.height = FRAME_H
+  const ctx = c.getContext('2d')
+  const at = ctx ? paintMonsterHurlFrame(ctx, id, i, HURL_FRAMES, HURL_W, FRAME_H) : null
+  const slot: HurlSlot = { frame: c, grip: at ? [at[0] / HURL_W, at[1] / FRAME_H] : null }
+  hurlSlots(id)[i] = slot
+  return slot
+}
+
+const bakeNextHurlFrame = (): boolean => {
+  while (hurlQueue.length > 0) {
+    const id = hurlQueue[0]!
+    const i = DEFS.has(id) ? hurlSlots(id).findIndex((f) => !f) : -1
+    if (i < 0) {
+      hurlQueue.shift()
+      continue
+    }
+    bakeHurlFrame(id, i)
+    return true
+  }
+  return false
+}
+
+const hurlBaked = (id: string): boolean => {
+  const slots = HURL_CACHE.get(id)
+  return !!slots && slots.every((f) => !!f)
+}
+
+/**
+ * Ask for designs' HURLS to be baked — the boss this stage and the next, on
+ * the same breaks the deaths are. The drawn frames are wanted even when the
+ * painted strip is in, because the hand anchors are measured off them.
+ */
+export const primeMonsterHurls = (ids: readonly string[]): void => {
+  for (const id of ids) {
+    if (!DEFS.has(id) || hurlBaked(id) || hurlQueue.includes(id)) continue
+    hurlQueue.push(id)
+  }
+  schedule()
+}
+
+/**
+ * Panel `i` of a design's hurl, and where the throwing hand is in it (a
+ * fraction of the panel, or null). The painted strip's panel when it has
+ * arrived, else the drawn one; the anchor is always the drawing's. A panel the
+ * idle baker has not reached is baked here, once — at most a frame of work per
+ * panel, the first time the boss throws.
+ */
+export const monsterHurlFrame = (
+  id: string, i: number, opts: { drawn?: boolean } = {}
+): { frame: HTMLCanvasElement; grip: [number, number] | null; painted: boolean } | null => {
+  const k = Math.max(0, Math.min(HURL_FRAMES - 1, i))
+  const slot = HURL_CACHE.get(id)?.[k] ?? bakeHurlFrame(id, k)
+  if (!slot) return null
+  // The drawing even when a painting is in — for the boss-motion bench's
+  // drawn-beside-painted comparison.
+  if (opts.drawn) return { frame: slot.frame, grip: slot.grip, painted: false }
+  const strip = stripFrames('hurl', id, HURL_FRAME_ASPECT)
+  if (strip && strip.length === HURL_FRAMES) {
+    return { frame: strip[k]!, grip: slot.grip, painted: true }
+  }
+  return { frame: slot.frame, grip: slot.grip, painted: false }
+}
+
+/**
  * Bake while the browser says it has room, then hand control back.
  *
  * Progress is measured per FRAME, not per design: a treant costs five times
@@ -356,8 +485,9 @@ const pump = (deadline?: IdleTime): void => {
 
   for (;;) {
     if (!building && queue.length === 0) {
-      // Every walk is done: the deaths, one panel at a time on the same budget.
-      if (!bakeNextDeathFrame()) return
+      // Every walk is done: the deaths, then the hurls, one panel at a time on
+      // the same budget.
+      if (!bakeNextDeathFrame() && !bakeNextHurlFrame()) return
     } else {
       if (!building) {
         const id = queue.shift()
@@ -373,7 +503,7 @@ const pump = (deadline?: IdleTime): void => {
       }
     }
 
-    if (queue.length === 0 && !building && deathQueue.length === 0) break
+    if (queue.length === 0 && !building && deathQueue.length === 0 && hurlQueue.length === 0) break
     if ((deadline?.timeRemaining() ?? 0) > 12) continue
     if (nowMs() - started < SLICE_MS) continue
     break
@@ -389,7 +519,10 @@ export const setMonsterBakeAllowed = (allowed: boolean): void => {
 }
 
 const schedule = (): void => {
-  if (scheduled || !bakeAllowed || (queue.length === 0 && !building && deathQueue.length === 0)) return
+  if (
+    scheduled || !bakeAllowed ||
+    (queue.length === 0 && !building && deathQueue.length === 0 && hurlQueue.length === 0)
+  ) return
   scheduled = true
   const ric = (globalThis as { requestIdleCallback?: (cb: (d: IdleTime) => void, o?: { timeout: number }) => void })
     .requestIdleCallback

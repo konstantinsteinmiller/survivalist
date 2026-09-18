@@ -453,12 +453,17 @@ describe('a shot-down barricade pays', () => {
       const wall = game.getBarricades().find((b) => !b.dead)
       if (wall) game.steerTo(wall.x)
       const before = game.getBarricades().filter((b) => !b.dead).length
-      const coinsBefore = game.getPickups().length
+      // By id, not by count: since stage 4 was re-cut (2026-09-18) its
+      // gauntlet carries a coin trail down the channel between two standing
+      // rails, so a rail can break on the very frame the crowd collects a coin
+      // — and a length delta then reads one pickup short of what the wall
+      // actually dropped.
+      const seen = new Set(game.getPickups().map((p) => p.id))
       game.step(STEP_MS)
       const after = game.getBarricades().filter((b) => !b.dead).length
       if (after < before) {
         broke += before - after
-        dropped += game.getPickups().length - coinsBefore
+        dropped += game.getPickups().filter((p) => !seen.has(p.id)).length
       }
       if (settled(game)) break
     }
@@ -503,9 +508,14 @@ describe('a passage rib divides the crowd instead of eating it', () => {
   // them, the other loses all of its, and half is the WORST case.
   it('cuts a centre-line crowd rather than wiping it, and lets the bigger side run on', async () => {
     const game = await importGame()
-    // Stage 8: past `PASSAGE_STAGE`, and far enough in that the generator has
-    // printed a rib well before the arena.
-    game.startStage(8)
+    // Stage 6: `PASSAGE_STAGE` itself, whose first rib stands at y = 40 with a
+    // single pillar in front of it. It was stage 8 while that road's ribs came
+    // off the generator's counter; since stages 6-8 were re-cut (2026-09-18)
+    // they lay their ribs by hand, and stage 8's first is the locked pair's at
+    // 160 — five centre-line pillars in, where the 200 had bled to ~106 and a
+    // streak left over from an earlier spec in this file could take it under
+    // the 50 below. The rule under test is the rib's, not the road's.
+    game.startStage(6)
     game.debugAddUnits(200)
 
     // Everything else the road can bill for is cleared out of the way, so what
@@ -542,7 +552,7 @@ describe('a passage rib divides the crowd instead of eating it', () => {
       if (settled(game)) break
     }
 
-    expect(before, 'stage 8 never printed a passage the crowd ran into')
+    expect(before, 'stage 6 never printed a passage the crowd ran into')
       .toBeGreaterThan(50)
     // The regression itself: the rib used to leave nothing at all.
     expect(after, 'the rib wiped the crowd').toBeGreaterThan(0)

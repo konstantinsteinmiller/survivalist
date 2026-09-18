@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'Keyingi bonusgacha bosqichlar',
+    'bonus': "Bonus +{coins}",
     'fireRate': 'Tezlik',
     'incoming': 'Hujum kelmoqda!',
     'dodge': 'Chetlan',
@@ -91,6 +92,7 @@ export default {
 
     'next': "Keyingi: {label} · {when}",
     'bossAhead': "Oldinda bos: {name}",
+    'rankUp': "Oʻrin #{rank} ▲{n}",
     'bossName': {
       'grumpling': "Grumpling",
       'bonecap': "Bonecap",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "Qurol tanlang",
     'nextStage': "keyingi bosqich",
-    'stagesAway': "{n} bosqichdan keyin"
+    'stagesAway': "{n} bosqichdan keyin",
+    'thisStage': "shu bosqich"
   },
   'weaponPick': {
     'title': "Qurolingizni tanlang",

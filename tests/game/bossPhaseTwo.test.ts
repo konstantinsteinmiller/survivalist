@@ -32,8 +32,8 @@ import {
 } from '@/game/survival'
 import {
   BOSS_ENRAGE_AT, BOSS_ENRAGE_FROM_STAGE, CHARGE_KILL_SHARE, CHARGE_OVERRUN,
-  CHARGE_TELEGRAPH_MIN,
-  ENRAGED_CD_MUL, HEALER_CAST_CD, HEALER_TELEGRAPH, SUMMON_CD, SUMMON_TELEGRAPH,
+  CHARGE_TELEGRAPH_MIN, DRAIN_HALF_W, DRAIN_TELEGRAPH_MIN, GAZE_OPEN,
+  ENRAGED_CD_MUL, HEALER_CAST_CD, HEALER_TELEGRAPH, SUMMON_TELEGRAPH,
   THREAT_POOL_FROM_STAGE,
   bossCharges, bossKindFor, chargeHalfW, enragedSpan, type BossKind
 } from '@/game/threats'
@@ -275,7 +275,22 @@ describe('the fight turns over exactly once, on a beat that cannot be skipped', 
       // floor would lift the health back over the gate on the tick after the
       // turn and the "it healed and did not re-fire" assertion would be true of
       // a fight in which the healer never healed.
-      stage: HEALER_STAGE, squad: 120, maxTicks: 8000, hold: 'gentle'
+      stage: HEALER_STAGE, squad: 120, maxTicks: 8000, hold: 'gentle',
+      // Out of every drain's column. A crowd that stands in them feeds the
+      // healer's bar through the drain (`DRAIN_HEAL_FRACTION`) — which is a
+      // heal too, and would satisfy this premise — but it also spends the
+      // fight's drain-heal cap and a good part of the scheduled heals before the
+      // turn is ever reached, leaving a last third with nothing in it to
+      // re-cross the gate. Dodging keeps the heal this spec is about on its own
+      // clock.
+      steer: (g) => {
+        const b = g.getBoss()
+        const here = g.anchor().x
+        if (!b || g.incomingThreat()?.kind !== 'drain') return here
+        if (Math.abs(here - b.slamX) > DRAIN_HALF_W + CROWD_MAX_R + 0.2) return here
+        const away = [b.slamX - 3.6, b.slamX + 3.6].filter((x) => Math.abs(x) <= STEER_REACH)
+        return away.sort((p, q) => Math.abs(p - here) - Math.abs(q - here))[0] ?? here
+      }
     })
     const first = ticks.findIndex((t) => t.fx.some((e) => e.kind === 'bossEnrage'))
     expect(first, 'the healer fight never turned').toBeGreaterThan(-1)
@@ -636,9 +651,10 @@ describe('the charge goes to the fights that had one idea', () => {
       // casts, so every enraged tick reports it. `summonCd` is a countdown, so
       // only a tick where it JUMPED UP says what it was armed to; the draining
       // ticks in between say nothing.
-      const spans = stage === SUMMONER_STAGE
-        ? after.filter((t, i) => i > 0 && t.cycle > after[i - 1]!.cycle + 1e-9).map((t) => t.cycle)
-        : after.map((t) => t.cycle)
+      const armed = (list: Tick[]): number[] => stage === SUMMONER_STAGE
+        ? list.filter((t, i) => i > 0 && t.cycle > list[i - 1]!.cycle + 1e-9).map((t) => t.cycle)
+        : list.map((t) => t.cycle)
+      const spans = armed(after)
       expect(spans.length, `stage ${stage} armed no cycle after the turn`).toBeGreaterThan(0)
 
       // Every value the clock takes after the turn is one it could have taken
@@ -646,9 +662,17 @@ describe('the charge goes to the fights that had one idea', () => {
       // constant, because the guard gate legitimately re-arms a shorter fuse of
       // its own on both kinds (`bossTelegraph`, `SUMMON_TELEGRAPH`) — that is
       // the phase turn's own beat and predates phase two.
+      //
+      // The healer's list carries one more fuse than it used to: a drain armed
+      // when a gate turns gets the column's own floor (`DRAIN_TELEGRAPH_MIN`),
+      // which is the drain's rule on every gate rather than phase two's. The
+      // summoner's cadence is no longer one constant — it is priced per fight
+      // (`summonCdFor`) — so its legal values are the ones THIS fight armed
+      // before the turn, plus the gate's own fuse and the gaze's.
+      const before = armed(ticks.filter((t) => !t.enraged))
       const legal = stage === HEALER_STAGE
-        ? [HEALER_CAST_CD, HEALER_TELEGRAPH]
-        : [SUMMON_CD, SUMMON_TELEGRAPH]
+        ? [HEALER_CAST_CD, HEALER_TELEGRAPH, DRAIN_TELEGRAPH_MIN]
+        : [...before, SUMMON_TELEGRAPH, GAZE_OPEN]
       for (const c of new Set(spans.map((v) => Number(v.toFixed(4))))) {
         expect(legal.some((v) => Math.abs(v - c) < 1e-3),
           `stage ${stage} armed an enraged cycle of ${c}s, which is none of ${legal.join(' / ')}`)

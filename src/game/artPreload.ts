@@ -102,7 +102,8 @@ const threatWants = (stage: number): ArtWant[] => {
   // crest are every boss's mid-fight shield.
   wants.push(['fx', 'ring-heat'], ['fx', 'guard'], ['fx', 'crest-guard'])
   const boss = bossKindFor(stage)
-  if (boss === 'meteor') wants.push(['round', 'meteor'])
+  // The meteor boss throws with its arms, from its own painted throw.
+  if (boss === 'meteor') wants.push(['round', 'meteor'], ['hurl', bossDesign(stage)])
   if (boss === 'healer') wants.push(['round', 'bolt-boss'], ['fx', 'ring-heal'])
   if (boss === 'summoner') wants.push(['monster', SUMMON_DESIGN])
   if (stage >= THREAT_POOL_FROM_STAGE) {

@@ -4,7 +4,7 @@ A report, not a contract: it is a picture of `art-sheets/painted/` and the
 slicer's receipt at the moment it was written. Re-run `pnpm art:prompts`
 after painting or slicing anything.
 
-**18 sliced · 0 need a repaint · 62 painted, unreceipted · 1 outstanding**
+**24 sliced · 1 need a repaint · 62 painted, unreceipted · 1 outstanding**
 
 | | Sheet | Prompt block in | Reference | State |
 | --- | --- | --- | --- | --- |
@@ -89,6 +89,13 @@ after painting or slicing anything.
 | ✓ | **Cinderhound — death** | `PROMPTS-DEATHS.md` | `death-cinderhound.png` (rev `c926e611e39c`) | sliced 2026-09-12 |
 | ✓ | **Rattlejack — death** | `PROMPTS-DEATHS.md` | `death-rattlejack.png` (rev `b7feff195a16`) | sliced 2026-09-12 |
 | ✓ | **Survivors, down** | `PROMPTS-DEATHS.md` | `fall-survivors.png` (rev `7ec7e5d15b1b`) | sliced 2026-09-12 |
+| ✓ | **Grumpling — throw** | `PROMPTS-HURLS.md` | `hurl-grumpling.png` (rev `ddebf233bf2f`) | sliced 2026-09-18 |
+| ! | **Bonecap — throw** | `PROMPTS-HURLS.md` | `hurl-bonecap.png` (rev `cdcafc526b2c`) | REPAINT — the reference changed (133fa60560e2 → cdcafc526b2c) |
+| ✓ | **Snaggletusk — throw** | `PROMPTS-HURLS.md` | `hurl-snaggletusk.png` (rev `9a6657ac7950`) | sliced 2026-09-18 |
+| ✓ | **Thornwick — throw** | `PROMPTS-HURLS.md` | `hurl-thornwick.png` (rev `e77cb8ffb75a`) | sliced 2026-09-18 |
+| ✓ | **Marrow Knight — throw** | `PROMPTS-HURLS.md` | `hurl-marrowknight.png` (rev `4381c8b94046`) | sliced 2026-09-18 |
+| ✓ | **Cinderhound — throw** | `PROMPTS-HURLS.md` | `hurl-cinderhound.png` (rev `4eb1b6b57973`) | sliced 2026-09-18 |
+| ✓ | **Rattlejack — throw** | `PROMPTS-HURLS.md` | `hurl-rattlejack.png` (rev `2da2a1c1f570`) | sliced 2026-09-18 |
 
 ## What the marks mean
 

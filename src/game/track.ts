@@ -26,6 +26,8 @@ import {
   LANE_HALF,
   stageLength,
   stageSpeed,
+  STAGE_RUN_BLEND_TO,
+  legacyStageLength,
   UNIT_R,
   type CrateKind,
   type GateOp,
@@ -341,10 +343,51 @@ export const MIN_DAMAGE_CRATES = 2
  * They ramp in whole crates rather than smoothly, because a crate is an atom:
  * the step from three to four is a real, visible extra detour on the road.
  */
-export const minRateCrates = (stage: number): number =>
+const baseRateCrates = (stage: number): number =>
   MIN_RATE_CRATES + Math.floor(Math.max(0, stage - 6) / 7)
-export const minDamageCrates = (stage: number): number =>
+const baseDamageCrates = (stage: number): number =>
   MIN_DAMAGE_CRATES + Math.floor(Math.max(0, stage - 9) / 10)
+
+export const minRateCrates = (stage: number): number => longRoadFloor(baseRateCrates, stage)
+export const minDamageCrates = (stage: number): number => longRoadFloor(baseDamageCrates, stage)
+
+/**
+ * ─── …and the long middle road's floors follow its length ──────────────────
+ *
+ * Both floors above are a function of the STAGE because the stage stood for a
+ * length — "stage 30 is 340 units, more than twice the road". The 2026-09-18
+ * length pass broke that link on 16-29: stage 16 went from 264 units to 384
+ * and kept stage 16's floor, so the supply per unit of road fell by a third
+ * exactly where the road got longer. Worse, the surplus the body loop used to
+ * leave (7-12 crates) shrank too, because the echo and the guarded doors spend
+ * road the loop used to fill — measured, stage 16 shipped at its bare floor of
+ * six boxes where it had carried twelve.
+ *
+ * So on the long road each floor is scaled by how much longer the road is than
+ * the curve it was written for (`legacyStageLength`): ×1.45 at 16, ×1.29 at 20,
+ * ×1.15 at 25, ×1.03 at 29, and exactly ×1 from 30, where the two lengths meet.
+ *
+ * …and never lets go of a crate it has granted. The scale SHRINKS across the
+ * band while the stage floor steps up, so the product dips (rate: 6 at 16-17, 5
+ * at 18) — a stage that pays less than the one before it, which is the one
+ * thing a floor may not do (`trackShape.test.ts` › "never lets a knob go
+ * backwards"). The running maximum over the band holds it: rate 6 and damage
+ * 3 → 4 across 16-29, landing on exactly what the unscaled curve says at 30.
+ */
+export const longRoadSupplyScale = (stage: number): number =>
+  isLongRoad(stage) ? stageLength(stage) / legacyStageLength(stage) : 1
+
+const longRoadFloor = (base: (stage: number) => number, stage: number): number => {
+  if (!isLongRoad(stage)) return base(stage)
+  let floor = base(stage)
+  for (let s = LONG_ROAD_FROM; s <= stage; s++) {
+    floor = Math.max(floor, Math.round(base(s) * longRoadSupplyScale(s)))
+  }
+  // …capped at what stage 30 itself asks for, so the band hands over to the
+  // unscaled curve without a step DOWN (27-29 would otherwise ask for seven
+  // rate crates against 30's six).
+  return Math.min(floor, Math.max(base(stage), base(STAGE_RUN_BLEND_TO)))
+}
 
 // ─── The two roadside prizes ────────────────────────────────────────────────
 //
@@ -1210,7 +1253,23 @@ export const mulLeaves = (stage: number): number => {
   // back to back and a well-played stage 5 finished 616 strong from a crowd of
   // three. A multiplier is the loudest thing a door can do; one on the first
   // three stages and two after that is what makes it an event.
-  if (stage < MUL_BUDGET_SCARCE_STAGE) return stage <= 3 ? 1 : 2
+  // ── …and 2-5 grew with their roads (2026-09-18) ──
+  //
+  // "One on the first three stages and two after" was written for roads of 30
+  // to 50 seconds. At sixty — a dozen banks, two elites, three acts — one
+  // multiplier is a stage whose every other bank is the same add/trap/bill
+  // question, and the owner's rule for these doors is that a pair should need
+  // SUMS (`+5` against `×1.2`), which only a multiplier can ask. Stages 3-5 get
+  // three, one per act — the same budget stage 6 has always had — and the
+  // spacing rules are untouched: never within `EARLY_MUL_GAP` of another,
+  // never before `MUL_EARLIEST`. Stage 1 keeps its one — the swell is the only
+  // one it wants.
+  //
+  // Stage 2 takes TWO — the swell and the closing bank — because a third was
+  // measured and rejected: with a second doubling on its road a keen run
+  // reached the arena 482 strong, and stage 2 is the one stage whose theme is
+  // the door that TAKES. Its act-two slot is the first bait instead.
+  if (stage < MUL_BUDGET_SCARCE_STAGE) return stage <= 1 ? 1 : stage <= 2 ? 2 : 3
   return 3 + Math.floor(Math.max(0, stage - 20) / 14)
 }
 
@@ -1620,6 +1679,23 @@ interface Beat {
    * nobody could attribute. A private stream keeps the diff to the prop itself.
    */
   prizeRng: () => number
+  /**
+   * …and a FOURTH, for everything the long-road pass (2026-09-18) lays on
+   * stages `LONG_ROAD_FROM`..`STAGE_RUN_BLEND_TO − 1`: the door guards, the fill
+   * waves, the echo, the early elite. See "The long middle road" above
+   * `proceduralBody`.
+   *
+   * Same reason as the other two, and one more. The pass only ADDS to those
+   * roads — the rolls that were already on them (every bank, every hazard, every
+   * crate) come off `rng` exactly as they did before, so a diff of stage 20 is a
+   * list of things this pass put there rather than a re-rolled stage. And it
+   * never runs from 30, so the frozen late road (`lateStagesFrozen.test.ts`)
+   * cannot even see it.
+   */
+  roadRng: () => number
+  /** Banks `guardTwins` split and walled, and the x of each one's fat door —
+   *  where `layGuards` stands the file once the road is finished. */
+  guarded: Array<{ y: number; x: number; filed?: boolean }>
   /** Three-leaf banks the stage may still print, and how many it has. */
   triplesLeft: number
   triplesPlaced: number
@@ -1754,7 +1830,16 @@ const EARLY_CLOSING_CROWD: Readonly<Record<number, number>> = {
   // the run-in with roughly twice the crowd, and leaving the old number in place
   // priced the closing bank — the last thing the player reads before the arena —
   // at `+7 | +3` against a squad of ninety.
-  1: 37, 2: 95, 3: 90, 4: 36, 5: 60
+  //
+  // ⚠ …and 2-5 were re-read again when they were re-cut to sixty seconds in
+  // acts (2026-09-18). The crowd walk at the closing bank, keen / lazy:
+  // 116 / 24, 263 / 47, 267 / 45, 284 / 70 on stages 2-5 — so a tie at the old
+  // 36 on stage 4 was a `×2` every run on the road took without reading the
+  // other door. Each is now roughly the middle of its own walk, which is where
+  // `liveDoor` puts the flip. Stage 1's is untouched: its road still closes on
+  // the routing pair, and the owner's "almost really good" stage keeps its
+  // numbers.
+  1: 37, 2: 70, 3: 100, 4: 100, 5: 120
 }
 
 /**
@@ -2581,8 +2666,8 @@ export const OPENING_PUMP_CAP = 7
  * (`OPENING_PUMP_MUL`), so seven notes take ~1.15 s of a ~1.8 s run-up.
  */
 export const OPENING_GATE_VALUE = 1
-/** Where the opening doorway stands. INSIDE the first screen (~13.7 units of
- *  road are visible), so it is already on view — and already being shot at —
+/** Where the opening doorway stands. INSIDE the first screen (~14.3 units of
+ *  road to the top edge, ~11-12 under the HUD bar), so it is already on view — and already being shot at —
  *  while the controls lightbox holds the road for a first-time player. */
 export const OPENING_GATE_Y = 9
 
@@ -3263,8 +3348,31 @@ const pincer = (b: Beat, y: number, typeId: string, waves: number): void => {
  * player who takes the first gap late is already on the wrong side of the
  * second, which is exactly the mistake the beat exists to charge for.
  */
-const chicane = (b: Beat, y: number, flip: boolean): void => {
+const chicane = (b: Beat, y: number, flip: boolean, closed = false): void => {
   const hp = () => Math.max(6, Math.round(barricadeHp(b.stage) * (0.75 + b.rng() * 0.4)))
+  if (closed) {
+    // ── The S the beat promises, at today's `MIN_RUN_GAP` ──
+    //
+    // The three-slot half-walls below are 4.5 units of wall against a runnable
+    // gap of 4.9, so `ensureRunnable` trims every one of them to its two OUTER
+    // slots — and the two trimmed halves leave the centre three units open
+    // through both rows. Measured on the stage-3 road before this existed: the
+    // "chicane" was a straight line down the middle for any crowd under ~80.
+    //
+    // So a closed chicane is two blocks of width 2 per row, sealing ±[0.5, 4.5]:
+    // five units of gap on the open side (runnable), and a centre channel one
+    // unit wide through both rows, which no crowd bigger than a handful fits.
+    // The line is an S, which is the beat. Opt-in, so every road that already
+    // ships the classic shape — the procedural body and stages 9+ — is
+    // untouched; the authored stages 2-8 ask for this one.
+    const half = (side: -1 | 1) => [
+      { x: side * 1.5, w: 2, hp: hp() },
+      { x: side * 3.5, w: 2, hp: hp() }
+    ]
+    wall(b, y, half(flip ? 1 : -1))
+    wall(b, y + 6.5, half(flip ? -1 : 1))
+    return
+  }
   const leftHalf = [0, 1, 2].map((i) => ({ x: SLOT_X[i]!, w: BARRICADE_W, hp: hp() }))
   const rightHalf = [3, 4, 5].map((i) => ({ x: SLOT_X[i]!, w: BARRICADE_W, hp: hp() }))
   wall(b, y, flip ? rightHalf : leftHalf)
@@ -3280,12 +3388,22 @@ const chicane = (b: Beat, y: number, flip: boolean): void => {
  * the stages that use it put a gate bank (whose pillar is dead centre) right
  * after: the habit it builds is the habit the next beat punishes.
  */
-const gauntlet = (b: Beat, y: number, rows: number): void => {
+const gauntlet = (b: Beat, y: number, rows: number, bothRails = false): void => {
   const railHp = Math.max(6, Math.round(barricadeHp(b.stage) * 1.15))
+  // ── `bothRails`: the gauntlet that actually has two ──
+  //
+  // At ±2.75 × 1.3 the channel is 4.2 units against today's `MIN_RUN_GAP` of
+  // 4.9, so `ensureRunnable` deletes one rail of every row and the beat ships
+  // as a single post on one side — measured on every road that uses it. Rails
+  // at ±3.1 × 1.2 leave a 5.0 channel: runnable, so both survive, and still
+  // too narrow to wander in. Opt-in for the same reason as the closed
+  // `chicane`: the roads that ship the one-rail version are not this pass's.
+  const railX = bothRails ? 3.1 : 2.75
+  const railW = bothRails ? 1.2 : 1.3
   for (let i = 0; i < rows; i++) {
     wall(b, y + i * 4.6, [
-      { x: -2.75, w: 1.3, hp: railHp },
-      { x: 2.75, w: 1.3, hp: railHp }
+      { x: -railX, w: railW, hp: railHp },
+      { x: railX, w: railW, hp: railHp }
     ])
   }
   coinTrail(b, y + 0.8, -0.4, 0.4, rows * 4, 1.15)
@@ -3596,8 +3714,36 @@ const stageOne = (b: Beat): void => {
   // gap between the two numbers is wide enough to read at speed.
   bank(b, 55, add(6), add(2))
 
+  // ── More to shoot, and never two at once (owner, 2026-09-18) ──
+  //
+  // "Too few dynamic obstacles like monsters — the player should have more to do
+  // and things to shoot, as that is the primary mechanic." Stage 1 carried SIX
+  // bodies over 316 units, and the stretches between them were all furniture.
+  //
+  // The answer is not a bigger pack: `earlyPackCap(1)` is one on purpose, because
+  // the first road shows ONE monster at a time so the verb is unmistakable, and
+  // a pack of two is a pack the crowd has to split its fire across. So the extra
+  // bodies come as a FILE — lone creeps, each far enough behind the last that the
+  // crowd has finished shooting one before the next is in range (a creep closes
+  // at 2.1 + 5.1 u/s and dies ~10 units out to a crowd of ten, so four units
+  // between them is two thirds of a second of air). Every one of them is
+  // `pack(…, 1, …)`, so a balance pass on the early cap still reaches them.
+  //
+  // This one fills the hole behind the first bank: the door pays, and the first
+  // thing the new crowd meets is something to spend it on.
+  //
+  // On the LEFT (`pack` deals a lone body at `-spread`), the side of the stray at
+  // 77, and measured rather than chosen: from the right it left a
+  // straight-driving crowd a hair closer to that stray — 1.019 units against
+  // the 1.02 bite reach `strays.test.ts` promises a run that never steers.
+  pack(b, 63, 'creep', 1, 1.6)
+
   // First real ask: the crate is off the line, and the line is safe.
   crates(b, 86, 'damage', [CRATE_DETOUR_X])
+  // …and a body comes in off the far shoulder while the crowd swings out for
+  // it, so the detour is taken under fire rather than in an empty lane. Clear of
+  // the cage at 98 and of the first elite's run-up (108 → 120).
+  pack(b, 92, 'creep', 1, 2.2)
 
   // ── The first cage in the game, at four HP ──
   //
@@ -3619,6 +3765,10 @@ const stageOne = (b: Beat): void => {
   // rather than a door on purpose: the beat after a lesson should be somewhere
   // to use it, and the crowd has just been handed one for free.
   pack(b, 124, 'creep', 3, 2.4)
+  // …and a second body behind it, so the stretch after the lesson is a file to
+  // shoot down rather than a single kill — the crowd has just been handed a
+  // bomb for free, and the road should give it somewhere to feel strong.
+  pack(b, 130, 'creep', 1, -2.0)
   coinTrail(b, 136, -1.1, GATE_LEAF_X, 7, 1.2)
 
   // First bank with two different offers. Nothing threatens it — the lesson is
@@ -3693,6 +3843,8 @@ const stageOne = (b: Beat): void => {
   // Kept clear of both elites' run-ups (`MINIBOSS_LEAD`, 12 units either side
   // of 109 and 246) so each landmark is met on open road.
   pack(b, 180, 'creep', 3, 2.6)
+  // A file of two in front of the bill, so the `−3` is read with a gun going.
+  pack(b, 186, 'creep', 1, -2.2)
   // ── …and the other way a door can cost ──
   //
   // `−3` against a door that pays. The two hostile ops are one mechanic with a
@@ -3701,7 +3853,13 @@ const stageOne = (b: Beat): void => {
   // legible: the `÷2` twenty seconds ago scaled with the crowd, this one does
   // not. Three is small on purpose. It is a number the player can watch leave.
   bank(b, 196, add(roadDoor(b, 30)), sub(3))
+  // 196 → 240 was the longest stretch on the road with nothing alive on it:
+  // a crate, a coin trail and a cage, forty-four units of furniture. One body
+  // on the way out of the bill, and a stray on the shoulder opposite the crate
+  // (so the swing for the box is also a swing past something to shoot).
+  pack(b, 203, 'creep', 1, 1.8)
   crates(b, 210, 'damage', [-CRATE_DETOUR_X])
+  stray(b, 216, STRAY_X)
   coinTrail(b, 222, -1.2, 1.4, 7, 1.2)
 
   // …and the same prop again at twelve, which is a real decision: three times
@@ -3714,71 +3872,121 @@ const stageOne = (b: Beat): void => {
   // …and the last thing before the second elite is a pack, so the landmark is
   // walked into with the crowd already thinned rather than at full strength.
   pack(b, 252, 'creep', 4, 3.0)
+  // ── The run-in, which was a crate and nothing else ──
+  //
+  // The second elite plants at ~272 and the closing bank is at 304, so the last
+  // thirty units were the one crate below and an empty lane. A body out of the
+  // fight and a stray in front of the door keep the gun busy to the arena —
+  // the last thing a stranger does on the first road should be the thing the
+  // game is about.
+  pack(b, 283, 'creep', 1, -2.0)
   crates(b, 288, 'rate', [CRATE_DETOUR_X + 0.4])
+  stray(b, 294, -STRAY_X)
 }
 
 /**
- * STAGE 2 — the first lie.
+ * ─── Stages 2-8: sixty seconds, three acts, two landmarks ───────────────────
  *
- * Introduces `÷2` (the first thing in the game that takes something away), the
- * first miniboss, and the first pack with teeth. The trap is always opposite a
- * fat `add` and always signposted by coins running to the good side, because
- * the player has to learn what a trap LOOKS like before they can be asked to
- * spot one. No multipliers yet — stage 3 owns that lesson.
+ * On 2026-09-18 every stage from 2 to 12 was cut to stage 1's own sixty seconds
+ * of running (`stageLength`) — the owner's call after a fit test showed "a huge
+ * drop-off from stage 1 to stage 2": stages 2 and 3 ran out of road in about
+ * half the time of the stage before them, and 4-8 had been written for roads of
+ * 30-38 s and were now forty per cent filler. These seven are re-written for
+ * the new length rather than stretched, on stage 1's template:
+ *
+ *   ACT ONE    the stage's new idea, taught against a small crowd;
+ *   LANDMARK   the first elite (`AUTHORED_ELITES`), on open road;
+ *   ACT TWO    the idea used — the stage's headline sum, its multipliers;
+ *   LANDMARK   the second elite, met by the crowd the road built;
+ *   ACT THREE  the bill: the bank that caps the snowball, then the run-in.
+ *
+ * Two rules the whole block is written to, both from the owner:
+ *
+ *   MORE TO SHOOT. Something alive between almost every pair of banks — packs,
+ *     pincers and hordes on the lane, strays on the taught stages' shoulders.
+ *     Shooting is the primary verb, and the old roads spent whole screens on
+ *     furniture.
+ *   BANKS THAT NEED MATH. A pair shares an operator only when something on the
+ *     road makes it a ROUTE (a wall, a chicane, a pack on one lane) — otherwise
+ *     it is `+N` against `×`, `−N` against `÷`, or a door nobody can read. See
+ *     the `gate-choices-must-need-math` rule in `legalise`.
+ *
+ * Positions are ROAD UNITS, not fractions: the lengths are a contract now
+ * (`STAGE_RUN_SECONDS`), and every beat here is placed against the units it
+ * needs — twelve clear in front of an elite, `MAX_GATE_GAP_S` between two
+ * stops, a weapon puzzle's twenty-seven-unit window. `trackShape.test.ts`
+ * pins that each body finishes before its closing bank, which is what would
+ * break first if a length moved under it.
+ *
+ * STAGE 2 — the first lie, and the first gift.
+ *
+ * What it introduces, in the order a first-timer meets it: a `?` that PAYS
+ * (the first bank), the first boss's launcher proven on four creeps, husks — the
+ * first pack with teeth — a `÷2` signposted by honest coins, the first wall
+ * (thinned, `earlyBarricadeKeep`), the first `−N` beside a fat door, the free
+ * gatling behind the first elite, and at the end the first bank where BOTH
+ * doors cost. Two multipliers (`mulLeaves`): the swell that opens act two,
+ * and the closing bank.
  */
 const stageTwo = (b: Beat): void => {
-  const base = gateAddBase(2)
-  // Opening bank, and the crowd is still tiny — so here the flat number is the
-  // right answer and the multiplier is the trap-that-isn't. Stage 2's second
-  // bank asks the same question with a big crowd and flips it (see y = 36).
-  // Crowd of three. Nothing multiplicative is worth anything yet, so the
-  // opening bank is the wide pair again — and the fat door is the one on the
-  // side the crowd is NOT already standing on.
+  // ─── ACT ONE: the gamble, the targets, the teaching trap (→ elite at 118) ──
   //
   // ── …and it is the first `?` in the game, and the `?` PAYS ──
   //
-  // The fat door goes face-down. The first black door a player ever meets
-  // rewards the curiosity that makes them take it — `+6` against the readable
-  // `+2` — and the player who plays safe watches the bank turn over and learns
-  // what they walked past. Stage 3's `?` is the first that bites. See "The
-  // face-down door" (rule 8).
+  // Crowd of three. The fat door goes face-down: the first black door a player
+  // ever meets rewards the curiosity that makes them take it — `+6` against
+  // the readable `+2` — and the player who plays safe watches the bank turn
+  // over and learns what they walked past. Stage 3's `?` is the first that
+  // bites. See "The face-down door" (rule 8).
   bank(b, 14, hide(add(6)), add(2))
 
+  splitPair(b, 26, 'rate', 'damage')
   // …and the first boss's launcher gets its first targets while the player is
   // still deciding what the `?` was worth. See `targetPractice`.
   targetPractice(b, 31)
 
-  splitPair(b, 26, 'rate', 'damage')
-
-  // A SECOND bank before the first husks, and the reason is measured. Stage 2
-  // used to open bank → crates → four husks at y=38, and a career sim of the
-  // average player died there four attempts running: always at 30 % of the road,
-  // always with a peak squad of 9, always to foes plus crates. One bank takes a
-  // starting squad of ~4 to ~10, and four husks carry twice a creep's health —
-  // the crowd simply was not big enough yet to be allowed to meet them.
-  //
-  // It only cleared on the fifth attempt, when failure relief handed over a
-  // bigger crowd. A stage that is beaten by the pity mechanic rather than by
-  // play is a stage that reads as unfair, and it sat between two stages the same
-  // player clears first try.
-  // …and the same shape again, now that the crowd is worth doubling. Same two
-  // ops, opposite answer: that is the lesson, and it is one a pair of `+N`s
-  // cannot teach.
+  // A line before the first husks, and the reason is measured: a career sim of
+  // the average player used to die four attempts running at 30 % of this road
+  // with a peak of 9 — one bank takes a crowd of three to ten, and husks carry
+  // twice a creep's health. Two banks in, the crowd is big enough to meet them.
   bank(b, 36, add(7), add(3))
 
-  // …and the pack itself is three husks, not four, and later. This is still the
-  // stage that introduces them; it is no longer the stage that introduces them
-  // to a crowd that cannot answer.
-  pack(b, 48, 'husk', 4, 2.1)
+  // The first pack with teeth, capped at three (`earlyPackCap`). It is also the
+  // FIRST FOE ON STAGE 2 in the sim — the four creeps above spawn only for a
+  // player holding the launcher (`forGift`) — and `survivalSim.test.ts`
+  // measures retry relief against it, so it stays a husk.
+  pack(b, 44, 'husk', 3, 2.1)
 
-  // The teaching trap: coins draw the safe line, the trap sits opposite.
-  coinTrail(b, 58, -1.6, -GATE_LEAF_X, 6, 1.2)
+  // ── The teaching trap ──
+  //
+  // Coins draw the safe line and the `÷2` sits opposite. Met by a crowd of about
+  // fifteen, so it costs a handful and reads as a scratch — the lesson is what a
+  // trap LOOKS like, and act two asks it again at four times the crowd.
+  coinTrail(b, 50, -1.2, -GATE_LEAF_X, 6, 1.2)
+  bank(b, 58, add(roadDoor(b, 22)), div(2))
 
-  bank(b, 68, add(roadDoor(b, 28)), div(2))
+  // The first wall of the campaign, a third of the time thinned away
+  // (`earlyBarricadeKeep`). Its hole decides which side of the next pillar the
+  // crowd arrives on, and the fat door is not always that side.
+  barricadeRow(b, 66, 2)
+  pack(b, 72, 'creep', 3, 2.8)
+  bank(b, 80, add(Math.round(roadDoor(b, 30) * 0.45)), add(roadDoor(b, 30)))
 
-  barricadeRow(b, 78, 2)
-  // (miniboss lands at ~55 % — see `placeMinibosses`)
+  crates(b, 88, 'rate', [CRATE_DETOUR_X + 0.4])
+  pack(b, 94, 'husk', 3, 2.4)
 
+  // ── The first bill of the stage, and it is taken INTO the fight ──
+  //
+  // Stage 1 showed `−3`; this is the same door against a fat add, a third of
+  // the way down the road (`SUB_EARLIEST`), fourteen units in front of the
+  // elite. Whatever the player chose here is the crowd the landmark is fought
+  // with, which is the first time a door's price is paid somewhere else.
+  bank(b, 104, add(roadDoor(b, 36)), sub(gateSubBase(2)))
+
+  // (the first elite plants at 118 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO: the gift and the swell (118 → the second elite at 246) ──────
+  //
   // ── The gift: a weapon box with the puzzle taken off it ──
   //
   // The first weapon box a player ever meets, and it is free. No levers, no
@@ -3788,310 +3996,254 @@ const stageTwo = (b: Beat): void => {
   // the levers on stage 4 read as a lock on something known rather than as two
   // posts with no explanation.
   //
-  // ⚠ IT SITS AFTER THE ELITE, and that is not a layout preference.
+  // ⚠ IT SITS AFTER THE FIRST ELITE, and that is not a layout preference. A box
+  // this wide on the centre line is, by construction, exactly where a crowd that
+  // never steers already is — at y = 77 it handed a no-input run a free gatling
+  // and stage 2's careless clear rate went from about a quarter to 3 of 3 (the
+  // rule `balance.test.ts` calls "walks the taught stages and is stopped by the
+  // game"). The elite has to be met on the squad's own gun; the weapon is what
+  // the player carries through act two, the second elite and the boss.
   //
-  // The gift was at y = 77 first — mid-road, in the widest clear stretch the
-  // stage has — and it broke a rule the campaign is built on: a run that never
-  // touches the screen must not clear the taught stages RELIABLY (see
-  // `balance.test.ts`, "walks the taught stages and is stopped by the game"). A
-  // box this wide on the centre line is, by construction, exactly where a crowd
-  // that never steers already is, so a no-input run collected a free gatling
-  // — and stage 2's careless clear rate went from about a quarter to 3 of 3.
-  //
-  // The miniboss at ~91 is what stops those runs, so the fix is to hand the
-  // prize over AFTER it: the elite still has to be met on the squad's own gun,
-  // and the weapon is what the player carries into the closing bank and the
-  // boss. Measured, that puts the clear rate back under the line.
-  //
-  // y = 132 is the middle of the 124 → 140 gap on the LENGTHENED road, which is
-  // the widest clear stretch left once the elite has had its ground. It moved
-  // with the elite: `placeMinibosses` puts stage 2's at `arenaY × 0.45-0.60`, so
-  // a longer road carries it from ~91 to ~117, and the old mark at 113 would
-  // have put the gift IN FRONT of the fight — undoing the whole argument above.
+  // y = 125 is seven units past the elite and fifteen short of the swell — at
+  // least `r + 1` clear of both, which `weaponPuzzle.test.ts` pins.
   //
   // Nothing here is lethal, which is the whole reason it can exist this early:
   // the box grinds a trickle off a crowd that ploughs into it (`grindAgainst`,
   // priced as a crate) and hands the weapon over when it breaks.
   //
-  // ⚠ AND IT IS AN OPEN BOX, which is a rule about this beat and not about the
-  // mechanic. `gift: true` no longer only means "no toll to stand on it": it
-  // means the box spawns UNLOCKED, wears its lid thrown back and the gun lifted
-  // out of it, and is shootable from the moment it is on screen. The full
-  // argument — including why the stage-4 puzzle box deliberately stays shut —
-  // is on `WeaponBox.locked`, but the part that belongs to the LAYOUT is this:
-  // the position above buys the beat its fairness (after the elite, in the one
-  // clear stretch left), and the position is worthless if the player cannot
-  // tell what the object is until they are on top of it. A closed box at y=132
-  // asks "gamble on a crate"; an open one asks "is a gatling worth the line you
-  // are on", and only the second question is answerable at the 13.68 units of
-  // road the camera actually shows.
+  // ⚠ AND IT IS AN OPEN BOX. `gift: true` means the box spawns UNLOCKED, wears
+  // its lid thrown back and the gun lifted out of it, and is shootable from the
+  // moment it is on screen (see `WeaponBox.locked`). A closed box asks "gamble
+  // on a crate"; an open one asks "is a gatling worth the line you are on", and
+  // only the second is answerable at the ~11-12 units of road readable under
+  // the HUD bar (~14.3 to the screen's top edge since the 2026-09-18 zoom).
   b.events.push({
     kind: 'weapon',
-    y: 132,
+    y: 125,
     weapon: WEAPON_GIFT_ID,
     levers: [],
     stones: [],
-    box: { x: 0, y: 132, hp: Math.max(1, Math.round(weaponBoxHp(b.stage) * WEAPON_GIFT_HP_MUL)) },
+    box: { x: 0, y: 125, hp: Math.max(1, Math.round(weaponBoxHp(b.stage) * WEAPON_GIFT_HP_MUL)) },
     boxR: WEAPON_GIFT_BOX_R,
     gift: true,
     // No armour. `stepWeaponBoxes` unlocks a box the moment nothing is covering
-    // it, so an empty guard list opens this one as soon as it is on screen —
-    // the same code path the earned puzzle takes when a crowd chews through the
-    // plates instead of pulling the levers.
-    guardY: 132,
+    // it, so an empty guard list opens this one as soon as it is on screen.
+    guardY: 125,
     guards: []
   })
 
-  crates(b, 86, 'rate', [CRATE_DETOUR_X + 0.4])
-  pincer(b, 94, 'creep', 2)
+  // ── The swell ──
+  //
+  // The first multiplier of the stage, fourteen units past the gift: the crowd
+  // that just picked up a gun is asked whether it is big enough to double.
+  // `liveDoor` ties with the opened `×1.6` for the middling run, so a run that
+  // has worked act one doubles and a run that has not takes the number.
+  //
+  // At 140 rather than straight after the gift, and the reason is the cage:
+  // `placeRescues` stands the stage's roadside cage six units in front of the
+  // bank nearest 40 % of the road, which is this one — so the fifteen units
+  // after the gift read elite, gun, cage, doubling, each with room of its own,
+  // instead of three prizes on one screen.
+  bank(b, 140, mul(2), add(liveDoor(26)))
+  pincer(b, 148, 'creep', 1)
+  crates(b, 153, 'damage', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 156, 'husk', 3, 2.6)
 
-  // Two honest offers, but the bigger one is behind the pack you just walked
-  // into: the value on the leaf is not the whole price of the leaf.
-  // A paying pair to close on. Stage 2's extra traps are supplied by rule 4b in
-  // `legalise` now, and authoring another one here put three in a row across
-  // 52 / 68 / 104 — at which point the road stops being a series of decisions
-  // and becomes a toll booth.
-  // Stage 2's one multiplier, and it closes ACT ONE. `mulLeaves(2)` is exactly
-  // one — "one on the first three stages and two after that is what makes it an
-  // event" — so this is not a slot the longer road gets to spend again further
-  // down; act two asks its questions with subtractions and traps instead.
-  // `liveDoor(24)` ties with the opened `×1.6` for the middling run; the best
-  // runs are already past it and double instead.
-  bank(b, 104, add(liveDoor(24)), mul(2))
+  // ── The trap, at four times the crowd ──
+  //
+  // `÷2` is stage 2's own lesson (y = 58) asked again on a squad several times
+  // the size, which is the only way a halving ever really lands: the first one
+  // costs five survivors and reads as a scratch, and this one costs thirty.
+  bank(b, 164, add(roadDoor(b, 60)), div(2))
 
-  // ─── ACT TWO ───────────────────────────────────────────────────────────
-  //
-  // Stage 2 ran 32 seconds and now runs about fifty (`STAGE_TWO_LENGTH`), and
-  // the eighty-eight units that bought the difference are authored here rather
-  // than left to `fillGateGaps`. Two reasons, both measured on the road the
-  // length change alone produced:
-  //
-  //   THE FILLER CANNOT COVER IT. `fillGateGaps` splits a gap ONCE, so the
-  //     118-unit hole between the old closing bank and the new arena came back
-  //     as two 53-unit halves — ten seconds apiece against a 5.5 s budget.
-  //   THE SUPPLY FLOOR DOES NOT GROW. `minRateCrates`/`minDamageCrates` are
-  //     flat until stages 6 and 9, so the same crates were spread over a road
-  //     two thirds longer and the run arrived at the boss with the fire rate of
-  //     a stage half the size.
-  //
-  // The shape is a second act rather than more of the first: the elite at ~117
-  // is the stage's landmark, and everything below is the road out of that fight
-  // — a bill, a recovery, a line, and the multiplier the stage is closed on.
-  //
-  // Every bank is a different QUESTION, which is the rule the whole road is
-  // written to: a pair that shares an operator has one answer that can be read
-  // off the doors, and `legalise` rules 4b/4c exist to repair the ones that slip
-  // through. Authoring four of them the same way would just be handing the
-  // repair four jobs.
-  //
-  // The crowds handed to `roadDoor` below are MEASURED, off the crowd walk in
-  // `tests/sim` (`SIM_EARLY=1`), and they are deliberately about seven tenths of
-  // what a keen run actually carries past each bank (96 / 107 / 119). A door
-  // priced at the full crowd is a second multiplier; one priced at the old
-  // stage's crowd is a `+5` in front of ninety survivors, which is a bank the
-  // player is right to ignore. A tenth of the squad for a lane change is the
-  // band `GATE_ROAD_SHARE` was tuned for, and it is what these land on.
-
-  // ── The bill ──
-  //
-  // The first `−N` a campaign player meets after stage 1's, and it is here
-  // BECAUSE the elite's cage has just paid out. A road that only ever adds
-  // arrives at the boss with a crowd nothing on it has questioned; a bill on the
-  // far side of the payout is what stops the stage compounding into the arena.
-  // Against a fat add, so it is a lane to fight for rather than a toll.
-  crates(b, 112, 'rate', [-CRATE_DETOUR_X - 0.5])
-  bank(b, 124, add(roadDoor(b, 70)), sub(gateSubBase(2)))
-
-  // The gift sits at 132, in the gap this bank and the crates below leave.
-
-  // ── Supply, because the floors do not follow the road ──
-  //
-  // `minRateCrates` is 3 and `minDamageCrates` is 2 until stages 6 and 9, and a
-  // roadside cage then RETIRES the rate crate nearest it (`retireCrateNear`),
-  // so the stage ships one under the floor by design. On the old road that was
-  // two of each over 134 units; left alone on this one it is the same two over
-  // 222, which is the fire rate of a stage half the size arriving at a boss
-  // priced for this one. Four rate crates are authored so three survive the
-  // cage, and three damage crates so the density matches what act one had.
-  crates(b, 142, 'damage', [-CRATE_DETOUR_X - 0.4])
+  barricadeRow(b, 172, 2)
+  pack(b, 178, 'creep', 3, 2.8)
 
   // ── The line ──
   //
-  // A wide pair: the big door is worth crossing for and the small one is still
-  // a door. The barricade row below is what turns two numbers into a route —
-  // it lands on the far side of the commitment, so the crowd that crossed for
-  // the fat leaf is the crowd that has to find the gap from the wrong side.
-  bank(b, 148, add(roadDoor(b, 78)), add(Math.round(roadDoor(b, 78) * 0.45)))
+  // A wide pair behind the wall: the big door is worth crossing for and the
+  // small one is still a door, and the row above decides which side of the
+  // pillar the crowd arrives on.
+  bank(b, 188, add(roadDoor(b, 70)), add(Math.round(roadDoor(b, 70) * 0.45)))
+  splitPair(b, 196, 'rate', 'damage')
+  pack(b, 202, 'husk', 3, 2.2)
 
-  // Husks again, and this time against a crowd that can answer them — the beat
-  // at y = 48 is the same pack against a squad of ten, which is the note the top
-  // of this stage is written around.
-  pack(b, 156, 'husk', packSize(3) + 1, 2.4)
-  barricadeRow(b, 164, 2)
+  // ── The first bait, and it is the stage's name ──
+  //
+  // A rate crate parked behind the `÷2`: the best pickup on the road, and the
+  // only door to it halves the crowd. It was stage 3's first beat; it moved here
+  // because "the first lie" is exactly what it is, and because stage 2 spends
+  // one multiplier on the road rather than two (`mulLeaves`) — a SECOND doubling
+  // at this point measured a keen run at 246 into the second elite and 482
+  // into the arena, a crowd no door on the stage could question. A run that is
+  // behind on fire rate takes the trade; a run that is ahead walks past it, and
+  // the same bank is two right answers. See `bait`.
+  bait(b, 212, false)
+  pincer(b, 220, 'creep', 1)
 
-  // ── The trap ──
+  // ── The bill with a wall in front of the better door ──
   //
-  // `÷2` is stage 2's own lesson (y = 68) asked a second time at four times the
-  // crowd, which is the only way a halving ever really lands: the first one
-  // costs five survivors and reads as a scratch, and this one costs thirty.
-  bank(b, 172, add(roadDoor(b, 86)), div(2))
+  // `−N` beside `+N` with nothing in the way is not a question — it is an
+  // instruction (`gate-choices-must-need-math`). So the fat door stands behind
+  // two blocks of wall and the bill is where the gap is: the crowd either
+  // spends the approach shooting its way to the better lane or takes the open
+  // one and pays. A thin crowd cannot afford the wall; a thick one cannot
+  // afford to ignore it, which makes the answer the run's rather than the
+  // road's.
+  wall(b, 226, [
+    { x: SLOT_X[4]!, w: BARRICADE_W, hp: barricadeHp(2) },
+    { x: SLOT_X[5]!, w: BARRICADE_W, hp: barricadeHp(2) }
+  ])
+  bank(b, 232, sub(crowdBill(b, 40)), add(roadDoor(b, 80)))
 
-  splitPair(b, 180, 'rate', 'damage')
-  pincer(b, 196, 'creep', 1)
+  // (the second elite plants at 246)
 
-  // ── …and the last word before the run-in is the bank with no good answer ──
-  //
-  // The closing bank is written by `buildTrack` at `arenaY − 12` = 210 and owns
-  // the run-in, so this is the last door the stage itself authors — and it is
-  // the only one on stage 2 where BOTH doors cost. That is deliberate and it is
-  // what act two is for: every other pair on this road has a door that pays, so
-  // a player who reads the road walks fifty seconds without ever being asked to
-  // spend, and arrives at a boss priced against a snowball instead of against
-  // play.
-  //
-  // It is also the stage's one genuinely ad-hoc sum. A count against a fraction
-  // flips at twice the bill (`crowdBill`), which lands between the crowd a keen
-  // run brings and the crowd a lazy one does: the same two doors, opposite
-  // answers, and no way to tell which is which without looking at your own
-  // squad. The `−N` at y = 124 is what earns the right to ask it — the player
-  // has met a bill beside something worth having before meeting one that is not.
-  bank(b, 188, sub(crowdBill(b, 145)), div(2))
+  // ─── ACT THREE: the bank with no good answer, and the run-in ───────────────
+  pack(b, 254, 'husk', 3, 2.6)
+  coinTrail(b, 260, 0.6, -0.9, 5, 1.2)
 
-  // ── Stage 2 gets ONE stray, and it is the last thing before the arena ──
+  // ── The dilemma ──
   //
-  // Measured on the short road, stage 2 had no dead air of the kind `stray`
-  // exists for: its widest quiet stretch was twelve units against stage 1's
-  // eighteen. The run-in to the arena was that twelve, and it is still the one
-  // stretch on the stage that is empty by design — it has simply moved down the
-  // road with the arena.
-  //
-  // Two earlier positions were rejected and both reasons are worth keeping:
-  //
-  //   y = 20 — the stage's other twelve-unit gap, and the most carefully priced
-  //     run-in in the campaign (see the note at y = 36). A body in front of the
-  //     first door is paid for out of a squad of three. It also made a creep the
-  //     FIRST FOE ON STAGE 2, which the suite measures retry relief against
-  //     (`survivalSim.test.ts`) — a decoration must not become the stage's
-  //     reference enemy.
-  //   y = 62 — fine to play, but it spawns while the stage-2 CAGE is still
-  //     being broken, and every spawned body draws four numbers from
-  //     `Math.random`. Under the seeded road specs (`cageRescue.test.ts`) that
-  //     moves the frame the cage opens on, which lands it on a frame where a
-  //     gate also pays. Nothing about the game is worse; the measurement is,
-  //     and a beat that quietly re-rolls a seeded spec is a beat in the wrong
-  //     place. Here it spawns long after every other event on the road.
-  //
-  // Right shoulder, so it is not standing on the arena's own centre line.
-  stray(b, 210, STRAY_X)
+  // The only bank on stage 2 where BOTH doors cost, and it is what act three is
+  // for: every other pair on this road has a door that pays, so a player who
+  // reads the road walks the stage without ever being asked to spend. A count
+  // against a fraction flips at twice the bill (`crowdBill`), which lands
+  // between the crowd a keen run brings and the crowd a lazy one does — the same
+  // two doors, opposite answers, and no way to tell which is which without
+  // looking at your own squad. The `−N` at 104 and 232 earned the right to ask.
+  // Priced so the flip — twice the bill — lands between the crowd a keen run
+  // carries here (~150, off the crowd walk) and a lazy one (~55): the keen run
+  // pays the count, the lazy one halves. Kept well under the smallest crowd a
+  // cleared run arrives with, because a bill a crowd cannot pay is a wipe with
+  // no decision in it.
+  bank(b, 270, sub(crowdBill(b, 150)), div(2))
+
+  pack(b, 278, 'creep', 3, 2.8)
+  crates(b, 284, 'rate', [-CRATE_DETOUR_X - 0.4])
+  // The run-in's one stray, on the shoulder away from the crate — the last
+  // thing in front of the closing multiplier is something to shoot. See `stray`.
+  stray(b, 290, STRAY_X)
 }
 
 /**
  * STAGE 3 — arithmetic.
  *
- * The headline bank is `×2 | +8`: the multiplier wins only if the crowd is
+ * The headline bank is `×2 | +N`: the multiplier wins only if the crowd is
  * already bigger than the add, so the SAME gate is a different decision for a
  * player who has been working the gates and one who has been dodging. That is
- * the first moment the game asks about the run rather than about the road.
+ * the first moment the game asks about the run rather than about the road —
+ * and on the sixty-second road it is asked twice, once per act, on two
+ * different crowds, before the closing bank asks it a third time.
  *
- * Also the first bait, the first chicane, the first gauntlet, and hounds.
+ * Also hounds (the body that reaches you before you finish pumping), the first
+ * chicane, the first gauntlet, the bait asked again, and the first `?` that
+ * bites.
  */
 const stageThree = (b: Beat): void => {
-  bank(b, 14, add(7), add(3))
-  crates(b, 24, 'rate', [-CRATE_DETOUR_X - 0.4])
-  pack(b, 34, 'hound', 4, 2.2)
+  // ─── ACT ONE: hounds, and the first chicane (→ elite at 118) ───────────────
+  bank(b, 14, add(8), add(4))
+  crates(b, 22, 'rate', [-CRATE_DETOUR_X - 0.4])
+  // The stage's new body, the first thing on it. Hounds run at 3.4 u/s against
+  // a creep's 2.1, so they arrive while the crowd is still pumping the door
+  // behind them — "shoot it EARLY" is the lesson, and four is the pack the
+  // stage was written with (`earlyPackCap` lets five through).
+  pack(b, 28, 'hound', 4, 2.2)
 
-  bait(b, 44, true)
-  chicane(b, 58, false)
-  // (miniboss lands at ~50 %)
+  // The bait again, one stage after its debut — now against a crowd that has
+  // had a stage of learning what a trap looks like.
+  bait(b, 38, true)
 
-  // ×2 versus a pumpable +8. Standing on the add makes it bigger; standing
-  // anywhere makes the hounds closer. The coins mark the add — an HONEST trail,
-  // twenty units after the bait's lying one, because "the coins are a claim"
-  // only becomes a lesson if the claim is sometimes true.
-  coinTrail(b, 74, 1.1, GATE_LEAF_X, 7, 1.2)
-  // The stage's one multiplier, against a door priced for the crowd a run that
-  // has worked the first two banks and the bait arrives with. The coins mark
-  // the ADD, and the trail is honest — but honest is not the same as correct,
-  // and for a run that is ahead of the number the multiplier is still the
-  // better door. That is the lesson stage 3 is named for.
-  bank(b, 84, mul(2), add(liveDoor(18)))
+  // ── The first chicane ──
+  //
+  // Two half-walls, staggered: the only line through is an S, and it spits the
+  // crowd out on the LEFT (`flip` false). The fat door below is on the RIGHT,
+  // so the bank after a chicane is a route rather than a reading — the swerve
+  // decides which side of the pillar the crowd arrives on, and the better door
+  // is the other one.
+  chicane(b, 50, false, true)
+  // Three husks out of the far end of the S, so the crossing to the fat door
+  // is made under fire rather than in an empty lane.
+  pack(b, 59, 'husk', 3, 2.4)
+  bank(b, 64, add(Math.round(roadDoor(b, 24) * 0.45)), add(roadDoor(b, 24)))
 
-  splitPair(b, 96, 'damage', 'damage')
-  pack(b, 106, 'husk', packSize(3), 2.8)
+  pincer(b, 72, 'creep', 1)
+  stray(b, 80, STRAY_X)
+  pack(b, 84, 'hound', 3, 2.6)
+  coinTrail(b, 86, -0.6, -GATE_LEAF_X, 4, 1.2)
+  bank(b, 90, add(roadDoor(b, 30)), div(2))
+
+  splitPair(b, 97, 'damage', 'damage')
+  pack(b, 101, 'creep', 3, 2.8)
+
+  // ── Stage 3's `?`, and the first one that BITES — gently ──
+  //
+  // The bill beside the fat door goes face-down, so a player who gambled on
+  // stage 2 and won is asked the same question again and pays a few survivors
+  // for it. A small loss the player chose is the lesson; a trap would be a
+  // punishment. See "The face-down door". A third of the way in
+  // (`SUB_EARLIEST`) and thirteen units short of the elite, so what the gamble
+  // cost is the crowd the landmark is fought with.
+  bank(b, 105, add(roadDoor(b, 36)), hide(sub(gateSubBase(3))))
+
+  // (the first elite plants at 118 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO: the sum the stage is named for (118 → elite at 254) ─────────
+  pack(b, 124, 'husk', 5, 2.8)
+
+  // ×2 versus a pumpable add. Standing on the add makes it bigger; standing
+  // anywhere makes the husks closer. The coins mark the ADD, and the trail is
+  // honest — but honest is not the same as correct, and for a run that is ahead
+  // of the number the multiplier is still the better door. That is the lesson
+  // stage 3 is named for.
+  coinTrail(b, 130, 1.1, GATE_LEAF_X, 7, 1.2)
+  bank(b, 140, mul(2), add(liveDoor(30)))
+
+  pack(b, 148, 'hound', 4, 2.4)
+  crates(b, 154, 'rate', [CRATE_DETOUR_X + 0.4])
 
   // ── The door in front of the funnel ──
   //
   // A trap, and the placement is the beat: the gauntlet is eight units behind
-  // it, so a crowd that reads this wrong is halved AND THEN funnelled. Stage 3's
-  // other `÷2` (y = 44) is met by a squad of a dozen and reads as a scratch;
-  // this one is met by four times that with a wall of rails on the far side.
-  bank(b, 112, add(roadDoor(b, 58)), div(2))
+  // it, so a crowd that reads this wrong is halved AND THEN funnelled. Stage
+  // 3's other `÷2` (y = 90) is met by a squad of twenty and reads as a scratch;
+  // this one is met by three times that with a wall of rails on the far side.
+  bank(b, 160, add(roadDoor(b, 66)), div(2))
+  gauntlet(b, 168, 2, true)
 
-  gauntlet(b, 120, 2)
+  // The rails funnel everyone down the centre; the lone creep stands off the
+  // left rail for the crowd that comes out of the channel looking for work.
+  stray(b, 179, -STRAY_X)
 
-  // The gauntlet's rails end at ~121 and the elite plants at ~135, which is the
-  // widest hole in the middle of stage 3. The crowd arriving here is the biggest
-  // the stage has built, so a lone creep is pure decoration — which is the
-  // point. Left shoulder: the gauntlet has just funnelled everyone down the
-  // centre.
-  stray(b, 128, -STRAY_X)
+  // A line on the far side of the rails: the gauntlet just taught the centre,
+  // and the pillar of this bank is exactly where it taught the crowd to run.
+  bank(b, 186, add(roadDoor(b, 76)), add(Math.round(roadDoor(b, 76) * 0.45)))
+  pack(b, 194, 'husk', 5, 3.0)
+  splitPair(b, 200, 'rate', 'damage')
 
-  // ─── ACT TWO ───────────────────────────────────────────────────────────
+  // ── The sum again, on the crowd act two built ──
   //
-  // Stage 3 ran 34 seconds and now runs about fifty (`STAGE_THREE_LENGTH`). The
-  // reasoning for authoring the extra road rather than letting `fillGateGaps`
-  // paper it is on `stageTwo`, and it applies here twice over: this stage's
-  // gaps were the longest in the campaign before the change (8.8 s, measured).
-  //
-  // The elite plants at ~135 and everything below is the road out of that fight.
-  // Five banks, five DIFFERENT questions, in the order the crowd can afford to
-  // be asked them — a bill, a line, the arithmetic the stage is named for, and
-  // one more bill on the run-in. A road that asks the same question five times
-  // is a road the player stops reading.
+  // Seventy-two units after the first (`EARLY_MUL_GAP` is the floor), and the
+  // doors are the other way round from 140 so the right answer is a lane the
+  // player has to find rather than a lane they are already on.
+  bank(b, 212, add(liveDoor(56)), mul(2))
+  pincer(b, 220, 'hound', 1)
 
-  // ── The bill ──
-  //
-  // On the far side of the elite's cage, which is the only place a `−N` belongs
-  // on an early stage: the payout has just landed, so the bank is taking back
-  // part of a windfall rather than part of the squad the player built. It is
-  // also what stops the stage compounding — a road that only ever adds arrives
-  // at the boss with a crowd nothing on it has questioned, and the boss is then
-  // priced against a snowball instead of against play.
-  // Stage 3's `?`, and the first one that BITES — gently. The bill beside the
-  // fat door goes face-down, so a player who gambled on stage 2 and won is asked
-  // the same question again and pays a few survivors for it. A small loss the
-  // player chose is the lesson; a trap would be a punishment. See "The
-  // face-down door".
-  bank(b, 140, add(roadDoor(b, 66)), hide(sub(gateSubBase(3))))
+  // A second chicane in front of the last bank of the act — this one exits
+  // RIGHT, onto the bill.
+  chicane(b, 224, true, true)
+  bank(b, 240, add(roadDoor(b, 90)), sub(Math.round(roadDoor(b, 90) * 0.6)))
 
-  splitPair(b, 150, 'rate', 'damage')
-  pack(b, 158, 'hound', packSize(3), 2.6)
+  // (the second elite plants at 254)
 
-  // ── The line ──
-  //
-  // A wide pair, and the chicane behind it is what makes it a route rather than
-  // a reading: the swerve decides which side of the pillar the crowd arrives on,
-  // and the fat door is not always the side it was pushed toward.
-  bank(b, 166, add(roadDoor(b, 76)), add(Math.round(roadDoor(b, 76) * 0.45)))
-
-  chicane(b, 176, false)
-  crates(b, 186, 'rate', [-CRATE_DETOUR_X - 0.4])
-
-  // ── …and the last word the stage authors is a second bill ──
-  //
-  // `mulLeaves(3)` is one and y = 84 has it, so act two cannot close on the
-  // arithmetic the stage is named for — and should not want to. The multiplier
-  // at 84 is the biggest single payout on the road; a run that took it arrives
-  // here carrying a crowd the boss was never priced against, and this is the
-  // door that asks whether that was worth it. Both halves are honest — the add
-  // is real and priced against the crowd — so a player who has been reading the
-  // road all stage still walks into the arena richer than one who has not.
-  //
-  // The generator writes the true closing bank at `arenaY − 12` = 218, which
-  // owns the run-in; this sits one full gap short of it.
-  bank(b, 192, sub(crowdBill(b, 128)), div(2))
-
-  pincer(b, 202, 'creep', 1)
+  // ─── ACT THREE: the dilemma and the run-in ─────────────────────────────────
+  pack(b, 262, 'husk', 5, 2.6)
+  coinTrail(b, 268, -0.4, 0.8, 5, 1.2)
+  // Both doors cost. A count against a fraction flips at twice the bill, and
+  // the bill is priced so that flip sits between the crowd a keen run brings
+  // here and the one a lazy run does. See `stageTwo`'s act three.
+  bank(b, 278, sub(crowdBill(b, 130)), div(2))
+  pack(b, 286, 'hound', 4, 2.8)
+  crates(b, 292, 'rate', [-CRATE_DETOUR_X - 0.4])
 }
 
 /**
@@ -4100,121 +4252,218 @@ const stageThree = (b: Beat): void => {
  * Every beat here punishes running straight. Chicanes force a side, the
  * gauntlet trains the centre and the bank immediately after it puts a pillar
  * there, and the traps sit on whichever side the previous beat pushed the
- * player toward. First pure-routing bank (`×2 | ÷2`): nothing to pump, no way
- * to improve the offer, pick a side at full speed.
+ * player toward. The first pure-routing bank (`×2 | ÷2`): nothing to pump, no
+ * way to improve the offer, pick a side at full speed.
+ *
+ * Also the campaign's first earned weapon (the puzzle, `WEAPON_STAGE`, pinned to
+ * the EARLY slot — its twenty-seven units of road are kept free of banks
+ * between 58 and 86), the first boulders (a rank per field survives
+ * `earlyRockKeep`), the first `÷3`, and the first elites out of the threat pool.
  */
 const stageFour = (b: Beat): void => {
-  const base = gateAddBase(4)
-  bank(b, 14, add(7), add(3))
+  // ─── ACT ONE: the first chicane, and the first puzzle (→ elite at 128) ─────
+  bank(b, 14, add(9), add(4))
 
-  // `true` = exits RIGHT. It used to be `false`, which walls the right half
-  // last and spits the crowd out on the LEFT — with the rate crate below
-  // parked 7.5 units away on the forbidden side. Measured consequence: every
-  // policy collected 0 of 2 rate crates on stage 4, and stage 4 was the only
-  // authored stage where a competent run finished with BOTH stats untouched.
-  chicane(b, 24, true)
-  // The chicane spits you out on the right; the crate is further right still.
-  crates(b, 38, 'rate', [CRATE_DETOUR_X + 0.6])
-
+  // `true` = exits RIGHT. The crate the chicane is guarding sits on the exit
+  // side, because the first version of this stage parked it on the forbidden
+  // side and every policy collected 0 of 2 crates — the only authored stage
+  // where a competent run finished with both stats untouched. A DAMAGE crate:
+  // the stage's roadside cage retires the rate crate nearest it
+  // (`retireCrateNear`), and on this road that was this one.
+  chicane(b, 22, true, true)
+  // A pair of creeps out of the S, on the way across to the fat door.
+  pack(b, 31, 'creep', 4, 2.6)
+  // The swerve left the crowd on the right; the fat door is on the LEFT.
+  bank(b, 36, add(10), add(4))
+  crates(b, 42, 'damage', [CRATE_DETOUR_X + 0.6])
   // …and the husks are waiting on the way back to the middle. The crate was
   // never free; it was just the part of the price the player could see.
-  pack(b, 44, 'husk', packSize(4), 2.6)
-  pincer(b, 50, 'hound', 1)
+  pack(b, 46, 'husk', 6, 2.6)
 
-  // Pure routing. The coins before it lean toward the trap, because the lazy
-  // line and the greedy line are about to become the same line.
-  coinTrail(b, 56, 0.6, 1.9, 5, 1.2)
-  // Pure routing, and the first of stage 4's two multipliers. Nothing here can
-  // be pumped into a better offer: the crowd that arrives is the crowd that
-  // doubles or the crowd that halves, and the only input is the line.
-  bank(b, 64, mul(2), div(2))
+  // The last door before the puzzle. Pure routing is still to come; this one is
+  // a trap on the side the coins do not run to.
+  coinTrail(b, 50, -0.4, -GATE_LEAF_X, 5, 1.2)
+  bank(b, 58, add(12), div(2))
 
-  gauntlet(b, 72, 2)
-  // …and the pillar of this bank sits exactly where the gauntlet just taught
-  // the player to run.
-  // A wide pair, and it has to be: the routing bank 22 units back is now a real
-  // `×2 | ÷2` (see `legalise` rule 5), and nothing may carry a multiplier that
-  // close behind one (`EARLY_MUL_GAP`). So this is the beat that asks about the
-  // line instead — the fat door on the side the gauntlet did not leave you on.
-  bank(b, 86, add(roadDoor(b, 44)), add(Math.round(roadDoor(b, 44) * 0.4)))
-  // (miniboss lands at ~50 %)
+  // ── The first puzzle: the stage-4 box, EARLY slot (~64 → 78) ──
+  //
+  // Placed by `placeWeaponPuzzle` around the finished road; the banks at 58 and
+  // 86 are the twenty-eight units the strict clearances need. A hound pair runs
+  // at the crowd between the levers and the box, so the sweep is made under
+  // fire — the beat is attention, and attention is what the hounds take.
+  pack(b, 72, 'hound', 4, 2.4)
 
-  splitPair(b, 94, 'damage', 'damage')
+  // ── The first `÷3` ──
+  //
+  // The middle trap (`sanitiseLeaf`): `÷2` is a bank the player can afford to
+  // read wrong and `÷5` ends runs; this is the one in between, beside a door
+  // worth crossing for.
+  bank(b, 86, div(3), add(13))
 
-  // A wall that seals the natural approach to the fat leaf: commit early or
-  // take the small one.
-  wall(b, 102, [
-    { x: SLOT_X[3]!, w: BARRICADE_W, hp: barricadeHp(4) },
-    { x: SLOT_X[4]!, w: BARRICADE_W, hp: barricadeHp(4) }
+  // The first boulders. Two ranks with offset gaps; `earlyRockKeep` keeps every
+  // other rank on 4-5, so a first-timer meets ONE rank of stone that cannot be
+  // shot — which is the entire lesson — and stage 6 shows the field whole.
+  boulderField(b, 94, 3)
+  pack(b, 100, 'creep', 6, 3.0)
+
+  // A bill with a wall on the better door — the `stageTwo` shape at 232, one
+  // stage deeper: shoot through to the add or take the gap and pay.
+  wall(b, 103, [
+    { x: SLOT_X[0]!, w: BARRICADE_W, hp: barricadeHp(4) },
+    { x: SLOT_X[1]!, w: BARRICADE_W, hp: barricadeHp(4) }
   ])
+  bank(b, 110, add(14), sub(crowdBill(b, 24)))
+
+  // (the first elite plants at 128)
+
+  // ─── ACT TWO: the lazy line, charged for (128 → elite at 264) ─────────────
+  pack(b, 134, 'husk', 6, 2.8)
+  // ── The gauntlet, and the pillar straight after it ──
+  //
+  // The rails teach the centre line and pay coins for holding it; the bank
+  // fourteen units later puts a pillar exactly there. The habit the gauntlet
+  // builds is the habit the next beat punishes.
+  gauntlet(b, 138, 2, true)
+  // Pure routing: nothing here can be pumped into a better offer. The crowd
+  // that arrives is the crowd that doubles or the crowd that halves, and the
+  // only input is the line.
+  bank(b, 152, mul(2), div(2))
+
+  pincer(b, 158, 'hound', 1)
+  // Exits LEFT, onto the bill; the add is across the lane.
+  chicane(b, 164, false, true)
+  bank(b, 178, sub(crowdBill(b, 30)), add(roadDoor(b, 90)))
+
+  boulderField(b, 186, 3)
+  pack(b, 194, 'husk', 6, 2.6)
+  bank(b, 202, add(Math.round(roadDoor(b, 100) * 0.45)), add(roadDoor(b, 100)))
+  splitPair(b, 208, 'rate', 'damage')
+  pack(b, 214, 'hound', 6, 2.8)
+
+  // ── The sum ──
+  //
+  // Seventy-four units after the routing bank, on the biggest crowd the act has
+  // built: `liveDoor` ties with the opened `×1.6` for the middling run.
+  coinTrail(b, 216, 1.2, GATE_LEAF_X, 6, 1.2)
+  bank(b, 226, mul(2), add(liveDoor(44)))
+  pack(b, 234, 'creep', 8, 3.4)
+  crates(b, 240, 'damage', [-CRATE_DETOUR_X - 0.4])
+
   // ── Both doors cost ──
   //
-  // The bank with no good answer, and the most interesting shape in the game:
-  // `-N` against `/2`. A subtraction takes a COUNT off the top and a division
-  // takes a FRACTION, so the cheaper one flips at a crowd of exactly twice the
-  // bill — small crowds should halve, big crowds should pay the toll.
+  // `−N` against `÷3`, fourteen units in front of the second elite. A
+  // subtraction takes a COUNT off the top and a division takes a FRACTION, so
+  // the cheaper one flips at a crowd of three halves of the bill — and the
+  // crowd that pays it is the crowd the landmark is fought with.
   //
   // It is also the one bank where the player wants to shoot NEITHER door, and
   // cannot: the crowd fires forward, both of these pump in the direction that
-  // hurts, and committing early to the door you intend to take makes it worse
-  // while you walk into it. The skilful line is to approach off-centre and cut
-  // across late, which is a real piece of play and the exact opposite of
-  // arriving at `+7 | +8`.
-  bank(b, 110, sub(gateSubBase(4)), div(2))
+  // hurts, and committing early makes it worse while you walk into it. The
+  // skilful line is to approach off-centre and cut across late.
+  bank(b, 250, sub(crowdBill(b, 70)), div(3))
 
-  chicane(b, 118, true)
-  // One last pack between the chicane and the crate, so the swerve for the
-  // crate is made under fire rather than in an empty lane.
-  pack(b, 128, 'creep', packSize(4) + 2, 3.2)
-  crates(b, 134, 'rate', [-CRATE_DETOUR_X - 0.6])
+  // (the second elite plants at 264)
+
+  // ─── ACT THREE: the run-in ─────────────────────────────────────────────────
+  pack(b, 270, 'husk', 6, 2.6)
+  // Exits RIGHT, onto the trap: the lazy line and the greedy line are about to
+  // become the same line.
+  chicane(b, 274, true, true)
+  bank(b, 288, add(roadDoor(b, 70)), div(2))
+  pack(b, 296, 'hound', 6, 2.8)
+  crates(b, 302, 'rate', [-CRATE_DETOUR_X - 0.6])
 }
 
 /**
  * STAGE 5 — everything at once, and the coins start lying.
  *
- * Graduation: flyers, `×3`, bait, gauntlet, chicane, pincer — and one long,
- * fat, beautiful coin trail that curves from the safe shoulder straight into a
- * `÷2` leaf. Up to here the coins have always marked the good line, which is
- * exactly why this one works: the player is not reading the trail, they are
- * trusting it. From this stage on, every trail is a claim that has to be
- * checked against the gate it points at.
+ * Graduation: flyers, bait, gauntlet, chicane, boulders, a `×` under a `?` —
+ * and one long, fat, beautiful coin trail that curves from the safe shoulder
+ * straight into a `÷2` leaf. Up to here the coins have always marked the good
+ * line, which is exactly why this one works: the player is not reading the
+ * trail, they are trusting it. From this stage on, every trail is a claim that
+ * has to be checked against the gate it points at.
+ *
+ * (The headline was a `×3`, which `sanitiseLeaf` has printed as a `×2` below
+ * stage 8 since `mulThrees` moved there; the sixty-second re-cut of 2026-09-18
+ * says so rather than asking for one.)
  */
 const stageFive = (b: Beat): void => {
-  const base = gateAddBase(5)
-  bank(b, 14, add(8), add(3))
-  pack(b, 24, 'flyer', 5, 3.2)
+  // ─── ACT ONE: flyers, the bait, the rails (→ elite at 126) ────────────────
+  bank(b, 14, add(9), add(4))
+  // The stage's new body. Flyers ignore barricades and drift sideways, which is
+  // exactly what the walls below cannot protect the crowd from.
+  pack(b, 22, 'flyer', 5, 3.2)
 
-  bait(b, 34, false)
-  gauntlet(b, 48, 2)
+  bait(b, 36, false)
+  gauntlet(b, 46, 2, true)
+  // Flyers over the rails: the one body the walls do not keep out, arriving
+  // just as the channel lets go.
+  pack(b, 55, 'flyer', 3, 3.0)
+  // The pillar where the rails taught the crowd to run.
+  bank(b, 60, add(12), add(5))
+
+  pack(b, 68, 'hound', 4, 2.6)
+  boulderField(b, 76, 3)
+  bank(b, 86, add(14), div(3))
+  // Four flyers rather than a flyer pincer: measured, a pincer of them here —
+  // on a crowd of ~25, straight into the chicane — ate the `average` player
+  // before the first elite on half the seeds. Flyers drift sideways, so a pack
+  // of them is already a pincer of sorts.
+  pack(b, 94, 'flyer', 4, 3.4)
+
+  // Exits LEFT, onto the bill.
+  chicane(b, 98, false, true)
+  bank(b, 112, sub(crowdBill(b, 30)), add(16))
+
+  // (the first elite plants at 126)
+
+  // ─── ACT TWO: the coins start lying (126 → elite at 270) ──────────────────
+  pack(b, 132, 'husk', 6, 2.8)
 
   // ── The greedy trail ────────────────────────────────────────────────────
+  //
   // Twelve coins, drifting from the safe shoulder to the trap leaf, laid so the
   // last one sits on the lip of the `÷2`. Nothing about it is different from
   // the trails on stages 1–4 except where it ends.
-  coinTrail(b, 58, -2.0, GATE_LEAF_X, 12, 1.05)
+  coinTrail(b, 136, -2.0, GATE_LEAF_X, 12, 1.05)
   // Stage 5's `?` hides the MULTIPLIER: a readable trap beside a black door is
   // the one bank where the gamble is the obvious move, and what it turns over
-  // is the first `×` a player ever finds under one. The greedy trail above still
-  // ends on the lip of the `÷2`, so the coins and the `?` now argue.
-  bank(b, 72, hide(mul(3)), div(2))
-  // (miniboss lands at ~50 %)
+  // is the first `×` a player ever finds under one. The greedy trail above
+  // still ends on the lip of the `÷2`, so the coins and the `?` now argue. Past
+  // `MUL_EARLIEST` on purpose — the old stage 5 wrote this at y = 72, where
+  // `bank()` quietly turned the hidden `×` into a hidden `+9`.
+  bank(b, 150, hide(mul(2)), div(2))
 
-  chicane(b, 92, false)
-  splitPair(b, 106, 'rate', 'damage')
-  pincer(b, 114, 'hound', 2)
+  pack(b, 158, 'hound', 5, 2.6)
+  splitPair(b, 164, 'rate', 'damage')
+  pack(b, 170, 'flyer', 6, 3.2)
+  bank(b, 176, add(Math.round(roadDoor(b, 90) * 0.45)), add(roadDoor(b, 90)))
+  boulderField(b, 184, 4)
+  pack(b, 192, 'husk', 6, 2.6)
+  bank(b, 200, add(roadDoor(b, 100)), div(2))
+  pincer(b, 206, 'hound', 1)
 
-  // A real maths bank before the run-in: ×3 is right for a run that survived
-  // the trail, +N is right for one that did not. And the coins tell the TRUTH
-  // this time — the stage that teaches the player to doubt a trail has to hand
-  // them one worth trusting before the boss, or the lesson it just taught is
-  // simply "ignore coins", which throws away the whole signalling channel.
-  coinTrail(b, 120.5, -1.1, -GATE_LEAF_X, 6, 1.2)
-  // The run-in pair. Stage 5 spends its second multiplier on the closing bank
-  // twenty-one units later, and nothing may carry one that close behind
-  // (`EARLY_MUL_GAP`), so this beat asks about the line: the coins told the
-  // truth, and the door they point at is the one worth the swerve.
-  bank(b, 128, add(roadDoor(b, 55)), add(Math.round(roadDoor(b, 55) * 0.4)))
-  barricadeRow(b, 138, 3)
+  // A real maths bank, and the coins tell the TRUTH this time — the stage that
+  // teaches the player to doubt a trail has to hand them one worth trusting,
+  // or the lesson it just taught is simply "ignore coins", which throws away
+  // the whole signalling channel.
+  coinTrail(b, 216, -1.1, -GATE_LEAF_X, 7, 1.2)
+  bank(b, 226, add(liveDoor(60)), mul(2))
+  pack(b, 234, 'flyer', 6, 3.4)
+  crates(b, 240, 'rate', [CRATE_DETOUR_X + 0.4])
+  // Both doors cost, fourteen units in front of the second elite.
+  bank(b, 250, div(3), sub(crowdBill(b, 90)))
+
+  // (the second elite plants at 270)
+
+  // ─── ACT THREE: the run-in ─────────────────────────────────────────────────
+  pack(b, 276, 'husk', 7, 2.8)
+  // Exits RIGHT, onto the trap.
+  chicane(b, 280, true, true)
+  bank(b, 294, add(roadDoor(b, 120)), div(2))
+  pack(b, 300, 'flyer', 6, 3.2)
+  crates(b, 306, 'damage', [-CRATE_DETOUR_X - 0.4])
 }
 
 // ─── The procedural body (stage 6 and up) ───────────────────────────────────
@@ -4269,6 +4518,12 @@ const horde = (b: Beat, y: number, typeId: string, count: number): void => {
  *
  * The body must finish clear of the closing bank at `arenaY − 12`, so nothing
  * here is authored past 0.86.
+ *
+ * ⚠ SUPERSEDED for 2-15 on 2026-09-18: the lengths became a contract (sixty
+ * seconds of running, `STAGE_RUN_SECONDS`) and every one of these stages was
+ * re-written in road UNITS around two authored landmarks — see "Stages 2-8"
+ * above `stageTwo` and "Stages 9-15" below `stageEight`. The LAYOUT / MASS /
+ * DECISION identities above still describe each stage.
  */
 
 /**
@@ -4278,36 +4533,131 @@ const horde = (b: Beat, y: number, typeId: string, count: number): void => {
  * commits you to a side before you can see what is behind it.
  * MASS: a creep horde on the far side of the rib — whichever side you committed
  * to is the side you fight it from.
- * DECISION: `×2 | +N`. The multiplier wins only for a crowd that has been
- * worked, so the same door is a different answer depending on the run.
+ * DECISION: the first BLIND PAIR (`?×2 | ?+N`, both good), a dilemma, and the
+ * first `÷5` — walled, so it is read seven units out or not at all.
+ *
+ * On the sixty-second road (2026-09-18): four hand-laid ribs instead of the
+ * counter's, both boulder ranks for the first time, the mid-slot weapon puzzle
+ * between the blind pair and the ribbed trap, and one multiplier on the road
+ * rather than two — a career run walked into the arena ~800 strong with two.
  */
 const stageSix = (b: Beat): void => {
-  const A = b.arenaY
-  const base = gateAddBase(6)
-  bank(b, 14, add(base), add(base + 2))
+  // Every rib on this road is written by hand (`passage` at the call site), so
+  // the counter `bank()` walls every third or fourth door from is parked out of
+  // reach. A counter cannot know which bank is the one to commit to early, and
+  // on the stage that INTRODUCES the rib that is the whole lesson.
+  b.passageIn = Number.MAX_SAFE_INTEGER
 
-  crates(b, A * 0.16, 'rate', [-CRATE_DETOUR_X])
-  // A rib walls the approach to this door, so the side is chosen a long way out
-  // — `passage` takes the CLEAR ROAD BEHIND the bank, not a direction.
-  bank(b, A * 0.26, add(base + 1), add(base + 2))
-  passage(b, A * 0.26, 14)
-  horde(b, A * 0.36, 'creep', packSize(6) + 3)
+  // ─── ACT ONE: the road starts to close (→ elite at 122) ────────────────────
+  bank(b, 14, add(12), add(5))
+  crates(b, 22, 'rate', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 28, 'husk', 5, 2.6)
 
-  coinTrail(b, A * 0.46, 1.2, GATE_LEAF_X, 6, 1.2)
+  // ── The first passage ──
+  //
+  // A rib of stone runs back from this bank's pillar, so the side is chosen
+  // seven units out — before the doors are close enough to pump. The first one
+  // walls two doors that both PAY: both offers are in plain sight the whole way
+  // in, and the only lesson is "commit early". It walled the trap below at
+  // first, and measured, a late-committing player caught in the wrong corridor
+  // lost half a crowd of twenty on the stage's first real bank.
+  coinTrail(b, 29, 0.4, GATE_LEAF_X, 5, 1.2)
+  bank(b, 40, add(6), add(14))
+  passage(b, 40, 10)
+  // MASS: a horde on the far side of the rib — whichever side the crowd
+  // committed to is the side it fights from. The small one; act two has the
+  // big one.
+  horde(b, 48, 'creep', 7)
+
+  // Stone at full strength for the first time (`earlyRockKeep`): both ranks,
+  // gaps offset, so the line is chosen twice — and the trap is on the far side
+  // of it.
+  boulderField(b, 58, 4)
+  bank(b, 68, add(16), div(2))
+  pincer(b, 76, 'hound', 1)
+  crates(b, 84, 'damage', [CRATE_DETOUR_X + 0.4])
+
+  // A line behind a rib: the lane is committed seven units out, before the
+  // small door is close enough to tell whether it was worth the swerve.
+  // (A bill cannot stand here — `SUB_EARLIEST` turns a `−N` inside the first
+  // third of the road into an add.)
+  bank(b, 92, add(18), add(7))
+  passage(b, 92, 8)
+  pack(b, 100, 'flyer', 7, 3.2)
+  bank(b, 108, div(3), add(18))
+
+  // (the first elite plants at 122 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO: the blind pair and the puzzle (122 → elite at 274) ──────────
+  pack(b, 128, 'husk', 7, 2.8)
+  coinTrail(b, 132, 1.2, GATE_LEAF_X, 6, 1.2)
+
   // ── The first BLIND PAIR ──
   //
   // Both doors face-down: no reading, only a pick. The first one in the game is
-  // a gamble between two GOOD answers — a multiplier or a fat add, and which is
-  // better depends on the crowd nobody is counting under pressure — so the lesson
-  // is "sometimes you just choose" rather than "sometimes the game takes". The
+  // a gamble between two GOOD answers — a multiplier or a fat add priced to tie
+  // with it for the crowd a career run carries here — so the lesson is
+  // "sometimes you just choose" rather than "sometimes the game takes". The
   // trail above still runs to the right-hand door; coins are a claim, never a
   // reading. See "The face-down door" (rule 4); the next is stage 12.
-  bank(b, A * 0.52, hide(mul(2)), hide(add(base + 4)))
+  bank(b, 144, hide(mul(2)), hide(add(liveDoor(45))))
 
-  pincer(b, A * 0.62, 'hound', 2)
-  crates(b, A * 0.72, 'damage', [CRATE_DETOUR_X + 0.4])
-  bank(b, A * 0.8, add(base + 2), add(base + 4))
-  passage(b, A * 0.8, 16)
+  // ── The puzzle: stage 6's box, MID slot (~151 → 165) ──
+  //
+  // `placeWeaponPuzzle` lays it around the finished road; the banks at 144 and
+  // 172.5 are the twenty-eight units its strict clearances need. Hounds run
+  // down the lane through the sweep.
+  pack(b, 158, 'hound', 6, 2.8)
+
+  // The trap on the LEFT, the side the blind pair's `×` leaves a crowd on: the
+  // gamble's winner is the one asked to read the rib. On the right it caught
+  // the late-committing player who had taken the fat add instead — measured,
+  // `average` at a light shop lost 74 of 124 here and then the stage.
+  bank(b, 172.5, div(2), add(22))
+  passage(b, 172.5, 7)
+  horde(b, 180, 'creep', packSize(6) + 5)
+  boulderField(b, 187, 4)
+
+  // A bill in the corridor the stones leave, and the fat door across it.
+  //
+  // This was a second `×2 | +N`, and it was measured out: three doublings on
+  // one road (the blind pair, this, the closing bank) walked a career `good`
+  // run into the arena 760-810 strong, three times what stages 5 and 9 either
+  // side of it build — the landmarks died in 0.3 s and the packs never reached
+  // anybody. One multiplier on the road and one at the run-in is the budget
+  // the old stage 6 was balanced on.
+  bank(b, 198, sub(12), add(32))
+  pack(b, 206, 'husk', 7, 2.6)
+  splitPair(b, 212, 'rate', 'damage')
+
+  // ── Both doors cost ──
+  //
+  // The stage's one dilemma (`legalise` rule 6), `−N` against `÷3`: a count
+  // against two thirds of the crowd, which flips at one and a half times the
+  // bill — priced so that flip sits inside the spread of crowds a career run
+  // reaches here with (the career walk: ~100-250) — and held under the
+  // smallest crowd a run that has not shopped at all arrives with (~60), since
+  // a bill a crowd cannot pay is a wipe with no decision in it.
+  bank(b, 224, sub(crowdBill(b, 120)), div(3))
+  pack(b, 232, 'flyer', 7, 3.4)
+  chicane(b, 236, true, true)
+  bank(b, 250, add(24), add(9))
+  pack(b, 258, 'hound', 6, 2.6)
+
+  // (the second elite plants at 274)
+
+  // ─── ACT THREE: the first `÷5`, behind a rib ──────────────────────────────
+  horde(b, 280, 'husk', packSize(6) + 3)
+  coinTrail(b, 288, -0.6, -GATE_LEAF_X, 6, 1.2)
+  // The harshest leaf in the game arrives on the stage that taught the rib, and
+  // it arrives WALLED: the side is chosen seven units out, with the `÷5` in
+  // plain sight the whole way and the coins honest. A player who reads the
+  // bank is never charged for it; one who drifts into the wrong corridor loses
+  // four fifths of the crowd the boss is about to be priced against.
+  bank(b, 298, add(30), div(5))
+  passage(b, 298, 9)
+  pack(b, 306, 'flyer', 7, 3.2)
+  crates(b, 312, 'rate', [CRATE_DETOUR_X + 0.4])
 }
 
 /**
@@ -4317,26 +4667,96 @@ const stageSix = (b: Beat): void => {
  * centre line and then charges for it.
  * MASS: a husk horde in the open right after the rails, so the habit the
  * gauntlet built is exactly the wrong shape for it.
- * DECISION: `+N | ÷2`, read by a coin trail that is usually honest.
+ * DECISION: `+N | ?÷2` — the first `?` that really bites, standing where the
+ * long rails have just funnelled the crowd onto the pillar — and the dilemma
+ * on the far side of a chicane.
+ *
+ * On the sixty-second road (2026-09-18) it also carries the first brutes
+ * (`foeRoster` opens them here), in front of a trap in act one.
  */
 const stageSeven = (b: Beat): void => {
-  const A = b.arenaY
-  const base = gateAddBase(7)
-  bank(b, 14, add(base), add(base + 2))
+  // Ribs by hand, as on stage 6.
+  b.passageIn = Number.MAX_SAFE_INTEGER
 
-  gauntlet(b, A * 0.15, 2)
-  horde(b, A * 0.3, 'husk', packSize(7))
+  // ─── ACT ONE: the first rails, and the first brutes (→ elite at 124) ──────
+  bank(b, 14, add(13), add(5))
+  crates(b, 22, 'rate', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 28, 'hound', 7, 2.6)
+  coinTrail(b, 26, 0.6, GATE_LEAF_X, 6, 1.2)
+  bank(b, 36, div(2), add(14))
 
-  gauntlet(b, A * 0.42, 3)
-  coinTrail(b, A * 0.56, -1.4, -GATE_LEAF_X, 6, 1.2)
-  // Stage 7's `?` is the first real bite: the trap goes face-down beside a fat,
-  // readable door and a trail that points at it. Stage 3 taught that a `?` can
-  // cost; this is the one that costs half, and only a player who ignored both
-  // the number and the coins pays it.
-  bank(b, A * 0.6, add(base + 4), hide(div(2)))
+  // ── The rails ──
+  //
+  // A gauntlet teaches the centre line and pays coins for holding it — and the
+  // bank fourteen units after it puts its pillar exactly there. Both rails
+  // stand (`bothRails`), which the stage was written for and never shipped.
+  gauntlet(b, 44, 2, true)
+  // Flyers drift over the rails — the channel keeps the walls out, not them.
+  pack(b, 55, 'flyer', 5, 3.0)
+  bank(b, 62, add(16), add(6))
+  // MASS: a husk horde in the open straight after the rails, so the habit the
+  // gauntlet built — hold the middle — is the wrong shape for it.
+  horde(b, 70, 'husk', packSize(7) + 3)
+  boulderField(b, 79, 4)
+  // A line behind a short rib: the stone field decides which corridor the
+  // crowd can reach, and the fat door is not always that one.
+  bank(b, 90, add(8), add(20))
+  passage(b, 90, 6)
 
-  crates(b, A * 0.7, 'rate', [CRATE_DETOUR_X])
-  horde(b, A * 0.8, 'creep', packSize(7) + 2)
+  // ── The first brutes ──
+  //
+  // Slow and thick: 140 hp apiece at stage 7, a body that has to be shot EARLY
+  // or dodged entirely. Two of them, on the approach to a trap, twenty units in
+  // front of the elite — the first time a single body costs a real share of the
+  // crowd's fire.
+  pack(b, 98, 'brute', 2, 2.8)
+  crates(b, 103, 'damage', [CRATE_DETOUR_X + 0.4])
+  bank(b, 110, add(18), div(3))
+
+  // (the first elite plants at 124 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO: the long rails, and the `?` that bites (124 → elite at 282) ──
+  horde(b, 130, 'creep', packSize(7) + 5)
+  coinTrail(b, 136, -1.2, -GATE_LEAF_X, 6, 1.2)
+  bank(b, 148, add(liveDoor(60)), mul(2))
+  pincer(b, 152, 'hound', 1)
+  // The second gauntlet is the longer one — three rows — and it ends on the
+  // bank that makes the stage's name.
+  gauntlet(b, 158, 3, true)
+
+  // ── Stage 7's `?` is the first real bite ──
+  //
+  // The trap goes face-down beside a fat, readable door and a trail that points
+  // at the door. Stage 3 taught that a `?` can cost; this is the one that costs
+  // half, and only a player who ignored both the number and the coins pays it.
+  // It stands where the rails have just funnelled the crowd onto the pillar, so
+  // the gamble is also the lazy line.
+  bank(b, 178, add(26), hide(div(2)))
+  horde(b, 186, 'husk', packSize(7) + 3)
+  chicane(b, 192, false, true)
+  // The stage's one dilemma, on the side the chicane pushed the crowd to,
+  // priced inside the spread of career crowds here (~100-250).
+  bank(b, 206, sub(crowdBill(b, 200)), div(3))
+  pack(b, 214, 'flyer', 8, 3.4)
+  boulderField(b, 222, 4)
+  // A line out of the stone field rather than a second doubling — see the same
+  // note at stage 6's 198: two multipliers on the road measured a career run
+  // at ~800 into the arena.
+  bank(b, 236, add(12), add(32))
+  pack(b, 244, 'brute', 3, 3.2)
+  splitPair(b, 250, 'rate', 'damage')
+  bank(b, 260, add(10), add(28))
+  passage(b, 260, 9)
+  pack(b, 268, 'hound', 7, 2.8)
+
+  // (the second elite plants at 282)
+
+  // ─── ACT THREE: the run-in ─────────────────────────────────────────────────
+  horde(b, 288, 'husk', packSize(7) + 4)
+  coinTrail(b, 294, 0.8, GATE_LEAF_X, 6, 1.2)
+  bank(b, 306, div(2), add(34))
+  pack(b, 314, 'flyer', 8, 3.2)
+  crates(b, 320, 'rate', [-CRATE_DETOUR_X - 0.4])
 }
 
 /**
@@ -4347,207 +4767,1093 @@ const stageSeven = (b: Beat): void => {
  * MASS: the biggest single body so far, in the gap between the two chicanes
  * where there is no room to swing wide around it.
  * DECISION: a dilemma. Both doors take something, so the question is which loss
- * the run can afford.
+ * the run can afford — and, on the sixty-second road (2026-09-18), the first
+ * LOCKED PAIR (`PAIR_STAGE`), laid by hand rather than left to a one-in-six
+ * roll. The grapeshot puzzle opens act one and the roadside shield box
+ * (`BULWARK_STAGE`) is placed by `placeRescues` in act two.
  */
 const stageEight = (b: Beat): void => {
-  const A = b.arenaY
-  const base = gateAddBase(8)
-  bank(b, 14, add(base + 1), add(base + 3))
+  // Ribs by hand, as on stage 6 — and the locked pair lays its own.
+  b.passageIn = Number.MAX_SAFE_INTEGER
 
-  chicane(b, A * 0.15, false)
-  horde(b, A * 0.3, 'creep', packSize(8) + 2)
-  chicane(b, A * 0.42, true)
+  // ─── ACT ONE: the grapeshot puzzle, then the squeeze (→ elite at 138) ─────
+  bank(b, 14, add(14), add(6))
+  crates(b, 22, 'rate', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 28, 'husk', 8, 2.6)
+  coinTrail(b, 30, 0.4, GATE_LEAF_X, 6, 1.2)
+  bank(b, 40, div(2), add(16))
+  pack(b, 48, 'hound', 7, 2.6)
+  bank(b, 60, add(18), add(7))
 
-  bank(b, A * 0.56, sub(3), div(2))
-  crates(b, A * 0.66, 'damage', [-CRATE_DETOUR_X])
-  pack(b, A * 0.74, 'hound', 4, 2.4)
-  barricadeRow(b, A * 0.83, 2)
+  // ── The puzzle: grapeshot's debut, EARLY slot (~70 → 84) ──
+  //
+  // The banks at 60 and 92 leave the thirty units its strict clearances need.
+  // A hound pack runs down the lane through the sweep.
+  pack(b, 76, 'hound', 6, 2.8)
+
+  bank(b, 92, add(20), div(2))
+
+  // ── The squeeze ──
+  //
+  // LAYOUT: two closed chicanes back to back — an S, then its mirror — with
+  // the biggest single body on the road so far packed into the units between
+  // them, where there is no room to swing wide around it. A thin crowd cannot
+  // shoot through it in time, so it is line; a thick one can, and pays for the
+  // seconds. The second one exits RIGHT, and the fat door after it is on the
+  // LEFT.
+  //
+  // 113.2 rather than a round number, and the reason is the cage: at 113 its
+  // walls left one spot 2.5 units behind the first of them (`prizeSpotFree`
+  // wants 2.4), and the stage's roadside cage landed inside the S.
+  chicane(b, 98, false, true)
+  horde(b, 108, 'creep', packSize(8) + 6)
+  chicane(b, 113.2, true, true)
+  bank(b, 124, add(24), add(9))
+
+  // (the first elite plants at 138 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO: the first locked pair (138 → elite at 288) ──────────────────
+  horde(b, 144, 'husk', packSize(8) + 4)
+  coinTrail(b, 150, -0.4, 0.4, 6, 1.2)
+
+  // ── The first LOCKED PAIR (`PAIR_STAGE`) ──
+  //
+  // Two banks one bank-length apart with a rib between them, so the door taken
+  // at the first is the lane run through the second: a bill then a doubling
+  // against two adds, one decision covering two banks and answered by the crowd
+  // the player is carrying (`pairOffers`). Stage 8 is where it becomes legal;
+  // the procedural roll would put it on one stage in six, and the stage that
+  // unlocks an idea should show it. If the pair cannot be laid honestly
+  // (`rollPair` declines), an ordinary routing bank takes the slot.
+  if (!rollPair(b, 160)) bank(b, 160, add(liveDoor(70)), mul(2))
+
+  pack(b, 172, 'flyer', 8, 3.2)
+  boulderField(b, 180, 4)
+  bank(b, 192, add(8), add(26))
+  pack(b, 200, 'brute', 3, 3.0)
+  splitPair(b, 206, 'rate', 'damage')
+
+  // ── Both doors cost ──
+  //
+  // The squeeze's own question: `−N` against `÷3`, which loss can the run
+  // afford. Priced so the flip sits inside the spread of crowds a career run
+  // reaches here with.
+  bank(b, 214, sub(crowdBill(b, 250)), div(3))
+  pincer(b, 222, 'hound', 1)
+  chicane(b, 228, false, true)
+
+  // A line out of the second squeeze: the chicane exits LEFT and the fat door
+  // is on the right. It was the road's `×3`, and measured out for the same
+  // reason as stage 6's second doubling — the pair's `×2`, a `×3` and the
+  // closing bank walked a career run into the arena 1 100 strong, four times
+  // what stage 9 builds. `mulThrees` still opens here; the road leaves it to the
+  // closing bank, whose `×3`-or-`×2` is `buildTrack`'s own draw.
+  bank(b, 242, add(12), add(34))
+  pack(b, 250, 'husk', 9, 2.8)
+  crates(b, 256, 'damage', [CRATE_DETOUR_X + 0.4])
+  bank(b, 266, add(30), div(2))
+  passage(b, 266, 8)
+  pack(b, 274, 'hound', 8, 2.8)
+
+  // (the second elite plants at 288)
+
+  // ─── ACT THREE: the run-in ─────────────────────────────────────────────────
+  horde(b, 294, 'creep', packSize(8) + 6)
+  coinTrail(b, 300, 0.6, GATE_LEAF_X, 6, 1.2)
+  bank(b, 310, div(2), add(36))
+  pack(b, 318, 'flyer', 8, 3.2)
+  crates(b, 324, 'rate', [-CRATE_DETOUR_X - 0.4])
+}
+
+/**
+ * ─── Stages 9-15 on the sixty-second road (2026-09-18) ──────────────────────
+ *
+ * The same pass that re-cut 2-8 (see "Stages 2-8" above `stageTwo`) reached
+ * these seven: `stageLength` holds 9-12 at stage 1's sixty seconds of running
+ * and eases 13-15 toward stage 30's untouched length, so every road here went
+ * from 201-255 units to 355-379 — and the old bodies, written as fractions of
+ * the short road, came out as the same five or six beats spread thin: 14-30 s
+ * without a single monster, 13-15 s between two banks, and `fillGateGaps`
+ * writing `+N | +N+1` into every hole (measured, the pre-pass dump: stage 9
+ * had five banks and 15 bodies on 359 units).
+ *
+ * So each is re-written on stage 1's template — ACT ONE, LANDMARK, ACT TWO,
+ * LANDMARK, ACT THREE and the run-in — keeping the identity the header above
+ * `stageSix` gave it (LAYOUT / MASS / DECISION), with four rules:
+ *
+ *   A STOP EVERY FIVE SECONDS. Ten banks and two elites (eleven or twelve
+ *     where a weapon puzzle or the locked pair needs its own window), spaced
+ *     inside `MAX_GATE_GAP_S`, the elites counted as stops exactly as on 2-8
+ *     (the fight IS the question on that stretch). The filler never fires here.
+ *   SOMETHING ALIVE BETWEEN EVERY PAIR OF STOPS. Shooting is the primary verb,
+ *     so every gap carries a body beat — a pack, a file down one rail
+ *     (`railFile`), a pincer or a horde — and the gaps that were bare road carry
+ *     a stray. Three to four times the bodies the stretched roads had.
+ *   BANKS THAT NEED MATH, PRICED FOR THE CROWD THAT MEETS THEM. `+N` against
+ *     `×2` tied at the crowd a middling career run carries there (`longCrowdAt`),
+ *     `−N` against `÷` flipping inside the spread of real runs, and a pair that
+ *     shares an operator only when the stage's LAYOUT makes it a route — the
+ *     stone field that spits the crowd out on the wrong side, the rib that
+ *     commits it early, the wall that has to be shot or skirted.
+ *   THE ROAD'S OWN RIBS. The automatic passage counter is switched off
+ *     (`authoredRoad`) and every rib is written where a decision should be
+ *     committed early — and only on a bank whose doors BOTH pay. Measured on
+ *     the first draft: a rib in front of a dilemma or a trap is a coin flip for
+ *     any player who commits inside the last second (`good` lost 97 of 171 to
+ *     one), which is a toll on reaction time rather than a decision.
+ *   FEW MULTIPLIERS, AND THE DILEMMA IN FRONT OF THE LAST ONE. One or two `×`
+ *     on the road (never in consecutive banks) and a `×2` run-in priced against
+ *     the crowd that reaches it, with the stage's dilemma just before it, on the
+ *     biggest crowd the road builds. The first draft ran three multipliers and
+ *     a `×3` run-in and `good` reached the arena 600-1 200 strong against the
+ *     pre-pass road's 175-500 — and `stageReward` pays 1.6 coins a head.
+ *
+ * Positions are ROAD UNITS, as on 2-8: the lengths are a contract now, and
+ * every beat is placed against the units it needs (twelve clear in front of an
+ * elite, a weapon puzzle's window, `MAX_GATE_GAP_S` between two stops). The
+ * elites' marks live in `AUTHORED_ELITES` beside 2-8's.
+ */
+
+/**
+ * What a middling career run carries on stages 9-15, as `[at the opening bank,
+ * at the run-in]` — the door-pricing curve for these seven, the way
+ * `EARLY_CLOSING_CROWD` is for the opening five.
+ *
+ * MEASURED, not chosen: `tests/sim` crowd walk (good and average, the career
+ * build `good`/`cheapest` walks into each stage with — 9/6/8 squad/power/rate
+ * at stage 9 up to 12/8/11 at 15), median of the two policies. The opening
+ * number is the shop's start squad; the run-in is what reaches the closing
+ * bank. Re-read it after any pass that moves the doors ahead of it.
+ */
+const LONG_CROWD: Readonly<Record<number, readonly [number, number]>> = {
+  9: [22, 170], 10: [24, 230], 11: [25, 170], 12: [25, 150],
+  13: [26, 200], 14: [38, 200], 15: [38, 170]
+}
+
+/**
+ * Roughly what a middling run is holding `y` units down stages 9-15 — a
+ * STRAIGHT line between the two ends of `LONG_CROWD`.
+ *
+ * Not the geometric curve `earlyCrowdAt` uses, and measured rather than
+ * assumed: on these roads the crowd climbs fast through act one (a door every
+ * five seconds against a squad of twenty) and then roughly linearly, so the
+ * geometric curve put the middle of stage 9 at 78 survivors against a walked
+ * 153 — and every door priced off it came out at half the size the crowd in
+ * front of it needed.
+ */
+const longCrowdAt = (b: Beat, y: number): number => {
+  const [start, end] = LONG_CROWD[b.stage] ?? [20, 150]
+  const f = Math.max(0, Math.min(1, y / Math.max(1, b.arenaY - 12)))
+  return Math.round(start + (end - start) * f)
+}
+
+/**
+ * The two doors of a LINE bank — `+N` against `+M`, a question about the road
+ * rather than about the sum. The fat door is `base + 3` and the thin one a bit
+ * over a third of it: far enough apart to read from the other side of the
+ * lane, and only ever printed where the layout makes reaching the fat one cost
+ * something.
+ *
+ * FLAT, not crowd-priced, and that is the snowball's cap. The first draft
+ * priced it as `roadDoor` (a sixth of the crowd), and six of these a road —
+ * compounding into two multipliers — put `good` in front of the boss 510-630
+ * strong against the pre-pass road's 175-500; `stageReward` pays 1.6 coins a
+ * survivor, so that is the economy moving too. The route is what these banks
+ * ask; the prize only has to be worth the lane.
+ */
+const lineDoors = (b: Beat, _y: number): [number, number] => {
+  const fat = gateAddBase(b.stage) + 3
+  return [fat, Math.max(2, Math.round(fat * 0.38))]
+}
+
+/**
+ * The count half of a DILEMMA (`−N` against `÷2`) on stages 9-15.
+ *
+ * `crowdBill`'s 0.22 of the crowd flips against `÷2` at 0.44 of the crowd it
+ * was priced for — right for the opening five, where a lazy run carries half
+ * what a keen one does. Here the career shop narrows that spread (the crowd
+ * walk: `average` arrives with 0.6-0.9 of `good`), so at 0.22 every run on the
+ * road is on the same side of the flip and the bank has one answer. At 0.3 it
+ * flips at 0.6 of the middling crowd — inside the spread, which is the only
+ * place a bank with two bad doors is a question.
+ */
+const LONG_DILEMMA_SHARE = 0.25
+
+const dilemmaBill = (b: Beat, y: number): number =>
+  Math.max(gateSubBase(b.stage), Math.round(longCrowdAt(b, y) * LONG_DILEMMA_SHARE))
+
+/**
+ * The two doors of a BILL bank — `−N` against `+M` — on stages 9-15.
+ *
+ * The add is always the better door here, by at least three: what the bank
+ * asks is whether the crowd can get to it, because the layout in front of it
+ * (a stone field, a wall, a chicane) delivers the crowd to the bill's lane.
+ * Pricing the add under the bill (`roadDoor` is 0.16 of the crowd, `crowdBill`
+ * 0.22) made the bill the bigger NUMBER, and a door that is bigger and worse
+ * is a reading test rather than a route.
+ */
+const billDoors = (b: Beat, y: number): [number, number] => {
+  const bill = crowdBill(b, longCrowdAt(b, y))
+  return [bill, Math.max(roadDoor(b, longCrowdAt(b, y)), bill + 3)]
+}
+
+/**
+ * Stages 9-15 lay their own ribs and their own run-in bank.
+ *
+ * `bank()` walls every third or fourth two-leaf bank from a counter, which
+ * cannot know which door on the road is the hard one; parking the counter out
+ * of reach hands every rib to the author (`passage` at the call site).
+ */
+const authoredRoad = (b: Beat): void => {
+  b.passageIn = Number.MAX_SAFE_INTEGER
+}
+
+/**
+ * A stone field whose two gaps are CHOSEN rather than rolled.
+ *
+ * `boulderField` rolls where its two gaps open, which is right for a generated
+ * road and useless for an authored one: the whole point of the field in front
+ * of a line bank is WHICH SIDE it spits the crowd out on, and that has to be
+ * the side away from the fat door. `gap` is the first of the three free slots
+ * (0 = the left three, 3 = the right three), per rank; three free slots is
+ * 4.5 units of road against `MIN_RUN_GAP`'s 4.4, the same as every rank the
+ * generator lays. One field id, so `clearGateBands` moves it as one body.
+ */
+const stones = (b: Beat, y: number, firstGap: number, secondGap: number): void => {
+  const field = b.fieldId++
+  // ⚠ The two gaps may sit at most TWO slots apart — the offset `boulderField`
+  // itself deals. A field whose gaps share no slot at all (0 then 3) asks the
+  // crowd to move 4.5 units across the lane in the 3.2 units between the ranks,
+  // and it cannot: measured on the first draft of these stages, `optimal` died
+  // on stage 12's first field at 8 % of the road and `average` on stage 9's.
+  // Two slots leaves one shared slot and a line that bends by 3 units — hard,
+  // readable, and survivable.
+  const second = Math.max(firstGap - 2, Math.min(firstGap + 2, secondGap))
+  for (const [i, gap] of [firstGap, second].entries()) {
+    const blocks = SLOT_X
+      .filter((_, s) => s < gap || s > gap + 2)
+      .map((x) => ({ x: r2(x), w: ROCK_W }))
+    b.events.push({ kind: 'rocks', y: r2(y + i * 3.2), blocks, field })
+  }
+}
+
+/**
+ * RAIL FILE — `n` bodies down ONE shoulder, a step apart.
+ *
+ * `pack` deals a group across the lane around its centre; it cannot put a
+ * group on one side. A lone body can be (`pack` puts `count: 1` at `-spread`,
+ * the trick `stray` uses), so a file is `n` of those. It is the beat the
+ * stages below use to make one lane of a bank cost something — the bodies are
+ * in the fat door's approach, not the thin one's — and to give a long rail
+ * something to shoot without closing the whole road.
+ */
+const railFile = (b: Beat, y: number, typeId: string, n: number, x: number, step = 1.3): void => {
+  for (let i = 0; i < n; i++) pack(b, y + i * step, typeId, 1, -x)
+}
+
+/**
+ * RAILS — a gauntlet that keeps BOTH of its rails.
+ *
+ * `gauntlet` stands its rails at ±2.75, 1.3 wide: a 4.2-unit channel, which is
+ * under `MIN_RUN_GAP` (4.9) — so `ensureRunnable` drops a rail from every row
+ * it lays and the "gauntlet" on the road is one rail down the right-hand side
+ * (measured: every gauntlet row on stages 1-60 ships a single block at +2.75).
+ * These are a unit wide at ±3: a five-unit channel that clears `MIN_RUN_GAP`,
+ * so both rails survive and the beat is the one its comment describes — a
+ * channel the crowd fits, not one it can wander in. Coins down the middle,
+ * because the rails are a lesson in the centre line and the bank after them is
+ * the bill for it.
+ */
+const RAIL_X = 3
+const RAIL_W = 1
+
+const rails = (b: Beat, y: number, rows: number): void => {
+  const hp = Math.max(6, Math.round(barricadeHp(b.stage) * 1.15))
+  for (let i = 0; i < rows; i++) {
+    wall(b, y + i * 4.6, [{ x: -RAIL_X, w: RAIL_W, hp }, { x: RAIL_X, w: RAIL_W, hp }])
+  }
+  coinTrail(b, y + 0.8, -0.3, 0.3, rows * 4, 1.15)
 }
 
 /**
  * STAGE 9 — three doors.
  *
- * LAYOUT: boulders. Unshootable, so the stage is about where you are rather
- * than what you kill.
- * MASS: flyers, the one body type the boulders do not protect you from.
- * DECISION: the first three-leaf bank (`TRIPLE_STAGE`), and it is the headline —
- * two honest doors with a multiplier between them.
+ * LAYOUT: stone. Unshootable, so the stage is about WHERE the crowd is rather
+ * than what it kills — five authored fields (`stones`), each spitting the crowd
+ * out on the side away from the door it wants.
+ * MASS: flyers, the one body the stone does not protect you from — a trio in
+ * the first screen, two hordes and a pincer.
+ * DECISION: the first three-leaf bank (`TRIPLE_STAGE`) is the headline — a fat
+ * add, a multiplier and a modest add, the fat one tied to the `×2` at the
+ * crowd a middling run brings — and the first SHIELD under a `?` opens it.
+ *
+ *   ACT ONE (14-120)   the stone decides where you stand: a line bank, the
+ *                      bait, and a trap bank the field pushes you onto.
+ *   LANDMARK (134)     the first elite (the warden).
+ *   ACT TWO (150-247)  the sums: a live `×2` behind a rib, the first `÷3`
+ *                      with hounds in the good door's lane, and the triple.
+ *   LANDMARK (254)     the second elite (the burrower).
+ *   ACT THREE (270-)   the bill the stone hands you, the flyers' second horde,
+ *                      the dilemma, and the run-in `×2` sum.
  */
 const stageNine = (b: Beat): void => {
-  const A = b.arenaY
   const base = gateAddBase(9)
+  const crowd = (y: number): number => longCrowdAt(b, y)
+  authoredRoad(b)
+
+  // ─── ACT ONE ─────────────────────────────────────────────────────────────
+  //
   // The first SHIELD under a `?`, one stage after the roadside shield box
   // (`BULWARK_STAGE`) has shown what the crest over the crowd means. A known
-  // `+N` against one free blow somewhere in the next three minutes — the boss's,
-  // if nothing on the road spends it first.
+  // `+N` against one free blow somewhere in the next minute — the boss's, if
+  // nothing on the road spends it first.
   bank(b, 14, shieldPrize(), add(base + 2))
+  // Three flyers in the first screen: something to shoot before the stone.
+  pack(b, 28, 'flyer', 3, 2.2)
 
-  boulderField(b, A * 0.16, 3)
-  horde(b, A * 0.28, 'flyer', packSize(9) - 2)
+  // In on the left, out RIGHT of centre — and the fat door is on the left. The
+  // crowd leaves the second rank with ~1.3 s to cross the pillar for it.
+  stones(b, 32, 0, 2)
+  const [fat1, thin1] = lineDoors(b, 44)
+  bank(b, 44, add(fat1), add(thin1))
+  crates(b, 51, 'rate', [CRATE_DETOUR_X + 0.4])
+  stray(b, 55, -STRAY_X)
+  pack(b, 66, 'husk', 5, 2.6)
 
-  boulderField(b, A * 0.4, 4)
-  bank(b, A * 0.54, add(base + 2), mul(2), add(base + 5))
+  // The bait: a rate crate parked behind the `÷2`, with its own lying trail.
+  bait(b, 74, false)
+  railFile(b, 88, 'hound', 3, -2.6)
 
-  pincer(b, A * 0.64, 'husk', 2)
-  crates(b, A * 0.74, 'rate', [CRATE_DETOUR_X + 0.5])
+  // In on the right, out LEFT of centre, onto the trap's lane. The same line
+  // question as the first field, asked with a `÷2` on the lazy side.
+  stones(b, 91, 3, 1)
+  bank(b, 104, div(2), add(lineDoors(b, 104)[0]))
+  stray(b, 113, STRAY_X)
+  crates(b, 118, 'damage', [-CRATE_DETOUR_X - 0.4])
+  // (the first elite plants at 134 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO ─────────────────────────────────────────────────────────────
+  //
+  // The mass the stone cannot stop, right after the landmark, while the crowd
+  // is still re-forming from the fight.
+  horde(b, 154, 'flyer', packSize(9))
+  coinTrail(b, 156.5, -1.1, -GATE_LEAF_X, 5, 1.15)
+  // The first fork out of the landmark, walled: the flyers are still in the
+  // air, the fat door is on the left, and the rib closes a second before the
+  // doors — both pay, so it costs a player who has not decided yet a door,
+  // never the run. A line and not a live `×2`: the triple is this act's sum,
+  // and with a second multiplier here `good` reached the arena 600 strong
+  // (pre-pass: 419).
+  const [fat4, thin4] = lineDoors(b, 164)
+  bank(b, 164, add(fat4), add(thin4))
+  passage(b, 164, 8)
+  stray(b, 173, -STRAY_X)
+
+  // The stage's first `÷3`, and the add beside it has hounds running down its
+  // rail: the good door costs a fight in the lane, the bad one costs a third.
+  railFile(b, 182, 'hound', 3, 2.6)
+  bank(b, 194, div(3), add(lineDoors(b, 194)[0] + 2))
+  crates(b, 202, 'rate', [CRATE_DETOUR_X + 0.4])
+  pack(b, 210, 'husk', 6, 3.0)
+  coinTrail(b, 216, 1.0, -GATE3_LEAF_X, 6, 1.1)
+
+  // ── The headline: the first three-leaf bank ──
+  //
+  // Three honest doors, and the answer is an ORDERING: the fat add ties with
+  // the multiplier at the middling crowd, the modest add is the door nobody
+  // has to cross the lane for. The multiplier stands in the centre — the one
+  // door with no pillar in front of it is, on this bank, the greedy one.
+  bank(b, 224, add(liveDoor(crowd(224))), mul(2), add(roadDoor(b, crowd(224))))
+  stray(b, 231, -STRAY_X)
+  crates(b, 232, 'damage', [CRATE_DETOUR_X + 0.4])
+  pincer(b, 240, 'flyer', 1)
+  crates(b, 247, 'rate', [-CRATE_DETOUR_X - 0.4])
+  // (the second elite plants at 254)
+
+  // ─── ACT THREE ───────────────────────────────────────────────────────────
+  //
+  // In on the right, out LEFT of centre — and the left door is the bill. The
+  // stone hands the crowd the invoice; crossing back for the add is the play.
+  // Sixteen units clear of the landmark: a fight the crowd dodges through must
+  // not back onto stone it cannot shoot.
+  stones(b, 270, 3, 1)
+  railFile(b, 276, 'husk', 3, 2.6)
+  const [bill7, door7] = billDoors(b, 284)
+  bank(b, 284, sub(bill7), add(door7))
+  crates(b, 292, 'rate', [-CRATE_DETOUR_X - 0.4])
+  // The flyers' second horde, the biggest body on the road.
+  horde(b, 302, 'flyer', packSize(9) + 3)
+
+  // ── The dilemma, as the last word before the run-in ──
+  //
+  // `−N` flips against the `÷2` at twice the bill, which sits between a lazy
+  // run and a keen one (`dilemmaBill`). HERE, and not mid-road, for two
+  // measured reasons: it bites the biggest crowd the road builds, right before
+  // the closing `×2` doubles whatever is left — the snowball's cap, where the
+  // first draft's mid-road dilemma let `good` reach the arena ~550 strong —
+  // and it is NOT walled: a rib in front of the one bank with two bad doors
+  // made it a coin flip for any player who commits inside the last second
+  // (`good` lost 97 of 171 to it), and a sum nobody gets to do is not a sum.
+  bank(b, 314, sub(dilemmaBill(b, 314)), div(2))
+  crates(b, 321, 'damage', [-CRATE_DETOUR_X - 0.4])
+  stray(b, 326, STRAY_X)
+  pack(b, 336, 'husk', 4, 2.4)
+
+  // The run-in: `+N` tied to the `×2` at the crowd that reaches it. The last
+  // thing read before the arena is a sum, not a formality (the generator's
+  // default here is `base + 6` against a multiplier — `+17` in front of ~160).
+  bank(b, b.arenaY - 12, mul(2), add(liveDoor(crowd(b.arenaY - 12))))
 }
 
 /**
  * STAGE 10 — heavies.
  *
- * LAYOUT: plain walls, and few of them. The stage gives the road back so the
- * bodies are the whole problem.
- * MASS: brutes — a wall of health rather than a crowd of bodies. The first time
- * the question is "do I have enough damage" instead of "can I steer".
- * DECISION: `×3 | +N`, the biggest multiplier in the game against a fat add.
+ * LAYOUT: plain walls, and only two of them — the road is given back so the
+ * bodies are the whole problem. Each wall closes the half of the lane the fat
+ * door is on: shoot through it or go round and cut back.
+ * MASS: brutes — a wall of health rather than a crowd of bodies, the first time
+ * the question is "do I have enough damage" instead of "can I steer". They
+ * stand in the fat door's lane (`railFile`), they come in packs of three and
+ * four, and a husk and a creep horde fill the gaps between them.
+ * DECISION: `×3 | ?+N` — the biggest multiplier in the game against a door
+ * nobody can read.
+ *
+ *   ACT ONE (14-118)   walls and heavies on the lane you want; the first box on
+ *                      the road is a heavy one.
+ *   LANDMARK (130)     the first elite.
+ *   ACT TWO (142-239)  a bill with brutes in the offer's lane, the `?` beside
+ *                      the `×3`, the stage's biggest brute pack, a trap.
+ *   THE PUZZLE (~246)  the stage's weapon box (`late` slot) in the window the
+ *                      two banks either side leave it.
+ *   LANDMARK (268)     the second elite.
+ *   ACT THREE (280-)   a line with brutes in it, the dilemma behind the second
+ *                      wall, and the run-in triple.
  */
 const stageTen = (b: Beat): void => {
-  const A = b.arenaY
-  const base = gateAddBase(10)
-  bank(b, 14, add(base + 1), add(base + 3))
+  const crowd = (y: number): number => longCrowdAt(b, y)
+  const wallHp = barricadeHp(10)
+  const half = (y: number, side: 'left' | 'right'): void =>
+    wall(b, y, (side === 'left' ? [0, 1, 2] : [3, 4, 5])
+      .map((i) => ({ x: SLOT_X[i]!, w: BARRICADE_W, hp: wallHp })))
+  authoredRoad(b)
 
-  crates(b, A * 0.14, 'damage', [0])
-  pack(b, A * 0.24, 'brute', 3, 3.0)
+  // ─── ACT ONE ─────────────────────────────────────────────────────────────
+  //
+  // The opening door is a lane change's worth — and two brutes are standing in
+  // its exit. The thin door's lane is clear.
+  const [fat0, thin0] = lineDoors(b, 14)
+  bank(b, 14, add(fat0), add(thin0))
+  railFile(b, 23, 'brute', 2, -2.4)
+  pack(b, 36, 'creep', 6, 3.0)
 
-  barricadeRow(b, A * 0.36, 2)
-  coinTrail(b, A * 0.44, -1.2, -GATE_LEAF_X, 7, 1.2)
-  // Stage 10's `?` is the fat ADD beside a readable `×3` — the gamble that is
-  // only right for a crowd that has not been worked. This exact door was the
-  // old random roll's pick, and the balance suite is calibrated against it:
-  // turned face-up it can be pumped, and "makes a streak of clears measurably
-  // harder" (`balance.test.ts`) tips from 15 lost to 14. Kept, now by design.
-  bank(b, A * 0.5, mul(3), hide(add(base + 6)))
+  // The first wall closes the RIGHT half, and the fat door is on the right:
+  // break a block of it or come round the left end and cross back.
+  half(31, 'right')
+  const [fat1, thin1] = lineDoors(b, 43)
+  bank(b, 43, add(thin1), add(fat1))
+  // ── The heavies' first box is a heavy one ──
+  //
+  // The stage's question in crate form: priced at the HEAVY tier rather than
+  // rolled (`CRATE_TIER_SCALE`), on the shoulder the thin door does not lead
+  // to. A run that has bought damage opens it on the way past; one that has not
+  // swerves into a box it cannot break in the two units it gets, and learns the
+  // stage's lesson one prop early. (`survivalSim.test.ts` uses exactly this: the
+  // first live, unbreakable crate on stage 10.)
+  crates(b, 50, 'damage', [CRATE_DETOUR_X + 0.4],
+    crateTierHp(10, 'damage', 'heavy') * crateDepthFactor(50 / b.arenaY, 10))
+  pack(b, 58, 'brute', 3, 3.0)
+  crates(b, 63, 'rate', [-CRATE_DETOUR_X - 0.4])
+  stray(b, 65, STRAY_X)
 
-  horde(b, A * 0.62, 'husk', packSize(10))
-  crates(b, A * 0.72, 'rate', [-CRATE_DETOUR_X - 0.4])
-  pack(b, A * 0.82, 'brute', 2, 2.6)
+  bait(b, 72, true)
+  horde(b, 88, 'husk', packSize(10))
+
+  // Three brutes down the right rail, in the fat door's approach. They are
+  // slow enough to still be there when the crowd commits.
+  railFile(b, 92, 'brute', 3, 2.4, 1.4)
+  const [fat3, thin3] = lineDoors(b, 101)
+  bank(b, 101, add(thin3), add(fat3))
+  crates(b, 108, 'damage', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 115, 'creep', 8, 3.2)
+  // (the first elite plants at 130 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO ─────────────────────────────────────────────────────────────
+  stray(b, 142, -STRAY_X)
+  // A bill beside an offer — and two brutes walking down the offer's lane.
+  railFile(b, 148, 'brute', 2, 2.4, 1.6)
+  const [bill4, door4] = billDoors(b, 159)
+  bank(b, 159, sub(bill4), add(door4))
+  crates(b, 166, 'rate', [CRATE_DETOUR_X + 0.4])
+  pincer(b, 174, 'hound', 1)
+
+  // ── Stage 10's `?` ──
+  //
+  // The fat ADD face-down beside a readable `×3` — the gamble that is only
+  // right for a crowd that has not been worked. Priced so the add ties with the
+  // `×3`'s open value at HALF the crowd a middling run brings here: a run that
+  // is behind should gamble, a run that is ahead should read the `×3`. It
+  // cannot be pumped (rule 6), which is what the balance suite's streak probe
+  // is calibrated around (`balance.test.ts`, "makes a streak of clears
+  // measurably harder") — see the `mystery-gate-design` note.
+  // The coins mark the readable door, as they always did here.
+  coinTrail(b, 180.5, -1.0, -GATE_LEAF_X, 5, 1.15)
+  bank(b, 188, mul(3), hide(add(Math.round(crowd(188) * 0.7))))
+  crates(b, 196, 'damage', [CRATE_DETOUR_X + 0.4])
+  // The biggest mass on the road: four brutes, right behind the sum.
+  pack(b, 204, 'brute', 4, 3.2)
+
+  railFile(b, 205, 'husk', 3, -2.6)
+  const [fat6, thin6] = lineDoors(b, 212)
+  bank(b, 212, add(fat6), add(thin6))
+  crates(b, 219, 'rate', [-CRATE_DETOUR_X - 0.4])
+  stray(b, 220, STRAY_X)
+  horde(b, 228, 'creep', packSize(10))
+  coinTrail(b, 231.5, 0.9, GATE_LEAF_X, 5, 1.15)
+  bank(b, 239, div(2), add(lineDoors(b, 239)[0]))
+
+  // (the weapon puzzle takes 245-260: `late` slot, nothing may stand within a
+  // lever's or the box's clearance — see `placeWeaponPuzzle`)
+  stray(b, 254, -STRAY_X)
+  // (the second elite plants at 268)
+
+  // ─── ACT THREE ───────────────────────────────────────────────────────────
+  stray(b, 278, STRAY_X)
+  // ONE multiplier on the road, not two. The first draft printed a live `×2`
+  // here as well, and `good` walked into the run-in 470 strong and left it
+  // 736 (the pre-pass road peaked at 367) — the `×3` sum is the stage's
+  // multiplier, and this act caps what it built instead of doubling it again.
+  pack(b, 286, 'brute', 3, 3.0)
+  railFile(b, 289, 'brute', 2, 2.4, 1.4)
+  const [fat8, thin8] = lineDoors(b, 297)
+  bank(b, 297, add(thin8), add(fat8))
+  crates(b, 304, 'rate', [-CRATE_DETOUR_X - 0.4])
+
+  // ── The dilemma, as the last word before the run-in ──
+  //
+  // The second wall closes the BILL's lane. The `÷2` is the answer for a crowd
+  // under twice the bill, and its lane is open; the `−N` is the answer for a
+  // big one, and a big crowd is exactly the one with the guns to break a block
+  // of that wall. Where and why the stage's dilemma sits here: see stage 9's.
+  half(311, 'right')
+  pack(b, 314, 'husk', 5, 2.4)
+  bank(b, 323, div(2), sub(dilemmaBill(b, 323)))
+  crates(b, 330, 'damage', [CRATE_DETOUR_X + 0.4])
+  pack(b, 338, 'creep', 6, 2.8)
+
+  // The run-in is the stage's three-leaf bank (a stage from `TRIPLE_STAGE` must
+  // show one, and the `×3` sum was the headline): the fat add tied to the `×2`
+  // at the crowd that arrives, the modest add in the centre — the safe answer
+  // is straight ahead, and it is not the best one.
+  const run = b.arenaY - 12
+  bank(b, run, add(liveDoor(crowd(run))), add(roadDoor(b, crowd(run))), mul(2))
 }
 
 /**
  * STAGE 11 — crossfire.
  *
- * LAYOUT: a gauntlet with pincers landing inside it. The rails take away the
- * room to dodge at the moment the bodies arrive from both sides.
+ * LAYOUT: gauntlets — five of them — with pincers landing INSIDE the rails, so
+ * the room to dodge is gone at the moment the bodies arrive from both sides.
+ * Every gauntlet runs into a bank, and the pillar stands exactly where the
+ * rails taught the crowd to run.
  * MASS: hound pincers, the fastest thing in the roster, where there is nowhere
- * to go.
- * DECISION: a bait — a trap dressed as the obvious lane, with the coins lying.
+ * to go — and a creep horde driven into the rails in act two.
+ * DECISION: the bait — a trap dressed as the obvious lane, with a long trail of
+ * coins lying all the way to its lip — and, as the headline, a three-leaf bank
+ * the rails deliver the crowd to the MODEST door of, with the fat one and the
+ * trap a pillar away on either side.
+ *
+ *   ACT ONE (14-126)   the rails teach the centre; the bait, lied about.
+ *   LANDMARK (138)     the first elite.
+ *   ACT TWO (150-283)  a bill with hounds in the offer's lane, a live `×2` out
+ *                      of the rails, the triple, a line with hounds in it.
+ *   LANDMARK (293)     the second elite.
+ *   ACT THREE (303-)   one more gauntlet into the dilemma, and the run-in.
  */
 const stageEleven = (b: Beat): void => {
-  const A = b.arenaY
-  const base = gateAddBase(11)
-  bank(b, 14, add(base), add(base + 3))
+  const crowd = (y: number): number => longCrowdAt(b, y)
+  authoredRoad(b)
 
-  gauntlet(b, A * 0.15, 3)
-  pincer(b, A * 0.2, 'hound', 2)
+  // ─── ACT ONE ─────────────────────────────────────────────────────────────
+  const [fat0, thin0] = lineDoors(b, 14)
+  bank(b, 14, add(fat0), add(thin0))
 
-  bait(b, A * 0.36, true)
-  horde(b, A * 0.5, 'creep', packSize(11) + 4)
+  // The first gauntlet, with a hound pincer landing inside it — and flyers over
+  // the rails before it, so the stage is shooting inside its first screen. It
+  // ends nine units short of a bank whose pillar is dead centre, and whose trap
+  // is on the side the gauntlet's own coins drift toward.
+  pack(b, 24, 'flyer', 3, 2.0)
+  rails(b, 24, 3)
+  pincer(b, 38, 'hound', 1)
+  bank(b, 45, div(2), add(lineDoors(b, 45)[0] + 2))
+  crates(b, 52, 'rate', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 58, 'husk', 6, 3.0)
+  stray(b, 70, -STRAY_X)
 
-  bank(b, A * 0.62, add(base + 4), div(2), add(base + 1))
-  crates(b, A * 0.72, 'damage', [CRATE_DETOUR_X])
-  pincer(b, A * 0.8, 'flyer', 2)
+  // ── The bait, and the coins lie about it ──
+  //
+  // Nine coins from the far shoulder to the lip of the `÷2`, on top of the
+  // bait's own short trail to the rate crate behind it. The trap is dressed as
+  // the obvious lane; the add is the door nobody is pointing at.
+  coinTrail(b, 63, -2.0, GATE_LEAF_X, 9, 1.1)
+  bait(b, 76, true)
+  railFile(b, 90, 'hound', 3, 2.6)
+
+  rails(b, 94, 2)
+  pincer(b, 104, 'hound', 1)
+  // Out of the rails onto the centre line, and the fat door's lane has a file
+  // of hounds in it.
+  railFile(b, 99.5, 'hound', 2, 2.6, 1.6)
+  const [fat3, thin3] = lineDoors(b, 107)
+  bank(b, 107, add(thin3), add(fat3))
+  crates(b, 115, 'damage', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 122, 'creep', 8, 3.0)
+  // (the first elite plants at 138 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO ─────────────────────────────────────────────────────────────
+  stray(b, 150, -STRAY_X)
+  pincer(b, 156, 'flyer', 1)
+  // A bill beside an offer, with three hounds down the offer's rail.
+  railFile(b, 160, 'hound', 3, 2.6)
+  const [bill4, door4] = billDoors(b, 169)
+  bank(b, 169, sub(bill4), add(door4))
+  crates(b, 176, 'rate', [CRATE_DETOUR_X + 0.4])
+
+  rails(b, 180, 3)
+  pack(b, 186, 'creep', 5, 1.6)
+  pincer(b, 192, 'hound', 1)
+  coinTrail(b, 193.5, 0.4, GATE_LEAF_X, 5, 1.1)
+  bank(b, 200, add(liveDoor(crowd(200))), mul(2))
+  crates(b, 208, 'damage', [-CRATE_DETOUR_X - 0.4])
+
+  // The mass, driven into the rails of the next gauntlet — and the gauntlet
+  // runs straight into the headline: a three-leaf bank that the rails deliver
+  // the crowd to the MODEST door of. The fat one is a pillar away to the right,
+  // the trap a pillar away to the left, and a crowd that drifts out of the
+  // channel drifts onto one or the other.
+  horde(b, 213, 'creep', packSize(11) + 4)
+  rails(b, 218, 2)
+  const [fat6, thin6] = lineDoors(b, 231)
+  bank(b, 231, div(2), add(thin6), add(fat6 + 4))
+  crates(b, 239, 'rate', [CRATE_DETOUR_X + 0.4])
+  railFile(b, 246, 'hound', 3, -2.6)
+
+  // A line, not a second live `×2` (the first draft had one here and `good`
+  // reached the arena 321 strong against the pre-pass road's 199): the fat
+  // door is in the lane the hound file above runs down.
+  const [fat7, thin7] = lineDoors(b, 262)
+  bank(b, 262, add(fat7), add(thin7))
+  stray(b, 270, STRAY_X)
+  pack(b, 278, 'husk', 6, 3.0)
+  crates(b, 283, 'rate', [-CRATE_DETOUR_X - 0.4])
+  // (the second elite plants at 293)
+
+  // ─── ACT THREE ───────────────────────────────────────────────────────────
+  stray(b, 303, -STRAY_X)
+  rails(b, 308, 2)
+  pincer(b, 316, 'hound', 1)
+  // ── The dilemma, straight out of the last rails ──
+  //
+  // The rails deliver the crowd to the pillar with a bill on one side and a
+  // `÷2` on the other, and flyers drifting into the trap's lane. Where and why
+  // the stage's dilemma sits here: see stage 9's.
+  railFile(b, 318, 'flyer', 2, 2.4)
+  bank(b, 324, sub(dilemmaBill(b, 324)), div(2))
+  crates(b, 331, 'damage', [CRATE_DETOUR_X + 0.4])
+  pack(b, 339, 'creep', 8, 2.8)
+
+  const run = b.arenaY - 12
+  bank(b, run, add(liveDoor(crowd(run))), mul(2))
 }
 
 /**
  * STAGE 12 — the maze.
  *
- * LAYOUT: passages and boulders together, so the road forks twice and neither
- * fork can be shot open. The most navigational stage in the campaign.
- * MASS: a husk horde at the exit — the reward for reading the maze is arriving
- * with a crowd big enough to answer it.
- * DECISION: a triple whose middle leaf is the trap, so the safe-looking centre
- * line is the expensive one.
+ * LAYOUT: ribs and stone together, so the road forks and neither fork can be
+ * shot open — six authored stone fields and three ribs (the blind pair's, the
+ * locked pair's and the last fork's), the most navigational stage in the
+ * campaign. Each field decides which side of the next bank the crowd arrives
+ * on.
+ * MASS: husk hordes at the maze's exits — the reward for reading it is
+ * arriving with a crowd big enough to answer them.
+ * DECISION: three of them, one per act. The second BLIND PAIR (`?+N | ?shield`)
+ * behind the first rib; the campaign's locked-pair lesson (`rollPair`); and a
+ * triple whose CENTRE door is the trap, with a stone field that funnels the
+ * crowd onto the centre line in front of it.
+ *
+ *   ACT ONE (14-118)   the forks: the blind pair behind a rib, a fork the stone
+ *                      decides, a trap the stone pushes you toward.
+ *   LANDMARK (124)     the first elite.
+ *   ACT TWO (134-236)  the locked pair, a bill out of the stone, the triple.
+ *   LANDMARK (244)     the second elite.
+ *   ACT THREE (254-)   a live `×2` for the crowd the elite left, the horde at
+ *                      the exit, a walled fork, the dilemma out of the last
+ *                      field, and the weapon box (`close` slot) in the run-in's
+ *                      window.
  */
 const stageTwelve = (b: Beat): void => {
-  const A = b.arenaY
   const base = gateAddBase(12)
-  bank(b, 14, add(base + 1), add(base + 2))
+  const crowd = (y: number): number => longCrowdAt(b, y)
+  authoredRoad(b)
 
-  // ONE rib, not two. The maze is the fork plus the boulder field; a second
-  // walled approach on top of them stopped even a well-built run reaching the
-  // boss, and a navigational idea repeated twice in forty units is a toll
-  // rather than a puzzle.
+  // THE PAIR'S TEACHING BEAT, and the only one in the authored campaign — laid
+  // FIRST, before anything else on the road exists. Stages 1-15 are
+  // hand-written, so `proceduralBody`'s roll never reaches them; without this
+  // the mechanic would not exist below stage 16. `rollPair` validates its own
+  // road (it needs two multipliers left in the budget, clear bands and no body
+  // parked in either door's exit) and returns false if it cannot be laid
+  // honestly, so the fallback bank keeps the stop.
+  //
+  // At 150 the middling crowd is ~55 and the pair's two lanes cross at 39
+  // (`pairOffers`): a run that is behind takes the adds, a run that is ahead
+  // takes the bill and doubles — the question lands inside the spread.
+  if (!rollPair(b, 150)) {
+    const [bill, door] = billDoors(b, 150)
+    bank(b, 150, add(door), sub(bill))
+  }
+
+  // ─── ACT ONE ─────────────────────────────────────────────────────────────
+  const [fat0, thin0] = lineDoors(b, 14)
+  bank(b, 14, add(thin0), add(fat0))
+  pack(b, 24, 'flyer', 4, 2.4)
+
+  // ── How hard the maze bites ──
+  //
+  // Six fields and five ribs was the first draft, every field at the two-slot
+  // offset, and it was the one road in the block that nobody reliably walked:
+  // `good` and `optimal` both died at 73 % of it, 230 survivors lost to stone.
+  // So the maze keeps its shape and loosens its grip: four of the fields bend
+  // the line by ONE slot (a nudge the crowd has a second to answer), the two
+  // that decide a fork bend it by two, and the ribs stand only on banks where
+  // both doors pay.
+  //
+  // In on the right, out right of centre — onto the rib's right corridor.
+  stones(b, 29, 3, 2)
+  stray(b, 38, STRAY_X)
   // The second BLIND PAIR, six stages after the first, and walled: the rib
-  // commits the crowd to a side long before the doors turn over. A fat add or
-  // the shield — both good, neither readable. See "The face-down door".
-  bank(b, A * 0.16, hide(add(base + 3)), shieldPrize())
-  passage(b, A * 0.16, 15)
-  boulderField(b, A * 0.28, 4)
-  // THE PAIR'S TEACHING BEAT, and the only one in the authored campaign.
-  //
-  // Stages 1-15 are hand-written, so `proceduralBody`'s roll never reaches
-  // them — without this the mechanic simply would not exist below stage 16.
-  // It goes HERE because this bank was `+14 | +16`: two adds, the bigger one
-  // always right, the single weakest question on the road. Trading it for a
-  // locked pair costs the stage nothing it was using and gives the maze's
-  // navigational idea a decision-shaped sibling.
-  //
-  // `rollPair` validates its own road and returns false if it cannot be laid
-  // honestly, so the original bank stays the fallback rather than the stage
-  // losing a beat.
-  if (!rollPair(b, A * 0.4)) bank(b, A * 0.4, add(base + 2), add(base + 4))
+  // commits the crowd to a side a second before the doors turn over. A fat add
+  // or the shield — both good, neither readable. See "The face-down door".
+  bank(b, 45, hide(add(base + 3)), shieldPrize())
+  passage(b, 45, 7)
+  crates(b, 52, 'rate', [CRATE_DETOUR_X + 0.4])
+  pack(b, 56, 'husk', 6, 3.0)
 
-  horde(b, A * 0.5, 'husk', packSize(12) + 2)
-  bank(b, A * 0.62, add(base + 3), div(2), add(base + 4))
+  // In on the left, out right of centre. The fat door is on the LEFT: cross
+  // the centre line in the second and a half the stone leaves, or take the thin
+  // one. (It was walled too, the rib's mouth five units after the last stone,
+  // and that measured as a trap rather than a fork: `optimal` straddled it and
+  // lost a third of the crowd on every seed.)
+  stones(b, 61, 0, 2)
+  const [fat2, thin2] = lineDoors(b, 76)
+  bank(b, 76, add(fat2), add(thin2))
+  railFile(b, 86, 'hound', 3, -2.6)
 
-  pack(b, A * 0.72, 'flyer', 4, 3.4)
+  // In on the left, out left of centre, onto the trap's lane.
+  stones(b, 91, 0, 1)
+  bank(b, 105, div(2), add(lineDoors(b, 105)[0]))
+  crates(b, 111, 'damage', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 117, 'creep', 6, 2.8)
+  // (the first elite plants at 124 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO ─────────────────────────────────────────────────────────────
+  stray(b, 134, STRAY_X)
+  crates(b, 139, 'rate', [-CRATE_DETOUR_X - 0.4])
+  // (the locked pair: 150 and 154.9, one rib between them — nothing parked in
+  // either door's exit, which is one of the things `rollPair` checks)
+  stray(b, 162, -STRAY_X)
+  crates(b, 163, 'rate', [CRATE_DETOUR_X + 0.4])
+  horde(b, 170, 'husk', packSize(12))
+
+  // In on the left, out left of centre — the bill's lane.
+  stones(b, 171, 0, 1)
+  const [bill5, door5] = billDoors(b, 184)
+  bank(b, 184, sub(bill5), add(door5))
+  crates(b, 191, 'damage', [CRATE_DETOUR_X + 0.4])
+
+  // ── The trap in the middle ──
+  //
+  // The field's second rank opens left of centre, straight onto the centre
+  // door — and the centre door is the `÷2`. The modest add is a short step
+  // left; the fat one is two pillars away on the right. The safe-looking line
+  // out of the stone is the expensive one.
+  railFile(b, 194, 'flyer', 2, 2.4)
+  stones(b, 200, 3, 1)
+  const [fat6, thin6] = lineDoors(b, 214)
+  bank(b, 214, add(thin6), div(2), add(fat6 + 4))
+  stray(b, 222, -STRAY_X)
+  crates(b, 226, 'rate', [CRATE_DETOUR_X + 0.4])
+  pincer(b, 230, 'flyer', 1)
+  // (the second elite plants at 244)
+
+  // ─── ACT THREE ───────────────────────────────────────────────────────────
+  stray(b, 254, STRAY_X)
+  railFile(b, 259, 'hound', 3, 2.6)
+  // The live `×2` straight after the second landmark: the sum that tells a run
+  // the elite drained (take the number) from one it did not (double). The
+  // dilemma used to stand here, and on the crowd the elite had just taken
+  // apart it was a wipe rather than a sum — measured on a hot streak
+  // (challenge 11, the boss-pacing probe in `balance.test.ts`), `optimal`
+  // reached it with 39 and left with 6.
+  coinTrail(b, 264.5, -0.9, -GATE_LEAF_X, 5, 1.15)
+  bank(b, 272, add(liveDoor(crowd(272))), mul(2))
+  crates(b, 279, 'rate', [CRATE_DETOUR_X + 0.4])
+  // The horde at the maze's last exit.
+  horde(b, 288, 'husk', packSize(12) + 2)
+  // A fork both of whose doors pay, walled: the maze's last rib.
+  const [fat8, thin8] = lineDoors(b, 302)
+  bank(b, 302, add(thin8), add(fat8))
+  passage(b, 302, 7)
+  crates(b, 309, 'damage', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 318, 'hound', 4, 2.8)
+
+  // ── The dilemma, out of the last field ──
+  //
+  // The stone opens right of centre, onto the bill; the `÷2` is a pillar to
+  // the left. A crowd over twice the bill pays it where it stands; a smaller
+  // one crosses. Where and why the stage's dilemma sits in the run-in: see
+  // stage 9's.
+  stones(b, 316, 3, 2)
+  pack(b, 329, 'creep', 6, 2.6)
+  bank(b, 332, div(2), sub(dilemmaBill(b, 332)))
+  // (the weapon puzzle takes 338-357: the `close` slot, the box the last
+  // thing before the run-in — see `placeWeaponPuzzle`)
+  stray(b, 351, STRAY_X)
+
+  const run = b.arenaY - 12
+  bank(b, run, mul(2), add(liveDoor(crowd(run))))
 }
 
 /**
  * STAGE 13 — the herd.
  *
  * LAYOUT: almost none, and that is the point. After the maze the road opens and
- * the only thing on it is bodies.
- * MASS: the largest hordes in the authored campaign, in three waves.
- * DECISION: `×2 | ×3` — no adds at all, so the question is purely how big the
- * crowd already is.
+ * the only thing on it is bodies — no stone, no wall, no rib. What makes a door
+ * cost something here is who is standing in its lane (`railFile`).
+ * MASS: the largest hordes in the authored campaign, one per act and a fourth
+ * on the run-in, with a pack in every gap between them.
+ * DECISION: `×2 | +N`, the purest "how big is the crowd already" question the
+ * game can print: the add ties with the multiplier at the crowd a middling run
+ * brings, and it stands between the second and third hordes — the crowd that
+ * meets the next herd is the one this door just built.
+ *
+ * (It was `×2 | ×3`, which has one answer at every crowd size — `×3` — and a
+ * bank with one answer is a toll on reading, not a question.)
+ *
+ *   ACT ONE (14-130)   the first wave, and doors with bodies in front of them.
+ *   LANDMARK (142)     the first elite.
+ *   ACT TWO (152-258)  a trap with husks in the add's lane, the second wave,
+ *                      the headline, the third wave, a bill.
+ *   LANDMARK (270)     the second elite.
+ *   ACT THREE (280-)   a line with husks in it, the last herd, the dilemma,
+ *                      and the run-in triple.
  */
 const stageThirteen = (b: Beat): void => {
-  const A = b.arenaY
-  const base = gateAddBase(13)
-  bank(b, 14, add(base + 2), add(base + 4))
+  const crowd = (y: number): number => longCrowdAt(b, y)
+  authoredRoad(b)
 
-  horde(b, A * 0.16, 'creep', packSize(13) + 4)
-  crates(b, A * 0.28, 'rate', [CRATE_DETOUR_X])
-  pack(b, A * 0.36, 'hound', 5, 3.2)
+  // ─── ACT ONE ─────────────────────────────────────────────────────────────
+  const [fat0, thin0] = lineDoors(b, 14)
+  bank(b, 14, add(thin0), add(fat0))
+  pack(b, 26, 'creep', 8, 3.0)
+  stray(b, 35, -STRAY_X)
 
-  // The bank sits between the two big bodies on purpose: the crowd that meets
-  // the second horde is the one this door just built. Measured at four hordes
-  // and it was the wall of the campaign — an average career failed it five
-  // times running while clearing both its neighbours first try.
-  bank(b, A * 0.5, mul(2), mul(3))
-  horde(b, A * 0.64, 'husk', packSize(13))
-  crates(b, A * 0.78, 'damage', [-CRATE_DETOUR_X])
+  railFile(b, 37, 'husk', 3, -2.6)
+  const [fat1, thin1] = lineDoors(b, 46)
+  bank(b, 46, add(fat1), add(thin1))
+  crates(b, 53, 'rate', [CRATE_DETOUR_X + 0.4])
+  // The first wave.
+  horde(b, 64, 'creep', packSize(13) + 4)
+
+  railFile(b, 69, 'hound', 3, 2.6)
+  coinTrail(b, 70.5, -0.9, -GATE_LEAF_X, 5, 1.15)
+  bank(b, 78, add(lineDoors(b, 78)[0]), div(2))
+  crates(b, 85, 'rate', [CRATE_DETOUR_X + 0.4])
+  pack(b, 92, 'hound', 5, 3.0)
+  stray(b, 98, STRAY_X)
+
+  railFile(b, 101, 'husk', 3, 2.6)
+  const [fat3, thin3] = lineDoors(b, 110)
+  bank(b, 110, add(thin3), add(fat3))
+  crates(b, 117, 'damage', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 128, 'flyer', 6, 3.2)
+  // (the first elite plants at 142 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO ─────────────────────────────────────────────────────────────
+  stray(b, 152, -STRAY_X)
+  pack(b, 160, 'husk', 5, 3.0)
+  // The trap, and the add beside it has husks walking down its rail.
+  railFile(b, 165, 'husk', 3, 2.6)
+  bank(b, 174, div(2), add(lineDoors(b, 174)[0] + 2))
+  crates(b, 181, 'rate', [-CRATE_DETOUR_X - 0.4])
+  // The second wave, right in front of the headline.
+  horde(b, 192, 'husk', packSize(13))
+
+  // ── The headline ──
+  //
+  // `+N` priced to tie with the `×2`'s open value at the crowd a middling run
+  // brings. A run that has been working the road doubles; a run that has been
+  // bleeding to the herd takes the number. A `×2` and not the `×3` the first
+  // draft printed: `×3` pumps to three, and it took `good` from 79 to 306 in
+  // one door — the herd stage's crowd is supposed to be spent on the herd.
+  coinTrail(b, 198.5, 0.9, GATE_LEAF_X, 5, 1.15)
+  bank(b, 206, mul(2), add(liveDoor(crowd(206))))
+  crates(b, 213, 'damage', [CRATE_DETOUR_X + 0.4])
+  // The third wave: the crowd the headline just built meets it.
+  horde(b, 224, 'hound', Math.round(packSize(13) * 0.75))
+
+  railFile(b, 229, 'flyer', 3, -2.4)
+  const [bill6, door6] = billDoors(b, 238)
+  bank(b, 238, add(door6), sub(bill6))
+  stray(b, 246, STRAY_X)
+  crates(b, 249, 'rate', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 256, 'creep', 8, 3.0)
+  // (the second elite plants at 270)
+
+  // ─── ACT THREE ───────────────────────────────────────────────────────────
+  stray(b, 280, -STRAY_X)
+  pack(b, 288, 'flyer', 6, 3.2)
+  // A line, not a second multiplier: the headline is the stage's sum, and a
+  // `×2` here took `good` from 200 to 380 on the first draft and into the arena
+  // 700 strong (the pre-pass road: 175). Husks down the fat door's rail instead.
+  railFile(b, 293, 'husk', 3, -2.6)
+  const [fat7, thin7] = lineDoors(b, 302)
+  bank(b, 302, add(fat7), add(thin7))
+  crates(b, 309, 'rate', [CRATE_DETOUR_X + 0.4])
+  // The last herd, the biggest body on the stage, on the run-in.
+  horde(b, 320, 'creep', packSize(13) + 6)
+
+  // The dilemma, on the crowd the last herd left — see stage 9's for why it
+  // sits in the run-in.
+  railFile(b, 324, 'hound', 3, 2.6)
+  bank(b, 333, sub(dilemmaBill(b, 333)), div(2))
+  crates(b, 340, 'damage', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 350, 'husk', 5, 2.6)
+
+  // The run-in is the stage's three-leaf bank: the fat add tied with the `×2`
+  // at the crowd that arrives, the modest one straight ahead.
+  const run = b.arenaY - 12
+  bank(b, run, add(liveDoor(crowd(run))), add(roadDoor(b, crowd(run))), mul(2))
 }
 
 /**
  * STAGE 14 — hunters.
  *
- * LAYOUT: chicane into passage into chicane. Every beat forces a side and the
- * sides alternate, so the stage is one long weave.
+ * LAYOUT: chicane into passage into chicane — five chicanes and two ribs (the
+ * `?`'s and the weave's live `×2`). Every beat forces a side and the sides
+ * alternate, so the stage is one long weave, and every chicane spits the crowd
+ * out on the side AWAY from the door it wants.
  * MASS: hounds in the weave — the archetype whose speed punishes exactly the
- * hesitation the layout creates.
- * DECISION: a dilemma between a subtraction and a division, right after the
- * closing weave, when the crowd is at its most fragile.
+ * hesitation the layout creates: pincers, files and a horde of them.
+ * DECISION: the dilemma, right after the closing weave, when the crowd is at
+ * its most fragile; and the stage's `?`, a face-down `÷2` beside a readable
+ * add, behind a rib so the gamble is taken early.
+ *
+ *   ACT ONE (14-150)   the weave begins; the weapon box (`early` slot) in the
+ *                      window after the first trap; the `?` behind its rib; a
+ *                      bill the chicane hands over.
+ *   LANDMARK (162)     the first elite.
+ *   ACT TWO (172-274)  a live `×2` behind the weave's rib, the flyers' horde,
+ *                      the triple, a bill.
+ *   LANDMARK (286)     the second elite.
+ *   ACT THREE (296-)   a line across the weave, the closing weave with the
+ *                      hound horde in it, the dilemma, and the run-in triple.
  */
 const stageFourteen = (b: Beat): void => {
-  const A = b.arenaY
   const base = gateAddBase(14)
-  bank(b, 14, add(base + 1), add(base + 4))
+  const crowd = (y: number): number => longCrowdAt(b, y)
+  authoredRoad(b)
 
-  chicane(b, A * 0.14, true)
-  pincer(b, A * 0.24, 'hound', 3)
-  // A near-twin bank (`+17 | +18` asks nothing) given a question: the smaller
-  // door becomes a face-down `÷2`. Behind a rib, so the gamble is taken early.
-  bank(b, A * 0.38, hide(div(2)), add(base + 3))
-  passage(b, A * 0.38, 15)
+  // ─── ACT ONE ─────────────────────────────────────────────────────────────
+  const [fat0, thin0] = lineDoors(b, 14)
+  bank(b, 14, add(fat0), add(thin0))
+  pack(b, 26, 'hound', 4, 2.6)
+  // Out on the RIGHT; the fat door is on the left.
+  chicane(b, 28, true)
+  const [fat1, thin1] = lineDoors(b, 42)
+  bank(b, 42, add(fat1), add(thin1))
+  crates(b, 50, 'rate', [CRATE_DETOUR_X + 0.4])
+  railFile(b, 55, 'hound', 3, -2.6)
+  stray(b, 62, STRAY_X)
+  bank(b, 69, div(2), add(lineDoors(b, 69)[0] + 2))
 
-  horde(b, A * 0.48, 'flyer', packSize(14) - 3)
-  bank(b, A * 0.58, add(base + 3), mul(2))
+  // (the weapon puzzle takes 75-90: the `early` slot, in the window between
+  // the trap above and the `?` below — see `placeWeaponPuzzle`)
+  stray(b, 84, STRAY_X)
+  pincer(b, 96, 'hound', 1)
 
-  chicane(b, A * 0.68, false)
-  horde(b, A * 0.78, 'husk', packSize(14))
-  bank(b, A * 0.86, sub(4), div(2))
+  // ── Stage 14's `?` ──
+  //
+  // A readable add beside a face-down `÷2` — the bank that used to be a
+  // near-twin (`+17 | +18`, which asks nothing), given a question. Behind a
+  // rib, so the gamble is taken a second before the doors turn over.
+  bank(b, 100, hide(div(2)), add(base + 3))
+  passage(b, 100, 8)
+  crates(b, 108, 'damage', [-CRATE_DETOUR_X - 0.4])
+  pincer(b, 116, 'hound', 2)
+
+  // Out on the LEFT — onto the bill. Two units earlier than it wants to be, so
+  // the rescue cage has a spot in this bank's approach clear of both walls
+  // (`prizeSpotFree`); at 118 no bank in the cage's window could carry one.
+  chicane(b, 116, false)
+  const [bill4, door4] = billDoors(b, 131)
+  bank(b, 131, sub(bill4), add(door4))
+  crates(b, 138, 'rate', [CRATE_DETOUR_X + 0.4])
+  pack(b, 146, 'creep', 8, 3.0)
+  // (the first elite plants at 162 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO ─────────────────────────────────────────────────────────────
+  stray(b, 172, -STRAY_X)
+  // Out on the RIGHT, where the add is — with two hounds running down that
+  // rail — and the multiplier is a lane away, behind a rib that closes six
+  // units after the chicane does: the weave's passage. Both doors pay, so the
+  // rib costs a slow read a door, never the run.
+  chicane(b, 176, true)
+  railFile(b, 184, 'hound', 2, 2.6)
+  bank(b, 193, mul(2), add(liveDoor(crowd(193))))
+  passage(b, 193, 6)
+  crates(b, 200, 'damage', [CRATE_DETOUR_X + 0.4])
+  horde(b, 208, 'flyer', packSize(14) - 3)
+
+  // Three doors: the trap on the left, the modest add straight ahead, the fat
+  // one a pillar away on the right.
+  const [fat6, thin6] = lineDoors(b, 224)
+  bank(b, 224, div(3), add(thin6), add(fat6 + 4))
+  crates(b, 232, 'rate', [-CRATE_DETOUR_X - 0.4])
+  pincer(b, 242, 'hound', 1)
+  const [bill7, door7] = billDoors(b, 255)
+  bank(b, 255, add(door7), sub(bill7))
+  stray(b, 262, STRAY_X)
+  crates(b, 264, 'rate', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 272, 'creep', 8, 3.0)
+  // (the second elite plants at 286)
+
+  // ─── ACT THREE ───────────────────────────────────────────────────────────
+  stray(b, 296, -STRAY_X)
+  // Out on the RIGHT again, and the fat door is on the left. A line rather
+  // than a second `×2`: the first draft carried three multipliers and a `×3`
+  // run-in, and `good` reached the arena 1 175 strong (pre-pass: 502).
+  chicane(b, 300, true)
+  const [fat8, thin8] = lineDoors(b, 316)
+  bank(b, 316, add(fat8), add(thin8))
+  stray(b, 321, -STRAY_X)
+  crates(b, 322, 'rate', [CRATE_DETOUR_X + 0.4])
+
+  // ── The closing weave, with the hunters in it ──
+  //
+  // A hound horde landing inside the last chicane, and the chicane spits the
+  // crowd out on the LEFT — onto the `÷2`. The dilemma lands on the crowd at
+  // its most fragile: whatever the weave cost is what the sum is done with.
+  horde(b, 332, 'hound', Math.round(packSize(14) * 0.7))
+  chicane(b, 327, false)
+  bank(b, 341, div(2), sub(dilemmaBill(b, 341)))
+  crates(b, 348, 'damage', [CRATE_DETOUR_X + 0.4])
+  pack(b, 355, 'husk', 5, 2.6)
+
+  // The run-in triple, from `CLOSING_TRIPLE_STAGE`: the fat add tied to the
+  // `×2` at the crowd that arrives, the modest add straight ahead. A `×2`, not
+  // the `×3` the generator deals here — at the crowd this road builds, `×3` is
+  // the difference between a boss fight and a formality.
+  const run = b.arenaY - 12
+  bank(b, run, add(liveDoor(crowd(run))), add(roadDoor(b, crowd(run))), mul(2))
 }
 
 /**
@@ -4556,25 +5862,108 @@ const stageFourteen = (b: Beat): void => {
  * The end of the authored run and a summary of it: every layout idea the
  * campaign has taught, in one stage, at full size.
  *
- * LAYOUT: gauntlet, boulders, chicane, one after another with no rest between.
- * MASS: brutes AND a husk horde, so the stage asks for damage and steering in
- * the same breath.
- * DECISION: a full triple with a multiplier and a trap on the same bank.
+ * LAYOUT: rails, stone, chicane — each act runs all three, one after another
+ * with no rest between.
+ * MASS: brutes AND husk hordes, so the stage asks for damage and steering in
+ * the same breath: brute packs in front of the doors, two husk hordes, hounds
+ * inside the rails.
+ * DECISION: a full triple with a multiplier and a trap on the same bank, the
+ * crowd funnelled onto it by the stone — and a run-in triple on top.
+ *
+ *   ACT ONE (14-130)   rails into a trap, stone into a fork, a chicane onto a
+ *                      second trap.
+ *   LANDMARK (142)     the first elite.
+ *   ACT TWO (152-258)  brutes and stone in front of a live `×2`, rails into a
+ *                      bill, the horde, the headline triple.
+ *   LANDMARK (270)     the second elite.
+ *   ACT THREE (280-)   a chicane into the dilemma, the second horde, rails,
+ *                      and the run-in triple.
  */
 const stageFifteen = (b: Beat): void => {
-  const A = b.arenaY
-  const base = gateAddBase(15)
-  bank(b, 14, add(base + 2), add(base + 4))
+  const crowd = (y: number): number => longCrowdAt(b, y)
+  authoredRoad(b)
 
-  gauntlet(b, A * 0.14, 3)
-  pack(b, A * 0.26, 'brute', 3, 3.2)
+  // ─── ACT ONE ─────────────────────────────────────────────────────────────
+  const [fat0, thin0] = lineDoors(b, 14)
+  bank(b, 14, add(thin0), add(fat0))
+  pack(b, 22, 'brute', 2, 2.0)
+  rails(b, 26, 3)
+  pincer(b, 40, 'hound', 1)
+  bank(b, 46, div(2), add(lineDoors(b, 46)[0] + 2))
+  crates(b, 54, 'rate', [-CRATE_DETOUR_X - 0.4])
+  pack(b, 58, 'husk', 6, 3.0)
 
-  boulderField(b, A * 0.38, 4)
-  horde(b, A * 0.5, 'husk', packSize(15))
+  // In on the left, out RIGHT of centre; the fat door is on the left.
+  stones(b, 63, 0, 2)
+  const [fat2, thin2] = lineDoors(b, 78)
+  bank(b, 78, add(fat2), add(thin2))
+  crates(b, 84, 'rate', [-CRATE_DETOUR_X - 0.4])
+  railFile(b, 86, 'brute', 3, 2.4, 1.4)
 
-  chicane(b, A * 0.62, true)
-  bank(b, A * 0.72, mul(2), div(2), add(base + 6))
-  pack(b, A * 0.84, 'hound', 5, 3.2)
+  // Out on the LEFT, onto the trap — with hounds coming through the weave.
+  chicane(b, 94, false)
+  pack(b, 106, 'hound', 3, 2.0)
+  bank(b, 110, div(2), add(lineDoors(b, 110)[0] + 3))
+  crates(b, 118, 'damage', [CRATE_DETOUR_X + 0.4])
+  pack(b, 126, 'creep', 8, 3.0)
+  // (the first elite plants at 142 — `AUTHORED_ELITES`)
+
+  // ─── ACT TWO ─────────────────────────────────────────────────────────────
+  stray(b, 152, STRAY_X)
+  // Four brutes and a stone field in the same breath, out LEFT of centre, and
+  // the multiplier on the right.
+  pack(b, 158, 'brute', 4, 3.2)
+  stones(b, 160, 3, 1)
+  bank(b, 174, add(liveDoor(crowd(174))), mul(2))
+  stray(b, 181, -STRAY_X)
+  crates(b, 182, 'rate', [CRATE_DETOUR_X + 0.4])
+
+  // Creeps inside the channel, hounds landing on it from both shoulders.
+  rails(b, 186, 2)
+  pack(b, 192, 'creep', 5, 1.6)
+  pincer(b, 198, 'hound', 1)
+  railFile(b, 199, 'flyer', 2, 2.4)
+  const [bill5, door5] = billDoors(b, 206)
+  bank(b, 206, sub(bill5), add(door5))
+  crates(b, 214, 'damage', [-CRATE_DETOUR_X - 0.4])
+  // The first husk horde.
+  horde(b, 220, 'husk', packSize(15))
+
+  // ── The headline: a multiplier and a trap on the same bank ──
+  //
+  // The stone opens right of centre, so the crowd leaves it on the line
+  // between the `×2` (centre) and the fat add (right) — the two answers to
+  // "how big is the crowd" — with the trap on the far side of the pillar it
+  // came round.
+  stones(b, 224, 0, 2)
+  bank(b, 238, div(2), mul(2), add(liveDoor(crowd(238))))
+  stray(b, 246, -STRAY_X)
+  crates(b, 248, 'rate', [CRATE_DETOUR_X + 0.4])
+  pack(b, 254, 'brute', 3, 3.0)
+  // (the second elite plants at 270)
+
+  // ─── ACT THREE ───────────────────────────────────────────────────────────
+  stray(b, 280, STRAY_X)
+  // Out on the RIGHT, onto the bill — the chicane decides which door the crowd
+  // meets first, and the sum decides whether to cross.
+  chicane(b, 284, true)
+  bank(b, 302, div(2), sub(dilemmaBill(b, 302)))
+  crates(b, 310, 'rate', [-CRATE_DETOUR_X - 0.4])
+  // The second husk horde, the biggest body on the stage.
+  horde(b, 316, 'husk', packSize(15) + 2)
+
+  rails(b, 320, 2)
+  railFile(b, 326, 'brute', 2, -2.4, 1.4)
+  const [fat8, thin8] = lineDoors(b, 334)
+  bank(b, 334, add(fat8), add(thin8))
+  crates(b, 342, 'damage', [CRATE_DETOUR_X + 0.4])
+  pack(b, 350, 'hound', 5, 3.0)
+
+  // The run-in triple: the fat add tied to the `×2` at the crowd that arrives,
+  // the modest add straight ahead. `×2` rather than the generator's `×3`, for
+  // the reason stage 14 gives.
+  const run = b.arenaY - 12
+  bank(b, run, add(liveDoor(crowd(run))), add(roadDoor(b, crowd(run))), mul(2))
 }
 
 // ─── Stages 16–50: motifs ───────────────────────────────────────────────────
@@ -4676,15 +6065,19 @@ export const motifWeights = (
  *
  * Returns the y it consumed up to, so the body can resume clear of it.
  */
-export const motifSignature = (b: Beat): number => {
+export const motifSignature = (b: Beat, from?: number, lift = 0, mass = 1): number => {
   const m = stageMotif(b.stage)
   if (!m) return 0
 
-  const at = Math.max(30, b.arenaY * 0.34)
+  // `from`, `lift` and `mass` are the ECHO's (see `echoSignature`): the same
+  // section somewhere else on the road, `lift` steps along its own escalation
+  // and with its bodies scaled by `mass`. The first section passes none of
+  // them, and is written exactly as it always was.
+  const at = from ?? Math.max(30, b.arenaY * 0.34)
   const base = gateAddBase(b.stage)
-  const size = packSize(b.stage)
+  const size = mass === 1 ? packSize(b.stage) : Math.round(packSize(b.stage) * mass)
   // Escalation: the same motif met again at depth is a bigger version of itself.
-  const step = Math.floor((b.stage - 16) / MOTIFS.length)
+  const step = Math.floor((b.stage - 16) / MOTIFS.length) + lift
 
   switch (m) {
     case 'pinch': {
@@ -4746,13 +6139,590 @@ export const motifSignature = (b: Beat): number => {
       // between them so the crowd being spent is felt at every door.
       bank(b, at, mul(2), add(base + 4))
       pack(b, at + 12, pickFoe(b, foeRoster(b.stage)), Math.round(size * 0.6), 2.8)
-      bank(b, at + 24, add(base + 2), div(2), add(base + 5))
+      // Three doors only while the stage can still afford a triple on top of
+      // the one held for the closing bank. The first section always can (every
+      // stage from 16 has two or more); the ECHO, coming round on a road that
+      // already spent one here, usually cannot — measured, stage 18 printed
+      // three triples against a budget of two — so it asks the same question
+      // on two doors.
+      if (b.triplesLeft > b.tripleReserve) bank(b, at + 24, add(base + 2), div(2), add(base + 5))
+      else bank(b, at + 24, div(2), add(base + 5))
       pack(b, at + 36, 'hound', 4, 3.0)
       bank(b, at + 46, sub(3), mul(2))
       return at + 52
     }
   }
   return 0
+}
+
+// ─── The long middle road: stages 16-29 ─────────────────────────────────────
+//
+// 2026-09-18, the owner's pass over the whole campaign: every stage from 2 is
+// cut to about stage 1's running time (`stageLength`), WITHOUT the late road
+// growing by a unit — so 16-29 went from 38-45 s of running to 47-57 s, and
+// converge exactly onto the old curve at `STAGE_RUN_BLEND_TO`. Two asks rode
+// with it:
+//
+//   "too few dynamic obstacles like monsters — increase that, especially on
+//    empty road stretches, but in general; shooting is the primary mechanic";
+//   and a gate pair has to be a SUM, never a reading test — `+16 | +17` is the
+//    worst bank the game prints (`legalise` rule 4c), and the generator was
+//    printing three to seven of them on every one of these roads.
+//
+// Measured on the generator as it stood, the day the roads got longer. The body
+// loop simply kept rolling until the longer road was full, so density per unit
+// did not move — the extra road was more of exactly the same. Bodies per 100
+// units of road, and the longest stretch between the opening and the closing
+// run-in with nothing alive on it:
+//
+//   stage          16    17    18    19    20    22    24    25    27    29
+//   bodies/100u  26.8  16.8  17.3  13.4  13.9  19.6  38.8  16.4  20.1  33.3
+//   empty, s     10.8  10.0   8.5  11.9   9.2   9.5   9.8   6.8   9.6   8.2
+//   holes > 5 s     4     5     5     5     5     4     2     4     4     4
+//
+// The loop alternates a body beat with a structure beat, with a bank, a crate
+// and a coin trail between them — so a pack came round every ~70 units, ten
+// seconds of road. The extra road gets SHAPE instead, from three additions and
+// two repairs:
+//
+//   1. GUARDED DOORS. A twin is pulled apart (rule 4c's split: the thin door is
+//      `GATE_TWIN_SHARE` of the fat one), every other one gets a rib down its
+//      approach, and the fat corridor gets a FILE of bodies standing in it.
+//      `+21 | +12` becomes "is nine more survivors worth shooting through two
+//      brutes" — an answer that depends on the run's DPS, which is the only
+//      honest way two adds can be a decision (the owner's own escape clause:
+//      "an obstacle, a lane commitment or a timing cost on one of the routes").
+//      These are the "boulder barriers for tough gate decisions". `guardTwins`,
+//      `layGuards`.
+//   2. FILL WAVES. No stretch longer than `FOE_GAP_S` goes by with nothing alive
+//      on it, wherever a wave can legally stand. `fillFoeGaps`.
+//   3. THE ECHO. The stage's motif section comes round a second time at
+//      `ECHO_AT`, with lighter bodies: the idea met a third of the way in is
+//      met again two thirds of the way in. `echoSignature`.
+//   4. The echo is stepped over WHOLE (a rolled pair was landing inside it),
+//      fillers get a second pass, the supply floors follow the road's length
+//      (`longRoadSupplyScale`), and an elite the forward walk parks on a pack,
+//      far past its mark or on another elite is moved to the nearest clean
+//      spot instead (`nudgeClearElite`, `eliteSpotNear`).
+//
+// After, same measure (bodies include the guard files, one body per event):
+//
+//   stage          16    17    18    19    20    22    24    25    27    29
+//   bodies/100u  34.2  25.5  23.3  21.2  24.3  25.4  55.8  31.0  28.0  54.4
+//   empty, s      4.5   6.3   3.9   5.6   4.5   7.1   5.9   4.7   5.5   5.5
+//   holes > 5 s     0     1     0     2     0     1     1     0     2     2
+//
+// The holes left over 5 s are breathers kept on purpose: the run-up to an
+// elite and the three seconds after a mass beat (see `fillFoeGaps`).
+//
+// …and what it costs, played (tests/sim, 16-29 × 8 seeds, both arms on the same
+// boss and stage code, stage 30 as the control): at a mid-career shop `good`
+// clears 88 % of seeds against 84 % before (of the old walls on 18 and 21, 18
+// is gone and 21 stays), `average` 72 % against 74 %; kills per stage +57 %
+// (53 → 83 for `good`) and the crowd reaching the boss a little bigger, not
+// smaller. At 0.6 of that shop `good` goes 77 % → 80 % but `average` 64 % →
+// 46 % — the thin, sloppy run is the one the extra bodies cost, and the knob
+// for it is `FOE_GAP_S` (5 s measured 51 % there, for a third fewer extra
+// kills). A full career (`good`, `value` shop, three seeds) reaches 30 in
+// 37/35/35 attempts against 37/35/36, with 53 % more kills from stage 16 on.
+//
+// All of it draws from `Beat.roadRng` and never from `rng`, and everything is
+// behind `isLongRoad` — stages 1-15 are authored and 30+ are frozen
+// (`lateStagesFrozen.test.ts`), so neither can see any of it.
+
+/** First stage of the long middle road: the first generated one. */
+export const LONG_ROAD_FROM = 16
+
+/** Is this stage one of the re-cut generated roads, 16..`STAGE_RUN_BLEND_TO` − 1? */
+export const isLongRoad = (stage: number): boolean =>
+  stage >= LONG_ROAD_FROM && stage < STAGE_RUN_BLEND_TO
+
+/**
+ * The longest a long road may run with nothing alive on it, seconds.
+ *
+ * Four, against `MAX_GATE_GAP_S`'s 5.5 for decisions: a gun with nothing to
+ * shoot is idle sooner than a thumb with nothing to choose, because the gun
+ * never stops firing — an empty lane is the one moment the game's main verb is
+ * visibly doing nothing.
+ */
+export const FOE_GAP_S = 4
+
+/** …and the most fill waves one road may take. A cap, not a target: measured,
+ *  the pass lays 2-8 (median 4.5) once the guards are down. */
+export const FOE_FILL_MAX = 8
+
+/** Where the motif comes round again, as a fraction of `arenaY` — clear of the
+ *  first section (which ends near 0.46) and of the second elite (0.78+). */
+export const ECHO_AT = 0.63
+
+/** …and the size of its bodies against the first section's. See `echoSignature`. */
+export const ECHO_MASS = 0.6
+
+/**
+ * How much of the long road's added weight a stage carries: 0.6 at 16, one
+ * tenth more a stage, all of it from 20. Scales the echo's bodies and the fill
+ * waves (the guard files are already at their smallest there, two bodies).
+ *
+ * Stage 16 is the first road the generator writes, straight after fifteen
+ * authored ones, and the Daily Expedition's rung — and at full weight it was a
+ * cliff for a thin run: at 0.6 of a mid-career shop, `average` went from
+ * clearing it on 6 seeds of 6 to 0 of 6, dying to the herd's second coming.
+ */
+export const longRoadRamp = (stage: number): number =>
+  Math.max(0, Math.min(1, 0.6 + (stage - LONG_ROAD_FROM) * 0.1))
+
+/**
+ * The file standing in a guarded door's corridor: how far in front of the bank
+ * the first body stands, and how far apart the rest are.
+ *
+ * Ten units is about 1.4 s at these stages' speed — inside the ~2 s approach a
+ * bank is read in (`gateAddBase`), so the bodies are on screen WITH the numbers
+ * they are pricing. The file walks down the corridor at the crowd, and a body
+ * leans onto the crowd at 0.9 u/s at most, so over its ~2 s approach a guard in
+ * the fat corridor ends up still on the fat side of the pillar: a crowd that
+ * took the thin door is not bitten, and a crowd that took the fat one shoots
+ * through or pays.
+ */
+export const GUARD_LEAD = 10
+export const GUARD_STEP = 2.2
+
+/** Bodies in one guard file: two at 16, one more every five stages. */
+export const guardFile = (stage: number): number =>
+  2 + Math.floor(Math.max(0, stage - LONG_ROAD_FROM) / 5)
+
+/** Pick from `roster` on the pass's own stream, never repeating `avoid` when
+ *  the roster has anything else — `pickFoe` without touching `rng`/`lastFoe`. */
+const pickFrom = (rng: () => number, roster: readonly string[], avoid = ''): string => {
+  const pool = roster.length > 1 ? roster.filter((id) => id !== avoid) : roster
+  return pool[Math.floor(rng() * pool.length) % pool.length] ?? roster[0] ?? 'creep'
+}
+
+/**
+ * The motif section, a second time: `motifSignature` at `from`, its bodies at
+ * `ECHO_MASS`, on the pass's own stream. (A three-door bank in it drops to two
+ * doors when the stage's triple budget is spent — see the `doors` motif.)
+ *
+ * Written before the body loop like the first one, and the body loop steps over
+ * it the same way. Two things are held back while it is written, and both are
+ * about the ROLLED road it is being written into rather than about the echo:
+ *
+ *   • the loop's bookkeeping (what the last bank was, the rib counter, the trap
+ *     streak…) is restored afterwards, because the echo sits two thirds of the
+ *     way down a road the loop has not written yet — its banks are not "the
+ *     previous bank" of anything the loop is about to roll;
+ *   • it may not spend the stage's last two multipliers. `legalise` rule 3
+ *     degrades a `×N` it cannot pay for into an add, and the bank most likely to
+ *     be starved is the closing triple (`add|add|add` — see the RNG-stream
+ *     note). An echo `×2` it cannot afford comes out as an add, and a twin that
+ *     makes is guarded like any other (`guardTwins`).
+ *
+ * Returns `[from, end]`, or `null` for a stage with no motif.
+ */
+const echoSignature = (b: Beat, from: number): [number, number] | null => {
+  const main = b.rng
+  const keep = {
+    lastY: b.lastY, routingNext: b.routingNext, mulLast: b.mulLast,
+    bigDivLast: b.bigDivLast, trapStreak: b.trapStreak, trapPlaced: b.trapPlaced,
+    dilemmaLast: b.dilemmaLast, passageIn: b.passageIn, lastFoe: b.lastFoe,
+    trailGoodX: b.trailGoodX, trailBadX: b.trailBadX
+  }
+  const held = Math.min(b.mulLeft, 2)
+  b.mulLeft -= held
+  b.rng = b.roadRng
+  // No step up, and LIGHTER bodies (`ECHO_MASS`). The first cut escalated it
+  // (`lift` 1) and the mass motifs could not carry that: stage 29's swarm came
+  // back as four packs of eighteen between four walls, and every policy at a
+  // mid-career shop died inside it (`good` 8/8 clears → 0/8). At the same size
+  // the herd still did it on 24 (`average` 6/8 → 0/8, three hordes of 29/22/13
+  // on top of the first section's three). The echo is the idea RESTATED on a
+  // road that has since filled up with guards and fill waves, not a second
+  // climax — the boss is that.
+  const end = motifSignature(b, from, 0, ECHO_MASS * longRoadRamp(b.stage))
+  b.mulLeft += held
+  // (It does NOT hand back the bank it displaces. The loop steps over the
+  // echo whole, so whatever it would have rolled there is not written — on
+  // stage 28 that was the road's one `×3`, in a `+8 | ×2.4 | +20` a thin run
+  // needed. Closing the echo on a rolled bank of its own was tried and measured
+  // WORSE across the band — the extra bank re-rolls everything the loop writes
+  // after it: `good` 82 % → 71 % of seeds at a mid-career shop, `average` 73 %
+  // → 68 %. The echo's cost is left where it is, and named.)
+  b.rng = main
+  Object.assign(b, keep)
+  return end > 0 ? [from, end] : null
+}
+
+const isTwinBank = (e: Extract<TrackEvent, { kind: 'gates' }>): boolean =>
+  e.leaves.length === 2 && e.leaves.every((l) => l.op === 'add' && !l.prize && !l.mystery)
+
+/**
+ * GUARDED DOORS, part one: pull every twin apart and wall its approach.
+ *
+ * Runs after `fillGateGaps` — the pacing filler prints twins of its own — and
+ * before `clearGateBands` and the weapon puzzle, which both have to see the ribs
+ * it lays. The bodies go down later, in `layGuards`, once the puzzle and the
+ * prizes are on the road and the file can keep clear of them.
+ *
+ *   • SPLIT, by rule 4c's own numbers: the thin door is cut to
+ *     `GATE_TWIN_SHARE` of the fat one (`+21 | +19` → `+21 | +12`). Cut rather
+ *     than grown, so the road pays no more than it did to a player who takes
+ *     the good door — the guard is the price of it, not a bonus on top.
+ *   • RIB, on every other one that has none: `passage` down the centre line,
+ *     full length, and only where the road in front of its mouth is open. It
+ *     makes the guard a LANE cost — without it a crowd can hug the pillar, let
+ *     the file walk past and slide across at the last instant.
+ *
+ * Skipped: the opening bank (a stage's first word is "choose", with nothing
+ * else on screen), anything inside a locked pair's reach, and a bank too small
+ * to split (`GATE_TWIN_FLOOR`).
+ */
+const guardTwins = (b: Beat): void => {
+  if (!isLongRoad(b.stage)) return
+  const banks = banksOf(b)
+  for (const [i, bank] of banks.entries()) {
+    if (i === 0 || !isTwinBank(bank)) continue
+    if (banks.some((o) => o !== bank && Math.abs(o.y - bank.y) <= PAIR_GAP + 0.1)) continue
+    const fatI = bank.leaves[0]!.value >= bank.leaves[1]!.value ? 0 : 1
+    const fat = bank.leaves[fatI]!
+    const thin = bank.leaves[1 - fatI]!
+    if (fat.value < GATE_TWIN_FLOOR) continue
+    thin.value = Math.min(thin.value, Math.max(1, Math.round(fat.value * GATE_TWIN_SHARE)))
+
+    // Every OTHER guarded door gets a rib of its own (one that already has one
+    // keeps it). A rib on all of them was measured at twelve corridors on one
+    // road — the road stops being a road and becomes a row of doorways — and
+    // the rib's cadence was deliberately "every third or fourth bank" so a
+    // player cannot count bars. The file alone is still a lane cost: a body
+    // leans at the crowd at 0.9 u/s at most, so it stays on its own side.
+    const ribbed = b.events.some((e) =>
+      e.kind === 'rocks' && e.passage && e.y < bank.y && e.y > bank.y - 1.6)
+    if (!ribbed && b.guarded.length % 2 === 0) {
+      // Clear road behind the bank: back to the nearest thing a rib must not
+      // reach over. Bodies and coins do not count — a rib through a coin trail
+      // is a trail down one corridor, and bodies walk.
+      let back = bank.y
+      for (const e of b.events) {
+        if (e.kind === 'foes' || e.kind === 'coins' || e.y >= bank.y - 0.3) continue
+        back = Math.min(back, bank.y - e.y)
+      }
+      // Only a FULL rib with open road in front of its mouth. Clipped short it
+      // stands straight behind whatever the approach already holds — measured
+      // on stage 27, a four-unit rib hard behind a boulder field, the crowd
+      // coming out of one slalom straight into a pillar it had no room to pick
+      // a side of, and `good` went from clearing 27 on 7 seeds of 8 to 0.
+      const full = stageSpeed(b.stage) * PASSAGE_SECONDS
+      if (back >= full + 4) passage(b, bank.y, full)
+    }
+    b.guarded.push({ y: bank.y, x: fat.x })
+  }
+}
+
+/**
+ * GUARDED DOORS, part two: the file of bodies in each fat corridor.
+ *
+ * A file rather than a pack because a pack is dealt across the whole lane
+ * (`spread` is a half-width around the centre line); a single body is dealt at
+ * `-spread` (see `stray`), so a column of singles is the one way the event
+ * vocabulary can stand bodies in ONE corridor. Declined, bank by bank, where the
+ * corridor is somebody else's road: an elite's run-up or fight, the weapon
+ * puzzle's span (a body there eats the rounds meant for a lever), a boulder
+ * field or a wall standing in the file itself — and in front of a `?`.
+ */
+const layGuards = (b: Beat): void => {
+  if (!isLongRoad(b.stage)) return
+  const roster = foeRoster(b.stage)
+  const guards = (['husk', 'brute', 'hound'] as const).filter((id) => roster.includes(id))
+  if (guards.length === 0) return
+  const faceDown = new Set(banksOf(b).filter((e) => e.leaves.some((l) => l.mystery)).map((e) => e.y))
+  for (const g of b.guarded) {
+    // Sized to the crowd that meets it, like the fill waves: two bodies at the
+    // top of the road, the full file from 60 % on — and never a brute in the
+    // first 40 %. Measured: a four-brute file (1.8k health) guarding stage 27's
+    // second bank, at 19 % of the road, was the wall the whole stage died on.
+    const depth = Math.min(1, g.y / (b.arenaY * 0.6))
+    const n = Math.max(2, Math.round(guardFile(b.stage) * (0.5 + 0.5 * depth)))
+    const lo = g.y - GUARD_LEAD
+    const hi = lo + (n - 1) * GUARD_STEP
+    if (lo < 16) continue
+    // Not in front of a `?`. A file stands in the FAT door's corridor, so on a
+    // face-down bank it would say which door is the good one — the tell the
+    // `?` contract forbids the art to give ("one look for all"). The bank's
+    // question there is the gamble, and it keeps its rib.
+    if (faceDown.has(g.y)) continue
+    const blocked = b.events.some((e) => {
+      if (e.kind === 'miniboss') return hi > e.y - MINIBOSS_LEAD - 2 && lo < e.y + 6
+      if (e.kind === 'weapon') {
+        const top = Math.max(e.box.y, e.guardY) + PRIZE_PUZZLE_BERTH
+        const bottom = Math.min(e.y, ...e.stones.map((s) => s.y)) - PRIZE_PUZZLE_BERTH
+        return hi > bottom && lo < top
+      }
+      // …and not in a boulder field or a wall. The file is the door's price;
+      // standing it inside a slalom makes the crowd pay the slalom and the file
+      // at once, in the same two seconds (stage 27 again).
+      if ((e.kind === 'rocks' && !e.passage) || e.kind === 'barricade') return e.y > lo - 1.5 && e.y < hi + 1.5
+      return false
+    })
+    if (blocked) continue
+    const typeId = pickFrom(b.roadRng, g.y < b.arenaY * 0.4 ? guards.filter((id) => id !== 'brute') : guards)
+    // A brute file is two, whatever the stage: each one bites for five and
+    // carries three husks' health, and a four-brute file is a `heavies` beat
+    // standing in a doorway rather than a price on one.
+    const count = typeId === 'brute' ? Math.min(n, 2) : n
+    for (let i = 0; i < count; i++) pack(b, lo + i * GUARD_STEP, typeId, 1, -g.x)
+    g.filed = true
+  }
+}
+
+/**
+ * ─── …and the doors no file could guard ─────────────────────────────────────
+ *
+ * `layGuards` declines a corridor that is somebody else's road — an elite's
+ * run-up, the weapon puzzle, a slalom — and `guardTwins` never touches a road's
+ * opening bank. Measured on 2026-09-18, that left 54 of 85 `add|add` banks on
+ * 16-29 as the owner's named non-choice: `+23 | +21` on every opening, and
+ * `+24 | +13` with nothing in the way everywhere a file had stood down. "The
+ * bigger number" is not a decision (see the gate-choices rule).
+ *
+ * So where no file stands, the bank becomes a SUM: the thin door turns into a
+ * multiplier priced to break even at the crowd a middling run carries there
+ * (`longRoadCrowdAt`) — `+24 | ×1.1` at a crowd of 240. A smaller squad takes
+ * the add, a bigger one the multiplier, and pumping the add moves the line, so
+ * the answer is the player's own squad against a number rather than a reading.
+ *
+ * FIXED, not pumpable (`pumpCap` = its value): a × door pumps in tenths, and a
+ * tenth of a 400-strong crowd is forty survivors a tick — priced at the tie, a
+ * pumpable one would be the snowball the road's caps exist to stop. Face-down
+ * banks are left alone (the `?` is the question), as are locked pairs and
+ * three-door banks. Long road only, so 1-15 and 30+ are untouched.
+ */
+const pricesBareTwins = (b: Beat): void => {
+  if (!isLongRoad(b.stage)) return
+  const banks = banksOf(b)
+  const filed = new Set(b.guarded.filter((g) => g.filed).map((g) => g.y))
+  const tenth = (v: number): number => Math.round(v * 10) / 10
+  for (const bank of banks) {
+    if (filed.has(bank.y) || !isTwinBank(bank)) continue
+    const crowd = longRoadCrowdAt(b, bank.y)
+
+    // ── The second half of a locked pair whose multiplier was spent ──
+    //
+    // `rollPair` writes "a bill, then a multiplier, against two adds" — and when
+    // the stage's multiplier budget is gone `legalise` turns the multiplier into
+    // an add, so the pair comes out as `÷2 | +22` then `+21 | +23`: the lane
+    // that pays at both banks, i.e. no question (stage 26, measured). The pair's
+    // own shape is put back: the door BEHIND the hostile one becomes the
+    // multiplier, priced so "take the hit now, multiply later" ties with "add
+    // twice" at a middling crowd — the sum the pair exists to ask.
+    const prev = banks.find((o) => o.y < bank.y && bank.y - o.y <= PAIR_GAP + 0.1
+      && o.leaves.some((l) => l.op === 'div' || l.op === 'sub'))
+    if (prev) {
+      const hostile = prev.leaves.find((l) => l.op === 'div' || l.op === 'sub')!
+      const safeFirst = prev.leaves.find((l) => l !== hostile)
+      const gambleI = bank.leaves.findIndex((l) => Math.sign(l.x) === Math.sign(hostile.x))
+      if (gambleI < 0 || !safeFirst) continue
+      const safeHere = bank.leaves[1 - gambleI]!
+      const lane = hostile.op === 'div'
+        ? crowd / Math.max(2, hostile.value)
+        : Math.max(1, crowd - hostile.value)
+      const safeTotal = crowd + (safeFirst.op === 'add' ? safeFirst.value : 0) + safeHere.value
+      const k = Math.min(GATE_MUL_MAX, Math.max(BARE_TWIN_MUL_MIN, tenth(safeTotal / Math.max(1, lane))))
+      const was = bank.leaves[gambleI]!
+      bank.leaves[gambleI] = { x: was.x, halfW: was.halfW, op: 'mul', value: k, pumpCap: k }
+      continue
+    }
+
+    const fatI = bank.leaves[0]!.value >= bank.leaves[1]!.value ? 0 : 1
+    const fat = bank.leaves[fatI]!
+    const thin = bank.leaves[1 - fatI]!
+    const k = Math.min(BARE_TWIN_MUL_MAX,
+      Math.max(BARE_TWIN_MUL_MIN, tenth(1 + fat.value / Math.max(1, crowd))))
+    bank.leaves[1 - fatI] = { x: thin.x, halfW: thin.halfW, op: 'mul', value: k, pumpCap: k }
+  }
+}
+
+/** The smallest and largest multiplier a bare twin is priced to. A tenth is the
+ *  finest step a door prints; two is where a fixed door stops being a sum and
+ *  becomes the obvious answer. */
+export const BARE_TWIN_MUL_MIN = 1.1
+export const BARE_TWIN_MUL_MAX = 2
+
+/**
+ * What a middling run carries `y` units down a long road — the pricing line for
+ * `pricesBareTwins`. A straight line from the stage's opening squad to
+ * `LONG_ROAD_RUN_IN_CROWD`.
+ *
+ * MEASURED (2026-09-18, `tests/sim`, `good` and `average` at the shop levels a
+ * `value` career walks into 16-29 with): the opening squad runs 51 at 16 to 66
+ * at 28 (~2.5 a stage, `LONG_ROAD_OPENING_CROWD`), and the crowd at the run-in
+ * has a median around 450 — with the spread that makes a fixed multiplier a
+ * real sum: 150 to 1,300 between runs of the same stage. A line is not the
+ * crowd's shape (it steps at every multiplier and drops at every trap); it is
+ * the middle a door can honestly be priced at, so that runs land on BOTH sides.
+ */
+const longRoadCrowdAt = (b: Beat, y: number): number => {
+  const start = LONG_ROAD_OPENING_CROWD + 2.5 * Math.max(0, b.stage - LONG_ROAD_FROM)
+  const f = Math.max(0, Math.min(1, y / Math.max(1, b.arenaY - 12)))
+  return Math.round(start + (LONG_ROAD_RUN_IN_CROWD - start) * f)
+}
+
+/** See `longRoadCrowdAt`. */
+export const LONG_ROAD_OPENING_CROWD = 51
+export const LONG_ROAD_RUN_IN_CROWD = 450
+
+/**
+ * FILL WAVES: no long road runs `FOE_GAP_S` with nothing alive on it.
+ *
+ * The last thing laid (before the two overlap sweeps, which do not read
+ * bodies), so it sees every pack, guard and elite the road already has and
+ * only fills what is genuinely empty. Longest stretch first, a wave as near its
+ * middle as the road allows, repeated until nothing is left to fill or
+ * `FOE_FILL_MAX` is spent.
+ *
+ * A wave may not stand:
+ *   • just PAST a bank — `FILLER_PACK_LEAD`, the crowd comes out of a door
+ *     funnelled and committed (the same rule `bankWouldCrowd` gives fillers);
+ *   • in an elite's run-up or fight — the landmark is met on open road;
+ *   • in the weapon puzzle's span — bodies eat the rounds a lever needs;
+ *   • in the opening twenty units or the closing bank's run-in.
+ *
+ * Four shapes, so the fill reads as the road's vocabulary rather than one beat
+ * stamped into every hole: a PACK in the lane, FLYERS (which cross boulders and
+ * walls the crowd has to route round — the shooting and the dodging in the same
+ * breath), a FILE of singles down alternate shoulders (a slalom of targets), and
+ * once a road, for its longest hole, a HORDE — the "at least one big body of
+ * enemies" the authored stages promise and the rolled ones never did.
+ */
+const fillFoeGaps = (b: Beat): void => {
+  if (!isLongRoad(b.stage)) return
+  const reach = FOE_GAP_S * stageSpeed(b.stage)
+  const start = 20
+  const end = b.arenaY - 16
+  const roster = foeRoster(b.stage)
+  const size = packSize(b.stage)
+  const banks = b.events.filter((e) => e.kind === 'gates').map((e) => e.y)
+  const elites = b.events.filter((e) => e.kind === 'miniboss').map((e) => e.y)
+  const puzzles: Array<[number, number]> = []
+  for (const e of b.events) {
+    if (e.kind !== 'weapon') continue
+    puzzles.push([
+      Math.min(e.y, ...e.stones.map((s) => s.y)) - PRIZE_PUZZLE_BERTH,
+      Math.max(e.box.y, e.guardY) + PRIZE_PUZZLE_BERTH
+    ])
+  }
+  // The road's own MASS beats — hordes, swarms, a full pack — and the stretch
+  // just after them. A wave there is not filling an empty lane, it is the same
+  // beat twice, landing on the crowd at its thinnest. Measured on stage 29: six
+  // flyers nineteen units past the swarm section's three packs of eighteen, in
+  // front of the 53 % elite, and `good` died in that stretch on every seed (it
+  // cleared 29 on 8 seeds of 8 with no fill at all). Twenty-two units is three
+  // seconds of road to rebuild in — and with the elite run-up below, that
+  // stretch of 29 now stays empty, which is the point.
+  const mass = b.events
+    .filter((e) => e.kind === 'foes' && !e.forGift && e.count >= 10)
+    .map((e) => e.y)
+  // …and "dead air" means it: not inside a boulder field or a wall. A wave
+  // there is the swarm-wall beat, priced as a beat — measured on stage 27, a
+  // fill horde between the two ranks of a boulder field at 17 % of the road
+  // was where `average` died (0 clears of 8 with it, 6 of 8 without the fill).
+  const solid = b.events
+    .filter((e) => (e.kind === 'rocks' && !e.passage) || e.kind === 'barricade')
+    .map((e) => e.y)
+  const legal = (y: number, depth: number): boolean => {
+    if (y < start || y + depth > end) return false
+    for (const g of banks) if (y + depth > g - 1.5 && y < g + FILLER_PACK_LEAD) return false
+    // An elite's run-up is longer for a wave than for a bank: twenty units, the
+    // guns' reach and then some, so the landmark is met with a clear field of
+    // fire in front of it and not through a wave that is still being shot.
+    for (const el of elites) if (y + depth > el - MINIBOSS_LEAD - 8 && y < el + 6) return false
+    for (const [lo, hi] of puzzles) if (y + depth > lo && y < hi) return false
+    for (const m of mass) if (y + depth > m - 2 && y < m + 22) return false
+    for (const s of solid) if (y + depth > s - 3 && y < s + 3) return false
+    return true
+  }
+
+  type Wave = 'pack' | 'flyers' | 'file' | 'horde'
+  const depthOf = (w: Wave): number => (w === 'file' ? 7.8 : w === 'horde' ? 2.6 : 0)
+  // Light bodies only. A fill wave is something to shoot in dead air, not a
+  // beat: the brute is the road's "wall of health" and belongs to the beats
+  // priced as one (`heavies`, the guards). Measured with it in the pick, a
+  // thirteen-brute fill at 12 % of stage 29 ate every policy's crowd before the
+  // first multiplier. The husk (twice a creep's health, and slow, so it stays
+  // in the lane longest) went the same way for the same reason.
+  //
+  // ⚠ And SMALL, which is the fill's whole cost. Ablated across 16-29 (8 seeds
+  // a stage at a mid-career shop), the fill was the one addition that moved
+  // clear rates: with it at half a pack, `good` cleared 80 % of seeds and
+  // `average` 68 %; without it 88 % and 80 % (the guards and the echo each
+  // moved them by less than the seed noise). The shares below are what the
+  // owner's "more to shoot" can buy without buying a wall: 88 % and 72 %,
+  // against 84 % and 74 % for the road before the pass.
+  const light = roster.filter((id) => id === 'creep' || id === 'hound')
+  // …and sized to the crowd that meets it: a third of the way to full at the
+  // top of the road, full from 60 % on. The crowd is built on the road, and the
+  // first holes are the ones a three-bank-old squad has to walk through.
+  const scaleAt = (y: number): number =>
+    (0.35 + 0.65 * Math.min(1, y / (b.arenaY * 0.6))) * longRoadRamp(b.stage)
+  const lay = (w: Wave, y: number): void => {
+    const n = (share: number): number => Math.max(2, Math.round(size * share * scaleAt(y)))
+    switch (w) {
+      case 'horde':
+        horde(b, y, 'creep', n(0.75))
+        break
+      case 'flyers':
+        pack(b, y, 'flyer', n(0.3), 3.6)
+        break
+      case 'file': {
+        const typeId = pickFrom(b.roadRng, light)
+        const flip = b.roadRng() < 0.5 ? 1 : -1
+        for (let i = 0; i < 4; i++) pack(b, y + i * 2.6, typeId, 1, (i % 2 === 0 ? 2.4 : -2.4) * flip)
+        break
+      }
+      default:
+        pack(b, y, pickFrom(b.roadRng, light), n(0.35), 2.2 + b.roadRng() * 1.4)
+    }
+  }
+
+  let hordeLeft = roster.includes('creep') ? 1 : 0
+  const refused = new Set<number>()
+  let laid = 0
+  for (let guard = 0; guard < 40 && laid < FOE_FILL_MAX; guard++) {
+    const alive = b.events
+      .filter((e) => (e.kind === 'foes' && !e.forGift) || e.kind === 'miniboss')
+      .map((e) => e.y)
+      .sort((p, q) => p - q)
+    let gap: [number, number] | null = null
+    let prev = start
+    for (const y of [...alive, end]) {
+      const hi = Math.min(y, end)
+      if (hi - prev > reach && !refused.has(r2(prev)) && (!gap || hi - prev > gap[1] - gap[0])) {
+        gap = [prev, hi]
+      }
+      prev = Math.max(prev, y)
+    }
+    if (!gap) return
+    const [lo, hi] = gap
+    const w: Wave = hordeLeft > 0 && hi - lo > reach * 2
+      ? 'horde'
+      : (['pack', 'flyers', 'file'] as const)[Math.floor(b.roadRng() * 3) % 3]!
+    const depth = depthOf(w)
+    // Outward from the middle, keeping three units off whatever bounds the hole
+    // so the wave is not simply the tail of the beat before it.
+    const mid = (lo + hi - depth) / 2
+    let at = -1
+    for (let d = 0; d <= (hi - lo) / 2 && at < 0; d += 0.5) {
+      for (const y of [mid - d, mid + d]) {
+        if (y - lo < 3 || hi - (y + depth) < 3 || !legal(y, depth)) continue
+        at = y
+        break
+      }
+    }
+    if (at < 0) {
+      refused.add(r2(lo))
+      continue
+    }
+    lay(w, at)
+    if (w === 'horde') hordeLeft--
+    laid++
+  }
 }
 
 const proceduralBody = (b: Beat): void => {
@@ -4771,6 +6741,20 @@ const proceduralBody = (b: Beat): void => {
   // about a third of the way down the road; the loop below simply skips past
   // whatever it consumed, so the motif never lands on top of a rolled beat.
   const signatureEnd = motifSignature(b)
+  // …and on the long middle road it comes round again, lighter, two thirds of
+  // the way in (see `echoSignature`). Skipped by the loop the same way.
+  const echo = isLongRoad(b.stage)
+    ? echoSignature(b, Math.max(signatureEnd + 30, b.arenaY * ECHO_AT))
+    : null
+  // The echo, whole, for the long road's stricter step-over (below). Only the
+  // echo: the FIRST section keeps the step-over it always had, overlaps and all
+  // — measured, stepping over it whole took out the rolled banks the old road
+  // had printed inside it (stage 24's `+20 | ×1.6 | ÷5` in the herd), and a
+  // thin run that needed that multiplier went from clearing 24 on 6 seeds of 6
+  // to 0 of 6, dying at 19 s — twelve seconds before the echo it was blamed on.
+  const sections: Array<readonly [number, number]> = echo ? [echo] : []
+  const inSection = (y: number, lead: number): readonly [number, number] | undefined =>
+    sections.find(([lo, hi]) => y > lo - lead && y < hi)
 
   // The closing bank is written at `arenaY − 12` by `buildTrack`, so the body
   // has to stop well clear of it: two banks a few units apart are one unreadable
@@ -4786,6 +6770,15 @@ const proceduralBody = (b: Beat): void => {
     if (signatureEnd > 0 && b.y > signatureEnd - 14 && b.y < signatureEnd) {
       b.y = signatureEnd + beatGap(b.stage, b.rng())
     }
+    // ── …and the long road steps over the WHOLE echo ──
+    //
+    // The test above only fires in the last fourteen units before a section
+    // ends, so a beat that lands in its first half is written straight into it
+    // — measured on the long road, a rolled locked pair inside the echo's pinch,
+    // two ribs stacked in one gap. For the echo the window is the section itself
+    // plus the fourteen units in front of it.
+    const hit = inSection(b.y, 14)
+    if (hit) b.y = hit[1] + beatGap(b.stage, b.rng())
     if (b.y >= lastBankY - 6) break
 
     // Bodies first: a stage should be shooting something inside its first few
@@ -4856,6 +6849,12 @@ const proceduralBody = (b: Beat): void => {
     const from = b.y
     b.y += 9 + b.rng() * 4
     if (b.y > lastBankY) break
+    // …and on the long road, a bank this far into the iteration may have walked
+    // into a written section (the step-over above only ran at its start). Its
+    // whole footprint is checked — a pair reaches `PAIR_GAP` on, a bait's crate
+    // eight — and it is dropped rather than written inside; the next iteration
+    // steps over the section.
+    if (sections.some(([lo, hi]) => b.y + PAIR_GAP + 8 > lo - 6 && b.y - 2 < hi)) continue
     // …but a bait IS a trap, so it obeys the same streak cap and the same "not
     // in the first tenth of the road" rule as a rolled one, and it brings its
     // own (always lying) trail.
@@ -5641,6 +7640,89 @@ const nudgeClear = (b: Beat, y: number, minDist = 4.5): number => {
  */
 const MINIBOSS_LEAD = 12
 
+/**
+ * ─── Where the two elites of stages 2-8 stand, in road units ────────────────
+ *
+ * Stage 1 has carried two landmarks since its road went to seventy seconds —
+ * one per half, the road built in acts around them — and it is the stage the
+ * owner calls "almost really good". Stages 2-8 were then cut to the same sixty
+ * seconds of running (`stageLength`, 2026-09-18) and each of them had ONE elite
+ * (2-5) or two rolled ones (6-8) on a road written for half the length: the
+ * measured drop-off from stage 1 to stage 2 was a road that simply ran out of
+ * things to say.
+ *
+ * So every stage to 8 is now written the way stage 1 is: act one, a landmark,
+ * act two, a landmark, the run-in. The marks are ABSOLUTE because the stage
+ * bodies they sit in are written in units — each one is placed so that the
+ * twelve units in front of it (`MINIBOSS_LEAD`) are free of banks and walls
+ * and the next bank is inside `MAX_GATE_GAP_S` of the last one either side
+ * (`fillGateGaps` counts an elite as a stop on these stages). Change a stage
+ * body and re-read its row here.
+ *
+ * The second one is ranked `second` and pays its premium from stage 6 on; on
+ * 2-5 both are priced at `ELITE_FIRE_SECONDS` of the crowd's live fire
+ * (`game/adaptive.ts`), so the rank there only chooses the body.
+ */
+const AUTHORED_ELITES: Readonly<Record<number, readonly [number, number]>> = {
+  2: [118, 246],
+  3: [118, 254],
+  4: [128, 264],
+  5: [126, 270],
+  6: [122, 274],
+  7: [124, 282],
+  8: [138, 288],
+  // Stages 9-15 are written to the same template on the sixty-second road
+  // (see "Stages 9-15" above `stageNine`), so their landmarks are authored the
+  // same way: each mark opens an act, with twelve clear units in front of it and
+  // the stops either side inside `MAX_GATE_GAP_S`.
+  9: [134, 254],
+  10: [130, 268],
+  11: [138, 293],
+  12: [124, 244],
+  13: [142, 270],
+  14: [162, 286],
+  15: [142, 270]
+}
+
+/**
+ * How far apart two landmarks on the long middle road must stand.
+ *
+ * Thirty units is ~4 s at these stages' speed: an elite's leash is
+ * `ELITE_HOLD_MAX` = 3 s, so anything closer is the second fight starting while
+ * the first is still being fought — one long fight with two health bars.
+ */
+const LONG_ROAD_ELITE_SPACING = 30
+
+/**
+ * Where an elite goes on the long middle road when the walk's answer is a bad
+ * one (see `nudgeClearElite`): the nearest spot to `y` within `reach`, EITHER
+ * way, forward first, that keeps every rule the walk keeps plus
+ * `LONG_ROAD_ELITE_SPACING` — and, with `packs`, stands off any big pack in
+ * front of it. `null` when nothing qualifies.
+ *
+ * The forward-only walk was measured walking straight through the echo on stage
+ * 29 — the swarm's walls and banks leave no twelve-unit run-up for fifty units —
+ * and parking the 45-60 % elite at 87 %, six units in front of the 80 % one.
+ */
+const eliteSpotNear = (b: Beat, y: number, reach: number, packs: boolean): number | null => {
+  const ok = (at: number): boolean => {
+    if (at < b.arenaY * 0.2 || at > b.arenaY - 20) return false
+    for (const e of b.events) {
+      const decision = e.kind === 'gates' || e.kind === 'barricade'
+      if ((decision || e.kind === 'miniboss') && Math.abs(e.y - at) < 4.5) return false
+      if (decision && at - e.y >= 0 && at - e.y < MINIBOSS_LEAD) return false
+      if (e.kind === 'miniboss' && Math.abs(e.y - at) < LONG_ROAD_ELITE_SPACING) return false
+      if (packs && e.kind === 'foes' && !e.forGift && e.count >= 6 && at - e.y >= -1 && at - e.y < 8) return false
+      if (e.kind === 'rocks' && !e.passage && Math.abs(e.y - at) < 2.5) return false
+    }
+    return true
+  }
+  for (let d = 0; d <= reach; d++) {
+    for (const at of d === 0 ? [y] : [y + d, y - d]) if (ok(at)) return r2(at)
+  }
+  return null
+}
+
 /** `nudgeClear`, with the asymmetry the elites actually need. */
 const nudgeClearElite = (b: Beat, y: number): number => {
   let out = nudgeClear(b, y)
@@ -5650,17 +7732,56 @@ const nudgeClearElite = (b: Beat, y: number): number => {
       const gap = out - e.y
       return gap >= 0 && gap < MINIBOSS_LEAD
     })
-    if (!crowded) return r2(out)
+    if (!crowded) break
     out = nudgeClear(b, out + 2)
   }
-  return r2(out)
+  if (!isLongRoad(b.stage)) return r2(out)
+
+  // ── The long middle road: the walk's answer, unless it is a bad one ──
+  //
+  // The walk only ever goes FORWARD, and on a road this dense that is how a
+  // landmark ends up somewhere nobody meant it to be. Three ways, all measured:
+  //
+  //   • ON TOP OF A PACK. Bodies walk at the crowd, so a big pack a few units
+  //     in front of the landmark lands in the same second as its first sweep:
+  //     stage 23's 50 % elite planted three units past a nineteen-husk pack
+  //     and `good` and `average` died there on every seed;
+  //   • FAR PAST ITS MARK. Stage 29's 28 % elite walked through banks and walls
+  //     to 47 % of the road, into the swarm;
+  //   • ON TOP OF ANOTHER ELITE (`LONG_ROAD_ELITE_SPACING`).
+  //
+  // So the walk's spot stands when it is none of those — it is the spot the
+  // balance was measured on, and moving an elite that did not need moving was
+  // measured too (pulled back off a pack, stage 29's early elite stood in front
+  // of a `÷3` bank with the pack behind it). Otherwise the nearest spot within
+  // `ELITE_DRIFT` of the mark that keeps every rule, pack included; then one
+  // that keeps every rule but the pack; then anywhere within forty units that
+  // keeps the spacing; and only then the walk's own answer.
+  const onPack = (at: number): boolean => b.events.some((e) =>
+    e.kind === 'foes' && !e.forGift && e.count >= 6 && at - e.y >= -1 && at - e.y < 8)
+  const crowdedElite = (at: number): boolean =>
+    b.events.some((e) => e.kind === 'miniboss' && Math.abs(e.y - at) < LONG_ROAD_ELITE_SPACING)
+  // …and not planted between the ranks of a boulder field, where the fight
+  // pins the crowd inside the slalom (stage 28's 50 % elite, measured).
+  const inField = (at: number): boolean => b.events.some((e) =>
+    e.kind === 'rocks' && !e.passage && Math.abs(e.y - at) < 2.5)
+  if (out - y <= ELITE_DRIFT && !onPack(out) && !crowdedElite(out) && !inField(out)) return r2(out)
+  return eliteSpotNear(b, y, ELITE_DRIFT, true)
+    ?? eliteSpotNear(b, y, ELITE_DRIFT, false)
+    ?? (crowdedElite(out) ? eliteSpotNear(b, y, 40, false) : null)
+    ?? r2(out)
 }
+
+/** How far from its mark the long road lets an elite drift before it looks
+ *  for a better spot — about two seconds of road. See `nudgeClearElite`. */
+const ELITE_DRIFT = 15
 
 /**
  * Minibosses, placed centrally rather than by hand.
  *
- * From stage 2 there is one at roughly the halfway mark, from stage 6 a second
- * at ~80 %, and from `MINIBOSS_STAGE_THIRD` a light one at ~28 %. They exist to
+ * Stages 2-8 carry two each at the marks their authors wrote the acts around
+ * (`AUTHORED_ELITES`). Past them there is one at roughly the halfway mark, a
+ * second at ~80 %, and from `MINIBOSS_STAGE_THIRD` a light one at ~28 %. They exist to
  * break a long stage into digestible fights: wins on the road before the boss,
  * and a wipe that costs a fraction of a stage instead of all of it.
  *
@@ -5704,6 +7825,20 @@ const placeMinibosses = (b: Beat): void => {
   }
   if (b.stage < 2) return
 
+  // ── Stages 2-8: two landmarks, where the stage's author put them ──
+  //
+  // See `AUTHORED_ELITES`. Every stage from here to 8 is written in ACTS around
+  // its two elites, so the landmark is part of the level design rather than a
+  // roll: a stage that draws its first elite anywhere in 45-60 % of the road
+  // cannot also promise twelve units of open road in front of it, a bank on the
+  // far side of the fight and a gift box behind it.
+  const authored = AUTHORED_ELITES[b.stage]
+  if (authored) {
+    miniboss(b, nudgeClearElite(b, authored[0]), 'first')
+    miniboss(b, nudgeClearElite(b, authored[1]), 'second')
+    return
+  }
+
   // ── How many landmarks a road gets ──
   //
   // Three was the ceiling and it was reached on stage 20, so a stage-100 road —
@@ -5718,6 +7853,13 @@ const placeMinibosses = (b: Beat): void => {
   // hand for the first three.
   const extra = b.stage < 40 ? 0 : Math.min(3, 1 + Math.floor((b.stage - 40) / 30))
 
+  // (The long middle road, 16-29, runs 47-57 s now, and the third landmark was
+  // written for "a stage-25 road, fifty seconds long" — so 16-19 were given one
+  // too, and it was measured and taken back out (2026-09-18): an `early` elite
+  // at 26 % of stage 16 sweeps a fifth of a hundred-strong crowd a swing, and
+  // `average` at a mid-career shop went from clearing 16 on 8 seeds of 8 to 0
+  // of 8, losing ~90 survivors to it. The long road's extra weight is carried
+  // by ordinary bodies instead — see "The long middle road".)
   if (b.stage >= MINIBOSS_STAGE_THIRD) {
     miniboss(b, nudgeClearElite(b, b.arenaY * (0.26 + b.rng() * 0.05)), 'early')
   }
@@ -5817,7 +7959,22 @@ const fillGateGaps = (b: Beat): void => {
     .map((e) => e.y)
     .sort((p, q) => p - q)
 
-  const stops = [...banks, b.arenaY]
+  // ── An elite is a stop too, on the stages written around two of them ──
+  //
+  // The rule above is "never go 5.5 s without being ASKED something", and on
+  // stages 2-8 the landmark is asked on purpose: the stage is written in acts
+  // around it (`AUTHORED_ELITES`), and the elite needs twelve clear units in
+  // front of it (`MINIBOSS_LEAD`) that no bank may stand in. Counting only the
+  // banks, every one of those stretches read as a hole and the filler dropped a
+  // door just past the fight — the one bank on the road nobody wrote. Scoped to
+  // the authored acts; above stage 8 the road and the rule are untouched.
+  // …and on 9-15, which are written the same way (`AUTHORED_ELITES` carries
+  // their marks too) — keyed on the table rather than a stage number, so a
+  // stage only counts its elites as stops if an author placed them.
+  const eliteStops = b.stage <= 8 || AUTHORED_ELITES[b.stage] !== undefined
+    ? b.events.filter((e) => e.kind === 'miniboss').map((e) => e.y)
+    : []
+  const stops = [...banks, ...eliteStops, b.arenaY].sort((p, q) => p - q)
   let prev = banks.length > 0 ? banks[0]! : 0
   for (const y of stops) {
     const gap = y - prev
@@ -5865,6 +8022,15 @@ const fillGateGaps = (b: Beat): void => {
         if (b.stage <= ADAPTIVE_BOSS_STAGES) {
           const big = roadDoor(b, earlyCrowdAt(b, at))
           bank(b, at, add(big), add(Math.max(1, Math.round(big * 0.4))))
+        } else if (isLongRoad(b.stage)) {
+          // On the long middle road the filler is the same `+N | +N+1` shape
+          // and then `guardTwins` splits and guards it — so its fat door is
+          // priced like a rolled bank's good door (`base + 3..5`), worth the
+          // file standing in front of it, rather than one survivor over par.
+          // Jittered off its own position (no roll, so no stream moves): three
+          // fillers on one road printed the identical `+19 | +10` three times.
+          const fat = base + 3 + (Math.round(at) % 3)
+          bank(b, at, add(fat), add(fat - 1))
         } else bank(b, at, add(base), add(base + 1))
         b.passageIn = passageIn
       }
@@ -6187,8 +8353,40 @@ export const WEAPON_FIRST_SLOT: WeaponSlotId = 'early'
  */
 export const weaponSlotIdFor = (stage: number): WeaponSlotId => {
   if (stage < WEAPON_ROTATION_FROM) return WEAPON_FIRST_SLOT
+  // The long middle road carries a box on EVERY stage (`WEAPON_EVERY_STAGE_FROM`
+  // in weapons.ts), and its slots are dealt by hand — see `LONG_ROAD_SLOTS`.
+  const authored = LONG_ROAD_SLOTS[stage]
+  if (authored && isLongRoad(stage)) return authored
   const n = Math.floor((stage - WEAPON_ROTATION_FROM) / WEAPON_EVERY)
   return WEAPON_SLOT_ORDER[n % WEAPON_SLOT_ORDER.length]!
+}
+
+/**
+ * Where the box stands on each stage of the long middle road, dealt by hand
+ * like the weapons in it (`WEAPON_CAMPAIGN` in weapons.ts) — fourteen boxes on
+ * fourteen consecutive stages is too few, and too constrained, for a rotation
+ * to get right on its own. Measured against every rule a rotation was failing:
+ *
+ *   • LATE stands only between EARLY boxes (29's other neighbour is 30's
+ *     legacy `early`). The echo sits at `ECHO_AT` (0.63) and shuts most of the
+ *     late window, so a late box lands low in its band (0.57 on stage 18); next
+ *     to a mid or a close box two consecutive stages then parked within a tenth
+ *     of the road of each other (18 → 19 moved 0.09, 25 → 26 moved 0.06) — the
+ *     repeat the rotation exists to prevent (`weaponPuzzle.test.ts` › MOVES).
+ *   • MID only on the short first sections (herd 16, swarm 21, rails 25,
+ *     crossfire 28). On doors / maze / pinch the section ends at 46-48 % and a
+ *     mid box lands in the late band (stage 18 printed 0.57).
+ *   • No weapon twice in the same place: rocket mid / close / late, dynamo
+ *     close / mid / early, hoard early / mid, gravecall late / early, grapeshot
+ *     early / late, gatling early / mid — and the new odd-stage boxes are not
+ *     welded to the back of the road (a six-long rotation put every one of
+ *     them late or close, a weapon for the boss alone).
+ *   • It leans EARLY (5 early, 4 mid, 3 late, 2 close): on a road with a box on
+ *     every stage, the box that arms the whole road is the one worth dealing.
+ */
+const LONG_ROAD_SLOTS: Readonly<Record<number, WeaponSlotId>> = {
+  16: 'mid', 17: 'close', 18: 'early', 19: 'late', 20: 'early', 21: 'mid', 22: 'early',
+  23: 'late', 24: 'early', 25: 'mid', 26: 'close', 27: 'early', 28: 'mid', 29: 'late'
 }
 
 const weaponSlotFor = (stage: number): WeaponSlot => WEAPON_SLOTS[weaponSlotIdFor(stage)]
@@ -6238,7 +8436,13 @@ const placeWeaponPuzzle = (b: Beat): void => {
   // that settles a quarter of the road early is a mid slot, and the rotation
   // the player is supposed to notice quietly collapses back into the single
   // position it replaced. An eighth is still a couple of banks of slack.
-  const goodEnough = b.arenaY * 0.12
+  //
+  // Half that on the long middle road, which carries a box on every stage and
+  // two written sections plus a second filler pass: the strict tier there
+  // settled stage 16's MID box at 57 % of the road — inside the late band —
+  // because "an eighth off" still counted as found. A tighter bar sends the
+  // search on to the relaxed clearances first.
+  const goodEnough = b.arenaY * (isLongRoad(b.stage) ? 0.06 : 0.12)
   let found = -1
   let bestCost = Number.POSITIVE_INFINITY
   for (const [leverGap, boxGap] of WEAPON_CLEARANCES) {
@@ -6534,7 +8738,20 @@ const placeMysteries = (b: Beat): void => {
  */
 const placeRescues = (b: Beat): void => {
   if (b.stage < CAGE_STAGE) return
+  // ── …and never beside a face-down door, on the authored stages ──
+  //
+  // The prize takes the shoulder AWAY from the bank's best door (see
+  // `prizeSideFor`), which is a tell: parked in front of a `?` bank it says
+  // which door is the good one before the bank turns over. Measured on the
+  // re-cut roads, stage 5's cage stood in front of its hidden `×` and stage
+  // 6's in front of the blind pair, on the far side of the right answer both
+  // times. Scoped to 2-8, the roads this pass authored; the generated road
+  // places its `?` after the prizes (`placeMysteries`) and is not this pass's.
+  // …and 9-15, authored by the same pass (see "Stages 9-15" above `stageNine`)
+  // — a no-op on the roads as written (no prize lands in front of their `?`),
+  // kept so a later edit to one of them cannot reopen the tell.
   const usable = banksOf(b).slice(1, -1)
+    .filter((e) => b.stage > 15 || !e.leaves.some((l) => l.mystery))
   if (usable.length === 0) return
 
   const taken = new Set<Extract<TrackEvent, { kind: 'gates' }>>()
@@ -6672,6 +8889,9 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
     pairRng: mulberry32(Math.imul(seed, 0x27d4eb2f) ^ 0xc2b2ae35),
     // …and a third constant for the prizes. See `Beat.prizeRng`.
     prizeRng: mulberry32(Math.imul(seed, 0x165667b1) ^ 0x7feb352d),
+    // …and a fourth for the long-road pass. See `Beat.roadRng`.
+    roadRng: mulberry32(Math.imul(seed, 0x2c1b3c6d) ^ 0x297a2d39),
+    guarded: [],
     triplesLeft: maxTriples(stage),
     triplesPlaced: 0,
     tripleReserve: closingTriple ? 1 : 0,
@@ -6714,7 +8934,19 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
   // the road's own rolls never spent its allowance, the run-in delivers it: a
   // mechanic a bad seed can skip entirely is a mechanic half the players never
   // find out about.
-  if (closingTriple || (stage >= TRIPLE_STAGE && b.triplesPlaced === 0)) {
+  //
+  // ── …unless the stage wrote its own ──
+  //
+  // Stages 9-15 author the run-in with the rest of the road (see "Stages 9-15"
+  // above `stageNine`): priced against the crowd that reaches it, where the
+  // lines below print `base + 6` — a `+17` in front of ~160 survivors, a bank
+  // with one answer. Scoped by stage AND by the bank actually being there, so no
+  // other road can fall into this branch by accident.
+  const runInAuthored = stage >= 9 && stage <= 15
+    && b.events.some((e) => e.kind === 'gates' && Math.abs(e.y - closing) < 0.01)
+  if (runInAuthored) {
+    // Nothing to write: the stage body already stands a bank at `closing`.
+  } else if (closingTriple || (stage >= TRIPLE_STAGE && b.triplesPlaced === 0)) {
     // The two big offers take the outside doors and swap sides from stage to
     // stage; the middle one is always the modest `+N`. It is the only fixed
     // rule about a centre door anywhere in the game, and it is deliberate: the
@@ -6746,13 +8978,30 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
     // have spent their one on the road, so they close on the routing pair
     // instead — and `legalise` degrades the `mul` below into exactly that if
     // anything upstream took the budget or stood too close.
-    if (stage >= 4) bank(b, closing, add(liveDoor(arrive)), mul(2))
+    //
+    // ⚠ STAGES 2 AND 3 CLOSE ON THE MULTIPLIER TOO NOW (2026-09-18). Their
+    // budget went to three with their roads (`mulLeaves`), and the road spends
+    // two; the third is here for the same reason it is here on 4 and 5 — the
+    // last thing read before the arena should be the biggest sum on the road.
+    // Stage 1 keeps its routing pair: its one multiplier is the swell.
+    if (stage >= 2) bank(b, closing, add(liveDoor(arrive)), mul(2))
     else bank(b, closing, add(roadDoor(b, arrive)), add(Math.round(roadDoor(b, arrive) * 0.4)))
   } else if (stage >= 5) bank(b, closing, add(base + 6), mul(b.rng() < 0.5 ? 3 : 2))
   else bank(b, closing, add(base + 2), add(base + 5))
 
   ensureSupplies(b)
   fillGateGaps(b)
+  // …twice on the long middle road. One pass splits a gap once, which is enough
+  // for any gap under two `MAX_GATE_GAP_S` — and the two written sections there
+  // (the motif and its echo) are bank-free stretches of up to fifty units on
+  // the mass motifs, which one split leaves over the limit on both sides. The
+  // second pass sees the first one's fillers and only splits what is still long.
+  if (isLongRoad(b.stage)) fillGateGaps(b)
+
+  // The long middle road's twins are split and walled once every bank exists —
+  // the filler above prints them too — and before the band sweep and the
+  // puzzle, both of which have to see the ribs. See `guardTwins`.
+  guardTwins(b)
 
   // LAST, because it is the only pass that needs every bank to already exist:
   // `fillGateGaps` adds them, and an obstacle cleared before that could be
@@ -6778,6 +9027,15 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
   // prizes on purpose: they pick their shoulder off the bank's best door, and
   // they must read the doors as the road built them. See `mysteryPlanFor`.
   placeMysteries(b)
+
+  // Bodies last: the guard files in the fat corridors, then the fill waves into
+  // whatever stretch is still empty. Both stay out of the puzzle's span and the
+  // elites' fights, so they have to see both; neither sweep below reads bodies.
+  // Long road only — see "The long middle road".
+  layGuards(b)
+  // …and every bare twin a file could not guard becomes a sum instead.
+  pricesBareTwins(b)
+  fillFoeGaps(b)
 
   // Two obstacle rows in the same piece of road are one wall, and the promise
   // that there is a way through one was only ever made row by row. Before the

@@ -4,7 +4,7 @@ import {
   DIVIDER_HALF_W, ELITE_SWEEP_REACH, ELITE_TELEGRAPH,
   gateTickMs, gatePumpCap, gateValueLabel, isScaleOp,
   LANE_HALF, MAX_FIRE_RATE, SLAM_RADIUS, SLAM_RADIUS_GROWTH, slamRadiusFor,
-  SLAM_RADIUS_MAX, VIEW_HEIGHT, UNIT_R,
+  SLAM_RADIUS_MAX, cameraScale, UNIT_R,
   type Divider, type GateOp, type GatePrize,
   WARDEN_CAGE_SCALE,
   REWARD_CAGE_SCALE
@@ -29,14 +29,16 @@ import {
   activeWeapon, sideWeapon, getGuards, getLevers, getStones, getWeaponBoxes,
   nowMs, phase, runFireRate, squadCount, stage,
   bossFallDir, getBossCorpse, progress01, roadScrollY, takeDepartedSurvivors,
-  frostActive, frostFrozenAt
+  frostActive, frostFrozenAt,
+  getBossDrain
 } from '@/use/useSurvivalGame'
 import {
   applySkillFx, drawIceOn, drawSkillAir, drawSkillGround, drawSkillScreen, isSkillFx,
   stepSkillFx, syncSkillView
 } from '@/use/useSkillFx'
 import {
-  CHARGE_DASH_S, CLAW_CORE_FRACTION, HEAL_FRACTION, SUMMON_TELEGRAPH, SUMMON_WAVES_MAX
+  CHARGE_DASH_S, CLAW_CORE_FRACTION, DRAIN_HOLD_S, HEAL_FRACTION, SUMMON_TELEGRAPH, SUMMON_WAVES_MAX,
+  bossKindFor
 } from '@/game/threats'
 import {
   DOWN_FALL_SIDE, HERO_CYCLE_MS, HERO_FOOT_R, HERO_FRAME_ASPECT, HERO_HEIGHT_R,
@@ -45,8 +47,8 @@ import {
 } from '@/game/heroSprites'
 import {
   MONSTER_FRAME_ASPECT, SPRITE_FOOT_R, SPRITE_HEIGHT_R, bakeMonsterSlice, deathFallSide,
-  monsterDeathFrame, monsterDeathLength, monsterFaces, monsterFrame, monstersReady,
-  primeMonsterDeaths, primeMonsterSprites
+  monsterDeathFrame, monsterDeathLength, monsterFaces, monsterFrame, monsterHurlFrame, monstersReady,
+  primeMonsterDeaths, primeMonsterHurls, primeMonsterSprites
 } from '@/game/monsterSprites'
 import { deathArtDue, deathArtWant } from '@/game/artPreload'
 // DEV-only, false in every player's build: the preview recorder's "hide the
@@ -72,7 +74,7 @@ import { clearLabelWidths, measureLabel } from '@/use/useTextMetrics'
 import { bossOwnsCast, type CastKind } from '@/game/bossTells'
 import {
   METEOR_RELEASE, POSE_AFTER_S, REST_POSE, advanceBeats, bossPose, hurlArc, hurlPoint,
-  windupBeats, type BossPose, type WindupBeat, type WindupCue, type WindupKind
+  meteorHurlPanel, windupBeats, type BossPose, type WindupBeat, type WindupCue, type WindupKind
 } from '@/game/bossWindup'
 
 // ─── The frame's quality tier ───────────────────────────────────────────────
@@ -119,8 +121,9 @@ let minFx = false
  * only lethal thing inside the gate band, and a lethal thing that can be
  * occluded by the pretty thing next to it is a bug, not a layer choice.
  *
- * The camera is deliberately dumb: a fixed frame that fits the lane's width and
- * keeps the crowd at 72% down the screen. A runner does not want a camera with
+ * The camera is deliberately dumb: a fixed frame solved from the gun's range
+ * (`cameraScale` — the base fire ends 17.5 % below the top edge) that keeps the
+ * crowd at 72% down the screen. A runner does not want a camera with
  * opinions — the player is steering something at the bottom of the screen and
  * reading something at the top, and anything that moves that relationship makes
  * the game harder to read for no gain.
@@ -135,9 +138,6 @@ let viewH = 0
 let scale = 40
 /** Where the crowd sits vertically, as a fraction of the viewport. */
 const CROWD_SCREEN_Y = 0.72
-/** Extra world width kept visible beyond the lane edges, so the rails are
- *  never flush against the screen edge on a phone. */
-const LANE_MARGIN = 1.1
 /** Remembered so the off-screen miniboss marker can sit UNDER the HUD instead
  *  of behind it — the one screen-space overlay the renderer owns. */
 let topInsetPx = 0
@@ -151,14 +151,13 @@ export const setViewport = (w: number, h: number, topInset = 0, bottomInset = 0)
   viewW = w
   viewH = h
   topInsetPx = topInset
-  const usableH = Math.max(160, h - topInset - bottomInset)
-  // Fit the lane's WIDTH, but never zoom in so far that the player cannot see
-  // what is coming: on a wide screen the vertical fit wins and the lane is
-  // letterboxed by terrain instead.
-  scale = Math.max(16, Math.min(
-    w / (LANE_HALF * 2 + LANE_MARGIN * 2),
-    usableH / VIEW_HEIGHT
-  ))
+  // Solved from the gun's range, not fitted to the HUD: the base fire ends
+  // `FIRE_END_SCREEN_Y` (17.5 %) below the top edge on every ratio the lane
+  // allows, and a wide screen letterboxes the lane with terrain rather than
+  // showing more road. The rule, its four limits and the measurements behind
+  // it live with the range in `game/survival.ts` so the tests read the same
+  // arithmetic this frame is drawn with.
+  scale = cameraScale(w, h, topInset, bottomInset)
 }
 
 /**
@@ -3137,6 +3136,10 @@ export const drawScene = (
     // The boss's drawn death, and the next boss's, behind every walk strip —
     // baked in the same breaks, so the kill rarely has to bake one itself.
     primeMonsterDeaths([bossDesign(stage.value), bossDesign(stage.value + 1)])
+    // …and the meteor bosses' drawn throws, whose hand anchors the painted
+    // throw uses too (`monsterHurlFrame`).
+    primeMonsterHurls([stage.value, stage.value + 1]
+      .filter((n) => bossKindFor(n) === 'meteor').map((n) => bossDesign(n)))
   }
 
   // The guarantee that closes the last hole. The idle baker is switched OFF
@@ -3291,6 +3294,10 @@ export const drawScene = (
   drawSkillAir(ctx)
   // Above the crowd: a telegraph nobody can see is not a telegraph.
   drawCasts(ctx)
+  // …and the healer's beam once it has landed, read straight off the
+  // simulation. Same layer: it is reaching INTO the crowd, so the crowd may not
+  // hide it. See `drawDrainBeam`.
+  drawDrainBeam(ctx)
   // The two pool minibosses whose threat is a live OBJECT rather than a wind-up
   // event — a ball with a lane, and a round in the air. Same layer and the same
   // reason: the crowd is exactly what they are aimed at, so the crowd is the one
@@ -3906,6 +3913,112 @@ const chipFor = (id: number, hp01: number, dtMs: number): number => {
  * rather than near it — an effect that lands late would teach the player the
  * wrong moment to dodge, which is worse than no effect at all.
  */
+/** How a boss's meteor looks this frame — the size, the charge, the tier and
+ *  the fire's cycle and tumble — for the three painters below. */
+export interface MeteorLook {
+  rockR: number
+  big: boolean
+  scale: number
+  cheap: boolean
+  cycle: number
+  tumble: number
+}
+
+/**
+ * The rock being GATHERED in the boss's hand, `g` 0..1 through the gather.
+ * (hx, hy) is the palm on screen and (upX, upY) the body's up; `t` the cast's
+ * own seconds, for the embers; `minY` keeps it on screen.
+ *
+ * Exported with its two siblings so the boss-motion bench (`/#/boss-motion`)
+ * draws the rock the field draws, not a lookalike.
+ */
+export const paintHeldMeteor = (
+  ctx: CanvasRenderingContext2D, r: MeteorLook,
+  hx0: number, hy0: number, upX: number, upY: number, g: number, t: number, minY = -Infinity
+): void => {
+  const { rockR, big, scale, cheap, cycle, tumble } = r
+  const grow = 0.3 + 0.7 * g * g * (3 - 2 * g)
+  // Sitting IN the hand: the rock's centre rides up as it grows, so its
+  // underside stays on the palm instead of floating over it.
+  const lift = rockR * 0.55 * grow
+  const hx = hx0 + upX * lift
+  const hy = Math.max(minY, hy0 + upY * lift)
+  // Heat pulled INTO the hand: a halo that swells with the rock, and
+  // embers drawn inward along spokes — gathering, not exploding.
+  paintWindupGlow(ctx, hx, hy, rockR * (1.6 + g * 1.4), '255,150,60', 0.35 + g * 0.55)
+  if (!cheap) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.fillStyle = '#ffe0a0'
+    for (let i = 0; i < 8; i++) {
+      const ph = (t * 2.4 + i / 8) % 1
+      const a = i * 2.39996 + t * 1.3
+      const d = rockR * (3.6 - ph * 2.8)
+      ctx.globalAlpha = ph
+      ctx.beginPath()
+      ctx.arc(hx + Math.cos(a) * d, hy + Math.sin(a) * d * 0.8,
+        Math.max(1.6, scale * 0.07 * (0.6 + ph)), 0, TAU)
+      ctx.fill()
+    }
+    ctx.restore()
+  }
+  ctx.save()
+  ctx.translate(hx, hy)
+  ctx.scale(grow, grow)
+  ctx.rotate(tumble)
+  paintMeteorRock(ctx, rockR, big, scale, cheap, { cycle })
+  ctx.restore()
+}
+
+/**
+ * The rock in FLIGHT, `u` 0..1 from the hand at (fx, fy) to the mark at
+ * (tx, ty): a high lob, flattened only as far as it takes to keep its apex at
+ * or below `topY` — losing it off the top is losing it at the one moment it is
+ * travelling toward the player.
+ */
+export const paintThrownMeteor = (
+  ctx: CanvasRenderingContext2D, r: MeteorLook,
+  fx: number, fy: number, tx: number, ty: number, u: number, topY: number
+): void => {
+  const { rockR, big, scale, cheap, cycle, tumble } = r
+  const arc = hurlArc(fy, ty, Math.max(scale * 1.4, (ty - fy) * 0.4), topY)
+  const at = hurlPoint(u, fx, fy, tx, ty, arc)
+  if (!cheap) {
+    // A short wake of sparks along the arc behind it.
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.fillStyle = '#ffb066'
+    for (let i = 1; i <= 4; i++) {
+      const back = hurlPoint(u - i * 0.045, fx, fy, tx, ty, arc)
+      ctx.globalAlpha = 0.5 * (1 - i / 5)
+      ctx.beginPath()
+      ctx.arc(back.x, back.y, Math.max(1.5, rockR * (0.45 - i * 0.07)), 0, TAU)
+      ctx.fill()
+    }
+    ctx.restore()
+  }
+  ctx.save()
+  ctx.translate(at.x, at.y)
+  // The painted flame trails UP, which is behind a rock falling
+  // straight down; turned to the velocity, it trails behind the arc.
+  ctx.rotate(Math.atan2(at.dy, at.dx) - Math.PI / 2 + tumble * 0.5)
+  paintMeteorRock(ctx, rockR, big, scale, cheap, { cycle })
+  ctx.restore()
+}
+
+/** The rock dropped from `fromY` straight onto the mark at (tx, ty) — how
+ *  every meteor arrived before the hurl, and still the one with no boss to
+ *  throw it. `p` is the whole wind-up. */
+export const paintFallingMeteor = (
+  ctx: CanvasRenderingContext2D, r: MeteorLook, tx: number, ty: number, fromY: number, p: number
+): void => {
+  ctx.save()
+  ctx.translate(tx, fromY + (ty - fromY) * (p * p))
+  ctx.rotate(r.tumble)
+  paintMeteorRock(ctx, r.rockR, r.big, r.scale, r.cheap, { cycle: r.cycle })
+  ctx.restore()
+}
+
 interface Cast {
   /**
    * `bomb` and `bolt` are the two pool minibosses that HAVE a wind-up. The
@@ -3988,7 +4101,9 @@ const WINDUP_SFX: Record<WindupCue, FxSound> = {
   heal: 'windHeal',
   charge: 'windBolt',
   zap: 'windZap',
-  call: 'windCall'
+  call: 'windCall',
+  siphon: 'windSiphon',
+  drain: 'bossDrain'
 }
 /** Set by the stepper before a cast's beats are advanced — a charged meteor is
  *  a bigger rock and a bigger sound. Module scratch so the callback below is
@@ -4108,39 +4223,10 @@ const drawCasts = (ctx: CanvasRenderingContext2D): void => {
         // screen, and "the meteor comes from nowhere" was the report — the
         // player was watching the boss, and the boss had done nothing.
         if (!c.sky && c.hx === undefined && !bossHands.live) c.sky = true
+        const rock: MeteorLook = { rockR, big, scale, cheap, cycle, tumble }
         if (!c.sky && p < METEOR_RELEASE) {
-          const g = p / METEOR_RELEASE
-          const grow = 0.3 + 0.7 * g * g * (3 - 2 * g)
-          // Sitting IN the hand: the rock's centre rides up as it grows, so its
-          // underside stays on the palm instead of floating over it.
-          const lift = rockR * 0.55 * grow
-          const hx = bossHands.x + bossHands.upX * lift
-          const hy = Math.max(rockR * 1.15, bossHands.y + bossHands.upY * lift)
-          // Heat pulled INTO the hand: a halo that swells with the rock, and
-          // embers drawn inward along spokes — gathering, not exploding.
-          paintWindupGlow(ctx, hx, hy, rockR * (1.6 + g * 1.4), '255,150,60', 0.35 + g * 0.55)
-          if (!cheap) {
-            ctx.save()
-            ctx.globalCompositeOperation = 'lighter'
-            ctx.fillStyle = '#ffe0a0'
-            for (let i = 0; i < 8; i++) {
-              const ph = (c.t * 2.4 + i / 8) % 1
-              const a = i * 2.39996 + c.t * 1.3
-              const d = rockR * (3.6 - ph * 2.8)
-              ctx.globalAlpha = ph
-              ctx.beginPath()
-              ctx.arc(hx + Math.cos(a) * d, hy + Math.sin(a) * d * 0.8,
-                Math.max(1.6, scale * 0.07 * (0.6 + ph)), 0, TAU)
-              ctx.fill()
-            }
-            ctx.restore()
-          }
-          ctx.save()
-          ctx.translate(hx, hy)
-          ctx.scale(grow, grow)
-          ctx.rotate(tumble)
-          paintMeteorRock(ctx, rockR, big, scale, cheap, { cycle })
-          ctx.restore()
+          paintHeldMeteor(ctx, rock, bossHands.x, bossHands.y, bossHands.upX, bossHands.upY,
+            p / METEOR_RELEASE, c.t, rockR * 1.15)
         } else if (!c.sky) {
           // Latched on the first frame of the flight, from where the hands
           // actually were — in world space, so a camera move cannot bend it.
@@ -4149,45 +4235,12 @@ const drawCasts = (ctx: CanvasRenderingContext2D): void => {
             c.hy = camY + (viewH * CROWD_SCREEN_Y -
               Math.max(rockR * 1.15, bossHands.y + bossHands.upY * rockR * 0.55)) / scale
           }
-          const fx = worldToScreenX(c.hx)
-          const fy = worldToScreenY(c.hy ?? c.y)
-          const u = (p - METEOR_RELEASE) / (1 - METEOR_RELEASE)
-          // A high lob, flattened only as far as it takes to keep the rock on
-          // screen: losing it off the top is losing it at the one moment it is
-          // travelling toward the player.
-          const arc = hurlArc(fy, sy, Math.max(scale * 1.4, (sy - fy) * 0.4), rockR * 1.2)
-          const at = hurlPoint(u, fx, fy, sx, sy, arc)
-          if (!cheap) {
-            // A short wake of sparks along the arc behind it.
-            ctx.save()
-            ctx.globalCompositeOperation = 'lighter'
-            ctx.fillStyle = '#ffb066'
-            for (let i = 1; i <= 4; i++) {
-              const back = hurlPoint(u - i * 0.045, fx, fy, sx, sy, arc)
-              ctx.globalAlpha = 0.5 * (1 - i / 5)
-              ctx.beginPath()
-              ctx.arc(back.x, back.y, Math.max(1.5, rockR * (0.45 - i * 0.07)), 0, TAU)
-              ctx.fill()
-            }
-            ctx.restore()
-          }
-          ctx.save()
-          ctx.translate(at.x, at.y)
-          // The painted flame trails UP, which is behind a rock falling
-          // straight down; turned to the velocity, it trails behind the arc.
-          ctx.rotate(Math.atan2(at.dy, at.dx) - Math.PI / 2 + tumble * 0.5)
-          paintMeteorRock(ctx, rockR, big, scale, cheap, { cycle })
-          ctx.restore()
+          paintThrownMeteor(ctx, rock, worldToScreenX(c.hx), worldToScreenY(c.hy ?? c.y), sx, sy,
+            (p - METEOR_RELEASE) / (1 - METEOR_RELEASE), rockR * 1.2)
         } else {
           // No boss to throw it: the old drop from above the top of the view,
           // so it still crosses the player's eye line on the way in.
-          const fallFrom = sy - viewH * 0.8 - scale * 4
-          const my = fallFrom + (sy - fallFrom) * (p * p)
-          ctx.save()
-          ctx.translate(sx, my)
-          ctx.rotate(tumble)
-          paintMeteorRock(ctx, rockR, big, scale, cheap, { cycle })
-          ctx.restore()
+          paintFallingMeteor(ctx, rock, sx, sy, sy - viewH * 0.8 - scale * 4, p)
         }
       }
       continue
@@ -4458,6 +4511,70 @@ const drawCasts = (ctx: CanvasRenderingContext2D): void => {
         // in a still frame. Cheap: one gradient-free rectangle at half alpha.
         ctx.globalAlpha = 0.18 + p * 0.22
         ctx.fillRect(sx - halfW, Math.min(by, sy), halfW * 2, Math.abs(by - sy))
+      }
+      ctx.restore()
+      continue
+    }
+
+    if (c.kind === 'drain') {
+      // ── The healer's column ──
+      //
+      // The two facts every lane in this game carries — WHERE, at the column's
+      // TRUE half-width so a player standing just outside it is right to think
+      // they are clear, and WHEN, as something that travels — plus the one
+      // thing that says what this lane DOES: everything in it moves UP, toward
+      // the boss. A charge's bar sweeps down the road at the crowd; this one
+      // climbs from beyond the crowd to the boss's hands, and the motes in the
+      // band drift up with it, so even a still frame reads as "pulled".
+      //
+      // Crimson rather than the healer's green. Green is the colour this game
+      // keeps for a bar going back UP; the column is the threat that pays for
+      // it, and the green only arrives with the souls at the top.
+      const halfW = c.r * scale
+      const top = worldToScreenY(c.ty)
+      const bottom = worldToScreenY(c.y - CROWD_MAX_R - 0.6)
+      const y0 = Math.min(top, bottom)
+      const h = Math.abs(bottom - top)
+      ctx.save()
+      ctx.globalAlpha = c.done ? 1 - after : 0.5 + p * 0.4
+      ctx.fillStyle = 'rgba(200,24,70,0.18)'
+      ctx.fillRect(sx - halfW, y0, halfW * 2, h)
+      // The rails, brightening as the lock runs out — what makes it a LANE and
+      // not a wash of colour over the road.
+      ctx.strokeStyle = c.done ? '#ffffff' : '#ff3a68'
+      ctx.lineWidth = Math.max(2.5, scale * (0.06 + p * 0.09))
+      ctx.beginPath()
+      ctx.moveTo(sx - halfW, bottom)
+      ctx.lineTo(sx - halfW, top)
+      ctx.moveTo(sx + halfW, bottom)
+      ctx.lineTo(sx + halfW, top)
+      ctx.stroke()
+      if (!c.done) {
+        // The bar, climbing at the rate the wind-up runs out — linear, the
+        // charge's rule: one clock, and it is the promise.
+        const by = bottom + (top - bottom) * p
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.globalAlpha = 0.45 + p * 0.55
+        ctx.fillStyle = '#ffb3c6'
+        ctx.fillRect(sx - halfW, by - Math.max(2, scale * 0.07), halfW * 2, Math.max(4, scale * 0.14))
+        // …and the ground it has already claimed below it.
+        ctx.globalAlpha = 0.14 + p * 0.2
+        ctx.fillRect(sx - halfW, Math.min(by, bottom), halfW * 2, Math.abs(bottom - by))
+        // Motes drifting UP the band, on the cast's own clock, so they hold
+        // with everything else under a Frost Nova.
+        if (!minFx) {
+          const n = cheap ? 4 : 9
+          ctx.fillStyle = '#ff7a9a'
+          for (let i = 0; i < n; i++) {
+            const ph = (c.t * 0.9 + i / n) % 1
+            const mx = sx + (((i * 0.618) % 1) - 0.5) * halfW * 1.7
+            const my = bottom + (top - bottom) * ph
+            ctx.globalAlpha = (0.25 + p * 0.5) * Math.sin(ph * Math.PI)
+            ctx.beginPath()
+            ctx.arc(mx, my, Math.max(1.5, scale * 0.06), 0, TAU)
+            ctx.fill()
+          }
+        }
       }
       ctx.restore()
       continue
@@ -4822,6 +4939,71 @@ const drawHealTell = (ctx: CanvasRenderingContext2D): void => {
     ctx.fill()
     ctx.restore()
   }
+}
+
+/**
+ * ─── The healer's drain, holding ────────────────────────────────────────────
+ *
+ * Read straight off the simulation (`getBossDrain`) rather than animated off the
+ * event, for the reason the bolts are: the beam IS the attack — it is still
+ * taking survivors for as long as it is on screen — and a picture of it running
+ * on its own clock could still be pulling on a frame the simulation had let go.
+ * It is gone the frame the boss dies (`getBossDrain` is null over a corpse), and
+ * it hangs under a Frost Nova because the simulation's beam does: every phase
+ * below is read off the beam's own `t`, which only the simulation advances.
+ *
+ * Three layers, back to front: the column at its true half-width (the same
+ * number the kill reads), a hot core, and streaks racing UP it — the direction
+ * is the whole message, the bodies are going to the boss.
+ */
+const drawDrainBeam = (ctx: CanvasRenderingContext2D): void => {
+  const beam = getBossDrain()
+  if (!beam) return
+  const sx = worldToScreenX(beam.x)
+  const top = worldToScreenY(beam.fromY)
+  const bottom = worldToScreenY(beam.y - CROWD_MAX_R - 0.6)
+  const h = bottom - top
+  const halfW = beam.halfW * scale
+  const k = Math.min(1, beam.t / DRAIN_HOLD_S)
+  // Full strength for the hold, and a quick fade over its last seventh so it
+  // lets go rather than blinking out.
+  const fade = k > 0.86 ? Math.max(0, (1 - k) / 0.14) : 1
+  const pulse = 0.8 + Math.sin(beam.t * 30) * 0.2
+  const core = halfW * 0.35
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.globalAlpha = 0.3 * fade
+  ctx.fillStyle = '#ff2c5c'
+  ctx.fillRect(sx - halfW, top, halfW * 2, h)
+  ctx.globalAlpha = 0.55 * fade * pulse
+  ctx.fillStyle = '#ff8fb0'
+  ctx.fillRect(sx - core, top, core * 2, h)
+  ctx.globalAlpha = 0.8 * fade
+  ctx.fillStyle = '#fff0f4'
+  ctx.fillRect(sx - core * 0.3, top, core * 0.6, h)
+  if (!minFx) {
+    const n = cheapFx ? 5 : 12
+    ctx.fillStyle = '#ffd0dc'
+    const w = Math.max(2, scale * 0.05)
+    for (let i = 0; i < n; i++) {
+      const ph = (beam.t * 2.2 + i / n) % 1
+      const mx = sx + (((i * 0.618) % 1) - 0.5) * halfW * 1.8
+      const my = bottom - h * ph
+      ctx.globalAlpha = 0.7 * fade * Math.sin(ph * Math.PI)
+      ctx.fillRect(mx - w / 2, my - scale * 0.25, w, scale * 0.5)
+    }
+  }
+  // The rails, so the edge of the pull is as legible as the edge of the warning.
+  ctx.globalAlpha = 0.9 * fade
+  ctx.strokeStyle = '#ff5a82'
+  ctx.lineWidth = Math.max(2, scale * 0.07)
+  ctx.beginPath()
+  ctx.moveTo(sx - halfW, bottom)
+  ctx.lineTo(sx - halfW, top)
+  ctx.moveTo(sx + halfW, bottom)
+  ctx.lineTo(sx + halfW, top)
+  ctx.stroke()
+  ctx.restore()
 }
 
 /**
@@ -5830,8 +6012,10 @@ const drawLevers = (ctx: CanvasRenderingContext2D): void => {
  *     a mark on one.
  *
  * The distance this is sized for is a measured number, not a taste: the visible
- * road is `CROWD_SCREEN_Y × VIEW_HEIGHT` = 13.68 units, and the box's far edge
- * clears the top of the screen at 11.9 — 2.28 s at stage 2's 5.21 u/s. That is
+ * road was `CROWD_SCREEN_Y × VIEW_HEIGHT` = 13.68 units when this was sized, and
+ * the box's far edge cleared the top of the screen at 11.9 — 2.28 s at stage
+ * 2's 5.21 u/s. (Since the 2026-09-18 zoom the top edge is ~14.3 units out and
+ * the HUD bar's lower edge ~11-12, so the box reads from about the same place.) That is
  * the whole budget, and it is the budget the old design spent 56 % of dressed
  * as a shut steel crate. Everything above therefore works on the box's own
  * half-extent (`WEAPON_GIFT_BOX_R` is 1.8 units, 40 % of the lane) rather than
@@ -7092,7 +7276,11 @@ const drawGates = (ctx: CanvasRenderingContext2D): void => {
     // for as long as the crowd kept shooting. An empty meter under a `?` is the
     // one thing on the leaf that says "this door does not work like the others",
     // which is the tell the neutral dressing exists to avoid.
-    if (plain && g.value < gatePumpCap(g.op) && (hot || g.charge > 0)) {
+    // The door's OWN cap where it has one: a fixed × (a priced twin) and the
+    // opening doorway once it has raced to its ceiling — a meter under a door
+    // that can no longer climb is the same lie as one under a `?`.
+    const cap = Math.min(gatePumpCap(g.op), g.pumpCap ?? Number.POSITIVE_INFINITY)
+    if (plain && g.value < cap && (hot || g.charge > 0)) {
       const barW = plateW * 1.02
       const frac = Math.max(0, Math.min(1, g.charge / (isScaleOp(g.op) ? scaleTickMs : addTickMs)))
       ctx.fillStyle = 'rgba(0,0,0,0.5)'
@@ -8994,15 +9182,19 @@ const clearBossTells = (): void => {
 // sim-stepped clock, so a pose can never run ahead of the hit it announces.
 
 /** The wind-up the body is performing this frame. Scratch, reused. */
-interface Windup {
+export interface Windup {
   kind: WindupKind
   p: number
   after: number
   side: number
   charged: boolean
   life: number
+  /** A drain whose beam is ON — see `PoseOpts.holding`. */
+  holding: boolean
 }
-const windup: Windup = { kind: 'meteor', p: 0, after: 0, side: 1, charged: false, life: 1 }
+const windup: Windup = {
+  kind: 'meteor', p: 0, after: 0, side: 1, charged: false, life: 1, holding: false
+}
 
 /**
  * How much of a rake's wind-up the body spends raising its claws, seconds.
@@ -9029,7 +9221,8 @@ type LiveBoss = NonNullable<ReturnType<typeof getBoss>>
 const findWindup = (b: LiveBoss, t: number): Windup | null => {
   let rank = Number.POSITIVE_INFINITY
   const take = (
-    kind: WindupKind, at: number, life: number, charged: boolean, dx: number, span = life
+    kind: WindupKind, at: number, life: number, charged: boolean, dx: number, span = life,
+    holding = false
   ): void => {
     const left = life - at
     if (left < -POSE_AFTER_S) return
@@ -9043,10 +9236,17 @@ const findWindup = (b: LiveBoss, t: number): Windup | null => {
     windup.side = dx < 0 ? -1 : 1
     windup.charged = charged
     windup.life = life
+    windup.holding = holding
   }
 
+  // A drain's beam, holding, outranks everything: it is the boss's whole
+  // attention (the next cast does not even start until it lets go), so the body
+  // holds the reach for exactly as long as the simulation holds the beam.
+  const beam = getBossDrain()
+  if (beam) take('drain', 1, 1, false, beam.x - b.x, 1, true)
+
   for (const c of casts) {
-    if (c.kind === 'meteor' || c.kind === 'shock' || c.kind === 'charge') {
+    if (c.kind === 'meteor' || c.kind === 'shock' || c.kind === 'charge' || c.kind === 'drain') {
       take(c.kind, c.t, c.life, c.charged, c.x - b.x)
     }
   }
@@ -9139,7 +9339,12 @@ const WINDUP_RGB: Record<WindupKind, string> = {
   rake: '255,236,190',
   heal: '92,240,138',
   bolt: '110,240,150',
-  summon: '190,120,255'
+  summon: '190,120,255',
+  // Crimson, and deliberately not the healer's own green: the drain is a
+  // threat, and green is the one colour this game keeps for the bar going back
+  // UP (`drawHealTell`). The green arrives at the end, on the souls reaching the
+  // boss — the same event, seen from the other end.
+  drain: '255,58,104'
 }
 
 /**
@@ -9147,7 +9352,7 @@ const WINDUP_RGB: Record<WindupKind, string> = {
  * a shock, dust kicked up by a coiling charge, speed streaks once it runs,
  * a summoning circle. Drawn BEFORE the body, so it sits behind it.
  */
-const drawWindupGround = (
+export const drawWindupGround = (
   ctx: CanvasRenderingContext2D, w: Windup, glow: number, size: number, t: number
 ): void => {
   if (w.kind === 'shock') {
@@ -9156,6 +9361,13 @@ const drawWindupGround = (
   }
   if (w.kind === 'summon') {
     paintWindupGlow(ctx, 0, 0, size * (0.6 + glow * 0.4), WINDUP_RGB.summon, glow * 0.5, 0.32)
+    return
+  }
+  if (w.kind === 'drain') {
+    // A pool of the drain's colour under the feet, swelling into the reach and
+    // pulsing while the beam holds — the boss is standing in what it is taking.
+    const pulse = w.holding ? 0.85 + Math.sin(t / 60) * 0.15 : 1
+    paintWindupGlow(ctx, 0, 0, size * (0.55 + glow * 0.45) * pulse, WINDUP_RGB.drain, glow * 0.55, 0.32)
     return
   }
   if (w.kind !== 'charge' || w.after > 0) return
@@ -9205,7 +9417,7 @@ const drawWindupGround = (
  * after the sprite. The meteor has none here: the rock it is holding is the
  * light, and `drawCasts` draws it.
  */
-const drawWindupBody = (
+export const drawWindupBody = (
   ctx: CanvasRenderingContext2D, w: Windup, glow: number, size: number, t: number
 ): void => {
   if (glow <= 0.02) return
@@ -9254,6 +9466,17 @@ const drawWindupBody = (
       paintWindupGlow(ctx, -size * 0.35, -size * 1.5, size * 0.35 * beat, WINDUP_RGB.summon, glow * 0.8)
       paintWindupGlow(ctx, size * 0.35, -size * 1.5, size * 0.35 * beat, WINDUP_RGB.summon, glow * 0.8)
       return
+    case 'drain': {
+      // Both hands lit while it gathers, and the light dropping to the chest as
+      // it reaches — where the beam leaves from. While the beam holds the core
+      // burns white-hot at the centre: that is where the bodies are going.
+      const reach = w.holding ? 1 : Math.max(0, (w.p - 0.8) / 0.2)
+      const hy = -size * (1.45 - reach * 0.75)
+      paintWindupGlow(ctx, -size * 0.32 * (1 - reach), hy, size * 0.32 * beat, WINDUP_RGB.drain, glow * 0.85)
+      paintWindupGlow(ctx, size * 0.32 * (1 - reach), hy, size * 0.32 * beat, WINDUP_RGB.drain, glow * 0.85)
+      if (w.holding) paintWindupGlow(ctx, 0, -size * 0.7, size * 0.3 * beat, '255,220,230', glow * 0.8)
+      return
+    }
     case 'meteor':
       return
   }
@@ -9422,7 +9645,6 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
 
   // Frozen, it holds the pose it was caught in — see `drawFoes`.
   const frozen = frostActive() && !b.dead
-  const frame = monsterFrame(b.design, ((frozen ? frostFrozenAt() : t) / 900) % 1)
   const enraged = bossIsEnraged()
 
   // ── The wind-up pose ──
@@ -9431,9 +9653,19 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
   // and a squash plants it. A frozen boss holds the pose it was caught in — the
   // casts it reads are frozen on the same clock, and the ease is held too.
   const wu = findWindup(b, t)
+  // ── The throw ──
+  //
+  // A meteor is thrown by the ARMS: the body plays its drawn (or painted)
+  // hurl — scoop, cock, release, follow-through — on the cast's own clock, in
+  // place of the walk, and the rock sits in the hand the drawing put it in.
+  // The pose below is rest for a meteor; nothing stretches the body.
+  const hurlAt = wu?.kind === 'meteor' ? meteorHurlPanel(wu.p) : null
+  const hurl = hurlAt === null ? null : monsterHurlFrame(b.design, hurlAt)
+  const frame = hurl?.frame ?? monsterFrame(b.design, ((frozen ? frostFrozenAt() : t) / 900) % 1)
   const pose = easeBossPose(
     wu ? bossPose(wu.kind, wu.p, {
-      side: wu.side, charged: wu.charged, after: wu.after, life: wu.life, dashS: CHARGE_DASH_S
+      side: wu.side, charged: wu.charged, after: wu.after, life: wu.life, dashS: CHARGE_DASH_S,
+      holding: wu.holding
     }) : REST_POSE,
     t, frozen
   )
@@ -9448,14 +9680,21 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
   if (Math.abs(pose.lean) > 0.0005) ctx.rotate(pose.lean)
   if (Math.abs(pose.sx - 1) > 0.0005 || Math.abs(pose.sy - 1) > 0.0005) ctx.scale(pose.sx, pose.sy)
 
-  // The raised hand, for the meteor: cocked over the shoulder AWAY from the
-  // mark, so the throw sweeps across the body toward it rather than dropping
-  // straight down its front. Mapped back to the screen with the body's own up.
+  // The hand the rock sits in. Throwing, it is the drawing's own palm — the
+  // painted throw is painted over that drawing, so the same fraction of the
+  // panel holds for both. Without a drawn throw, a raised hand over the head,
+  // away from the mark. Mapped back to the screen with the body's own up.
   {
     const c = Math.cos(pose.lean)
     const s = Math.sin(pose.lean)
-    const lx = (wu?.kind === 'meteor' ? -wu.side * size * 0.3 : 0) * pose.sx
-    const ly = -size * 1.45 * pose.sy
+    let lx = (wu?.kind === 'meteor' ? -wu.side * size * 0.3 : 0) * pose.sx
+    let ly = -size * 1.45 * pose.sy
+    if (hurl?.grip && frame) {
+      const k = (size * 1.6) / (frame.height * SPRITE_HEIGHT_R)
+      const mirror = monsterFaces(b.design) === 'left' ? -1 : 1
+      lx = mirror * (hurl.grip[0] - 0.5) * frame.width * k * pose.sx
+      ly = (hurl.grip[1] - SPRITE_FOOT_R) * frame.height * k * pose.sy
+    }
     bossHands.live = true
     bossHands.x = sx + px + lx * c - ly * s
     bossHands.y = sy + py + lx * s + ly * c
@@ -11329,6 +11568,66 @@ const applyFx = (e: FxEvent): void => {
         beats: windupBeats('bolt', e.ttl), beat: 0
       })
       break
+
+    case 'drainCast':
+      // The gather under the raised arms (`windSiphon`) and the pull ON the beat
+      // (`bossDrain`, fitted to the hold), both fired off the cast's own clock —
+      // see `windupBeats`. The column is the boss's (`bossOwnsCast`), so a
+      // healer killed mid-wind-up takes it off the road with its body.
+      casts.push({
+        kind: 'drain', x: e.x, y: e.y, r: e.halfW, inner: 0, dir: 1,
+        charged: false, tx: e.x, ty: e.fromY, t: 0, life: e.ttl, done: false,
+        beats: windupBeats('drain', e.ttl, { holdS: DRAIN_HOLD_S }), beat: 0
+      })
+      break
+
+    case 'bossDrain':
+      // The beam connecting. Its sound is the cast's second beat (above), so
+      // this is only the hit the eye feels: a small shake and a crimson wash —
+      // the heal's green wash is for the bar going up, not for this.
+      triggerShake('small')
+      screenFlash = 0.14
+      flashColour = '255,60,110'
+      break
+
+    case 'drainPull': {
+      // Survivors pulled up the beam: wisps rising out of the column to the
+      // boss, a third of them already green — what they become when they get
+      // there. Capped per event, because at depth one tick of a drain eaten
+      // whole is a hundred bodies and the particle ring is shared.
+      const b = getBoss()
+      const toX = b ? b.x : e.x
+      const toY = b ? b.y + 0.6 : e.y + 6
+      const n = Math.min(e.n, minFx ? 2 : cheapFx ? 5 : 12)
+      for (let i = 0; i < n; i++) {
+        const x = e.x + (Math.random() - 0.5) * 2.6
+        const y = e.y + (Math.random() - 0.5) * 1.6
+        const life = 420 + Math.random() * 220
+        emit({
+          x, y,
+          vx: (toX - x) / (life / 1000), vy: (toY - y) / (life / 1000),
+          life, size: 0.13 + Math.random() * 0.08,
+          color: i % 3 === 0 ? [110, 245, 150] : [255, 96, 136],
+          additive: true, shape: 0
+        })
+      }
+      break
+    }
+
+    case 'drainEnd': {
+      // Say what the mistake cost, in the heal's own words: the bar went back up
+      // by this much, and it went up because the crowd stood in the column. A
+      // drain the crowd dodged ends silently — there is nothing to report.
+      if (e.healed <= 0.002) break
+      playFx('bossHeal', 0.6)
+      const b = getBoss()
+      emitText({
+        x: b ? b.x : e.x, y: (b ? b.y : e.y) + 0.8, vy: 2.6, life: 1000,
+        text: `+${Math.max(1, Math.round(e.healed * 100))}%`,
+        color: '#6cf59a', size: 0.9, crit: true
+      })
+      break
+    }
 
     case 'bossBoltHit': {
       playFx('bossSlam', 0.5)

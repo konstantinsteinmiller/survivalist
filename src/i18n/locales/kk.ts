@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'Келесі бонусқа дейінгі кезеңдер',
+    'bonus': "Бонус +{coins}",
     'fireRate': 'Қарқын',
     'incoming': 'Шабуыл келеді!',
     'dodge': 'Жалтар',
@@ -91,6 +92,7 @@ export default {
 
     'next': "Келесі: {label} · {when}",
     'bossAhead': "Алда бос: {name}",
+    'rankUp': "Орын #{rank} ▲{n}",
     'bossName': {
       'grumpling': "Грамплинг",
       'bonecap': "Бонкэп",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "Қару таңдаңыз",
     'nextStage': "келесі деңгей",
-    'stagesAway': "{n} деңгейден кейін"
+    'stagesAway': "{n} деңгейден кейін",
+    'thisStage': "осы деңгей"
   },
   'weaponPick': {
     'title': "Қаруыңызды таңдаңыз",

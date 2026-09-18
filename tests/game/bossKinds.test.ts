@@ -25,8 +25,9 @@ import { CROWD_MAX_R } from '@/game/survival'
 import {
   BOSS_POOL, CLAW_FURROWS, CLAW_SPACING, HEAL_EVERY, HEAL_FRACTION, HEAL_MAX_CASTS,
   HEAL_MIN_GAP_S,
-  SUMMON_BUDGET, SUMMON_OPENING_CD, SUMMON_PER_WAVE, SUMMON_WAVES_MAX, SUMMON_WAVE_RAMP,
-  THREAT_POOL_FROM_STAGE, summonWaveSize,
+  SUMMON_BUDGET, SUMMON_CROWD_SCALE_MAX, SUMMON_OPENING_CD, SUMMON_PER_WAVE, SUMMON_WALL_SHARE,
+  SUMMON_WAVES_MAX, SUMMON_WAVE_RAMP,
+  THREAT_POOL_FROM_STAGE, summonBudgetBodies, summonWaveBodies, summonWaveSize,
   bossKindFor, chargeHalfW, clawFurrowHalfW, clawLaneXs, type BossKind
 } from '@/game/threats'
 import { drainFx, type FxEvent } from '@/use/useVfx'
@@ -310,6 +311,11 @@ describe('the healer actually heals, on its own clock', () => {
       // fight happens to produce one.
       const b = game.getBoss()
       if (b) { b.hp = b.maxHp; b.guarded = SPENT; b.guard = 0 }
+      // …and the crowd kept alive, the way the "second half" specs below keep
+      // it: a stationary crowd eats every drain in the fight now
+      // (`DRAIN_SHARE_MUL`), and a crowd that wipes at second fifteen ends a
+      // fight that needed twenty to show a gap twice.
+      if (game.squadCount.value < 45) game.debugAddUnits(90 - game.squadCount.value)
       game.steerTo(game.anchor().x)
       game.step(STEP_MS)
       for (const e of drainFx()) if (e.kind === 'bossHeal') at.push(ticks)
@@ -509,32 +515,67 @@ describe('the summoner is a wall with a budget', () => {
     expect(waves, `an endless fight fielded ${waves} waves`).toBeLessThanOrEqual(SUMMON_WAVES_MAX)
   })
 
-  it('prices its bodies off its own bar, not off the stage', async () => {
-    // Foe health is linear in the stage and boss health is exponential over the
-    // middle of the campaign, so a wall priced as husks is a real wall early and
-    // wet paper by stage 20. Measured across two stages the rotation fields a
-    // summoner on: the summons' health has to track the BOSS's.
+  it('prices its wall in seconds of the crowd\'s own fire, like its bar', async () => {
+    // The owner's brief: "his minions based on the adaptive difficulty". A wall
+    // priced as husks was wet paper by stage 20; one priced as a share of an
+    // authored bar was wet paper at every stage once the bar itself stopped
+    // being authored. Priced in the run's own seconds, the wall scales with the
+    // crowd that walked in — the same way the bar does — whatever the stage.
+    //
     // Read the world BEFORE starting the next fight. The simulation is a module
     // singleton and `startStage` wipes it, so a `getFoes()` held across two
     // fights reads the second one's road — which is how the first version of
     // this test compared a stage against itself and still went green.
-    const measure = async (stage: number): Promise<{ summon: number; boss: number }> => {
-      const r = await fight({ stage, squad: 40, steer: () => 0, maxTicks: 400 })
+    const measure = async (squad: number, damage = 0): Promise<{ wall: number; dps: number; bar: number }> => {
+      const r = await fight({ stage: SUMMONER_STAGE, squad, damage, steer: () => 0, maxTicks: 400 })
       const summons = r.game.getFoes().filter((f) => !f.elite && f.design === 'marrowknight')
-      expect(summons.length, `no summons on stage ${stage}'s road to measure`).toBeGreaterThan(0)
-      return { summon: summons[0]!.maxHp, boss: r.boss!.maxHp }
+      expect(summons.length, `no summons on the road at squad ${squad} to measure`).toBeGreaterThan(0)
+      const perBody = summons[0]!.maxHp
+      return {
+        wall: perBody * summonBudgetBodies(r.squadAtBoss),
+        dps: r.squadAtBoss * r.game.damage.value * r.game.runFireRate.value,
+        bar: r.boss!.maxHp
+      }
     }
-    const shallow = await measure(SUMMONER_STAGE)
-    const deep = await measure(SUMMONER_STAGE + BOSS_POOL.length)
-    const shallowRatio = shallow.summon / shallow.boss
-    const deepRatio = deep.summon / deep.boss
-    // The same fraction of the bar at both depths — that is what "priced off the
-    // boss" means, and it is exactly what a husk-priced wall would fail.
-    expect(deepRatio).toBeCloseTo(shallowRatio, 3)
-    // …and the premise: the two bosses really are different sizes, or the
-    // assertion above holds for a wall priced off anything at all.
-    expect(deep.boss, 'the two summoner stages have the same boss health')
-      .toBeGreaterThan(shallow.boss * 1.5)
+    const small = await measure(120)
+    const hard = await measure(120, 3)
+    // A crowd hitting four times harder meets a wall four times tougher — the
+    // same seconds of ITS fire. The band is for rounding, not for the model:
+    // one body's health is a whole number, and at this size a body is a few
+    // dozen points.
+    expect(hard.wall / small.wall, 'the wall ignored the firepower that walked in')
+      .toBeGreaterThan((hard.dps / small.dps) * 0.9)
+    expect(hard.wall / small.wall).toBeLessThan((hard.dps / small.dps) * 1.1)
+    // …and it is a real share of the fight, not a rounding error beside the
+    // bar: between them, the bar and the wall are the fight (`SUMMON_WALL_SHARE`).
+    expect(small.wall / (small.wall + small.bar), 'the wall is a sliver of the fight')
+      .toBeGreaterThan(SUMMON_WALL_SHARE * 0.6)
+  })
+
+  it('raises a wider wall in front of a bigger crowd, from the same budget', () => {
+    // Four skeletons in front of three thousand survivors is not a wall. The
+    // COUNT follows the crowd (`summonCrowdScale`); the budget of WAVES does not
+    // move, so the wall ends exactly as it always did.
+    expect(summonWaveBodies(2, 40)).toBe(summonWaveSize(2))
+    expect(summonWaveBodies(2, 3000)).toBeGreaterThan(summonWaveSize(2))
+    expect(summonWaveBodies(2, 3000)).toBeLessThanOrEqual(summonWaveSize(2) * SUMMON_CROWD_SCALE_MAX)
+    let last = 0
+    for (const squad of [10, 60, 120, 300, 1000, 4000]) {
+      const n = summonBudgetBodies(squad)
+      expect(n, `a crowd of ${squad} met a smaller wall than a smaller crowd`).toBeGreaterThanOrEqual(last)
+      last = n
+    }
+  })
+
+  it('fields its whole wall before the bar can be finished, however hard it is hit', async () => {
+    // The measurement that made the wall answer the bar (`SUMMON_GUARD_GATES`):
+    // priced in the fight's own seconds on the clock alone, the summoner died
+    // having raised one to three waves of six, because a strong crowd took the
+    // bar before the wall had risen. An overwhelming crowd is the case.
+    const r = await fight({ stage: SUMMONER_STAGE, squad: 400, damage: 20, steer: () => 0, maxTicks: 6000 })
+    expect(r.killed, 'the overwhelming crowd never finished the summoner').toBe(true)
+    expect(of(r.fx, 'summonWave').length, 'the summoner died before its wall had risen')
+      .toBe(SUMMON_WAVES_MAX)
   })
 
   it('is beatable by a squad that cannot out-damage the spawn rate', async () => {

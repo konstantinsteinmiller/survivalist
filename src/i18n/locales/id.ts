@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'Tahap menuju bonus berikutnya',
+    'bonus': "Bonus +{coins}",
     'fireRate': 'Laju',
     'incoming': 'Serangan datang!',
     'dodge': 'Hindari',
@@ -91,6 +92,7 @@ export default {
 
     'next': "Berikutnya: {label} · {when}",
     'bossAhead': "Bos menanti: {name}",
+    'rankUp': "Peringkat #{rank} ▲{n}",
     'bossName': {
       'grumpling': "Grumpling",
       'bonecap': "Bonecap",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "Pilih senjata",
     'nextStage': "level berikutnya",
-    'stagesAway': "{n} level lagi"
+    'stagesAway': "{n} level lagi",
+    'thisStage': "level ini"
   },
   'weaponPick': {
     'title': "Pilih senjatamu",

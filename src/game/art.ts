@@ -59,6 +59,13 @@ export const ART_FOLDERS = {
    * run, never on the splash (`deathArtWant`) — and a miss is the drawn topple.
    */
   death: 'images/deaths',
+  /**
+   * Painted meteor HURLS, one strip per boss design that throws one: eight
+   * panels of the arms scooping, cocking and throwing (`HURL_FRAME_ASPECT`,
+   * the death's box). Played over the cast's clock in place of the walk; a
+   * miss is the drawn throw (`monsterSprites.monsterHurlFrame`).
+   */
+  hurl: 'images/hurls',
   /** Road props: the two crates, the barricade tile, boulders, the powder keg,
    *  the divider pillar, the coin. One still each. */
   prop: 'images/props',

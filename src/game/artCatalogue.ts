@@ -18,7 +18,7 @@ import type { ArtKind } from '@/game/art'
  * never probed at run time — the manifest lists it with an explicit target
  * under `images/logo/`, where the PWA manifest and the portals read it.
  */
-export const ART_CATALOGUE: Record<Exclude<ArtKind, 'monster' | 'hero' | 'death'>, readonly string[]> = {
+export const ART_CATALOGUE: Record<Exclude<ArtKind, 'monster' | 'hero' | 'death' | 'hurl'>, readonly string[]> = {
   prop: [
     'crate-damage', 'crate-rate', 'barricade',
     'boulder-1', 'boulder-2', 'boulder-3',

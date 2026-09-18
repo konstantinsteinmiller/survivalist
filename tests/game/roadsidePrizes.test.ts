@@ -23,7 +23,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  BULWARK_FLOOR, BULWARK_R, BULWARK_SHARE, CAGE_R, CAGE_RESCUE_BASE, CROWD_MAX_R, UNIT_R
+  BULWARK_FLOOR, BULWARK_R, BULWARK_SHARE, CAGE_R, CAGE_RESCUE_BASE, CROWD_MAX_R, LANE_HALF, UNIT_R
 } from '@/game/survival'
 import {
   BULWARK_STAGE, CAGE_BANK_LEAD, CAGE_STAGE,
@@ -264,12 +264,18 @@ describe('breaking a cage', () => {
       // holding the next stage's squad (`Cage.warden`), and it is the first
       // entry in the array. Steering at THAT is steering at something three
       // hundred units away that can never be opened.
-      const cage = game.getCages().find((c) => !c.dead && !c.warden)
+      //
+      // `!c.sealed` too: since stage 2 was re-cut into acts (2026-09-18) its
+      // roadside cage stands AFTER the first elite, whose own cage — in the
+      // verge at `REWARD_CAGE_X`, opened by the kill and holding
+      // `minibossCageHold` — is the first to break on the road. This spec is
+      // about the roadside one, so a break only counts inside the lane.
+      const cage = game.getCages().find((c) => !c.dead && !c.warden && !c.sealed)
       game.steerTo(cage ? cage.x : 0)
       const before = game.squadCount.value
       game.step(STEP_MS)
       for (const e of drainFx()) {
-        if (e.kind === 'cageBreak') {
+        if (e.kind === 'cageBreak' && Math.abs(e.x) < LANE_HALF) {
           paid = e.count
           deltaOnBreak = game.squadCount.value - before
         }

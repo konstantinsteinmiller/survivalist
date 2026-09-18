@@ -1,6 +1,8 @@
 // ─── The weapon puzzle ──────────────────────────────────────────────────────
 //
-// One optional beat every OTHER stage that pays out a WEAPON for the rest of
+// One optional beat every OTHER stage — and every stage of the long middle
+// road, 16-29 (`WEAPON_EVERY_STAGE_FROM`; pinned in `longRoad.test.ts`) — that
+// pays out a WEAPON for the rest of
 // it: two levers at the road's shoulders, each behind a destructible stone,
 // and — twelve units on — an armoured box that only opens if both went over.
 //
@@ -29,7 +31,7 @@ import {
   buildTrack, MIN_RUN_GAP, WEAPON_CLOSING_CLEAR, weaponSlotIdFor, type TrackEvent
 } from '@/game/track'
 import {
-  BULLET_RANGE, CROWD_MAX_R, CROWD_SCREEN_Y, LANE_HALF, UNIT_R, VIEW_HEIGHT, stageSpeed
+  BULLET_RANGE, CROWD_MAX_R, LANE_HALF, UNIT_R, stageSpeed
 } from '@/game/survival'
 import {
   LEVER_R, LEVER_STAGGER, LEVER_STONE_LEAD, LEVER_STONE_W, leverStoneHp,
@@ -955,7 +957,13 @@ describe('the gift is an open box', () => {
     // The box's FAR edge clearing the top of the screen, not its centre: half
     // an object hanging off the camera is a silhouette, not a read.
     const gift = puzzleOf(WEAPON_GIFT_STAGE)!
-    const visible = CROWD_SCREEN_Y * VIEW_HEIGHT - (gift.boxR ?? WEAPON_BOX_R)
+    //
+    // "The top of the screen" is the LOWER edge of the HUD strip, and since the
+    // camera was solved from the gun's range (2026-09-18, `cameraScale`) the one
+    // figure guaranteed readable under it on every ratio is `BULLET_RANGE`
+    // itself (`byHud`). It used to be `CROWD_SCREEN_Y x VIEW_HEIGHT` (13.68),
+    // which the zoomed-in frame no longer shows under the strip.
+    const visible = BULLET_RANGE - (gift.boxR ?? WEAPON_BOX_R)
     expect(
       visible,
       `a full-lane correction eats ${crossUnits.toFixed(2)} units of road and the box ` +

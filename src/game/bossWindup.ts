@@ -11,14 +11,23 @@
 // no longer dropped from the sky — the boss gathers it over its head and hurls
 // it, and it flies on an arc from the hands to the mark.
 //
-// This file is the pure half: the pose curves and the throw's arc, as functions
-// of the cast's own progress. The renderer applies them. Nothing here reads a
+// The meteor is the exception to the pose: its body is DRAWN throwing — the
+// arms scoop the rock up, cock it back and hurl it (`monsterKit` "Hurling",
+// painted per boss as `artSheet.BOSS_HURLS`) — and `meteorHurlPanel` says which
+// panel of that throw shows when. Its pose here is rest: the first version
+// reared and snapped the walk frame with a squash and a stretch, and the owner
+// read it, rightly, as the boss being distorted rather than throwing anything.
+//
+// This file is the pure half: the pose curves, the throw's panels and the
+// throw's arc, as functions of the cast's own progress. The renderer applies them. Nothing here reads a
 // clock or touches the simulation, and nothing here may move a hit: every curve
 // is a function of `p = t / life`, and `life` is the exact time to impact the
 // simulation handed the cast, so the throw still lands on the beat.
 
+import { HURL_KEYS, HURL_RELEASE_PANEL } from '@/game/monsterKit'
+
 /** Which wind-up the body is performing. */
-export type WindupKind = 'meteor' | 'shock' | 'charge' | 'rake' | 'heal' | 'bolt' | 'summon'
+export type WindupKind = 'meteor' | 'shock' | 'charge' | 'rake' | 'heal' | 'bolt' | 'summon' | 'drain'
 
 /**
  * A body pose, applied around the FEET.
@@ -69,6 +78,45 @@ export const RAKE_STRIKE_AT = 0.85
 export const BOLT_THRUST_AT = 0.82
 /** The heal's gather: the arms are fully up this far through the cast. */
 export const HEAL_GATHER_AT = 0.7
+/**
+ * The drain's reach: the healer gathers with its arms up for this much of the
+ * wind-up and then throws them forward, down the column, as the beam lands. The
+ * sound's second beat sits at the END of the cast rather than here — the reach
+ * is the body committing, the beam is the hit — so the ear hears the pull on
+ * exactly the frame the bodies start to go.
+ */
+export const DRAIN_REACH_AT = 0.8
+
+/**
+ * How much of the rock's flight the throw's follow-through takes — the panels
+ * after the release. Short of the whole flight on purpose: the body is back at
+ * rest, walking, while the rock is still in the air, so the player's eye has
+ * nothing left on the boss to hold it and follows the rock down to the mark.
+ */
+export const HURL_FOLLOW_SHARE = 0.6
+
+/**
+ * Which panel of the boss's drawn throw shows at meteor progress `p` (0 at the
+ * cast, 1 at the impact), or null once the follow-through is over and the body
+ * is back on its walk.
+ *
+ * The gather plays the panels before the release (`HURL_RELEASE_PANEL`) over
+ * exactly `METEOR_RELEASE` of the cast, so the release panel arrives on the
+ * frame the rock leaves the hand — the frame `drawCasts` latches its flight
+ * from, and the frame the `hurl` sound fires on (`windupBeats`). The rest play
+ * over `HURL_FOLLOW_SHARE` of the flight. At the ordinary 1.0 s wind-up that is
+ * about 95 ms a panel on either side of the release — one steady beat.
+ */
+export const meteorHurlPanel = (p: number): number | null => {
+  const k = clamp01(p)
+  if (k < METEOR_RELEASE) {
+    return Math.min(HURL_RELEASE_PANEL - 1, Math.floor((k / METEOR_RELEASE) * HURL_RELEASE_PANEL))
+  }
+  const w = (k - METEOR_RELEASE) / (1 - METEOR_RELEASE)
+  const after = HURL_KEYS - HURL_RELEASE_PANEL
+  const i = Math.floor((w / HURL_FOLLOW_SHARE) * after)
+  return i < after ? HURL_RELEASE_PANEL + i : null
+}
 
 /** How long a pose takes to settle after its impact, seconds. Matches the
  *  renderer's `CAST_AFTER_S`, the window a landed cast is still on the road. */
@@ -114,6 +162,10 @@ export interface PoseOpts {
   life?: number
   /** The charge's dash length, seconds. */
   dashS?: number
+  /** A drain whose beam is ON — the body holds the reach and trembles with it
+   *  for as long as the beam pulls, rather than settling as a landed strike
+   *  does. */
+  holding?: boolean
 }
 
 /**
@@ -128,31 +180,10 @@ export const bossPose = (kind: WindupKind, p: number, o: PoseOpts = {}): BossPos
   const k = clamp01(p)
 
   switch (kind) {
-    case 'meteor': {
-      // Rear up with the rock, snap forward on the release, settle in flight.
-      const amp = o.charged ? 1.4 : 1
-      const reared = pose({
-        lean: -0.12 * side * amp, sy: 1 + 0.14 * amp, sx: 1 - 0.06 * amp,
-        lift: 0.06 * amp, glow: 1
-      })
-      const thrown = pose({
-        lean: 0.15 * side * amp, sy: 1 - 0.12 * amp, sx: 1 + 0.09 * amp,
-        dip: 0.09 * amp, glow: 0.2
-      })
-      if (k < METEOR_RELEASE) {
-        const g = smooth(k / METEOR_RELEASE)
-        const held = mixPose(REST_POSE, reared, g)
-        // The end of the gather trembles: the rock is at full size and the
-        // throw is one beat away.
-        held.shake = g > 0.75 ? (0.01 * amp * (g - 0.75)) / 0.25 : 0
-        return held
-      }
-      const w = (k - METEOR_RELEASE) / (1 - METEOR_RELEASE)
-      // The snap is fast — the first sixth of the flight — and the settle
-      // takes the next half, so the body is at rest before the rock lands.
-      if (w < 0.16) return mixPose(reared, thrown, smooth(w / 0.16))
-      return mixPose(thrown, REST_POSE, smooth((w - 0.16) / 0.5))
-    }
+    case 'meteor':
+      // Rest: the throw is in the drawing (`meteorHurlPanel`), and the body
+      // is never stretched, squashed or tilted on top of it.
+      return pose({})
 
     case 'shock': {
       // Rise, hang, and stomp: the body lands on the frame the ring does.
@@ -208,6 +239,30 @@ export const bossPose = (kind: WindupKind, p: number, o: PoseOpts = {}): BossPos
       if (after > 0) return mixPose(thrust, REST_POSE, settle)
       if (k < BOLT_THRUST_AT) return mixPose(REST_POSE, drawn, smooth(k / BOLT_THRUST_AT))
       return mixPose(drawn, thrust, smooth((k - BOLT_THRUST_AT) / (1 - BOLT_THRUST_AT)))
+    }
+
+    case 'drain': {
+      // Arms up and back, gathering; then thrown forward and DOWN the column —
+      // the body reaching for the crowd it is about to pull. A lunge toward the
+      // camera (`dip`) rather than a lean to one side, because the column comes
+      // straight down the road from the boss and the reach has to point along it.
+      const gathered = pose({ lean: -0.06 * side, sy: 1.12, sx: 0.95, lift: 0.06, glow: 1 })
+      const reaching = pose({ sy: 0.93, sx: 1.07, dip: 0.12, glow: 1 })
+      if (o.holding) {
+        // The beam is on: hold the reach, and let it shake — the pull is work.
+        const out = { ...reaching }
+        out.shake = 0.014
+        return out
+      }
+      if (after > 0) return mixPose(reaching, REST_POSE, settle)
+      if (k < DRAIN_REACH_AT) {
+        const g = smooth(k / DRAIN_REACH_AT)
+        const out = mixPose(REST_POSE, gathered, g)
+        // The tremble grows into the reach, like the charge's coil.
+        out.shake = 0.018 * g * g
+        return out
+      }
+      return mixPose(gathered, reaching, smooth((k - DRAIN_REACH_AT) / (1 - DRAIN_REACH_AT)))
     }
 
     case 'summon': {
@@ -284,6 +339,7 @@ export type WindupCue =
   | 'heal'
   | 'charge' | 'zap'
   | 'call'
+  | 'siphon' | 'drain'
 
 export interface WindupBeat {
   /** When, in the cast's own seconds. */
@@ -300,6 +356,9 @@ export interface BeatOpts {
   /** How much of a rake's life its claws are up for (the renderer's
    *  `RAKE_POSE_S`) — a crossrake's second pass raises late. */
   raiseS?: number
+  /** How long a drain's beam holds once it lands (`DRAIN_HOLD_S`) — the length
+   *  the pull's own sound is fitted to. */
+  holdS?: number
 }
 
 /**
@@ -352,6 +411,15 @@ export const windupBeats = (kind: WindupKind, life: number, o: BeatOpts = {}): W
       ]
     case 'summon':
       return [{ atS: 0, cue: 'call', seconds: L }]
+    case 'drain':
+      // The gather under the raised arms, and then the pull ON the beat — the
+      // one wind-up whose second sound is not an impact but a sustained thing,
+      // fitted to the hold, so the player hears exactly how long the beam is
+      // still taking bodies.
+      return [
+        { atS: 0, cue: 'siphon', seconds: L * DRAIN_REACH_AT },
+        { atS: L, cue: 'drain', seconds: Math.max(0, o.holdS ?? 0) }
+      ]
   }
 }
 

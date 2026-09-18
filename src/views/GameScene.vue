@@ -20,7 +20,7 @@ import {
 } from '@/use/useSurvivalGame'
 import { EXPEDITION_STAGE } from '@/use/useDailyExpedition'
 import {
-  BOSS_REWARD_STAGE, BOSS_REWARD_WEAPON, WEAPON_PICK_STAGE, type WeaponId
+  BOSS_REWARD_STAGE, BOSS_REWARD_WEAPON, WEAPON_PICK_OFFER_STAGE, WEAPON_PICK_STAGE, type WeaponId
 } from '@/game/weapons'
 import {
   DECOY_GIFT_STAGE, FROST_GIFT_STAGE, FROST_TRIAL_STAGE, SHIELD_GIFT_STAGE,
@@ -73,7 +73,8 @@ import { isDebug } from '@/use/useMatch'
 import { cardPayout, RESULT_BOUNCE_DELAY_MS, shouldBounceGo } from '@/game/resultFlow'
 import { bossDesign } from '@/game/foes'
 import { bossOneRally } from '@/game/secondWind'
-import { stagesToPendingMilestone } from '@/use/useSurvivalGame'
+import { pendingMilestone, stagesToPendingMilestone } from '@/use/useSurvivalGame'
+import { milestoneReward } from '@/game/survival'
 import {
   grenadeTeaching, grenadeTeachHeld, setGrenadeTutorialAllowed
 } from '@/use/useSurvivalGame'
@@ -214,13 +215,15 @@ const applyViewport = (): void => {
   // ── The recording's own framing ──
   //
   // The preview recorder hides the HUD with `visibility`, which keeps every box
-  // exactly where it was: the bars are invisible and the camera still refuses
-  // to use the two hundred pixels they occupy. So a clean feed reads the
-  // insets as zero and the road is framed against the WHOLE viewport — 40 %
-  // more scale on a phone-shaped clip, which is the difference between a lane
-  // down the middle of the frame and a lane that fills it. Nothing else moves:
-  // the crowd's screen position is a share of the viewport height, not a
-  // measurement of the HUD. See `src/game/previewFeed.ts`.
+  // exactly where it was: the bars are invisible, and a camera that read them
+  // would refuse pixels nobody can see. So a clean feed reads the insets as
+  // zero. Since the camera stopped dividing the HUD INTO the zoom (2026-09-18,
+  // `cameraScale`) that changes almost nothing: the frame is solved from the
+  // gun's range, the insets only CAP it, and a clip frames exactly like play
+  // bar the short-window `byHud` cap. (Under the old `usableH` fit this was 40 %
+  // more scale on a phone-shaped clip.) Nothing else moves: the crowd's screen
+  // position is a share of the viewport height, not a measurement of the HUD.
+  // See `src/game/previewFeed.ts`.
   const insets = FEED_ON ? { top: 0, bottom: 0 } : measureInsets()
   setViewport(cssW, cssH, insets.top, insets.bottom)
   hudBottomPx.value = insets.bottom
@@ -1067,6 +1070,9 @@ const resultRibbon = computed(() => {
 
 /** The weapon choice is up — see `flowToNextStage`. */
 const showWeaponPick = ref(false)
+/** Which stage the card says the pick is for: the road right after the first
+ *  boss when it is offered at the kill, `WEAPON_PICK_STAGE` on the fallback. */
+const pickForStage = ref(WEAPON_PICK_STAGE)
 /** The first boss's gift is up — see `presentBossReward`. */
 const showBossReward = ref(false)
 /**
@@ -1301,6 +1307,7 @@ const bannerUnlock = ref<{ icon: GameIconName; label: string; tag?: string } | n
 const bannerNext = ref<{ icon: GameIconName; text: string } | null>(null)
 const bannerTitle = ref<string | null>(null)
 const bannerBoss = ref<{ design: string; name: string } | null>(null)
+const bannerClimb = ref<string | null>(null)
 const bannerShown = ref(false)
 let bannerTimer: number | null = null
 
@@ -1311,6 +1318,7 @@ const showBanner = (
     next?: { icon: GameIconName; text: string } | null
     title?: string | null
     boss?: { design: string; name: string } | null
+    climb?: string | null
   }
 ): void => {
   bannerStage.value = o.stage
@@ -1318,6 +1326,7 @@ const showBanner = (
   bannerNext.value = o.next ?? null
   bannerTitle.value = o.title ?? null
   bannerBoss.value = o.boss ?? null
+  bannerClimb.value = o.climb ?? null
   bannerShown.value = true
   if (bannerTimer !== null) clearTimeout(bannerTimer)
   bannerTimer = window.setTimeout(
@@ -1338,6 +1347,27 @@ const showBanner = (
  * The name is a locale string; a design with no name (one added to the cast
  * later) simply gets no teaser rather than a raw id on screen.
  */
+/**
+ * ─── The climb, between stages ──────────────────────────────────────────────
+ *
+ * A first clear of a stage raises the best stage, and the best stage IS the
+ * leaderboard score — so every new best moves the player past everybody parked
+ * on the stage they just left. The result screen already shows the rank; this
+ * says it MOVED, on the banner of the next road, where the decision to keep
+ * going is being made (owner's call, 2026-09-18): "Rank #2,702 ▲214".
+ *
+ * Only for a clear that was a new best, only with a real rank on both sides
+ * (`rankFor` answers 0 with no board and `OUTSIDE_BOARD` below the published
+ * cut), and only when it actually went up.
+ */
+const climbText = (cleared: number): string | null => {
+  if (!leaderboardEnabled || isExpedition.value || cleared < 1 || cleared !== bestStage.value) return null
+  const before = rankFor(cleared - 1)
+  const after = rankFor(cleared)
+  if (before <= 0 || after <= 0 || after >= before) return null
+  return t('flow.rankUp', { rank: grouped(after), n: grouped(before - after) })
+}
+
 const bossTeaser = (forStage: number): { design: string; name: string } | null => {
   const design = bossDesign(forStage)
   const key = `flow.bossName.${design}`
@@ -1380,6 +1410,21 @@ const ladderLine = (forStage: number): { icon: GameIconName; text: string } | nu
 
 /** What the HUD promises during this stage. */
 const hudNext = computed(() => ladderChip(stage.value))
+
+/**
+ * The long-term goal beside it: the next milestone payout, in coins and stages
+ * — "Bonus +185 · in 4 stages" from the very first road (owner's call,
+ * 2026-09-18). The old countdown was a bare star and a digit and nobody read
+ * it; this one names what it pays and when, and takes turns with the ladder
+ * chip in the same slot (`RunHud`'s `goal`) so the HUD grows no taller.
+ */
+const hudBonus = computed(() => {
+  if (isExpedition.value) return null
+  const n = milestoneIn.value
+  const coins = milestoneReward(pendingMilestone(stage.value))
+  const when = n <= 0 ? t('ladder.thisStage') : unlockWhen(n)
+  return { text: `${t('hud.bonus', { coins: grouped(coins) })} · ${when}` }
+})
 
 /**
  * The beats marked on the rail — read off the track whenever the world is
@@ -1470,6 +1515,7 @@ const flowToNextStage = async (): Promise<void> => {
   const gift = grantStageGift(summary.value.stage) ?? skillGiftFor(summary.value)
 
   if (picking) {
+    pickForStage.value = WEAPON_PICK_STAGE
     showWeaponPick.value = true
     return
   }
@@ -1506,13 +1552,16 @@ const continueRoad = (): void => {
 const completeHandover = (
   gift: { icon: GameIconName; label: string; tag?: string } | null
 ): void => {
+  // Read BEFORE the road moves — `summary` is a live view the next stage resets.
+  const climb = gift ? null : climbText(summary.value.stage)
   invalidateArt()
   continueRoad()
   showBanner({
     stage: stage.value,
     unlock: gift,
-    // The promise rides every banner that has no gift on it.
-    next: gift ? null : ladderLine(stage.value),
+    climb,
+    // The promise rides every banner that has neither a gift nor a climb on it.
+    next: gift || climb ? null : ladderLine(stage.value),
     boss: bossTeaser(stage.value)
   })
 }
@@ -1565,6 +1614,20 @@ const presentBossReward = (): void => {
   // this key, so a tab closed on the reveal still opens stage 2 holding it.
   setState(BOSS_REWARD_KEY, true)
   void flushSaveNow()
+  // ── …and a first-timer CHOOSES it ──
+  //
+  // Owner's call (2026-09-18): the weapon choice is the session extender, and it
+  // goes up here, once — a stranger who has just beaten the first boss is asked
+  // to pick the thing they will fire for the next two stages, which is a far
+  // stronger reason to press on than a card that closes itself. The two cards
+  // wait for the tap (`overlayUp` holds the road); `onWeaponPicked` finishes
+  // the handover and pays the deferred coins. A player who already chose (a
+  // save from before this moved) gets the launcher reveal as it was.
+  if (readWeaponPick() === null) {
+    pickForStage.value = WEAPON_PICK_OFFER_STAGE
+    showWeaponPick.value = true
+    return
+  }
   showBossReward.value = true
 }
 
@@ -2488,6 +2551,7 @@ const beginStage = (next: boolean): void => {
     // summary, and `advanceStage` resets it (see `owedCash`).
     const gift = pendingStageGift ?? skillGiftFor(summary.value)
     pendingStageGift = null
+    const climb = gift ? null : climbText(summary.value.stage)
     // ── The weapon choice, on the way out of stage 2's result screen ──
     //
     // The card that used to ride the no-screen handover into
@@ -2496,6 +2560,7 @@ const beginStage = (next: boolean): void => {
     // announcing the pick. A player who already chose (a retry, a reload) goes
     // straight on with the weapon `startStage` re-arms from the save.
     if (summary.value.stage === WEAPON_PICK_STAGE - 1 && readWeaponPick() === null) {
+      pickForStage.value = WEAPON_PICK_STAGE
       showWeaponPick.value = true
     } else {
       continueRoad()
@@ -2505,7 +2570,8 @@ const beginStage = (next: boolean): void => {
       showBanner({
         stage: stage.value,
         unlock: gift,
-        next: gift ? null : ladderLine(stage.value),
+        climb,
+        next: gift || climb ? null : ladderLine(stage.value),
         boss: bossTeaser(stage.value)
       })
     }
@@ -3118,6 +3184,11 @@ onUnmounted(() => {
     //- PORTRAIT PHONE — the case the stutter was reported from — it does not
     //- arise at all: the width fit wins either way and `scale` is 37.5 with the
     //- HUD and without it.
+    //-
+    //- (Since 2026-09-18 the mismatch is gone on nearly every screen: the camera
+    //- is solved from the gun's range (`cameraScale`) and the HUD only CAPS it,
+    //- so 1280x800 is 40.3 with the HUD and without it. Only a window whose top
+    //- bar is taller than ~17 % of the screen still differs, via `byHud`.)
     div.scene__hud(v-if="!introRunning")
       div.scene__top(ref="topBarRef")
         div.scene__top-main
@@ -3149,6 +3220,7 @@ onUnmounted(() => {
             :elite-hp="eliteHp01"
             :challenge="isExpedition ? 0 : challenge"
             :next-unlock="isExpedition ? null : hudNext"
+            :bonus="hudBonus"
             :milestone-in="isExpedition ? null : milestoneIn"
             :beats="hudBeats"
           )
@@ -3209,6 +3281,7 @@ onUnmounted(() => {
         :next="bannerNext"
         :title="bannerTitle"
         :boss="bannerBoss"
+        :climb="bannerClimb"
       )
       SteerHint(:lane-half-px="laneHalfPx" :show="showSteerHint")
 
@@ -3584,7 +3657,7 @@ onUnmounted(() => {
 
     //- ── The weapon choice ─────────────────────────────────────────────────
     //- The one stop the opening stages make on purpose. See `flowToNextStage`.
-    WeaponChoice(:open="showWeaponPick" :stage="WEAPON_PICK_STAGE" @pick="onWeaponPicked")
+    WeaponChoice(:open="showWeaponPick" :stage="pickForStage" @pick="onWeaponPicked")
     //- The first boss's launcher. See `presentBossReward`.
     BossReward(:open="showBossReward" :stage="BOSS_REWARD_STAGE + 1" @done="onBossRewardDone")
 

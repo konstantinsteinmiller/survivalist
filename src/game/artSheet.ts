@@ -3,7 +3,8 @@ import {
   DOWN_ART_ID, DOWN_FALL_SIDE, DOWN_POSES, OUTFITS, type DownPose
 } from '@/game/heroSprites'
 import { DEATH_FRAME_ASPECT, MONSTER_FRAME_H, deathFallSide } from '@/game/monsterSprites'
-import { bossDesigns } from '@/game/foes'
+import { bossDesign, bossDesigns } from '@/game/foes'
+import { bossKindFor } from '@/game/threats'
 import { HERO_PX } from '@/game/heroSprites'
 import { ART_FOLDERS, type ArtKind } from '@/game/art'
 import { ART_CATALOGUE } from '@/game/artCatalogue'
@@ -631,6 +632,159 @@ export const BOSS_DEATHS: DeathSpec[] = bossDesigns().map((design) => {
     // The walk's cap: same creature, same scale, same payload decision.
     maxEdge: walk?.maxEdge ?? MONSTER_FRAME_H * 2,
     walkFile: walk?.file ?? `walk-${design}`,
+    model: `models/${design}.png`
+  }
+})
+
+// ─── Boss meteor hurls ───────────────────────────────────────────────────────
+//
+// Eight panels of a meteor boss THROWING — scoop, lift, cock, release,
+// follow-through, back to ready — played over the cast's own clock in place of
+// the walk (`bossWindup.meteorHurlPanel`). The first throw was the walk frame
+// stretched and squashed about its feet, and the owner read it, rightly, as the
+// boss being distorted rather than throwing anything. So the throw is DRAWN by
+// the rigs (`monsterKit`'s "Hurling") the way the death is, and painted over
+// that drawing the way the death is: the drawing is the animation, the
+// character's own PAINTED walk (`art-sheets/models/`) is the identity.
+//
+// The rock is not in it. The game draws the burning rock into the hand itself,
+// at the palm the drawing reports (`hurlGrip`), so it can swell while it is
+// gathered and leave from exactly where it was held. The painting's hand is
+// empty — and it has to be where the drawing put it, because that is where the
+// game will put the rock.
+
+/** Panels in a hurl — the death's count and grid, and the death's box. */
+export const HURL_FRAMES = 8
+export const HURL_COLS = 4
+export const HURL_ROWS = HURL_FRAMES / HURL_COLS
+
+/**
+ * How each boss throws, for the painter — which hand, what the other hand
+ * keeps doing, and anything about this body the shared panel lines would get
+ * wrong. `side` is the panel side the throwing arm is on, AS DRAWN (the rig's
+ * `hurlBeats(k, side)`); the side-on beasts throw with the head.
+ */
+export const HURL_HOW: Readonly<Record<string, {
+  side: 'left' | 'right' | 'head'
+  how: string
+  /** What the arm that does NOT throw does, when it is not simply balancing
+   *  and pointing the way. */
+  other?: string
+}>> = {
+  grumpling: {
+    side: 'right',
+    how: 'It throws with the stubby arm on the panel\'s RIGHT. Its arms are far too short to reach over its huge head, so it slings side-arm: every raised pose happens OUT BESIDE the head, next to that ear — the arm and hand never go over the head or in front of the face.'
+  },
+  bonecap: {
+    side: 'right',
+    how: 'It throws side-arm with the long bone arm on the panel\'s RIGHT: that arm swings out and up BESIDE the cap, clear of it — never hidden under the brim or reaching over the top. The other arm hangs out low for balance. The toadstool cap stays on its skull throughout.'
+  },
+  marrowknight: {
+    side: 'left',
+    how: 'It throws with its hand on the panel\'s LEFT, the free one. The other hand never lets go of the greatsword: the sword stays in that hand, point-down beside it, in every panel.',
+    other: 'keeps its grip on the greatsword'
+  },
+  rattlejack: {
+    side: 'left',
+    how: 'It throws side-arm with the SHIELD arm (the panel\'s left): the round shield stays strapped to that forearm and the bony hand sticks out past its rim. The cleaver stays raised in its other hand in every panel.',
+    other: 'keeps the cleaver raised'
+  },
+  thornwick: {
+    side: 'left',
+    how: 'It throws with the bare branch arm on the panel\'s LEFT, swinging the whole rigid branch like a catapult arm: low to the left, up high, over the top of its crown, and slung down across the front of its trunk to the right. The branch does not bend — it turns from where it grows out of the trunk. The thorn-whip arm only sways and never throws; it stays a long curling whip covered in black thorns in every panel — never a hand, claw or fingers. The trunk sways back and forward on its roots; it has no waist or knees.',
+    other: 'only sways — it is the thorn whip'
+  },
+  snaggletusk: {
+    side: 'head',
+    how: 'It has no hands: it throws with its HEAD and TUSKS — scoops low, rears up on its hind legs tossing its head back with the snout to the sky, then comes down hard with the head whipping forward.'
+  },
+  cinderhound: {
+    side: 'head',
+    how: 'It has no hands: it throws with its JAWS — snaps down low, rears up on its hind legs with its head thrown back and jaws open, then comes down hard with its neck whipping forward and the jaws flung wide open.'
+  }
+}
+
+const UPRIGHT_HURL: readonly string[] = [
+  'ready — standing square to the viewer, weight settling, the throwing hand open at its side',
+  'the scoop — it dips on bent knees and swings the throwing arm out and down to the side, palm up and cupped as if scooping something heavy up off the ground; the other arm out for balance',
+  'the lift — the throwing arm sweeps out and up past its shoulder, the hand cupped as if holding a heavy ball; the body starting to lean back over the throwing side',
+  'cocked — the throwing arm bent back HIGH, elbow up and out, the cupped hand held up and back as if holding a heavy ball ready to throw; the body leaning back over the throwing-side leg; the other arm held out LOW to its own side for balance, not pointing; the face set and straining',
+  'the release — the throwing arm whipped up and over the top, the fingers spread wide open as it lets go; the body lunging forward and across, weight onto the other foot',
+  'the follow-through — the throwing arm swung down across the front of the body to the far hip, the hand open and empty; the body bent forward and over, the back heel coming up',
+  'recovering — straightening up, the arms swinging back toward its sides',
+  'ready again — standing as in panel 1'
+]
+
+const SIDE_HURL: readonly string[] = [
+  'ready — standing on all four legs, head low',
+  'the scoop — the head swings right down, snout at the dirt, as if scooping something heavy up off the ground; the front legs braced',
+  'the lift — head and chest coming up, the front feet starting to leave the ground',
+  'rearing — reared up on its hind legs, the front legs tucked up, the head tossed right back so the snout points up at the sky',
+  'the fling — the front end coming down, the head whipping forward and down, mouth open',
+  'the slam — the front feet slammed back onto the ground, head thrust low and forward, the neck stretched out',
+  'recovering — the head coming back up',
+  'ready again — standing on all four legs as in panel 1'
+]
+
+export const HURL_POSES: Readonly<Record<DeathStance, readonly string[]>> = {
+  upright: UPRIGHT_HURL,
+  side: SIDE_HURL
+}
+
+export interface HurlSpec {
+  kind: 'hurl'
+  /** The sheet's own id — `hurl-<design>`, never the bare design. */
+  id: string
+  design: string
+  file: string
+  target: string
+  name: string
+  blurb: string
+  faces: WalkSpec['faces']
+  stance: DeathStance
+  cols: number
+  rows: number
+  frames: number
+  panelW: number
+  panelH: number
+  w: number
+  h: number
+  maxEdge: number
+  /** The CHARACTER MODEL attached first — see `DeathSpec.model`. */
+  model: string
+}
+
+/**
+ * Every boss body that throws a meteor somewhere in the campaign — derived
+ * from the roster and the boss kinds, so a design rotated onto a meteor stage
+ * gets a sheet without anybody listing it.
+ */
+export const hurlDesigns = (): string[] => {
+  const throws = new Set<string>()
+  for (let n = 1; n <= 120; n++) if (bossKindFor(n) === 'meteor') throws.add(bossDesign(n))
+  return bossDesigns().filter((d) => throws.has(d))
+}
+
+export const BOSS_HURLS: HurlSpec[] = hurlDesigns().map((design) => {
+  const walk = MONSTER_WALKS.find((w) => w.id === design)
+  return {
+    kind: 'hurl',
+    id: `hurl-${design}`,
+    design,
+    file: `hurl-${design}`,
+    target: `${ART_FOLDERS.hurl}/${design}.webp`,
+    name: walk?.name ?? design,
+    blurb: walk?.blurb ?? '',
+    faces: walk?.faces ?? 'front',
+    stance: walk?.faces === 'left' || walk?.faces === 'right' ? 'side' : 'upright',
+    cols: HURL_COLS,
+    rows: HURL_ROWS,
+    frames: HURL_FRAMES,
+    panelW: DEATH_PANEL_W,
+    panelH: DEATH_PANEL_H,
+    w: HURL_COLS * DEATH_PANEL_W,
+    h: HURL_ROWS * DEATH_PANEL_H,
+    maxEdge: walk?.maxEdge ?? MONSTER_FRAME_H * 2,
     model: `models/${design}.png`
   }
 })
@@ -1626,6 +1780,118 @@ export const promptForDeath = (d: DeathSpec): string => {
   ].join('\n')
 }
 
+/**
+ * A ready-to-paste prompt for one boss's meteor throw — `promptForDeath`'s
+ * shape, for `promptForDeath`'s reasons (the character first, the layout as
+ * poses and nothing else, no words in the image), plus the one thing a throw
+ * adds: the hand is EMPTY, because the game draws the rock into it.
+ */
+export const promptForHurl = (d: HurlSpec): string => {
+  const n = d.frames
+  const side = d.stance === 'side'
+  const who = DEATH_IDENTITY[d.design]
+  const how = HURL_HOW[d.design]
+  const poses = HURL_POSES[d.stance]
+  const holder = side ? (d.design === 'cinderhound' ? 'jaws' : 'snout') : 'throwing hand'
+  return [
+    `# ${d.id} — ${d.name}, throwing  (${d.target})`,
+    '',
+    `A SPRITE SHEET: ${n} panels of THIS creature making one big THROW. Two images come with this prompt, in this order:`,
+    `  IMAGE 1 — \`${d.model}\` — THE CHARACTER: one frame of this exact creature,`,
+    '     exactly as the game shows it. Every panel shows this individual.',
+    `  IMAGE 2 — \`${d.file}.png\` — THE ANIMATION: the game's own rough placeholder`,
+    '     drawing of the throw. FOLLOW ITS POSES — where the head, arms, legs and body',
+    '     are in each panel, and above all where the throwing hand is — and take nothing',
+    '     else from it: not its limb lengths, shapes, colours, details or style. Image 2',
+    '     is a flat stand-in; image 1 is the creature.',
+    // A grumpling re-roll painted its last three panels in image 2's flat
+    // cartoon look — bright green, big round yellow eyes — and the first five
+    // as the painted imp: a costume change mid-throw.
+    '  Image 2 is deliberately drawn in a DIFFERENT, flat cartoon style, with the wrong',
+    '  colours and the wrong face. A panel that looks like image 2 instead of image 1 is',
+    '  wrong — every one of the panels is painted as image 1, from the first to the last.',
+    '',
+    'THE CHARACTER — copy it from image 1 into every panel:',
+    `· ${who?.looks ?? `${d.name}: ${d.blurb}`}`,
+    ...(who?.marks
+      ? [`· Its MARKS, the ones the player knows it by — keep every one, in every panel that shows that side: ${who.marks}.`]
+      : []),
+    who?.holds
+      ? `· It holds ${who.holds}, and that is all the gear it has. Add nothing else.`
+      : '· It wears and carries NOTHING: no clothes, loincloth, rags, belt, weapon or shield. Add none.',
+    '· Its PROPORTIONS stay exactly as in image 1 in every panel: the head the same size',
+    '  against the body, the limbs the same length and thickness. It does not grow taller,',
+    '  leaner or more muscular to throw — it is the same body, moving its joints.',
+    '· The same face, colours and markings as image 1.',
+    '',
+    'THE LOOK — paint it the way image 1 is painted, never as a clean cartoon:',
+    '· Heavy, scratchy near-black ink contours with dry-brush breaks, thick on the shadow side.',
+    '· Flat, gritty gouache-like paint inside the lines, with visible brushwork, grain and',
+    '  rough cel-style shadow shapes. No smooth vector shading, no gradients, no glossy highlights.',
+    '· The same muted, desaturated colours as image 1; its one hot accent stays as small as it is there.',
+    '· Menacing and worn, not cute — it is the same grim creature the player has been fighting.',
+    '',
+    `THE ANIMATION — ${d.cols} across and ${d.rows} rows, read left to right along the top row, then the bottom row.`,
+    'These lines are for you to read. Never write them, or any other words, in the image:',
+    ...poses.map((p, i) => `· panel ${i + 1}: ${p}.`),
+    ...(how ? [`· HOW THIS ONE THROWS: ${how.how}`] : []),
+    ...(how && how.side !== 'head'
+      ? [`· WHICH ARM: the throwing arm is the one on the panel's ${how.side.toUpperCase()} in EVERY panel — the arm that scoops (panel 2), is held up and back (panel 4), whips over (panel 5) and sweeps across the body (panel 6). The arm on the panel's ${how.side === 'left' ? 'RIGHT' : 'LEFT'} ${how.other ?? 'only swings out low for balance and never points'}. Never swap them between panels.`]
+      : []),
+    ...(side
+      ? [`· FACING: image 1 faces ${facing(d.faces)}, and so does every one of the ${n} panels — head at the ${facing(d.faces)} end, rump at the other. Never mirror it, never turn it to face the viewer. Its hind feet stay planted on the ground in every panel.`]
+      : ['· It stays facing the viewer in every panel — a throw seen from the front. It never turns side-on or shows its back.']),
+    '· The motion is in the JOINTS — shoulders, elbows, knees, neck. Never stretch, squash,',
+    '  bend or tilt the whole body like rubber to show effort.',
+    '',
+    `NOTHING IS THROWN IN THE PICTURE — the game paints its own burning rock into the ${holder}:`,
+    side
+      ? `· The ${holder} is EMPTY in every panel. Paint NO rock, stone, boulder, ball, fireball, meteor, flame, glow or spark at its mouth or anywhere else.`
+      : `· The ${holder} is EMPTY in every panel — cupped and curled as if around a ball the size of its own head in panels 2-4, fingers spread open in panels 5-6. Paint NO rock, stone, boulder, ball, fireball, meteor, flame, glow or spark in it or anywhere else.`,
+    '· No motion lines, speed streaks, trails, dust clouds or impact bursts either.',
+    `· The ${holder} is exactly where image 2 puts it in every panel: the game will put the rock there.`,
+    '',
+    'LAYOUT — the grid is cut blindly:',
+    `· EXACTLY ${n} panels: ${d.cols} across, ${d.rows} rows. Not 1, not ${d.cols}, not ${n + 4}, not ${n * 2} — do not add a row. One big painting is the wrong answer.`,
+    `· Each panel is exactly 1/${d.cols} of the width and 1/${d.rows} of the height. The creature sits where image 2 puts it, at the size image 2 draws it — no bigger. Its feet are at the height image 2 puts them in every panel.`,
+    '· Leave a clear band of flat magenta between neighbouring panels, at least a tenth of',
+    '  a panel wide. Nothing — a limb, a tail, a tusk, a weapon, a shadow — may touch or',
+    '  cross a panel edge. Two panels that run into each other cannot be cut apart, and',
+    '  the whole sheet is thrown away.',
+    '· NO panel borders, frames, lines, boxes or gutters between the panels, and NO text,',
+    '  titles, captions or numbers anywhere. Between two creatures there is nothing but the',
+    '  same flat magenta as everywhere else.',
+    '· Do NOT draw a ground line, floor, horizon or any line under it.',
+    '· One soft contact shadow under the feet, and nothing else behind it — no scenery.',
+    '',
+    BACKGROUND_RULE,
+    '',
+    'BEFORE YOU CALL IT FINISHED:',
+    `· ${n} panels, ${d.cols} across and ${d.rows} down, with no borders and no words.`,
+    '· Every panel is the creature of image 1 — its proportions, face and colours — carrying nothing new.',
+    `· All ${n} panels are painted in image 1's gritty style and colours — none in image 2's flat cartoon look, not even the last ones.`,
+    ...(who?.marks ? [`· Its marks are all there: ${who.marks}.`] : []),
+    `· Nothing is being thrown: no rock, ball, flame or glow anywhere, and the ${holder} is empty.`,
+    // The first rattlejack threw with its cleaver hand and lost both the
+    // cleaver and the shield by panel 6: gear it holds is drawn in EVERY panel.
+    ...(who?.holds
+      ? [`· Its gear is in all ${n} panels, never dropped, swapped or put away: ${who.holds}.`]
+      : []),
+    ...(how && how.side !== 'head'
+      ? [`· Panel 4: the hand held up and back is the one on the panel's ${how.side.toUpperCase()}, exactly where image 2 holds it.`]
+      : []),
+    ...(side
+      ? [`· Every panel faces ${facing(d.faces)}: its head is at the ${facing(d.faces)} end of its panel in all ${n}. None is mirrored.`]
+      : ['· Every panel faces the viewer.']),
+    '· Panels 1 and 8 are the same creature standing ready, the same way round.',
+    '· Everything that is not the creature is flat, vivid #FF00FF.',
+    '',
+    `OUTPUT: one image, ${d.w} x ${d.h} pixels (21:9, landscape). If your tool has an`,
+    'aspect-ratio control, set it to 21:9 — a square or 16:9 return crushes the grid',
+    'and cannot be cut. No labels, captions, numbers or watermarks.'
+  ].join('\n')
+}
+
 /** The SHEET's pixels — a still is one panel, a cycle is its whole grid. */
 export const sheetW = (s: StillSpec): number => s.w * colsOf(s)
 export const sheetH = (s: StillSpec): number => s.h * rowsOf(s)
@@ -1957,6 +2223,27 @@ export const promptDocs = (_fits?: Record<string, Fit>): Record<string, string> 
     '',
     SURVIVOR_FALLS.map((f) => promptBlock(f.name, f.file, f.target, promptForFall(f), [f.model])).join('\n\n---\n\n'),
     ''
+  ].join('\n'),
+  'PROMPTS-HURLS.md': [
+    '# Boss meteor-throw prompts — one boss per generation',
+    '',
+    'Generated from the manifest — do not hand-edit, re-export instead.',
+    '',
+    'Attach TWO images with each block, in this order: `art-sheets/models/<design>.png`',
+    '(the character — one frame of its walk as the game shows it, cut by',
+    '`pnpm art:models`) and then `art-sheets/hurl-<design>.png` (the animation). The',
+    'layout is the game\'s own drawing of the throw — scoop, lift, cock, release,',
+    'follow-through — and the prompt asks for exactly that throw, painted as exactly that',
+    'creature, with an EMPTY hand: the game draws the burning rock into it.',
+    '',
+    'Drop results in `art-sheets/painted/`, keeping the `hurl-<design>` in the',
+    'name, then run `pnpm slice-sheets`. The game plays the same throw, drawn, until',
+    'one exists, and puts the rock where the drawing\'s hand is either way.',
+    'Each prompt is a fenced block — the preview\'s copy button takes all of it.',
+    'Each heading names both images, and the Art Desk attaches both, in order.',
+    '',
+    BOSS_HURLS.map((d) => promptBlock(`${d.name} — throw`, d.file, d.target, promptForHurl(d), [d.model])).join('\n\n---\n\n'),
+    ''
   ].join('\n')
 })
 
@@ -1964,11 +2251,12 @@ export const promptDocs = (_fits?: Record<string, Fit>): Record<string, string> 
  * Every painted sheet as the status report reads it: the reference file's
  * stem, the document its prompt block is in, and where the slice lands.
  */
-export const sheetRows = (): Array<{ what: 'walk' | 'still' | 'death' | 'fall'; id: string; title: string; stem: string; doc: string; target: string }> => [
+export const sheetRows = (): Array<{ what: 'walk' | 'still' | 'death' | 'fall' | 'hurl'; id: string; title: string; stem: string; doc: string; target: string }> => [
   ...WALKS.map((w) => ({ what: 'walk' as const, id: w.id, title: w.name, stem: w.file, doc: 'PROMPTS-WALKS.md', target: w.target })),
   ...STILLS.map((s) => ({ what: 'still' as const, id: s.id, title: s.name, stem: s.file, doc: 'PROMPTS-STILLS.md', target: s.target })),
   ...BOSS_DEATHS.map((d) => ({ what: 'death' as const, id: d.id, title: `${d.name} — death`, stem: d.file, doc: 'PROMPTS-DEATHS.md', target: d.target })),
-  ...SURVIVOR_FALLS.map((f) => ({ what: 'fall' as const, id: f.id, title: f.name, stem: f.file, doc: 'PROMPTS-DEATHS.md', target: f.target }))
+  ...SURVIVOR_FALLS.map((f) => ({ what: 'fall' as const, id: f.id, title: f.name, stem: f.file, doc: 'PROMPTS-DEATHS.md', target: f.target })),
+  ...BOSS_HURLS.map((d) => ({ what: 'hurl' as const, id: d.id, title: `${d.name} — throw`, stem: d.file, doc: 'PROMPTS-HURLS.md', target: d.target }))
 ]
 
 // ─── Consistency with the runtime catalogue ─────────────────────────────────

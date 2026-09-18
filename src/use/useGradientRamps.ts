@@ -109,8 +109,10 @@ export const rampCount = (): number => ramps.size
 /**
  * Source radius in pixels, chosen against the largest puff the game can draw.
  *
- * `setViewport` caps the camera at `usableH / VIEW_HEIGHT`, so `scale` tops out
- * near 105 on a 4K display; the biggest smoke emitter asks for `0.5 * scale`,
+ * `setViewport` sizes the camera off the viewport's height (`cameraScale` —
+ * `0.545 · h / BULLET_RANGE` since 2026-09-18, when it was ~103 through the
+ * old `usableH / VIEW_HEIGHT` fit), so `scale` tops out near 109 on a 4K
+ * display; the biggest smoke emitter asks for `0.5 * scale`,
  * which is a ~53 px CSS radius, or ~105 device pixels once the DPR cap of 2 is
  * applied. At 96 the sprite is therefore downscaled on every phone and roughly
  * 1:1 on the largest desktop — never meaningfully upscaled.

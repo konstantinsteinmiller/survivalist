@@ -43,6 +43,9 @@ export type FxSound =
   // and thrown, the summoner's call. `bossCharge` is the dash itself.
   | 'windGather' | 'windHurl' | 'windCoil' | 'windRise' | 'windDrop'
   | 'windWhet' | 'windStrike' | 'windHeal' | 'windBolt' | 'windZap' | 'windCall'
+  // The healer's drain: the column gathered (`windSiphon`), and the beam pulling
+  // for exactly as long as it holds (`bossDrain`).
+  | 'windSiphon' | 'bossDrain'
   | 'stageClear' | 'wipe' | 'rally'
   | 'squadMilestone'
   | 'countUp'
@@ -120,7 +123,9 @@ const THROTTLES: Partial<Record<FxSound, Throttle>> = {
   windHeal: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
   windBolt: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
   windZap: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
-  windCall: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 }
+  windCall: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  windSiphon: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 },
+  bossDrain: { minGapMs: 150, maxPerWindow: 2, windowMs: 1000 }
 }
 
 const lastAt: Partial<Record<FxSound, number>> = {}
@@ -910,6 +915,33 @@ const synth = (ctx: AudioContext, id: FxSound, power: number, pan = 0, seconds =
         tone(ctx, { freq: f, toFreq: f * 1.12, duration: c + 0.05, gain: vol(0.05), type: 'sawtooth', filter: 520, attack: c * 0.8 })
       }
       noiseBurst(ctx, { duration: c + 0.05, gain: vol(0.03), filterFrom: 160, filterTo: 600, attack: c * 0.8 })
+      break
+    }
+
+    case 'windSiphon': {
+      // The healer gathering a drain: an inhaled hiss rising over a low throb —
+      // a vacuum filling. Deliberately in the LOW end and dirty, where the
+      // heal's gather (`windHeal`) is a clean rising sine: the two wind-ups come
+      // from the same body with the same raised arms, and the ear has to tell
+      // "it is about to heal" from "it is about to take" before the eye does.
+      const d = Math.max(0.3, seconds || 1.3)
+      tone(ctx, { freq: 55, toFreq: 96, duration: d + 0.05, gain: vol(0.075), type: 'sawtooth', filter: 380, attack: d * 0.9 })
+      noiseBurst(ctx, { duration: d + 0.05, gain: vol(0.05), filterFrom: 500, filterTo: 2600, type: 'bandpass', q: 1.4, attack: d * 0.85 })
+      break
+    }
+
+    case 'bossDrain': {
+      // The beam pulling: four throbs spread across the hold under a falling
+      // wail, so the sound lasts exactly as long as the beam is still taking
+      // bodies — the player hears when it is safe to walk back under the boss.
+      // Falling, like every other thing in this mix that costs the player
+      // something; the heal it pays for keeps the one RISING cue (`bossHeal`).
+      const h = Math.max(0.3, seconds || 0.9)
+      for (let i = 0; i < 4; i++) {
+        tone(ctx, { freq: 150, toFreq: 96, duration: 0.2, gain: vol(0.09), type: 'sine', delay: (h * i) / 4 })
+      }
+      tone(ctx, { freq: 640, toFreq: 170, duration: h, gain: vol(0.055), type: 'sawtooth', filter: 1700 })
+      noiseBurst(ctx, { duration: h, gain: vol(0.06), filterFrom: 3200, filterTo: 600, type: 'bandpass', q: 1.2 })
       break
     }
 

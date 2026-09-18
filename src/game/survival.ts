@@ -34,8 +34,16 @@ export const LANE_HALF = 4.5
  *  you are standing on. */
 export const CAMERA_LEAD = 5.4
 
-/** World units visible vertically at the reference zoom. Wide screens letterbox
- *  the lane rather than zooming in, so a desktop player sees the same fight. */
+/**
+ * The REFERENCE frame the range rule is written in: nineteen world units from
+ * the top of the screen to the bottom, no HUD.
+ *
+ * ⚠ It no longer sizes the live camera — `cameraScale` does, off `BULLET_RANGE`.
+ * It survives because the two range numbers the whole balance is tuned on are
+ * DEFINED in it (`BULLET_RANGE` = 10.83, `BULLET_RANGE_MAX` = 13.68), and a
+ * zoom change must not quietly become a range change. See "The camera" below
+ * for why the frame and the fit came apart.
+ */
 export const VIEW_HEIGHT = 19
 
 /**
@@ -224,16 +232,24 @@ export const BULLET_R = 0.16
  * from off-screen so the pump cost nothing to set up, and the answer to every
  * bank was "hold fire on the biggest number from the moment it appears".
  *
- * The guns now stop **15 % of the screen short of the top edge**. The crowd
- * sits at `CROWD_SCREEN_Y`, so the road it can see ahead is
- * `CROWD_SCREEN_Y × VIEW_HEIGHT` ≈ 13.7 units, and the last 15 % of the screen
- * — 2.85 units of it — is out of range. Everything up there arrives intact,
- * which is the point: obstacles get to be obstacles, and a gate has to be
- * approached before it can be pumped.
+ * The guns stop SHORT of the top edge. The range is a rule, 10.83 units
+ * (`(CROWD_SCREEN_Y − 0.15) × VIEW_HEIGHT`), and since 2026-09-18 the camera
+ * is solved FROM it (`cameraScale`): the base fire ends ~17.5 % of the screen
+ * below the top edge on every ratio, with ~14.3 units of road to that edge
+ * (~11-12 of them readable under the HUD bar). Everything above the fire's end
+ * arrives intact, which is the point: obstacles get to be obstacles, and a
+ * gate has to be approached before it can be pumped.
  *
  * Derived from the reference zoom rather than measured from the live viewport,
  * on purpose. Range is a RULE, and a rule that changed with the window size
  * would make the same stage a different game on a tablet.
+ *
+ * ⚠ "15 % short of the top edge" is true of the REFERENCE frame only. The live
+ * camera used to be fitted to the viewport minus the HUD, and measured on
+ * 2026-09-18 the round actually died 24–31 % of the screen below the top edge
+ * on every shape the game ships on. The camera now works BACKWARDS from this
+ * number instead (`cameraScale`), so the rule and the picture agree again: the
+ * value here is unchanged, and it is the camera that moved.
  *
  * The boss is never out of reach: it holds `BOSS_HOLD_AHEAD` = 3.8 in front of
  * the crowd, well inside this, and the fight is asserted against this constant
@@ -252,11 +268,20 @@ export const BULLET_RANGE = (CROWD_SCREEN_Y - BULLET_RANGE_SCREEN_MARGIN) * VIEW
  * rule was written to fix — except now it would arrive gradually, as a reward,
  * which is a far harder thing to notice in a playtest.
  *
- * Nominal +30 % at level 10 is 14.08 units against a 13.68-unit screen, so the
- * last level and a half of the track is bounded by the camera rather than by
- * the number. That is deliberate and it is the honest way round: the track's
+ * Nominal +30 % at level 10 is 14.08 units against this 13.68-unit cap — the
+ * old camera's full screen — so the last level and a half of the track is
+ * bounded by the clamp rather than by the number. (Since the 2026-09-18 zoom the
+ * camera shows ~14.3 units to the top edge, so a maxed Reach ends just under it
+ * and is always drawn inside the frame — `camera.test.ts` pins that.) That is deliberate and it is the honest way round: the track's
  * promise is "shoot further, up to the whole screen", and the clamp is what
  * makes the second half of that sentence true.
+ *
+ * Under the live camera (`cameraScale`) the top edge sits 14.31–14.87 units
+ * ahead, so a maxed Reach ends 0.6–1.2 units below it — about 3 % of the
+ * screen, inside the frame on every ratio (`tests/game/camera.test.ts` holds
+ * that). It is under the HUD strip rather than below it, which is the
+ * upgrade's whole promise: the base gun cannot touch what the strip covers,
+ * the maxed one reaches everything the canvas draws.
  */
 export const BULLET_RANGE_MAX = CROWD_SCREEN_Y * VIEW_HEIGHT
 
@@ -277,6 +302,103 @@ export const effectiveBulletRange = (bonus: number): number =>
  *  a comfortable margin above the worst case (a stationary crowd, so the round
  *  covers the range at its own speed: 10.8 / 21 ≈ 0.52 s). */
 export const BULLET_LIFE_MS = 900
+
+// ─── The camera ─────────────────────────────────────────────────────────────
+//
+// How big a world unit is on screen. Lives here, beside the range it is derived
+// from, rather than in the renderer: it is pure arithmetic on four numbers, the
+// renderer (`setViewport`) and the tests read the same function, and "how much
+// road does a player see" is a RULE of this game, not a rendering detail.
+
+/**
+ * Where the base fire ends on screen, as a fraction of the height from the TOP.
+ *
+ * The owner's call (2026-09-18), and the number the whole camera is solved
+ * from: the crowd's fire should reach ~15–20 % below the top edge, so the
+ * player sees only a sliver of road past what their guns can touch and has to
+ * pick a door and dodge a wall with the thing already half in range.
+ *
+ * Measured before it was set, on the camera it replaced — which fitted
+ * `VIEW_HEIGHT` into the viewport MINUS the two HUD bars, and a lane plus 1.1
+ * units of verge across it — the fire died this far down:
+ *
+ *   phones 360x780 / 390x844 / 430x932   27 %      360x640 phone   30 %
+ *   tablet 820x1180                      25 %      tall 1000x1300  24 %
+ *   desktop 1280x720 / 1366x768      31 / 30 %     1920x1080       26 %
+ *   ultrawide 2560x1080                  26 %
+ *
+ * — with 14.0–14.6 units of road readable under the HUD and 16.2–19 units to
+ * the canvas edge. The HUD had grown (the chest under the badge, the stage
+ * chip, the progress rail: 127 px of top inset on a desktop), and every pixel
+ * of it came out of `usableH` and so out of the zoom. Nobody chose "almost
+ * twice the look-ahead past the guns"; the fit drifted into it.
+ *
+ * 0.175 is the middle of the requested band. Under it every ratio where the
+ * lane is not the limit sees the same 14.31 units to the top edge and ~11–12.4
+ * units under the HUD; portrait phones are limited by the lane (see
+ * `LANE_EDGE_MARGIN`) and land at 18–20 %.
+ */
+export const FIRE_END_SCREEN_Y = 0.175
+
+/**
+ * World units of verge kept visible OUTSIDE each rail when the lane's width is
+ * what limits the zoom — i.e. on every portrait phone.
+ *
+ * It was 1.1 (a comfortable shoulder), and on a 19.5:9 phone that shoulder was
+ * the whole difference: the lane-width fit won by a mile and held the fire end
+ * at 27 %. Solving `FIRE_END_SCREEN_Y` on those phones needs the lane to fill
+ * ~98 % of the width, so the margin is cut to the rails' own furniture: a rail
+ * post is drawn 0.16 units either side of the rail, and 0.15 keeps all of it
+ * but a hundredth of a unit (half a pixel) on screen. The 19.5:9 phones land at
+ * 18.2 %, the 20:9 ones at 19.6 % — both in the band. 0.2 was tried first and
+ * put a 412x915 phone at 20.1 %, just out of it.
+ *
+ * ⚠ Past the rails is only scenery, with ONE exception: the elite's reward cage
+ * at `REWARD_CAGE_X` = 5.4 now shows ~27 % of its width on a phone rather than
+ * half. It cannot move inward (the crowd would grind against it), and its `+N`
+ * is already clamped to stay on screen by `drawCages`.
+ */
+export const LANE_EDGE_MARGIN = 0.15
+
+/** Floor on the zoom, px per world unit. Below it the fit has already failed —
+ *  a landscape phone, which `PortraitLock` covers — and everything simply
+ *  crops rather than shrinking to specks. */
+export const CAMERA_MIN_SCALE = 16
+
+/**
+ * CSS pixels per world unit for a `w` x `h` viewport whose HUD bars take
+ * `topInset` / `bottomInset` pixels. The whole camera, as one rule and four
+ * limits — no per-device table:
+ *
+ *   byRange  THE RULE. Put the end of `BULLET_RANGE` at `FIRE_END_SCREEN_Y`
+ *            from the top edge: `(CROWD_SCREEN_Y − FIRE_END_SCREEN_Y) · h` px
+ *            carry `BULLET_RANGE` units. The frame is solved from the range,
+ *            so the range never moves with it.
+ *   byLane   the lane, plus `LANE_EDGE_MARGIN` either side, fits across. Wins
+ *            on portrait phones (aspect ≳ 2); nowhere else.
+ *   byHud    the base fire never ends UNDER the top HUD strip — you cannot
+ *            shoot what you have not seen. Only bites where the strip is
+ *            taller than ~17 % of the screen (a 720 px desktop: 127 px). As a
+ *            by-product the whole base range is always readable under the HUD.
+ *   byFloor  the crowd at full size never sinks under the bottom HUD. Only a
+ *            short landscape window ever reaches it.
+ *
+ * Why the HUD is no longer divided INTO the zoom, as `usableH / VIEW_HEIGHT`
+ * did: that made the zoom a function of how much chrome the HUD carried, so
+ * every chip added to the top bar quietly zoomed the game out and bought the
+ * player look-ahead — which is exactly how this drifted. Now the HUD only ever
+ * CAPS the zoom, and only where it would otherwise hide the fire's end.
+ *
+ * The recorded feed (`?feed=`) passes zero insets and so frames exactly like
+ * play, bar the `byHud` cap on a short window.
+ */
+export const cameraScale = (w: number, h: number, topInset = 0, bottomInset = 0): number => {
+  const byRange = ((CROWD_SCREEN_Y - FIRE_END_SCREEN_Y) * h) / BULLET_RANGE
+  const byLane = w / (LANE_HALF * 2 + LANE_EDGE_MARGIN * 2)
+  const byHud = (CROWD_SCREEN_Y * h - topInset) / BULLET_RANGE
+  const byFloor = ((1 - CROWD_SCREEN_Y) * h - bottomInset) / (CROWD_MAX_R + UNIT_R)
+  return Math.max(CAMERA_MIN_SCALE, Math.min(byRange, byLane, byHud, byFloor))
+}
 
 // ─── Gates ──────────────────────────────────────────────────────────────────
 
@@ -779,7 +901,8 @@ export const dividerCrushFor = (stage: number): CrushRamp => ({
  *
  * What is left in those two numbers is CONTENT rather than tuning: the first
  * scenery that can kill arrives on stage 4, and stage 6 is the first road with
- * a second elite and a passage on it. Softening those means moving a beat, not
+ * a passage on it (and, until the 2026-09-18 re-cut gave 2-5 two landmarks
+ * each, a second elite). Softening those means moving a beat, not
  * turning a dial, so they are deliberately left where the design put them.
  */
 
@@ -840,7 +963,18 @@ export const earlyBarricadeKeep = (stage: number): number =>
   // units and the wrong one on 226 — one piece of scenery in fifty seconds of
   // road. Two rows over the longer road is very slightly denser than one was
   // over the shorter, which is the note act two is written on anyway.
-  stage <= 1 ? 0 : stage <= 3 ? 0.67 : stage <= 5 ? 0.5 : 1
+  //
+  // ── …and 2-5 keep every row now (2026-09-18) ──
+  //
+  // A running quota deletes rows by COUNT, so on a road written in acts it
+  // deleted the wrong thing: stage 3's second chicane lost its second wall and
+  // its gauntlet a rail, and a chicane with one wall is a wall with a wrong
+  // side. Stages 2-5 were re-authored for their sixty-second roads with the
+  // dose written down — single rows on 2, one chicane and one gauntlet on 3,
+  // the lazy-line structures on 4-5 — so the relief is in what the author put
+  // there rather than in a filter guessing which half to keep. Boulders, which
+  // cannot be shot, keep their own thinning (`earlyRockKeep`).
+  stage <= 1 ? 0 : 1
 
 /** Boulders — the half of `earlyObstacleKeep` that cannot be shot. */
 export const earlyRockKeep = (stage: number): number => earlyObstacleKeep(stage)
@@ -961,9 +1095,12 @@ export const earlyPackMul = (stage: number): number =>
 export const earlyCrateHpMul = (stage: number): number =>
   stage <= 1 ? 1 : stage <= 5 ? 0.6 : stage <= 6 ? 0.8 : 1
 
-/** Stage 6 is the first road with TWO elites on it (`placeMinibosses`), which
+/** Stage 6 was the first road with TWO elites on it (`placeMinibosses`), which
  *  is a x2 nobody can tune away — so the last 10 % of the health discount is
- *  spent there rather than on stage 5. */
+ *  spent there rather than on stage 5. Since 2026-09-18 stages 2-5 carry two
+ *  as well (`AUTHORED_ELITES`), but their elites are priced in seconds of the
+ *  crowd's own fire (`adaptiveEliteHp`) and never read this, so 6 is still the
+ *  first stage whose SECOND authored-health elite this discount reaches. */
 export const earlyMinibossHpMul = (stage: number): number =>
   stage <= 3 ? 0.7 : stage <= 5 ? 0.8 : stage <= 6 ? 0.9 : 1
 
@@ -1919,14 +2056,38 @@ export const retrySquadScaleFor = (failures: number, stage: number): number =>
  * at all, which cost less time than it was worth: a level that simply stops
  * reads as unfinished, and it teaches the wrong shape for every stage after.
  */
-export const stageLength = (stage: number): number =>
-  stage <= 1
-    ? STAGE_ONE_LENGTH
-    : stage === 2
-      ? STAGE_TWO_LENGTH
-      : stage === 3
-        ? STAGE_THREE_LENGTH
-        : Math.round(120 + Math.min(stage, 20) * 9 + Math.max(0, stage - 20) * 4)
+export const stageLength = (stage: number): number => {
+  if (stage <= 1) return STAGE_ONE_LENGTH
+  if (stage >= STAGE_RUN_BLEND_TO) return legacyStageLength(stage)
+  // ── The middle road runs as long as the first one (2026-09-18) ──
+  //
+  // Owner's call: stage 1 was finally right and every stage after it was over
+  // too fast — stages 4-15 ran 29-38 s of road against stage 1's 63. So stages
+  // 2..`STAGE_RUN_HOLD_THROUGH` are cut to stage 1's own running time, and from
+  // there the target eases down to exactly what stage `STAGE_RUN_BLEND_TO`
+  // already runs, so the late game (30+) is not one unit longer than it was.
+  // Expressed in SECONDS and converted at each stage's own speed, because a
+  // faster stage needs more road to last as long.
+  const endSeconds = legacyStageLength(STAGE_RUN_BLEND_TO) / stageSpeed(STAGE_RUN_BLEND_TO)
+  const k = stage <= STAGE_RUN_HOLD_THROUGH
+    ? 0
+    : (stage - STAGE_RUN_HOLD_THROUGH) / (STAGE_RUN_BLEND_TO - STAGE_RUN_HOLD_THROUGH)
+  const seconds = STAGE_RUN_SECONDS + (endSeconds - STAGE_RUN_SECONDS) * k
+  return Math.max(legacyStageLength(stage), Math.round(seconds * stageSpeed(stage)))
+}
+
+/** Seconds of pure running stages 2..`STAGE_RUN_HOLD_THROUGH` are cut to —
+ *  stage 1's own road is 62.7 s at `RUN_SPEED`. */
+export const STAGE_RUN_SECONDS = 60
+/** The last stage held at `STAGE_RUN_SECONDS`; the target eases down after it. */
+export const STAGE_RUN_HOLD_THROUGH = 12
+/** From this stage on the length is the legacy curve, untouched. */
+export const STAGE_RUN_BLEND_TO = 30
+
+/** The curve every stage from 4 ran on before the 2026-09-18 pass, and the one
+ *  stages `STAGE_RUN_BLEND_TO`+ still run on. */
+export const legacyStageLength = (stage: number): number =>
+  Math.round(120 + Math.min(stage, 20) * 9 + Math.max(0, stage - 20) * 4)
 
 /**
  * ─── …and then stage 1 went the other way ───────────────────────────────────
@@ -2410,8 +2571,8 @@ export const CAGE_R = 0.68
  *   boss holds   `arenaY + 3.8`   — `BOSS_HOLD_AHEAD`, where it turns to fight
  *   boss SPAWNS  `arenaY + 12`    — `track.bossY` (`length + 8`). Measured: it
  *                                   takes ~10 s to walk down from there.
- *   top of play  `arenaY + 14.0`  — the highest row the player can actually
- *                                   see; measured, not derived (see below)
+ *   top edge     `arenaY + 14.31` — the top of the canvas; since 2026-09-18
+ *                                   derived, not measured (see below)
  *
  * The first cut of this stood at 7, reasoned off the hold position alone, and it
  * was wrong in the way that matters: the boss spends the opening ten seconds of
@@ -2425,36 +2586,32 @@ export const CAGE_R = 0.68
  * after, and it lands where a prize has to land to be a reason for anything:
  * pinned to the TOP of the frame with its lid cut off. The drawn body spans
  * `y - 0.93 … y + 1.94` (`CAGE_R` x `WARDEN_CAGE_SCALE` x `CAGE_DRAW_TALL`), so
- * on the tightest screen the game fits into about **76 %** of it is visible and
- * the rest is over the edge. That is the read the whole object is for: a prize
- * you can see all of is scenery, and one the screen cannot quite contain is a
- * place you have to get to. It is the only thing on that screen answering "why
- * am I fighting this".
+ * its lid stands at 14.74 — over the top edge on every ratio but a 20:9 phone
+ * (see below), and under the HUD strip on all of them — while 85–100 % of the
+ * body is on the canvas. That is the read the whole object is
+ * for: a prize you can see all of is scenery, and one the screen cannot quite
+ * contain is a place you have to get to. It is the only thing on that screen
+ * answering "why am I fighting this".
  *
- * ── Where 14.0 comes from ──
+ * ── Where 14.31 comes from ──
  *
- * NOT `CROWD_SCREEN_Y` x `VIEW_HEIGHT`. That is what fits above the crowd in the
- * camera's own terms and it is the wrong number twice over: `setViewport` fits
- * `VIEW_HEIGHT` into `usableH` — the viewport MINUS the two HUD bars — so the
- * scale is smaller than the naive one, and then the top of what the player can
- * read is the bottom of the top bar rather than the top of the canvas. Both
- * corrections are large and they pull in opposite directions.
+ * `cameraScale` solves the frame from the gun's range, so the top edge is no
+ * longer a measurement: `CROWD_SCREEN_Y · BULLET_RANGE / (CROWD_SCREEN_Y −
+ * FIRE_END_SCREEN_Y)` = 14.31 units on every screen whose lane is not the
+ * limit, and a little more (14.5–14.9) on the portrait phones where it is.
+ * `tests/game/stageHandover.test.ts` derives it from the same function.
  *
- * Measured in the browser, `(cssH x CROWD_SCREEN_Y - topInset) / scale`:
- *
- *   420x900 phone   14.35     1280x800  desktop   14.28
- *   360x780 phone   14.11     1600x1000 desktop   14.13
- *   820x1180 tablet 14.04     1920x1080 desktop   14.08
- *
- * — which is not a coincidence but the fit rule working: the lane's width and
- * the road's height trade off against each other so that the playable band is
- * the same fourteen units of road on everything. The cage is tuned to the
- * bottom of that spread.
+ * The HUD strip covers the top 11–17 % of that, so on a phone the upper part
+ * of the cage sits behind the stage chip. It was the other way round before:
+ * the old HUD-fitted camera showed 14.0–14.6 units UNDER the strip and the cage
+ * sat just below it with 76 % showing. Pulling the lead down to get back under
+ * the strip is not available — anything below 12 stands in front of the boss's
+ * spawn — so the lid is cut by the strip and the edge instead, and on a desktop,
+ * where the strip's widgets clear the lane, by the edge alone.
  *
  * ⚠ The exception is a LANDSCAPE PHONE short enough to hit the `scale` floor of
- * 16 (measured: 900x420 shows 10.96 units). There the fit has already failed and
- * the road is cropped — the cage goes over the top with everything else that
- * does not fit, and that is the floor's behaviour, not this constant's.
+ * 16 (`CAMERA_MIN_SCALE`). There the fit has already failed and the road is
+ * cropped — that is the floor's behaviour, not this constant's.
  *
  * Off the arena line rather than off the boss, because the boss MOVES: it walks
  * down out from in front of the cage as the fight opens, which is the picture.
@@ -2504,6 +2661,14 @@ export const WARDEN_CAGE_X = -2.4
  * exactly 1.1 world units wide, whatever the phone. At 5.4 with a drawn
  * half-width of `CAGE_R * REWARD_CAGE_SCALE` = 1.63, the cage spans 3.77 … 7.03:
  * a little over half of it is on screen and the rest is cut by the edge.
+ *
+ * ⚠ Since 2026-09-18 (`cameraScale`) that shoulder is `LANE_EDGE_MARGIN` =
+ * 0.15 on a portrait phone, not 1.1 — the zoom came in so the guns end ~18 %
+ * below the top edge — so the visible world runs `-4.65 … +4.65` and only ~27 %
+ * of the cage's width shows. Kept at 5.4 anyway, because the reach argument
+ * below is the binding one: at 4.9 (half on screen again) a survivor could come
+ * within 0.7 of it, inside the 0.98 grind radius. The `+N` is clamped on screen
+ * by `drawCages`, so the prize still reads.
  *
  * It is also out of reach by construction. The crowd is clamped to
  * `EDGE_X` = 4.2 and `grindAgainst` bites at `CAGE_R + UNIT_R` = 0.98, so the

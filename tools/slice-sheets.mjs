@@ -1908,11 +1908,15 @@ try {
         // A DEATH moves on purpose: it rears, drops, lands and lies down, so the
         // three checks below — one feet line, one centre, one size — would all
         // fire on a perfect return. What it owes instead is a last panel that
-        // reads as the body, and that is a look, not a number.
-        const death = sheet.artKind === 'death'
-        if (death) {
+        // reads as the body, and that is a look, not a number. A THROW moves on
+        // purpose too — an arm swung wide, a beast reared on its haunches.
+        const death = sheet.artKind === 'death' || sheet.artKind === 'hurl'
+        if (sheet.artKind === 'death') {
           console.log('    · a death strip: bob / drift / size checks skipped — look at the'
             + ' last panel in /playground, it is held on screen as the corpse.')
+        } else if (death) {
+          console.log('    · a throw strip: bob / drift / size checks skipped — check the'
+            + ' hand is EMPTY and where the reference put it (the game draws the rock there).')
         }
         const spread = (xs) => (death || !xs?.length ? 0 : Math.max(...xs) - Math.min(...xs))
         // The feet must land on one line. This is the difference between a walk

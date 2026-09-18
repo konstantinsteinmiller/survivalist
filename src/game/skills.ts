@@ -73,8 +73,16 @@ export const DECOY_COOLDOWN_MS = 75_000
  * screen, so ~14 units are visible ahead at the reference zoom; a little more
  * than that, because a wide screen shows more road and a body just over the top
  * edge is one the player can already see coming.
+ *
+ * 14.5 since 2026-09-18. The camera is now solved from the gun's range
+ * (`cameraScale`) and the top edge of the canvas stands 14.31 units ahead on
+ * every ratio, 14.5–14.9 on a portrait phone — where 16 used to sit under the
+ * top edge of every screen, it now sits one to two units ABOVE it, and a flare
+ * or a freeze pressed at a road with nothing on it but a body nobody can see
+ * would spend its charge. 14.5 is the top edge: whatever is being drawn counts,
+ * whatever is not does not.
  */
-export const SKILL_VIEW_AHEAD = 16
+export const SKILL_VIEW_AHEAD = 14.5
 
 // ─── Decoy Flare ────────────────────────────────────────────────────────────
 

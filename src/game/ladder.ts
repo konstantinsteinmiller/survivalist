@@ -1,4 +1,4 @@
-import { WEAPON_PICK_STAGE, stageHasWeapon, weaponForStage, type WeaponId } from '@/game/weapons'
+import { WEAPON_PICK_OFFER_STAGE, stageHasWeapon, weaponForStage, type WeaponId } from '@/game/weapons'
 
 /**
  * ─── The gift ladder ────────────────────────────────────────────────────────
@@ -75,8 +75,10 @@ export const nextWeaponStage = (stage: number, horizon = 400): number | null => 
  */
 export const nextUnlock = (stage: number): Unlock | null => {
   const s = Math.max(1, Math.floor(stage))
-  if (s < WEAPON_PICK_STAGE) {
-    return { atStage: WEAPON_PICK_STAGE, icon: 'gift', kind: 'weaponPick' }
+  // The choice is offered at the first boss's kill now
+  // (`WEAPON_PICK_OFFER_STAGE`), so stage 1 is the one road that promises it.
+  if (s < WEAPON_PICK_OFFER_STAGE) {
+    return { atStage: WEAPON_PICK_OFFER_STAGE, icon: 'gift', kind: 'weaponPick' }
   }
   if (s < SHIELD_GIFT_STAGE) {
     return { atStage: SHIELD_GIFT_STAGE, icon: 'shield', kind: 'shield' }

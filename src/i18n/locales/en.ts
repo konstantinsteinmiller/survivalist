@@ -47,6 +47,10 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'Stages to the next bonus',
+    // The long-term goal chip under the stage label: the next milestone
+    // payout and how far it is. `{coins}` is the lump; it is followed by a
+    // `ladder.*` timing phrase ("in 4 stages"). Keep it one or two words.
+    'bonus': "Bonus +{coins}",
     // Live fire-rate chip. It sits in a HUD pill next to a number, so every
     // locale keeps this to ~6 characters.
     'fireRate': 'Rate',
@@ -211,6 +215,10 @@ export default {
     // silhouette of the boss waiting at the end of the new road. `{name}` is
     // one of `bossName` below. Keep it to about three words.
     'bossAhead': "Boss ahead: {name}",
+    // The leaderboard climb on the banner after a new best: the new rank and
+    // how many places the clear gained. `{rank}`/`{n}` are locale-grouped
+    // numbers. Phrased without a plural on purpose.
+    'rankUp': "Rank #{rank} ▲{n}",
     // The bosses' own names. Invented proper nouns: Latin-script locales keep
     // them; other scripts transliterate, or coin a name of the same kind.
     'bossName': {
@@ -229,7 +237,9 @@ export default {
   'ladder': {
     'weaponPick': 'Choose a weapon',
     'nextStage': 'next stage',
-    'stagesAway': 'in {n} stages'
+    'stagesAway': 'in {n} stages',
+    // …for a goal that pays at the end of the stage being played.
+    'thisStage': "this stage"
   },
   // ─── The weapon choice ────────────────────────────────────────────────────
   // A two-card reveal on the handover into stage 3. The title rides the iron

@@ -31,6 +31,7 @@ export default {
     // Screen-reader label for the star chip that counts down to the
     // next milestone payout. The chip itself is a glyph and a digit.
     'toMilestone': 'المراحل حتى المكافأة التالية',
+    'bonus': "مكافأة +{coins}",
     'fireRate': 'معدل',
     'incoming': 'هجوم قادم!',
     'dodge': 'تفادَ',
@@ -91,6 +92,7 @@ export default {
 
     'next': "التالي: {label} · {when}",
     'bossAhead': "الزعيم في الطريق: {name}",
+    'rankUp': "المرتبة #{rank} ▲{n}",
     'bossName': {
       'grumpling': "غرامبلينغ",
       'bonecap': "بونكاب",
@@ -106,7 +108,8 @@ export default {
   'ladder': {
     'weaponPick': "اختر سلاحًا",
     'nextStage': "المرحلة التالية",
-    'stagesAway': "بعد {n} مراحل"
+    'stagesAway': "بعد {n} مراحل",
+    'thisStage': "هذه المرحلة"
   },
   'weaponPick': {
     'title': "اختر سلاحك",
