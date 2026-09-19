@@ -39,20 +39,21 @@ import { cheapest, value } from './shop'
 const SEEDS = 3
 
 describe('the floor: stage 1 must not punish a player who does nothing', () => {
-  it('lets a careless run reach the closing elite on every seed', async () => {
-    // Stage 1's climax is a weakened elite at 88 % of the road
-    // (`MINIBOSS_TUTORIAL`) and then a boss priced to fall over
-    // (`tutorialBossHp`). The floor asserted here is the road itself: a player
-    // who never steers should still be carried most of the way down it by the
-    // crowd the stage hands them.
+  // ── RETIRED 2026-09-19, by owner's call ──
+  //
+  // Stage 1's packs went from one creep to three at half again the health
+  // (`earlyPackBonus`, `earlyFoeHpMul`), with the owner's reasoning stated
+  // outright: a player who does not steer is not a real player, and one who
+  // cannot kill a pack has to dodge it. Measured over six seeds before the call
+  // was made: `careless` dies at 15 % of the road (~11 s, the first pack) and
+  // `average` — which never dodges a monster in this harness — dies at 56 %
+  // (~38 s) on every seed. `good` and `optimal` still clear. The floor below
+  // now pins the new shape instead of the old promise.
+  it('stops a run that never steers at the packs, by design', async () => {
     await loadGame()
     const rs = await runSamples(1, careless, SEEDS)
-    const deep = rs.filter((r) => r.progress01 > 0.8).length
-    expect(
-      deep,
-      `stage 1 must be survivable without steering — only ${deep}/${rs.length} runs got past 80 % ` +
-        `of the road, median end at ${Math.round(median(rs.map((r) => r.progress01)) * 100)} %`
-    ).toBe(rs.length)
+    expect(rs.filter((r) => r.cleared).length, 'a run that never steers cleared stage 1').toBe(0)
+    for (const r of rs) expect(r.deaths.foe, 'the packs were not what stopped it').toBeGreaterThan(0)
   }, 120_000)
 
   it('does not make stage 1 impossible to lose either', async () => {
@@ -154,10 +155,16 @@ describe('the floor: stage 1 must not punish a player who does nothing', () => {
     // seed" above, which still holds — and the boss at the end of it is not a
     // free win, so no clear is asserted for careless here any more.
 
-    const tapped = aggregate(await runSamples(1, average, SEEDS))
+    // ── …AND THEN THE PACKS GREW (2026-09-19, owner's call) ──
+    //
+    // Three bodies a pack at half again the health on stage 1. `average` does
+    // not dodge monsters in this harness and now dies ~38 s in on every seed;
+    // the owner accepted that knowingly ("players who can't kill them have to
+    // dodge them"). The promise moved to the player who reads the road.
+    const tapped = aggregate(await runSamples(1, good, SEEDS))
     expect(
       tapped.clearRate,
-      'stage 1 stopped clearing for a player who taps badly — the install ends here'
+      'stage 1 stopped clearing for a player who reads the road — the install ends here'
     ).toBe(1)
 
     // The taught stages are allowed to be walkable, but never RELIABLY: a stage
@@ -193,11 +200,16 @@ describe('the opening is a session, not a demo', () => {
    * says the TOTAL is what the player actually experiences.
    */
   it('runs about seventy seconds however it is played', async () => {
-    for (const policy of [optimal, good, average]) {
+    // `average` left this list on 2026-09-19: stage 1's bigger packs end its run
+    // at ~38 s (see "walks the taught stages"), which is the owner's accepted
+    // trade, not a pacing regression.
+    for (const policy of [optimal, good]) {
       const a = aggregate(await runSamples(1, policy, 3))
       const said = `stage 1 ran ${a.seconds.med.toFixed(1)}s for ${policy.id}`
       expect(a.seconds.med, said).toBeGreaterThan(60)
-      expect(a.seconds.med, said).toBeLessThan(85)
+      // 85 until 2026-09-19, when the weapon split went in before stage 1's
+      // boss: 36 units of road, a third of them at `ARMORY_SLOW`, ~9 s more.
+      expect(a.seconds.med, said).toBeLessThan(95)
     }
   }, 300_000)
 
@@ -212,7 +224,9 @@ describe('the opening is a session, not a demo', () => {
     // fire — so the band here is deliberately ~3 s above the one the player
     // experiences. `SIM_FIRSTBOSS=1` prints both columns side by side, and
     // `ADAPTIVE_FIRST_FIGHT_SECONDS` carries the table.
-    for (const policy of [optimal, good, average]) {
+    //
+    // `average` no longer reaches the boss (2026-09-19, stage 1's bigger packs).
+    for (const policy of [optimal, good]) {
       const a = aggregate(await runSamples(1, policy, 3))
       expect(a.bossReachRate, `${policy.id} did not reach the stage-1 boss`).toBe(1)
       const said = `the first boss lasted ${a.bossSeconds.med.toFixed(1)}s for ${policy.id}`

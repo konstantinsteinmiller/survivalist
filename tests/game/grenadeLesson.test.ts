@@ -49,11 +49,25 @@ beforeEach(async () => {
   g.setGrenadeTutorialAllowed(false)
 })
 
+/**
+ * Keep the walking crowd alive through stage 1's packs.
+ *
+ * These specs walk the road without steering, and since stage 1's packs went to
+ * three bodies at half again the health (owner, 2026-09-19) a crowd that never
+ * steers dies at the first of them. What is under test is the LESSON, not
+ * whether an idle crowd survives the road, so the crowd is topped up — to a
+ * size a played run has by then, not one big enough to delete the elite.
+ */
+const keepAlive = (game: Game): void => {
+  if (game.phase.value === 'run' && game.squadCount.value < 10) game.debugAddUnits(10 - game.squadCount.value)
+}
+
 /** Walk the teaching stage until the world stops, or give up. */
 const walkToLesson = (game: Game, maxMs = 120_000): number => {
   game.startStage(GRENADE_TUTORIAL_STAGE)
   let t = 0
   while (t < maxMs) {
+    keepAlive(game)
     game.step(STEP_MS)
     t += STEP_MS
     if (game.grenadeTeachHeld.value) return t
@@ -146,6 +160,7 @@ describe('the lesson can always be answered', () => {
 
     let crawling = -1
     for (let t = 0; t < 120_000; t += STEP_MS) {
+      keepAlive(game)
       game.step(STEP_MS)
       if (crawling < 0 && game.grenadeTeaching()) crawling = t
       if (game.grenadeTeachHeld.value) {
@@ -176,6 +191,7 @@ describe('the lesson can always be answered', () => {
 
     let killed = false
     for (let t = 0; t < 120_000; t += STEP_MS) {
+      keepAlive(game)
       game.step(STEP_MS)
       if (!killed) {
         const el = game.getFoes().find((f) => !f.dead && f.elite)

@@ -55,6 +55,7 @@ export type AnalyticsEvent =
   | 'gate_pass'
   | 'shop_open'
   | 'upgrade_buy'
+  | 'armory_pick'
 
 export type AnalyticsValue = string | number | boolean
 export type AnalyticsProps = Record<string, AnalyticsValue | undefined>

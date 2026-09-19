@@ -16,7 +16,8 @@ import {
   puzzleGift, puzzlePulled, puzzleTotal, puzzleWeapon, weaponPower,
   sideWeapon, sideWeaponPower,
   rallies, readWeaponPick, setRallyPolicy, stageBeats, worldVersion,
-  isExpedition, startExpedition, cashOutSquad, type RallyAsk
+  isExpedition, startExpedition, cashOutSquad, type RallyAsk,
+  armoryTaken, roadHalfNow
 } from '@/use/useSurvivalGame'
 import { EXPEDITION_STAGE } from '@/use/useDailyExpedition'
 import {
@@ -30,7 +31,7 @@ import WeaponChoice from '@/components/organisms/WeaponChoice.vue'
 import BossReward from '@/components/organisms/BossReward.vue'
 import {
   drawScene, setViewport, screenToWorldX, screenDeltaToWorld, invalidateArt,
-  setCutsceneCam,
+  setCutsceneCam, setArmoryText,
   worldToScreenX, worldToScreenY, getScale
 } from '@/use/useSurvivalArt'
 /**
@@ -513,7 +514,8 @@ const onPointerMove = (e: PointerEvent): void => {
       // Pushing PAST the rail still pins the crowd to it, because the last
       // in-road column the cursor crossed was the rail itself.
       const wx = screenToWorldX(e.clientX)
-      if (Math.abs(wx) <= LANE_HALF + 0.75) {
+      // The road's half-width HERE — a weapon split is wider than the lane.
+      if (Math.abs(wx) <= roadHalfNow() + 0.75) {
         // Hovering over the road IS playing, on a desktop — the crowd is already
         // following the cursor, so the player has had the lesson.
         //
@@ -1391,11 +1393,16 @@ const unlockLabel = (u: Unlock): string =>
 const unlockWhen = (n: number): string =>
   n <= 1 ? t('ladder.nextStage') : t('ladder.stagesAway', { n })
 
+/** …or "this stage", for a gift that stands on the road being played (the
+ *  weapon split on stage 1). */
+const unlockWhenFor = (forStage: number, u: Unlock): string =>
+  u.atStage <= Math.floor(forStage) ? t('ladder.thisStage') : unlockWhen(stagesAway(forStage, u))
+
 /** The chip: a glyph and "Shield · next stage". */
 const ladderChip = (forStage: number): { icon: GameIconName; text: string } | null => {
   const u = nextUnlock(forStage)
   if (!u) return null
-  return { icon: u.icon, text: `${unlockLabel(u)} · ${unlockWhen(stagesAway(forStage, u))}` }
+  return { icon: u.icon, text: `${unlockLabel(u)} · ${unlockWhenFor(forStage, u)}` }
 }
 
 /** The banner's line: "Next: Shield · next stage". */
@@ -1404,7 +1411,7 @@ const ladderLine = (forStage: number): { icon: GameIconName; text: string } | nu
   if (!u) return null
   return {
     icon: u.icon,
-    text: t('flow.next', { label: unlockLabel(u), when: unlockWhen(stagesAway(forStage, u)) })
+    text: t('flow.next', { label: unlockLabel(u), when: unlockWhenFor(forStage, u) })
   }
 }
 
@@ -1614,6 +1621,19 @@ const presentBossReward = (): void => {
   // this key, so a tab closed on the reveal still opens stage 2 holding it.
   setState(BOSS_REWARD_KEY, true)
   void flushSaveNow()
+  // ── The weapon split already handed one over ──
+  //
+  // Since 2026-09-19 the stage-1 road ends in a four-lane split (`game/armory.ts`)
+  // and the boss is fought with the weapon the player walked into. It rides on
+  // into stage 2 (`startStage`'s loaner rules read it as the pick), so there is
+  // no card to show: the kill hands straight over, and the banner names the gun
+  // the crowd is walking on with.
+  const walkedIn = armoryTaken()
+  if (walkedIn !== null) {
+    completeHandover({ icon: walkedIn, label: t(`weapons.${walkedIn}`) })
+    showDeferredCash()
+    return
+  }
   // ── …and a first-timer CHOOSES it ──
   //
   // Owner's call (2026-09-18): the weapon choice is the session extender, and it
@@ -3059,6 +3079,12 @@ const boot = async (): Promise<void> => {
 watch(renderScaleTier, () => resize())
 
 const onOrientationChange = (): void => { setTimeout(resize, 250) }
+
+// The weapon split's words live in the renderer's canvas, which has no i18n of
+// its own: handed over now and again whenever the language changes.
+watch(locale, () => {
+  setArmoryText(t('weaponPick.title'), (id) => t(`weapons.${id}`))
+}, { immediate: true })
 
 let insetTimer = 0
 

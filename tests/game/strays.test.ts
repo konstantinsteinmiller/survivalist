@@ -32,6 +32,7 @@ import { buildTrack } from '@/game/track'
 import { FOE_REACH, UNIT_R } from '@/game/survival'
 import { STRAY_HOMING } from '@/use/useSurvivalGame'
 import { foeDef } from '@/game/foes'
+import { ARMORY_SPAN } from '@/game/armory'
 
 const importGame = () => import('@/use/useSurvivalGame')
 const STEP_MS = 16
@@ -131,9 +132,14 @@ describe('where the strays are', () => {
     // authored now (`AUTHORED_ELITES`) and these are those marks, unnudged.
     // Stage 1 is untouched, which is the half of this assertion that still
     // guards the original claim.
+    //
+    // …and the weapon split (2026-09-19) is SPLICED into stages 1-3, so every
+    // mark past it moved up the road by exactly `ARMORY_SPAN` and nothing else
+    // moved at all: stage 1's split is after both of its elites, stage 2's (a
+    // quarter in) before both, stage 3's (halfway) between them.
     expect(at(1)).toEqual([120.08, 271.76])
-    expect(at(2)).toEqual([118, 246])
-    expect(at(3)).toEqual([118, 254])
+    expect(at(2)).toEqual([118 + ARMORY_SPAN, 246 + ARMORY_SPAN])
+    expect(at(3)).toEqual([118, 254 + ARMORY_SPAN])
   })
 })
 

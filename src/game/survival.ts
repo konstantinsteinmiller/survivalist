@@ -392,9 +392,14 @@ export const CAMERA_MIN_SCALE = 16
  * The recorded feed (`?feed=`) passes zero insets and so frames exactly like
  * play, bar the `byHud` cap on a short window.
  */
-export const cameraScale = (w: number, h: number, topInset = 0, bottomInset = 0): number => {
+export const cameraScale = (
+  w: number, h: number, topInset = 0, bottomInset = 0,
+  /** The road's half-width to fit. `LANE_HALF` everywhere but a weapon split,
+   *  whose wider road the camera pulls back for — see `game/armory.ts`. */
+  laneHalf = LANE_HALF
+): number => {
   const byRange = ((CROWD_SCREEN_Y - FIRE_END_SCREEN_Y) * h) / BULLET_RANGE
-  const byLane = w / (LANE_HALF * 2 + LANE_EDGE_MARGIN * 2)
+  const byLane = w / (laneHalf * 2 + LANE_EDGE_MARGIN * 2)
   const byHud = (CROWD_SCREEN_Y * h - topInset) / BULLET_RANGE
   const byFloor = ((1 - CROWD_SCREEN_Y) * h - bottomInset) / (CROWD_MAX_R + UNIT_R)
   return Math.max(CAMERA_MIN_SCALE, Math.min(byRange, byLane, byHud, byFloor))
@@ -1041,8 +1046,17 @@ export const earlyRockKeep = (stage: number): number => earlyObstacleKeep(stage)
  * around them. That is a beat to move, not a dial to turn, and a dial that reads
  * as tuned while doing nothing is worse than no dial.
  */
+/*
+ * ─── …and since 2026-09-19 stage 1 pays MORE than full price ───────────────
+ *
+ * Owner's call, with `earlyPackBonus`: one creep at a time was no challenge at
+ * all, so stage 1's packs are three bodies and each has half again the health.
+ * A crowd that cannot kill them in time has to steer round them — the verb the
+ * packs exist to teach. The elites are untouched (`minibossHpScale` divides
+ * this curve back out) and stage 1's boss has no escort for it to reach.
+ */
 export const earlyFoeHpMul = (stage: number): number =>
-  stage <= 1 ? 1 : stage <= 3 ? 0.85 : stage <= 4 ? 0.8 : 1
+  stage <= 1 ? 1.5 : stage <= 3 ? 0.85 : stage <= 4 ? 0.8 : 1
 
 /**
  * …and there are fewer of them per pack. A hard cap, not a scale: stage 1 shows
@@ -1066,6 +1080,26 @@ export const earlyFoeHpMul = (stage: number): number =>
  */
 export const earlyPackCap = (stage: number): number =>
   stage <= 1 ? 1 : stage <= 2 ? 3 : stage <= 3 ? 5 : Number.POSITIVE_INFINITY
+
+/**
+ * Bodies ADDED to every pack after the cap — stage 1 only (owner, 2026-09-19).
+ *
+ * The cap above still decides the pack's shape (stage 1 authors packs of one,
+ * three and four, and the cap levels them all); this is two more on top, so
+ * every stage-1 pack is three bodies across the lane. Not applied to strays: a
+ * stray is one wandering body by design, not a pack. See `earlyFoeHpMul` for
+ * the health that came with it.
+ */
+export const earlyPackBonus = (stage: number): number => (stage <= 1 ? 2 : 0)
+
+/**
+ * …except the very FIRST pack on stage 1, which carries 30 % of that health
+ * (owner, 2026-09-19). It is met a few seconds out of the opening door by a
+ * crowd that has barely formed, and at full price it was too strong: it is the
+ * pack that ended a non-steering run eleven seconds in. Every other pack keeps
+ * the full `earlyFoeHpMul`.
+ */
+export const STAGE_ONE_FIRST_PACK_HP_MUL = 0.3
 
 /** Stages 4-6 keep real packs, thinned — hardest on 4, where the roster and the
  *  road both step up at once, and nearly gone by 6. */

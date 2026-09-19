@@ -333,7 +333,14 @@ describe('the tutorial hold, priced', () => {
     //
     // `average` is the one held to every seed, and it is the one that matters:
     // it models a player who taps BADLY, which is who the install is lost on.
-    for (const policy of ['optimal', 'good', 'average']) {
+    //
+    // ── …until 2026-09-19 ──
+    //
+    // Owner's call: stage 1's packs are three bodies at half again the health,
+    // and a player who cannot kill them has to dodge them. `average` never dodges
+    // a monster in this harness and now dies ~38 s in, knowingly accepted; the
+    // every-seed promise is held by `good` and `optimal`.
+    for (const policy of ['optimal', 'good']) {
       const rs = rows(`s1 ${policy} hold`)
       expect(
         rs.filter((r) => r.cleared).length,
@@ -369,11 +376,17 @@ describe('the tutorial hold, priced', () => {
     // which is the whole point of the change. What is still owed to it is the
     // same SOME the old bound promised, one step earlier: it still reaches the
     // first boss. (Every seed is `balance.test.ts`'s, on road progress.)
+    //
+    // ── …and since 2026-09-19 the packs stop it (owner's call) ──
+    //
+    // Three bodies a pack at half again the health; "players who don't steer are
+    // not real players". Pinned the other way round now, so a later pass that
+    // quietly makes stage 1 walkable again has to come back through here.
     const idle = rows('s1 careless hold')
     expect(
       idle.filter((r) => r.squadAtBoss > 0).length,
-      'a run that never steers stopped reaching the first boss at all'
-    ).toBeGreaterThan(0)
+      'a run that never steers reached the first boss past the packs'
+    ).toBe(0)
 
     // ── Stage 2 is not in this at all, and that is the finding ──
     //

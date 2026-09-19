@@ -24,6 +24,7 @@ import {
 } from '@/game/track'
 import { bossDesign, foeDef } from '@/game/foes'
 import { adaptiveBossStage } from '@/game/adaptive'
+import { ARMORY_SPAN } from '@/game/armory'
 import {
   BOSS_BASE_HP, bossGuardGates, gateMulOpen, SLAM_MAX_FRACTION, TUTORIAL_SLAM_FRACTION
 } from '@/game/survival'
@@ -211,10 +212,15 @@ describe('the -N door, and the bank with no right answer', () => {
     // strategy — dying at 8 % of the road with every death charged to the door.
     for (const stage of STAGES) {
       const t = track(stage)
-      const arenaY = Math.max(...t.events.map((e) => e.y))
+      // Measured on the road the generator WROTE: the weapon split on stages 1-3
+      // is spliced in afterwards and moves everything past it up by
+      // `ARMORY_SPAN`, which is road, not a place a bank could have stood.
+      const split = t.events.find((e) => e.kind === 'armory')
+      const written = (y: number): number => (split && y > split.y ? y - ARMORY_SPAN : y)
+      const arenaY = written(Math.max(...t.events.filter((e) => e.kind !== 'armory').map((e) => e.y)))
       for (const bank of gateBanks(stage)) {
         if (!bank.leaves.some((l) => l.op === 'sub')) continue
-        expect(bank.y, `stage ${stage} bills at ${bank.y}, before the crowd exists`)
+        expect(written(bank.y), `stage ${stage} bills at ${bank.y}, before the crowd exists`)
           .toBeGreaterThan(arenaY * SUB_EARLIEST)
       }
     }

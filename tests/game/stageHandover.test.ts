@@ -9,6 +9,7 @@ import {
   BOSS_REWARD_DAMAGE_MUL, BOSS_REWARD_STAGE, BOSS_REWARD_WEAPON, WEAPON_PICK_STAGE
 } from '@/game/weapons'
 import { BOSS_REWARD_KEY } from '@/keys'
+import { armoryLaneX } from '@/game/armory'
 
 /**
  * ─── The road goes on ───────────────────────────────────────────────────────
@@ -356,8 +357,11 @@ describe('the first boss pays out on the spot', () => {
 })
 
 describe('stage 2 can hand over two weapons, and they fire together', () => {
-  /** Walk the real road into the stage-2 gift box and shoot it open. */
-  const breakGiftBox = async (game: Game): Promise<void> => {
+  /** Walk the real road into the stage-2 gift box and shoot it open. `lane` is
+   *  where the thumb is held until the box is on the road — i.e. which lane of
+   *  the weapon split a quarter of the way in the crowd walks into (see
+   *  `game/armory.ts`). */
+  const breakGiftBox = async (game: Game, lane?: number): Promise<void> => {
     game.debugAddUnits(20)
     for (let i = 0; i < 3000 && game.activeWeapon.value !== 'gatling'; i++) {
       // ── The crowd is topped up, and that is not padding ──
@@ -377,25 +381,39 @@ describe('stage 2 can hand over two weapons, and they fire together', () => {
       if (game.squadCount.value < 12) game.debugAddUnits(12 - game.squadCount.value)
       const box = game.getWeaponBoxes().find((b) => !b.dead)
       if (box) game.steerTo(box.x)
+      else if (lane !== undefined) game.steerTo(lane)
       game.step(STEP_MS)
     }
     expect(game.activeWeapon.value).toBe('gatling')
   }
 
-  it('keeps the first boss\'s launcher firing beside the gatling from the gift box', async () => {
+  // ── Since the weapon split (2026-09-19) ──
+  //
+  // Stage 2 still OPENS on the first boss's launcher at half power, but a
+  // quarter of the way in the crowd walks into a lane of the split and the
+  // weapon in it REPLACES the loaner at full power. So by the gift box the gun
+  // in the crowd's hands is the player's own pick — and the box's promise is
+  // unchanged: it does not take that gun away.
+
+  it('keeps the weapon taken at the split firing beside the gatling from the gift box', async () => {
     const game = await importGame()
     const { setState } = await import('@/use/useTowerState')
     setState(BOSS_REWARD_KEY, true)
     game.startStage(BOSS_REWARD_STAGE + 1)
     expect(game.activeWeapon.value).toBe(BOSS_REWARD_WEAPON)
+    expect(game.weaponPower.value).toBe(BOSS_REWARD_DAMAGE_MUL)
+    // Nobody steers into the split: the left-centre lane, which on a fresh
+    // career holds the launcher (`armoryLanes`).
     await breakGiftBox(game)
+    const taken = game.armoryTaken()
+    expect(taken).toBe(BOSS_REWARD_WEAPON)
 
     // The box's weapon is the main gun, at full power…
     expect(game.weaponPower.value).toBe(1)
-    // …and the launcher it would have replaced is still in the crowd's hands,
-    // at the half power it was given at.
-    expect(game.sideWeapon.value).toBe(BOSS_REWARD_WEAPON)
-    expect(game.sideWeaponPower.value).toBe(BOSS_REWARD_DAMAGE_MUL)
+    // …and the pick it would have replaced is still in the crowd's hands, at
+    // the full power the split gave it.
+    expect(game.sideWeapon.value).toBe(taken)
+    expect(game.sideWeaponPower.value).toBe(1)
 
     // Both guns are actually firing: rounds of each kind in the air.
     const kinds = new Set<string>()
@@ -404,21 +422,20 @@ describe('stage 2 can hand over two weapons, and they fire together', () => {
       for (const b of game.getBullets()) if (b.weapon) kinds.add(b.weapon)
     }
     expect([...kinds].sort()).toEqual(['gatling', 'rocket'])
+
+    // …and the side gun is for this road only.
+    game.advanceStage()
+    expect(game.sideWeapon.value).toBeNull()
   })
 
-  it('is one gun as before when nothing was held — and nothing carries past the stage', async () => {
+  it('is one gun when the split\'s pick was the gatling', async () => {
     const game = await importGame()
     game.startStage(BOSS_REWARD_STAGE + 1)
     expect(game.activeWeapon.value).toBeNull()
-    await breakGiftBox(game)
-    expect(game.sideWeapon.value).toBeNull()
-
-    const { setState } = await import('@/use/useTowerState')
-    setState(BOSS_REWARD_KEY, true)
-    game.startStage(BOSS_REWARD_STAGE + 1)
-    await breakGiftBox(game)
-    expect(game.sideWeapon.value).toBe(BOSS_REWARD_WEAPON)
-    game.advanceStage()
+    const lanes = game.getArmory()!.lanes
+    await breakGiftBox(game, armoryLaneX(lanes.indexOf('gatling')))
+    expect(game.armoryTaken()).toBe('gatling')
+    // The same weapon again is the full version of it, not two gatlings.
     expect(game.sideWeapon.value).toBeNull()
   })
 })

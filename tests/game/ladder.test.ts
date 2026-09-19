@@ -28,10 +28,13 @@ describe('the ladder', () => {
 
   it('promises the weapon choice on stage 1, the shield on 2 and 3', () => {
     // The choice is offered at the first boss's kill (`WEAPON_PICK_OFFER_STAGE`,
-    // 2026-09-18), so stage 1 is the only road that promises it.
+    // 2026-09-18), so stage 1 is the only road that promises it — and since the
+    // four-lane split (2026-09-19) it stands ON stage 1's road, before the boss,
+    // so the promise is for this stage rather than the next.
     const u = nextUnlock(1)!
     expect(u.kind).toBe('weaponPick')
-    expect(u.atStage).toBe(WEAPON_PICK_OFFER_STAGE)
+    expect(u.atStage).toBe(1)
+    expect(WEAPON_PICK_OFFER_STAGE).toBe(2)
     expect(u.icon).toBe('gift')
     for (const s of [2, 3]) {
       const shield = nextUnlock(s)!

@@ -4,7 +4,7 @@ A report, not a contract: it is a picture of `art-sheets/painted/` and the
 slicer's receipt at the moment it was written. Re-run `pnpm art:prompts`
 after painting or slicing anything.
 
-**24 sliced · 1 need a repaint · 62 painted, unreceipted · 1 outstanding**
+**25 sliced · 1 need a repaint · 61 painted, unreceipted · 1 outstanding**
 
 | | Sheet | Prompt block in | Reference | State |
 | --- | --- | --- | --- | --- |
@@ -49,7 +49,7 @@ after painting or slicing anything.
 | ? | **The gunner's round** | `PROMPTS-STILLS.md` | `still-round-bolt-gunner.png` (rev `1ce14d3b859b`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **The healer's bolt** | `PROMPTS-STILLS.md` | `still-round-bolt-boss.png` (rev `bf6c90a529ac`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **The rolling boulder** | `PROMPTS-STILLS.md` | `still-round-roller.png` (rev `562017b78892`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
-| ? | **The boss's rock** | `PROMPTS-STILLS.md` | `still-round-meteor.png` (rev `9c52a1b279ff`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
+| ✓ | **The boss's rock** | `PROMPTS-STILLS.md` | `still-round-meteor.png` (rev `9c52a1b279ff`) | sliced 2026-09-18 |
 | ? | **The bomber's charge** | `PROMPTS-STILLS.md` | `still-round-bomb.png` (rev `9e46ae6fff9b`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **The player's grenade** | `PROMPTS-STILLS.md` | `still-round-grenade.png` (rev `602f7170a511`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ✓ | **The shotgun's pellet** | `PROMPTS-STILLS.md` | `still-round-pellet.png` (rev `4ce926ac7052`) | sliced 2026-09-18 |

@@ -1,4 +1,5 @@
 import { WEAPON_PICK_OFFER_STAGE, stageHasWeapon, weaponForStage, type WeaponId } from '@/game/weapons'
+import { armoryAtFor } from '@/game/armory'
 
 /**
  * ─── The gift ladder ────────────────────────────────────────────────────────
@@ -77,8 +78,10 @@ export const nextUnlock = (stage: number): Unlock | null => {
   const s = Math.max(1, Math.floor(stage))
   // The choice is offered at the first boss's kill now
   // (`WEAPON_PICK_OFFER_STAGE`), so stage 1 is the one road that promises it.
+  // …and since the four-lane split (`game/armory.ts`) it stands ON stage 1's
+  // road, right before the boss: the promise is for THIS stage.
   if (s < WEAPON_PICK_OFFER_STAGE) {
-    return { atStage: WEAPON_PICK_OFFER_STAGE, icon: 'gift', kind: 'weaponPick' }
+    return { atStage: armoryAtFor(s) !== null ? s : WEAPON_PICK_OFFER_STAGE, icon: 'gift', kind: 'weaponPick' }
   }
   if (s < SHIELD_GIFT_STAGE) {
     return { atStage: SHIELD_GIFT_STAGE, icon: 'shield', kind: 'shield' }

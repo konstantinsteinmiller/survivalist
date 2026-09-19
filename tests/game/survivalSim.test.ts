@@ -674,7 +674,8 @@ describe('the boss can actually reach the crowd', () => {
     game.debugAddUnits(60)
     game.steerTo(-GATE_LEAF_X)
 
-    advance(game, 4000, () => game.phase.value === 'boss' || settled(game))
+    // 5000, not 4000, since the weapon split lengthened stage 2's road.
+    advance(game, 5000, () => game.phase.value === 'boss' || settled(game))
     expect(game.phase.value, 'the crowd never reached the arena').toBe('boss')
     expect(game.deathBreakdown().slam).toBe(0)
 

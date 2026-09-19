@@ -41,7 +41,7 @@ import { arenaKit, bossDesign, foeDef, foeHpScale } from '@/game/foes'
 import {
   BOSS_REWARD_DAMAGE_MUL, BOSS_REWARD_STAGE, BOSS_REWARD_WEAPON,
   GUARD_H, LEVER_R, ROCKET_SPLASH_SHARE, STONE_H, WEAPONS, WEAPON_BOX_R, WEAPON_PICK_STAGE,
-  WEAPON_REVEAL_S, isWeaponId, weaponStreams,
+  WEAPON_REVEAL_S, damageAtReach, fightHitShare, isWeaponId, weaponStreams,
   DYNAMO_BOLT_HALF_W, DYNAMO_BOLT_MULT, DYNAMO_BOLT_S, DYNAMO_CHARGE_PER_DPS,
   GILD_BURST_R, GILD_BURST_SECONDS, GILD_STAND_S,
   THRALL_HIT_CD, THRALL_HIT_SECONDS, THRALL_HP_MIN, THRALL_HP_SHARE, THRALL_LEAD,
@@ -49,7 +49,13 @@ import {
   type Guard, type Lever, type Statue, type Stone, type Thrall,
   type WeaponBox, type WeaponId
 } from '@/game/weapons'
-import { BOSS_REWARD_KEY, GAZE_TAUGHT_KEY, WEAPON_PICK_KEY } from '@/keys'
+import { ARMORY_KEY, BOSS_REWARD_KEY, GAZE_TAUGHT_KEY, WEAPON_PICK_KEY } from '@/keys'
+import {
+  ARMORY_COMMIT_LEAD, ARMORY_GRANT_AT, ARMORY_LANE_W, type ArmoryGeometry, type ArmoryHistory,
+  armoryAtFor, armoryFitRadius, armoryGeometry, armoryLaneFor, armoryLanes, armoryLaneX, armoryOffer,
+  armoryPoolFor,
+  armoryRoadHalf, armorySpeedMul, armoryZoom01, emptyArmoryHistory, recordArmoryPick
+} from '@/game/armory'
 import { buildTrack, perfectSquadFor, type Track, MINIBOSS_CAGE_TUTORIAL } from '@/game/track'
 import { CUTSCENE_STAGE } from '@/game/cutscene'
 import {
@@ -929,6 +935,159 @@ export const readWeaponPick = (): WeaponId | null => {
 /** Has the stage-1 boss handed over its launcher? See `BOSS_REWARD_STAGE`. */
 export const readBossReward = (): boolean => getState<unknown>(BOSS_REWARD_KEY, false) === true
 
+// ─── The weapon split ───────────────────────────────────────────────────────
+//
+// Four lanes walled apart by boulders, one weapon in each — see
+// `game/armory.ts`. The track only says where the walls begin; which weapons
+// stand in the lanes depends on what this player has already been offered, so
+// it is dealt here, once, when the stage opens.
+
+export interface ArmoryState {
+  g: ArmoryGeometry
+  /** The weapon in each lane, left to right. */
+  lanes: WeaponId[]
+  /** The same four, most wanted first — what is recorded as seen. */
+  offer: WeaponId[]
+  /** The lane the crowd is held in, or -1 while it is still choosing. */
+  lane: number
+  /** The weapon taken, once the crowd has reached its case. */
+  taken: WeaponId | null
+}
+
+let armory: ArmoryState | null = null
+
+/** The split on this road, if it has one. The renderer draws it from this. */
+export const getArmory = (): Readonly<ArmoryState> | null => armory
+
+/** What the splits have shown this player and what they took, off the save. */
+export const readArmoryHistory = (): ArmoryHistory => {
+  const v = getState<unknown>(ARMORY_KEY, null)
+  if (!v || typeof v !== 'object') return emptyArmoryHistory()
+  const o = v as Partial<Record<keyof ArmoryHistory, unknown>>
+  const ids = (list: unknown): WeaponId[] => (Array.isArray(list) ? list.filter(isWeaponId) : [])
+  return { offered: ids(o.offered), picked: ids(o.picked) }
+}
+
+/** Half the road's width at world-y `y` — wider only through a split. */
+export const roadHalfAt = (y: number): number =>
+  armory ? armoryRoadHalf(armory.g, y) : LANE_HALF
+
+/** …at the crowd, for the input layer: how far a pointer may steer. */
+export const roadHalfNow = (): number => roadHalfAt(anchorY)
+
+/** How far the camera is pulled back for the split, 0…1. */
+export const armoryZoomNow = (): number => (armory ? armoryZoom01(armory.g, anchorY) : 0)
+
+/** The weapon this road's split handed over, if it has yet. */
+export const armoryTaken = (): WeaponId | null => armory?.taken ?? null
+
+/**
+ * The band `targetX` may sit in right now.
+ *
+ * Through a split the road is wider — read a few units AHEAD of the crowd, so a
+ * player can aim for an outer lane while the road is still opening under them
+ * — and once the crowd is committed, the band is its own lane.
+ */
+const steerBounds = (): [number, number] => {
+  const a = armory
+  if (a !== null) {
+    if (a.lane >= 0 && anchorY <= a.g.exit) {
+      const cx = armoryLaneX(a.lane)
+      const slack = Math.max(0.1, ARMORY_LANE_W / 2 - UNIT_R - crowdRadius())
+      return [cx - slack, cx + slack]
+    }
+    const half = Math.max(armoryRoadHalf(a.g, anchorY), armoryRoadHalf(a.g, anchorY + 4)) - 0.4
+    return [-half, half]
+  }
+  return [-LANE_HALF + 0.4, LANE_HALF - 0.4]
+}
+
+/**
+ * Where a survivor at world-y `y` may stand, as `edgeLo…edgeHi`.
+ *
+ * Module-level rather than a returned pair because `stepUnits` asks it for every
+ * body on every frame. Through a split's walls it is the committed lane — the
+ * walls are the lane's edges, and nobody crosses them — and on the tapers it is
+ * the widened road.
+ */
+let edgeLo = -(LANE_HALF - UNIT_R)
+let edgeHi = LANE_HALF - UNIT_R
+const edgesAt = (y: number): void => {
+  const a = armory
+  if (a === null || y <= a.g.wideFrom - 1 || y >= a.g.wideTo) {
+    edgeLo = -EDGE_X
+    edgeHi = EDGE_X
+    return
+  }
+  if (a.lane >= 0 && y >= a.g.mouth - 0.4 && y <= a.g.exit + 0.4) {
+    const cx = armoryLaneX(a.lane)
+    edgeLo = cx - ARMORY_LANE_W / 2 + UNIT_R
+    edgeHi = cx + ARMORY_LANE_W / 2 - UNIT_R
+    return
+  }
+  const half = armoryRoadHalf(a.g, y) - UNIT_R
+  edgeLo = -half
+  edgeHi = half
+}
+
+/** Deal the split for the road `startStage` just built, if it has one. */
+const dealArmory = (): void => {
+  armory = null
+  const ev = track.events.find((e) => e.kind === 'armory')
+  if (!ev) return
+  // The split right before an arena offers only what helps in the fight
+  // (`armoryPoolFor`); the mid-road ones offer every weapon.
+  const offer = armoryOffer(readArmoryHistory(), armoryPoolFor(armoryAtFor(track.stage)))
+  armory = { g: armoryGeometry(ev.y), offer, lanes: armoryLanes(offer), lane: -1, taken: null }
+}
+
+/**
+ * The split's per-tick rules: commit the crowd to the lane nearest the thumb as
+ * it reaches the walls, keep the steer inside whatever band is legal, and hand
+ * over the weapon when the crowd reaches its case.
+ *
+ * The walls never kill. A crowd that did not choose — nobody steering, or aimed
+ * dead at a wall — is simply given the nearest lane (`armoryLaneFor`).
+ */
+const stepArmory = (): void => {
+  const a = armory
+  if (a === null || phase.value !== 'run') return
+  if (anchorY < a.g.from || anchorY > a.g.to + 1) return
+  if (a.lane < 0 && anchorY >= a.g.mouth - ARMORY_COMMIT_LEAD) a.lane = armoryLaneFor(targetX)
+  // Written straight to the target, not through `steerTo`: the road moved the
+  // band, the player did not steer, and `steerMoves` must not count it.
+  const [lo, hi] = steerBounds()
+  if (targetX < lo) targetX = lo
+  else if (targetX > hi) targetX = hi
+  if (a.lane >= 0 && a.taken === null && anchorY >= a.g.mouth + ARMORY_GRANT_AT) takeArmoryWeapon(a)
+}
+
+/**
+ * The crowd reaches its lane's case: the weapon is theirs for the rest of this
+ * road.
+ *
+ * It REPLACES what they held rather than stacking beside it (`handOverWeapon`
+ * keeps the old gun as a side weapon): the split is a choice, and a choice that
+ * also kept the last one would not be one. It is written as the pick, too, so
+ * the loaner rules carry it into the opening of the next stage (`startStage`).
+ */
+const takeArmoryWeapon = (a: ArmoryState): void => {
+  const id = a.lanes[a.lane]!
+  a.taken = id
+  activeWeapon.value = id
+  weaponPower.value = 1
+  sideWeapon.value = null
+  sideWeaponPower.value = 1
+  sideAccum = 0
+  for (const u of units) u.flash = 260
+  setStates({
+    [WEAPON_PICK_KEY]: id,
+    [ARMORY_KEY]: recordArmoryPick(readArmoryHistory(), a.offer, id)
+  })
+  pushFx({ kind: 'weaponTake', x: armoryLaneX(a.lane), y: a.g.mouth + ARMORY_GRANT_AT, weapon: id })
+  sendAnalytics('armory_pick', { stage: stage.value, weapon: id, lane: a.lane })
+}
+
 // ─── The road goes on ───────────────────────────────────────────────────────
 //
 // A cleared stage used to throw the whole world away and start the next one at
@@ -1160,6 +1319,10 @@ const passageFit = (): number => {
 
 const updateFunnel = (dt: number): void => {
   let target = Math.min(CROWD_MAX_R, passageFit())
+  // A weapon split's lane is a door made of stone, four units long.
+  if (armory !== null && anchorY >= armory.g.mouth - FUNNEL_LEAD && anchorY <= armory.g.exit) {
+    target = Math.min(target, armoryFitRadius())
+  }
   let nearest = Number.POSITIVE_INFINITY
 
   for (const g of gates) {
@@ -1351,6 +1514,7 @@ const resetWorld = (): void => {
   weaponBoxes = []
   grenades = []
   rocks = []
+  armory = null
   // A weapon lasts one stage and so does what it left standing: the dead it
   // raised and the gold it made. The meter goes with them — see `dynamoCharge`.
   thralls = []
@@ -1668,6 +1832,7 @@ export const startStage = (n?: number, seed?: number): void => {
   track = buildTrack(target, seed)
 
   resetWorld()
+  dealArmory()
   squadCount.value = 0
   damage.value = unitDamage.value
   setFireRate(metaFireRate.value)
@@ -2373,7 +2538,8 @@ export const wasPlayed = (): boolean => steerMoves >= PLAYED_THRESHOLD
 
 /** Absolute steer — a tap puts the crowd's target under the finger. */
 export const steerTo = (worldX: number): void => {
-  const next = Math.max(-LANE_HALF + 0.4, Math.min(LANE_HALF - 0.4, worldX))
+  const [lo, hi] = steerBounds()
+  const next = Math.max(lo, Math.min(hi, worldX))
   if (Math.abs(next - targetX) >= MEANINGFUL_STEER) steerMoves++
   targetX = next
 }
@@ -2503,7 +2669,9 @@ const streamTrack = (): void => {
         // priced against the launcher's blast, not against the squad's own gun.
         if (e.forGift && !activeWeapon.value) break
         const def = foeDef(e.typeId)
-        const hp = Math.max(1, Math.round(def.hp * foeHpScale(stage.value) * diff * hpRelief))
+        const hp = Math.max(1, Math.round(
+          def.hp * foeHpScale(stage.value) * diff * hpRelief * (e.hpMul ?? 1)
+        ))
         // A streak sends more of them, and each one takes a bigger mouthful.
         const count = Math.round(e.count * challengePackFactor(challenge.value))
         for (let i = 0; i < count; i++) {
@@ -2849,6 +3017,7 @@ export const step = (dtMs: number): void => {
   // does. Nothing that could hurt them runs: no foes, no obstacles, no clock.
   streamTrack()
   stepAnchor(dt)
+  stepArmory()
   stepUnits(dt)
   stepShooting(dt)
   stepBullets(dt)
@@ -3109,6 +3278,10 @@ const stepAnchor = (dt: number): void => {
     }
   }
 
+  // …and the weapon split slows the run while four lanes are read. See
+  // `armorySpeedMul`.
+  if (armory !== null) drag *= armorySpeedMul(armory.g, anchorY)
+
   anchorY += forward * drag * dt
   // Kept for the one thing that has to ride with the crowd: bodies gathered at a
   // hanging flare (`swarmDecoy`).
@@ -3203,8 +3376,16 @@ const weaponDamageMul = (): number => {
   //
   // `weaponPower` stays in: the stage-1 boss's launcher is priced as what it is,
   // or the stage-2 boss would be sized for a full one and outlast the gift.
+  //
+  // ── …and only the share of it that actually reaches the body ──
+  //
+  // The shotgun's close-range bonus (`damageAtReach`) is NOT priced in: bosses
+  // are fought from 7-11 units up the road, at or past the end of its reach,
+  // where the bonus is 1x. What is priced is how much of its fan lands
+  // (`fightHitShare`).
   const trueMul = (id: WeaponId, power: number): number =>
     WEAPONS[id].rateMul * WEAPONS[id].damageMul * weaponPowerMul(id) * power
+      * fightHitShare(id)
   const weapon = activeWeapon.value
   const first = weapon ? trueMul(weapon, weaponPower.value) : 1
   const side = sideWeapon.value
@@ -3722,16 +3903,20 @@ const stepUnits = (dt: number): void => {
     // how far outside they were. The crowd squashes against the rail and
     // lengthens down the road — which is exactly what a real crowd funnelling
     // along a wall does.
-    if (tx < -EDGE_X || tx > EDGE_X) {
-      const over = Math.abs(tx) - EDGE_X
-      tx = Math.sign(tx) * EDGE_X
+    //
+    // The edges are the rails everywhere but a weapon split, where they are the
+    // widened road — or, past the walls' mouth, the committed lane (`edgesAt`).
+    edgesAt(ty)
+    if (tx < edgeLo || tx > edgeHi) {
+      const over = tx < edgeLo ? edgeLo - tx : tx - edgeHi
+      tx = tx < edgeLo ? edgeLo : edgeHi
       ty += (u.i % 2 === 0 ? 1 : -1) * Math.min(1.3, over * 0.9)
     }
 
     // AFTER the rail clamp, so a solid standing against a barrier cannot push a
     // target back over the edge, and BEFORE the spring, because the target is
     // the only thing this function is allowed to be authoritative about.
-    tx = Math.max(-EDGE_X, Math.min(EDGE_X, clearOfSolids(tx, ty, u.x)))
+    tx = Math.max(edgeLo, Math.min(edgeHi, clearOfSolids(tx, ty, u.x)))
 
     if (u.join > 0) {
       // ── A freed survivor jogging over to the squad ──
@@ -3773,8 +3958,9 @@ const stepUnits = (dt: number): void => {
     // TARGET is clamped regardless (above), so a joiner is always heading back
     // into the lane and the clamp re-arms the moment it arrives.
     if (u.join <= 0) {
-      if (u.x < -EDGE_X) u.x = -EDGE_X
-      else if (u.x > EDGE_X) u.x = EDGE_X
+      edgesAt(u.y)
+      if (u.x < edgeLo) u.x = edgeLo
+      else if (u.x > edgeHi) u.x = edgeHi
     }
     // Gait phase advances with actual speed, so a halted crowd stops running on
     // the spot during the boss fight.
@@ -5722,6 +5908,16 @@ const stepBullets = (dt: number, resolve = true): void => {
   // thousand rounds in flight is a thousand dependency reads for a number that
   // cannot change mid-tick.
   const gunRange = effectiveBulletRange(rangeBonus.value)
+  // ── …but in a boss fight a SHORT gun still reaches the boss ──
+  //
+  // The meteor bosses fight from 7-11 units up the road (measured 2026-09-19),
+  // and the shotgun's reach is 7.6: for a good part of every fight its pellets
+  // died short of the body, which is what made the stage-1 boss "a real chore"
+  // with it. The short reach is the shotgun's price on the ROAD; a boss fight
+  // is not a road, so the pellets fly on to the far side of the body's hit band
+  // (see `resolveBullet`). Only for guns shorter than the squad's own — every
+  // other round keeps exactly the reach it had.
+  const bossReach = phase.value === 'boss' && boss !== null && !boss.dead ? boss.y + 1.2 - anchorY : 0
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i]!
     b.life -= dt * 1000
@@ -5736,7 +5932,9 @@ const stepBullets = (dt: number, resolve = true): void => {
     // Its own reach, not the squad's: a pellet dies half a screen early (see
     // `Bullet.range`). Zero means a round fired before this field existed — or
     // by a test — and falls back to the shared range.
-    if (b.life <= 0 || b.y > anchorY + (b.range > 0 ? b.range : gunRange)
+    const reach = b.range > 0 ? b.range : gunRange
+    const limit = reach < gunRange ? Math.max(reach, bossReach) : reach
+    if (b.life <= 0 || b.y > anchorY + limit
       || Math.abs(b.x) > LANE_HALF + 1) {
       releaseBullet(i)
       continue
@@ -5747,6 +5945,10 @@ const stepBullets = (dt: number, resolve = true): void => {
 
 /** @returns true when the round was consumed. */
 const resolveBullet = (b: Bullet): boolean => {
+  // What this round is worth WHERE it lands: the shotgun's pellets hit hardest
+  // at the crowd and fall off to their printed damage at the end of their reach
+  // (`damageAtReach`). 1 for every other gun.
+  const dmg = b.damage * damageAtReach(b.weapon, b.y - anchorY, b.range)
   // Foes first: something standing in front of a gate should absorb the fire
   // aimed at it, which is what makes escorts and packs a real obstacle.
   for (const f of foes) {
@@ -5754,7 +5956,7 @@ const resolveBullet = (b: Bullet): boolean => {
     const dy = f.y - b.y
     if (dy < -0.6 || dy > 1.1) continue
     if (Math.abs(f.x - b.x) > 0.44 * f.scale + BULLET_R) continue
-    damageFoe(f, b.damage)
+    damageFoe(f, dmg)
     // A round that landed is a round the Dynamo banks — see `chargeDynamo`.
     chargeDynamo(b)
     pushFx({ kind: 'hit', x: b.x, y: b.y, on: 'foe' })
@@ -5775,7 +5977,7 @@ const resolveBullet = (b: Bullet): boolean => {
     const dy = s.y - b.y
     if (dy < -STONE_H / 2 || dy > STONE_H / 2 + 0.4) continue
     if (Math.abs(s.x - b.x) > s.w / 2 + BULLET_R) continue
-    s.hp -= b.damage
+    s.hp -= dmg
     s.flash = 1
     // Sparks like the boulder it looks like, not like a wall: the picture the
     // player already has for "that is stone" should not change just because
@@ -5801,7 +6003,7 @@ const resolveBullet = (b: Bullet): boolean => {
     const dy = lv.y - b.y
     if (dy < -LEVER_R || dy > LEVER_R + 0.4) continue
     if (Math.abs(lv.x - b.x) > LEVER_R + BULLET_R) continue
-    lv.hp -= b.damage
+    lv.hp -= dmg
     lv.flash = 1
     pushFx({ kind: 'hit', x: b.x, y: b.y, on: 'barricade' })
     if (lv.hp <= 0) pullLever(lv)
@@ -5818,7 +6020,7 @@ const resolveBullet = (b: Bullet): boolean => {
     const dy = g.y - b.y
     if (dy < -GUARD_H / 2 || dy > GUARD_H / 2 + 0.4) continue
     if (Math.abs(g.x - b.x) > g.w / 2 + BULLET_R) continue
-    g.hp -= b.damage
+    g.hp -= dmg
     g.flash = 1
     pushFx({ kind: 'hit', x: b.x, y: b.y, on: 'barricade' })
     if (g.hp <= 0) {
@@ -5840,7 +6042,7 @@ const resolveBullet = (b: Bullet): boolean => {
     const dy = wb.y - b.y
     if (dy < -wb.r || dy > wb.r + 0.4) continue
     if (Math.abs(wb.x - b.x) > wb.r + BULLET_R) continue
-    wb.hp -= b.damage
+    wb.hp -= dmg
     pushFx({ kind: 'hit', x: b.x, y: b.y, on: 'crate' })
     if (wb.hp <= 0) takeWeaponBox(wb)
     if (b.weapon) detonateRound(b)
@@ -5852,7 +6054,7 @@ const resolveBullet = (b: Bullet): boolean => {
     const dy = c.y - b.y
     if (dy < -CRATE_R || dy > CRATE_R + 0.4) continue
     if (Math.abs(c.x - b.x) > CRATE_R + BULLET_R) continue
-    c.hp -= b.damage
+    c.hp -= dmg
     pushFx({ kind: 'hit', x: b.x, y: b.y, on: 'crate' })
     if (c.hp <= 0) breakCrate(c)
     if (b.weapon) detonateRound(b)
@@ -5876,7 +6078,7 @@ const resolveBullet = (b: Bullet): boolean => {
     const dy = c.y - b.y
     if (dy < -CAGE_R || dy > CAGE_R + 0.4) continue
     if (Math.abs(c.x - b.x) > CAGE_R + BULLET_R) continue
-    c.hp -= b.damage
+    c.hp -= dmg
     // The bars RATTLE rather than crack. Same feedback channel a barricade uses
     // (`flash`), a completely different picture — see `drawCages`.
     c.flash = 1
@@ -5891,7 +6093,7 @@ const resolveBullet = (b: Bullet): boolean => {
     const dy = w.y - b.y
     if (dy < -BULWARK_R || dy > BULWARK_R + 0.4) continue
     if (Math.abs(w.x - b.x) > BULWARK_R + BULLET_R) continue
-    w.hp -= b.damage
+    w.hp -= dmg
     pushFx({ kind: 'hit', x: b.x, y: b.y, on: 'crate' })
     if (w.hp <= 0) takeBulwark(w)
     if (b.weapon) detonateRound(b)
@@ -5906,7 +6108,7 @@ const resolveBullet = (b: Bullet): boolean => {
     const dy = bl.y - b.y
     if (dy < -BARREL_R || dy > BARREL_R + 0.4) continue
     if (Math.abs(bl.x - b.x) > BARREL_R + BULLET_R) continue
-    bl.hp -= b.damage
+    bl.hp -= dmg
     pushFx({ kind: 'hit', x: b.x, y: b.y, on: 'crate' })
     if (bl.hp <= 0) {
       // Lit, not gone: the fuse is what lets the player read the blast coming
@@ -5923,7 +6125,7 @@ const resolveBullet = (b: Bullet): boolean => {
     const dy = bar.y - b.y
     if (dy < -BARRICADE_H / 2 || dy > BARRICADE_H / 2 + 0.4) continue
     if (Math.abs(bar.x - b.x) > bar.w / 2 + BULLET_R) continue
-    bar.hp -= b.damage
+    bar.hp -= dmg
     bar.flash = 1
     pushFx({ kind: 'hit', x: b.x, y: b.y, on: 'barricade' })
     if (bar.hp <= 0) {
@@ -6036,7 +6238,7 @@ const resolveBullet = (b: Bullet): boolean => {
         // boss would quietly repeal the one beat that asks them to move.
         return true
       }
-      damageBoss(boss, b.damage)
+      damageBoss(boss, dmg)
       chargeDynamo(b)
       pushFx({ kind: 'bossHit', x: b.x, y: b.y })
       if (b.weapon) detonateRound(b, null, true)
@@ -10769,6 +10971,34 @@ export const debugSkipToArena = (): void => {
   // handover it feeds (`entryFrom`) would quietly take the old formation path.
   placeWardenCage(stage.value)
   for (const u of units) u.y = anchorY
+}
+
+/**
+ * Dev/test seam: put the crowd on plain road just before this stage's weapon
+ * split, with the road behind it cleared and the road after it still to come.
+ * `false` when the stage has no split.
+ */
+export const debugSkipToArmory = (): boolean => {
+  if (armory === null) return false
+  anchorY = armory.g.from - 1
+  const next = track.events.findIndex((e) => e.y > anchorY)
+  nextEvent = next < 0 ? track.events.length : next
+  gates.length = 0
+  dividers.length = 0
+  crates.length = 0
+  cages.length = 0
+  bulwarks.length = 0
+  barricades.length = 0
+  rocks.length = 0
+  foes.length = 0
+  levers.length = 0
+  stones.length = 0
+  guards.length = 0
+  weaponBoxes.length = 0
+  bolts.length = 0
+  pickups.length = 0
+  for (const u of units) u.y = anchorY
+  return true
 }
 /**
  * Test/dev seam: set the Reach upgrade level directly.

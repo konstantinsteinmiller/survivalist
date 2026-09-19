@@ -110,6 +110,10 @@ describe('how it opens', () => {
     for (let i = 0; i < 6000; i++) {
       const el = game.getFoes().find((f) => f.elite && !f.dead)
       if (el) return { game, el }
+      // Stage 1's packs (three bodies at half again the health since
+      // 2026-09-19) stop a crowd that never steers before the elite; the cage
+      // is what is under test, so the crowd is kept to a played run's size.
+      if (game.squadCount.value < 10) game.debugAddUnits(10 - game.squadCount.value)
       game.steerTo(0)
       game.step(STEP)
       if (game.phase.value !== 'run') break

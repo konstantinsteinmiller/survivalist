@@ -271,6 +271,13 @@ export const WEAPON_PICK_KEY = 'ts_weapon_pick'
  */
 export const BOSS_REWARD_KEY = 'ts_boss_reward'
 
+/**
+ * What the four-lane weapon splits have shown this player and what they took
+ * (`ArmoryHistory` in `game/armory.ts`). Persisted so the next split offers
+ * the weapons they have NOT had yet — across a reload, a wipe and a device.
+ */
+export const ARMORY_KEY = 'ts_armory'
+
 // ─── The idle treasure chest ────────────────────────────────────────────────
 //
 // The HUD chest fills on WALL-CLOCK time, not on play time, which is the whole

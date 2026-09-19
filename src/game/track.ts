@@ -19,7 +19,8 @@ import {
   GATE_GROWTH_TRIM, GATE_MAX_VALUE, GATE_MUL_MAX, GATE_SCALE_STEP, GATE_SUB_MAX,
   MAX_SQUAD, squadBaseAt,
   STAGE_SQUAD_FLOOR,
-  earlyBarricadeKeep, earlyCrateHpMul, earlyMinibossHpMul, earlyPackCap, earlyPackMul,
+  earlyBarricadeKeep, earlyCrateHpMul, earlyMinibossHpMul, earlyPackBonus, earlyPackCap, earlyPackMul,
+  STAGE_ONE_FIRST_PACK_HP_MUL,
   earlyRockKeep,
   gateMulOpen,
   gatePumpStep,
@@ -36,6 +37,7 @@ import {
   GATE_PUMP_BAND
 } from '@/game/survival'
 import { ADAPTIVE_BOSS_STAGES } from '@/game/adaptive'
+import { ARMORY_MOUTH_OFFSET, ARMORY_SPAN, armoryAtFor } from '@/game/armory'
 import { bossHpScale, foeDef, foeHpScale, foeRoster } from '@/game/foes'
 import {
   LEVER_R, LEVER_STAGGER, LEVER_STONE_LEAD, LEVER_STONE_W, leverStoneHp,
@@ -178,6 +180,10 @@ export type TrackEvent =
       /** Targets for a weapon the player was HANDED — spawned only while one is
        *  armed. See `targetPractice`. */
       forGift?: boolean
+      /** This pack's health, as a multiple of what the stage prices its bodies
+       *  at. Absent everywhere but stage 1's first pack
+       *  (`STAGE_ONE_FIRST_PACK_HP_MUL`). */
+      hpMul?: number
     }
   /** One elite body. `hpScale` multiplies the ARCHETYPE'S BASE HP (`foeDef().hp`)
    *  — it already carries the stage scaling, see `minibossHp()`. */
@@ -217,6 +223,13 @@ export type TrackEvent =
       guardY: number
       guards: Array<{ x: number; w: number; hp: number }>
     }
+  /**
+   * The four-lane weapon split (`game/armory.ts`). `y` is where its walls
+   * begin; the rest of its shape is derived from that (`armoryGeometry`). The
+   * lanes' weapons are NOT on the track: they depend on what this player has
+   * already been offered, so the sim deals them at `startStage`.
+   */
+  | { kind: 'armory'; y: number }
 
 export interface Track {
   stage: number
@@ -3180,7 +3193,7 @@ const pickFoe = (b: Beat, roster: readonly string[]): string => {
 /** Bodies in the lane. `spread` is the half-width they are dealt across. */
 const pack = (
   b: Beat, y: number, typeId: string, count: number, spread: number,
-  opts?: { stray?: boolean }
+  opts?: { stray?: boolean; hpMul?: number }
 ): void => {
   // Every mob beat in the game funnels through here — `horde` and `pincer` both
   // call it — so the opening stages' thinning is applied once, at the only place
@@ -3189,15 +3202,19 @@ const pack = (
     earlyPackCap(b.stage),
     Math.round(count * earlyPackMul(b.stage))
   )
+  // …and stage 1's packs get two more on top (`earlyPackBonus`); a stray stays
+  // the single body it is.
+  const bonus = opts?.stray ? 0 : earlyPackBonus(b.stage)
   b.events.push({
     kind: 'foes',
     y: r2(y),
     typeId,
-    count: Math.max(1, Math.round(thinned)),
+    count: Math.max(1, Math.round(thinned)) + bonus,
     spread: r2(Math.min(LANE_HALF - 0.5, spread)),
     // Only written when it is true, so every pack in the game serialises
     // exactly as it did before and the flag reads as the exception it is.
-    ...(opts?.stray ? { stray: true } : {})
+    ...(opts?.stray ? { stray: true } : {}),
+    ...(opts?.hpMul !== undefined ? { hpMul: opts.hpMul } : {})
   })
 }
 
@@ -3676,7 +3693,11 @@ const stageOne = (b: Beat): void => {
   // it comfortably. The detour is the lesson; the box is not the test.
   crates(b, 35, 'damage', [-SECOND_PICKUP_X], SECOND_PICKUP_HP)
 
-  pack(b, 39, 'creep', 3, 2.4)
+  // The first pack a stranger meets, at 30 % of the health every other stage-1
+  // pack carries (owner, 2026-09-19): three bodies is the lesson, and a crowd
+  // this fresh out of the opening door cannot yet afford to be taught it at
+  // full price. See `STAGE_ONE_FIRST_PACK_HP_MUL`.
+  pack(b, 39, 'creep', 3, 2.4, { hpMul: STAGE_ONE_FIRST_PACK_HP_MUL })
 
   // Coins that mean something: they run straight into the wall's gap.
   coinTrail(b, 68, -1.4, -1.9, 7, 1.25)
@@ -3728,6 +3749,10 @@ const stageOne = (b: Beat): void => {
   // at 2.1 + 5.1 u/s and dies ~10 units out to a crowd of ten, so four units
   // between them is two thirds of a second of air). Every one of them is
   // `pack(…, 1, …)`, so a balance pass on the early cap still reaches them.
+  //
+  // ⚠ Since 2026-09-19 every one of these is THREE bodies (`earlyPackBonus`, the
+  // owner's call that one creep was no challenge), so this "file" is a file of
+  // packs now. The spacing above was measured for single creeps.
   //
   // This one fills the hole behind the first bank: the door pays, and the first
   // thing the new crowd meets is something to spend it on.
@@ -9098,7 +9123,103 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
       })
     })()
 
+  // The weapon split, spliced into the FINISHED road — campaign roads only, so
+  // an expedition's seeded road never carries one.
+  const at = seed === stage ? armoryAtFor(stage) : null
+  if (at !== null) return spliceArmory({ stage, arenaY, bossY, length, events }, at)
   return { stage, arenaY, bossY, length, events }
+}
+
+// ─── The weapon split ───────────────────────────────────────────────────────
+
+/** How much road an event occupies, lowest and highest y. Multi-part events
+ *  (a coin trail, the weapon puzzle) span every piece of themselves. */
+const eventSpan = (e: TrackEvent): [number, number] => {
+  const pad = 1.2
+  if (e.kind === 'coins') {
+    const ys = e.ys.length > 0 ? e.ys : [e.y]
+    return [Math.min(e.y, ...ys) - pad, Math.max(e.y, ...ys) + pad]
+  }
+  if (e.kind === 'weapon') {
+    const ys = [e.y, e.box.y, e.guardY, ...e.levers.map((l) => l.y), ...e.stones.map((s) => s.y)]
+    return [Math.min(...ys) - pad, Math.max(...ys) + pad]
+  }
+  return [e.y - pad, e.y + pad]
+}
+
+/** The same event, `dy` further up the road — every y it carries. */
+const shiftEvent = (e: TrackEvent, dy: number): TrackEvent => {
+  const y = r2(e.y + dy)
+  if (e.kind === 'coins') return { ...e, y, ys: e.ys.map((v) => r2(v + dy)) }
+  if (e.kind === 'weapon') {
+    return {
+      ...e, y,
+      levers: e.levers.map((l) => ({ ...l, y: r2(l.y + dy) })),
+      stones: e.stones.map((s) => ({ ...s, y: r2(s.y + dy) })),
+      box: { ...e.box, y: r2(e.box.y + dy) },
+      guardY: r2(e.guardY + dy)
+    }
+  }
+  return { ...e, y }
+}
+
+/**
+ * Where on the finished road the split goes in: the gap between two beats
+ * nearest the stage's `ARMORY_AT` target.
+ *
+ * Nothing is moved OUT of the way. The split is inserted into a gap, and every
+ * event past it moves up the road by `ARMORY_SPAN` — so the road before it and
+ * the road after it are exactly the roads the generator wrote, with a stretch
+ * of plain road and four lanes between them.
+ */
+export const armorySpliceY = (track: Pick<Track, 'arenaY' | 'events'>, at: 'boss' | number): number => {
+  // Stage 1's is the last thing before the arena: after the closing bank
+  // (`arenaY - 12`), with a little road either side of it.
+  const [lo, hi, target] = at === 'boss'
+    ? [track.arenaY - 10, track.arenaY - 1, track.arenaY - 6]
+    : [track.arenaY * at - 24, track.arenaY * at + 24, track.arenaY * at]
+  const spans = track.events.map(eventSpan).sort((p, q) => p[0] - q[0])
+  // Every free gap, as [start, end], merged across overlapping spans.
+  const gaps: Array<[number, number]> = []
+  let cursor = Number.NEGATIVE_INFINITY
+  for (const [a, b] of spans) {
+    if (a > cursor) gaps.push([cursor, a])
+    cursor = Math.max(cursor, b)
+  }
+  gaps.push([cursor, Number.POSITIVE_INFINITY])
+
+  let best = target
+  let bestD = Number.POSITIVE_INFINITY
+  for (const [a, b] of gaps) {
+    const start = Math.max(a, lo)
+    const end = Math.min(b, hi)
+    if (end < start) continue
+    // The point in this gap nearest the target.
+    const y = Math.max(start, Math.min(end, target))
+    const d = Math.abs(y - target)
+    if (d < bestD) {
+      best = y
+      bestD = d
+    }
+  }
+  return r2(best)
+}
+
+/** Insert the split into a finished track. See `armorySpliceY`. */
+const spliceArmory = (track: Track, at: 'boss' | number): Track => {
+  const y = armorySpliceY(track, at)
+  const events: TrackEvent[] = track.events.map((e) =>
+    eventSpan(e)[0] >= y ? shiftEvent(e, ARMORY_SPAN) : e
+  )
+  events.push({ kind: 'armory', y: r2(y + ARMORY_MOUTH_OFFSET) })
+  events.sort((p, q) => p.y - q.y)
+  return {
+    stage: track.stage,
+    arenaY: track.arenaY + ARMORY_SPAN,
+    bossY: track.bossY + ARMORY_SPAN,
+    length: track.length + ARMORY_SPAN,
+    events
+  }
 }
 
 /**

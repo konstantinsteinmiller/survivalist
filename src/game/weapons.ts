@@ -717,6 +717,83 @@ export const isWeaponId = (v: unknown): v is WeaponId =>
   typeof v === 'string' && Object.prototype.hasOwnProperty.call(WEAPONS, v)
 
 /**
+ * ─── The shotgun hits hardest up close ──────────────────────────────────────
+ *
+ * Owner's call (2026-09-19): grapeshot was the weakest weapon in the game and
+ * not worth walking into a lane for. Its pellets now land for
+ * `GRAPESHOT_POINT_BLANK_MUL` × their damage at the crowd, falling off in a
+ * straight line to `GRAPESHOT_MAX_RANGE_MUL` × at the end of the gun's reach —
+ * so the short gun is a MURDEROUS short gun, and the whole of its identity
+ * ("take the pack in front of you apart") pays out where it is asked to.
+ *
+ * Distance is measured from the crowd, the same yardstick the range itself uses
+ * (`Bullet.range`), and applied when the pellet lands. Every other weapon is 1.
+ */
+export const GRAPESHOT_POINT_BLANK_MUL = 2.5
+export const GRAPESHOT_MAX_RANGE_MUL = 1
+
+/**
+ * …and how much of the fan actually LANDS on a boss.
+ *
+ * Every fight is priced off the crowd's firepower (`weaponDamageMul`) on the
+ * assumption that what is fired arrives. For every gun but this one it does:
+ * measured 2026-09-19 on the stage-1 boss (good and average, four seeds each),
+ * the fight received 0.93-1.06 of the damage its bar was priced for, and the
+ * shotgun 0.67-0.69 — its fights ran 15-20 s against 10-12 s for everything
+ * else, and the owner's playtest called the stage-1 boss "a real chore".
+ *
+ * Two causes, fixed in two places. Most of it was REACH: the meteor bosses
+ * fight from 7-11 units out and the shotgun reaches 7.6, so pellets died short
+ * of the body — now they fly on to it in a boss fight (`stepBullets`). The rest
+ * is the ±17° fan (`spreadRad`) sending pellets past the body, priced in here.
+ * 0.8 was measured against both, stages 1-3: the shotgun's fights now run
+ * 8.9-9.3 / 5.6-6.4 / 6.2-6.7 s against 10.1-11.8 / 5.6-6.4 / 6.6-8.0 s for
+ * the gatling and the launcher — in line, and a touch quicker on the stage the
+ * complaint was about.
+ */
+export const GRAPESHOT_FIGHT_HIT_SHARE = 0.8
+
+/** Share of a gun's fire that reaches a boss or elite — see
+ *  `GRAPESHOT_FIGHT_HIT_SHARE`. 1 for every gun whose rounds fly true. */
+export const fightHitShare = (id: WeaponId): number =>
+  id === 'grapeshot' ? GRAPESHOT_FIGHT_HIT_SHARE : 1
+
+/** What a round from `id` is worth, as a multiple of its damage, having landed
+ *  `dist` units up the road from the crowd with a reach of `range`. */
+export const damageAtReach = (id: WeaponId | null, dist: number, range: number): number => {
+  if (id !== 'grapeshot') return 1
+  const t = Math.max(0, Math.min(1, dist / Math.max(1e-6, range)))
+  return GRAPESHOT_POINT_BLANK_MUL + (GRAPESHOT_MAX_RANGE_MUL - GRAPESHOT_POINT_BLANK_MUL) * t
+}
+
+/**
+ * ─── One colour per weapon ──────────────────────────────────────────────────
+ *
+ * Owner's call (2026-09-19): a weapon has to be recognisable without reading
+ * its name — not every player reads, and nobody reads at run speed. So each has
+ * a signature colour, painted wherever the player is asked to CHOOSE one (the
+ * lanes of a weapon split: floor, glow, frame, glyph and name plate).
+ *
+ * Picked from the Okabe–Ito colour-blind-safe family, lifted for a dark road,
+ * and matched to what each weapon does so the colour is a second name rather
+ * than a code to learn: fire for the launcher, gold for the hoard, grave-green
+ * for the dead that rise, electric violet for the coil. The six sit far enough
+ * apart in hue AND lightness that no two collapse into one under the common
+ * forms of colour blindness — and the glyph's shape is always there as well.
+ *
+ * `rgb` is the same colour as a bare triplet, for the `rgba()` the renderer
+ * builds its glows and tints from.
+ */
+export const WEAPON_HUE: Readonly<Record<WeaponId, { hex: string; rgb: string }>> = {
+  rocket: { hex: '#ff5a2c', rgb: '255,90,44' },
+  gatling: { hex: '#4fb3ff', rgb: '79,179,255' },
+  grapeshot: { hex: '#ff78c4', rgb: '255,120,196' },
+  dynamo: { hex: '#a77bff', rgb: '167,123,255' },
+  gravecall: { hex: '#2fd88a', rgb: '47,216,138' },
+  hoard: { hex: '#ffd23f', rgb: '255,210,63' }
+}
+
+/**
  * …and one every this many stages after it.
  *
  * A weapon on EVERY stage is not a prize, it is the ordinary state of the game

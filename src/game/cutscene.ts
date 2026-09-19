@@ -55,8 +55,8 @@ export interface Shot {
  * every one of them against the built track, so a re-cut fails there instead of
  * shipping a camera that stops at nothing.
  *
- *   arena    316  (`track.arenaY`) — where the fight happens
- *   boss     328  (`track.bossY`) — where it WALKS IN FROM, not where it stands
+ *   arena    352  (`track.arenaY`) — where the fight happens
+ *   boss     364  (`track.bossY`) — where it WALKS IN FROM, not where it stands
  *   cage A   230  the 12-HP cage on the left shoulder — the one shot 3 holds on
  *   cage B    98  the 4-HP cage, passed at speed in shot 4
  *   start      0  where the three are standing
@@ -68,23 +68,25 @@ export interface Shot {
  * warden cage behind it with the next squad inside. Those sit at the FIGHTING
  * geometry rather than the spawn geometry —
  *
- *   camera   `arenaY + 4`   = 320   (opening; it pushes back to 316)
- *   boss     `arenaY + 3.8` = 319.8 (`BOSS_HOLD_AHEAD`)
- *   cage     `arenaY + 12.8`= 328.8 (`WARDEN_CAGE_LEAD`)
+ *   camera   `arenaY + 4`   = 356   (opening; it pushes back to 352)
+ *   boss     `arenaY + 3.8` = 355.8 (`BOSS_HOLD_AHEAD`)
+ *   cage     `arenaY + 12.8`= 364.8 (`WARDEN_CAGE_LEAD`)
  *
  * — so the shot opens with the monster sitting ON the camera's own row, low in
  * the frame, and the cage well above it, and reads bottom-to-top as the crowd's
- * point of view, a monster, and the thing it is guarding. `bossY` (328) is where
+ * point of view, a monster, and the thing it is guarding. `bossY` (364) is where
  * the live boss walks IN from: a camera parked up there would show an empty
  * arena with the cage under its feet.
  *
- * The push ENDS at 316 — the arena line — which is the exact camera the real
+ * The push ENDS at 352 — the arena line — which is the exact camera the real
  * fight uses half a minute later, cage cut by the top edge and all. The last
  * frame of shot 1 is a rehearsal of the frame the player has to earn.
  */
-export const CUTSCENE_BOSS_Y = 320
-/** The arena line stage 1's fight happens on. Pinned against the built track. */
-export const CUTSCENE_ARENA_Y = 316
+export const CUTSCENE_BOSS_Y = 356
+/** The arena line stage 1's fight happens on. Pinned against the built track —
+ *  316 until 2026-09-19, when the weapon split (`ARMORY_SPAN`, 36 units) went
+ *  in right before stage 1's arena. */
+export const CUTSCENE_ARENA_Y = 352
 /** The cage itself. `cutscene.test.ts` asserts a cage really is here. */
 export const CUTSCENE_CAGE_Y = 230
 export const CUTSCENE_START_Y = 0
@@ -119,7 +121,9 @@ export const CUTSCENE_SHOTS: readonly Shot[] = [
   // arena line — the first millimetre of the retreat the whole cutscene is
   // about, and it lands on the fight's own camera. See `CUTSCENE_BOSS_Y`.
   { id: 'boss', ms: 2200, cutMs: 1400, fromY: CUTSCENE_BOSS_Y, toY: CUTSCENE_ARENA_Y, ease: 'push' },
-  // Ninety-two units at roughly 11x the squad's own run speed.
+  // A hundred and twenty-eight units at roughly 15x the squad's own run speed,
+  // over the stretch where the weapon split stands (drawn as plain road here:
+  // the intro's world has no split in it).
   { id: 'road', ms: 1700, cutMs: 1200, fromY: CUTSCENE_ARENA_Y, toY: CUTSCENE_CAGE_CAM_Y, ease: 'fly' },
   // Dead stop. The quietest two seconds in the game.
   { id: 'cage', ms: 2000, cutMs: 2000, fromY: CUTSCENE_CAGE_CAM_Y, toY: CUTSCENE_CAGE_CAM_Y, ease: 'hold' },

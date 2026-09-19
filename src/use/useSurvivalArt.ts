@@ -12,7 +12,7 @@ import {
 import { BOLT_R, ROLLER_R, ROLLER_SPEED, ROLLER_WARN_AHEAD, flankXs } from '@/game/threats'
 import {
   DYNAMO_BOLT_HALF_W, GILD_BURST_R,
-  GUARD_H, LEVER_R, STONE_H, THRALL_RISE_S, WEAPON_BOX_R, WEAPON_REVEAL_S, type WeaponId
+  GUARD_H, LEVER_R, STONE_H, THRALL_RISE_S, WEAPON_BOX_R, WEAPON_HUE, WEAPON_REVEAL_S, type WeaponId
 } from '@/game/weapons'
 import {
   anchor, crowdRadius, damage, eliteAlive, formationRadius, getBarricades, getBolts, getBoss,
@@ -30,8 +30,14 @@ import {
   nowMs, phase, runFireRate, squadCount, stage,
   bossFallDir, getBossCorpse, progress01, roadScrollY, takeDepartedSurvivors,
   frostActive, frostFrozenAt,
-  getBossDrain
+  getBossDrain,
+  armoryZoomNow, getArmory, roadHalfAt
 } from '@/use/useSurvivalGame'
+import {
+  ARMORY_CASE_AT, ARMORY_CORRIDOR, ARMORY_LANE_W, ARMORY_ROAD_HALF, ARMORY_WALL_W, ARMORY_WALL_XS,
+  ARMORY_ZOOM_FLOOR, armoryLaneX
+} from '@/game/armory'
+import { ICON_PATHS } from '@/components/icons/iconPaths'
 import {
   applySkillFx, drawIceOn, drawSkillAir, drawSkillGround, drawSkillScreen, isSkillFx,
   stepSkillFx, syncSkillView
@@ -158,7 +164,33 @@ export const setViewport = (w: number, h: number, topInset = 0, bottomInset = 0)
   // it live with the range in `game/survival.ts` so the tests read the same
   // arithmetic this frame is drawn with.
   scale = cameraScale(w, h, topInset, bottomInset)
+  // …and how far it pulls back for a weapon split: far enough that the wider
+  // road fits the frame the way the lane does, and never less than the floor.
+  armoryZoomFloor = Math.min(
+    ARMORY_ZOOM_FLOOR,
+    cameraScale(w, h, topInset, bottomInset, ARMORY_ROAD_HALF) / Math.max(1e-6, scale)
+  )
 }
+
+/**
+ * ─── The split's zoom ───────────────────────────────────────────────────────
+ *
+ * The camera pulls back while the crowd runs through a weapon split, so the
+ * four lanes fit the screen, and comes back in after it (`armoryZoomNow`).
+ *
+ * Done as ONE canvas transform around the whole world pass, with the viewport
+ * enlarged to match — never by changing `scale`. Half the caches in this file
+ * are keyed on `scale` (gate posts, rails, baked sprite sizes), and the ramp
+ * cache clears itself when it fills: a scale that moved every frame for two
+ * seconds would rebuild all of it every frame, which on a fill-bound game is
+ * precisely the stutter the caches exist to remove. Under the transform every
+ * bake stays valid and is simply drawn smaller.
+ */
+let zoom = 1
+let armoryZoomFloor = ARMORY_ZOOM_FLOOR
+/** The REAL frame height, latched per frame: the ramps that are keyed on the
+ *  viewport read this rather than the pull-back's enlarged one. */
+let frameH = 0
 
 /**
  * The camera's world-y, latched ONCE per frame.
@@ -185,9 +217,12 @@ export const getScale = (): number => scale
 export const worldToScreenX = (wx: number): number => viewW / 2 + wx * scale
 export const worldToScreenY = (wy: number): number =>
   viewH * CROWD_SCREEN_Y - (wy - camY) * scale
-export const screenToWorldX = (sx: number): number => (sx - viewW / 2) / scale
+// The two input conversions run OUTSIDE the frame, against the real viewport,
+// so they carry the split's zoom themselves: a finger on screen has to land on
+// the lane drawn under it.
+export const screenToWorldX = (sx: number): number => (sx - viewW / 2) / (scale * zoom)
 /** World-space delta for a screen-space drag — the steering conversion. */
-export const screenDeltaToWorld = (dx: number): number => dx / scale
+export const screenDeltaToWorld = (dx: number): number => dx / (scale * zoom)
 
 // ─── Palette ────────────────────────────────────────────────────────────────
 //
@@ -3101,6 +3136,7 @@ export const drawScene = (
 ): void => {
   viewW = w
   viewH = h
+  frameH = h
   sampleFrame(dtMs)
 
   // One tier read for the whole frame, before anything can branch on it.
@@ -3120,8 +3156,15 @@ export const drawScene = (
   camY = cutsceneCam ?? a.y
   roadY = camY + roadScrollY()
   measureCrowd(dtMs)
+  // The weapon split's pull-back (see "The split's zoom"). The world pass is
+  // drawn into a viewport `1 / zoom` the size of the real one and scaled back
+  // down, so every culling test below sees the road the camera now shows.
+  zoom = cutsceneCam === null ? 1 - (1 - armoryZoomFloor) * armoryZoomNow() : 1
+  if (zoom > 0.999) zoom = 1
+  const vw = w / zoom
+  const vh = h / zoom
   // The late skills draw from their own module, through this frame's camera.
-  syncSkillView(worldToScreenX, worldToScreenY, scale, w, h, tier)
+  syncSkillView(worldToScreenX, worldToScreenY, scale, vw, vh, tier)
 
   // Prime per STAGE, not the whole cast, and re-prime when the stage changes.
   // The lookahead queues the next stage's designs while the player is still on
@@ -3237,8 +3280,18 @@ export const drawScene = (
   const span = Math.max(0.001, MAX_FIRE_RATE - BASE_FIRE_RATE)
   rateHeat = Math.max(0, Math.min(1, (runFireRate.value - BASE_FIRE_RATE) / span))
 
+  // The sky in REAL screen space, before the pull-back: its texture is keyed on
+  // the viewport, and a viewport that grew every frame would re-bake it every
+  // frame. Everything after it is the world, drawn through the zoom.
   drawBackdrop(ctx, w, h)
-  drawLane(ctx, w, h)
+  if (zoom !== 1) {
+    ctx.save()
+    ctx.scale(zoom, zoom)
+    viewW = vw
+    viewH = vh
+  }
+  drawLane(ctx, vw, vh)
+  drawArmoryGround(ctx)
   // Scorch marks are pure history: they say what already happened, and nothing
   // the player has to react to is ever carried by one.
   if (!minFx) drawDecals(ctx)
@@ -3272,6 +3325,7 @@ export const drawScene = (
   // behind it.
   drawStones(ctx)
   drawRocks(ctx)
+  drawArmory(ctx)
   // Shock ring → live leaves → the leaves being torn down → the pillars. The
   // ring is flat on the road and the wreckage must never sit over a pillar.
   drawShocks(ctx)
@@ -3320,6 +3374,12 @@ export const drawScene = (
   drawBullets(ctx)
   drawParticles(ctx, worldToScreenX, worldToScreenY, scale)
   drawFloatingText(ctx)
+  // Out of the world pass: everything below is pinned to the glass.
+  if (zoom !== 1) {
+    ctx.restore()
+    viewW = w
+    viewH = h
+  }
   drawEliteMarker(ctx, w)
   drawGrades(ctx, w, h)
   // Frost on the glass, over the grades: it is the one full-screen pass that
@@ -3494,8 +3554,13 @@ const drawBackdrop = (ctx: CanvasRenderingContext2D, w: number, h: number): void
   // So the sky is drawn only where it can still be seen. The two strips meet
   // the lane's edges exactly, and the rails straddle those edges on top of
   // both, so there is no seam to leave behind.
-  const left = worldToScreenX(-LANE_HALF)
-  const right = worldToScreenX(LANE_HALF)
+  //
+  // Drawn in real screen space, so the edges carry the split's pull-back
+  // themselves (see "The split's zoom"): a lane seen from further away leaves
+  // more sky either side of it.
+  const halfPx = LANE_HALF * scale * zoom
+  const left = w / 2 - halfPx
+  const right = w / 2 + halfPx
   if (left <= 0 && right >= w) return
 
   // The source rectangle has to be cut to match, or the strips would be
@@ -3512,10 +3577,60 @@ const drawBackdrop = (ctx: CanvasRenderingContext2D, w: number, h: number): void
 
 // ─── Layer 4: the lane ──────────────────────────────────────────────────────
 
+/**
+ * ─── The road's edge through a weapon split ─────────────────────────────────
+ *
+ * World-y samples of the stretch of road on screen, dense only where the road
+ * is changing width (`roadHalfAt`) — or empty when no split is in view, which
+ * is every frame of the game but a few seconds in the first three stages.
+ * Reused, so the frames that do need it allocate nothing.
+ */
+const splitYs: number[] = []
+const sampleSplitEdge = (h: number): boolean => {
+  splitYs.length = 0
+  const a = getArmory()
+  if (a === null) return false
+  const bottom = camY - (h * (1 - CROWD_SCREEN_Y)) / scale - 1
+  const top = camY + (h * CROWD_SCREEN_Y) / scale + 1
+  if (a.g.wideTo <= bottom || a.g.wideFrom >= top) return false
+  splitYs.push(bottom)
+  const from = Math.max(bottom, a.g.wideFrom)
+  const to = Math.min(top, a.g.wideTo)
+  for (let y = from; y < to; y += 0.4) splitYs.push(y)
+  splitYs.push(to, top)
+  return true
+}
+
+/** Trace the road's outline through `splitYs`, left edge up, right edge down. */
+const traceSplitRoad = (ctx: CanvasRenderingContext2D): void => {
+  ctx.beginPath()
+  for (let i = 0; i < splitYs.length; i++) {
+    const y = splitYs[i]!
+    const sx = worldToScreenX(-roadHalfAt(y))
+    const sy = worldToScreenY(y)
+    if (i === 0) ctx.moveTo(sx, sy)
+    else ctx.lineTo(sx, sy)
+  }
+  for (let i = splitYs.length - 1; i >= 0; i--) {
+    const y = splitYs[i]!
+    ctx.lineTo(worldToScreenX(roadHalfAt(y)), worldToScreenY(y))
+  }
+  ctx.closePath()
+}
+
 const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => {
+  // Through a weapon split the road is wider than the lane, so every fill below
+  // spans the widest point on screen and the road's OUTLINE does the clipping.
+  const split = sampleSplitEdge(h)
   const left = worldToScreenX(-LANE_HALF)
   const right = worldToScreenX(LANE_HALF)
-  const laneW = right - left
+  const wide = split ? (ARMORY_ROAD_HALF - LANE_HALF) * scale : 0
+  const fillL = left - wide
+  const fillW = right - left + wide * 2
+  // The two vertical ramps below are built against the REAL frame height, not
+  // this pass's `h`: under the split's pull-back `h` is enlarged, and a key that
+  // moved every frame would churn the ramp cache (see "The split's zoom").
+  const rampH = frameH > 0 ? frameH : h
 
   // Off-lane terrain: darker than the road so the playable strip reads as the
   // only place anything can happen. On a wide screen this is most of the
@@ -3543,9 +3658,9 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
   // ramp baked into it would slide down the off-lane and jump at the wrap,
   // which is a far louder artefact than a band that does not shade.
   if (!cheapFx) {
-    let off = getRamp(`laneOff|${h}`)
+    let off = getRamp(`laneOff|${rampH}`)
     if (!off) {
-      off = putRamp(`laneOff|${h}`, ctx.createLinearGradient(0, 0, 0, h))
+      off = putRamp(`laneOff|${rampH}`, ctx.createLinearGradient(0, 0, 0, rampH))
       off.addColorStop(0, 'rgba(10,10,16,0.4)')
       off.addColorStop(1, 'rgba(6,6,10,0.76)')
     }
@@ -3555,12 +3670,15 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
   }
 
   ctx.save()
-  ctx.beginPath()
-  ctx.rect(left, 0, laneW, h)
+  if (split) traceSplitRoad(ctx)
+  else {
+    ctx.beginPath()
+    ctx.rect(left, 0, right - left, h)
+  }
   ctx.clip()
 
   ctx.fillStyle = LANE_TONE.base
-  ctx.fillRect(left, 0, laneW, h)
+  ctx.fillRect(fillL, 0, fillW, h)
 
   // The gravel is the road's texture and it is also a full-lane fill of a
   // repeating pattern — the most expensive thing on the ground pass, and
@@ -3583,14 +3701,14 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
     // viewport covers the scroll exactly. The second tile this used to add was
     // a whole extra tile-height of pattern fill, every frame, off the bottom of
     // the screen.
-    ctx.fillRect(left, -laneTilePx, laneW, h + laneTilePx)
+    ctx.fillRect(fillL, -laneTilePx, fillW, h + laneTilePx)
     ctx.restore()
   }
 
   // Depth: the far end of the lane fades into the haze so the road reads as
   // going somewhere rather than being a treadmill.
   if (!minFx) {
-    const fadeH = h * 0.55
+    const fadeH = rampH * 0.55
     let fade = getRamp(`laneFade|${fadeH}`)
     if (!fade) {
       fade = putRamp(`laneFade|${fadeH}`, ctx.createLinearGradient(0, 0, 0, fadeH))
@@ -3598,7 +3716,7 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
       fade.addColorStop(1, 'rgba(0,0,0,0)')
     }
     ctx.fillStyle = fade
-    ctx.fillRect(left, 0, laneW, fadeH)
+    ctx.fillRect(fillL, 0, fillW, fadeH)
   }
 
   // Rungs every 2 world units: the entire sensation of SPEED comes from these.
@@ -3612,8 +3730,8 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
   ctx.beginPath()
   for (let y = Math.floor(bottom / 2) * 2; y < top + 2; y += 2) {
     const sy = worldToScreenY(y - lift)
-    ctx.moveTo(left, sy)
-    ctx.lineTo(right, sy)
+    ctx.moveTo(fillL, sy)
+    ctx.lineTo(fillL + fillW, sy)
   }
   ctx.stroke()
 
@@ -3644,13 +3762,35 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
     rail.addColorStop(0.5, LANE_TONE.railLit)
     rail.addColorStop(1, LANE_TONE.rail)
   }
-  ctx.fillStyle = rail
-  for (const x of [-LANE_HALF, LANE_HALF]) {
-    const sx = worldToScreenX(x)
-    ctx.save()
-    ctx.translate(sx, 0)
-    ctx.fillRect(-scale * 0.09, 0, scale * 0.18, h)
-    ctx.restore()
+  if (split) {
+    // Through a split the rails follow the road out and back in: the same
+    // three tones as the ramp, as two strokes along the outline.
+    ctx.lineJoin = 'round'
+    for (const side of [-1, 1]) {
+      ctx.beginPath()
+      for (let i = 0; i < splitYs.length; i++) {
+        const y = splitYs[i]!
+        const sx = worldToScreenX(side * roadHalfAt(y))
+        const sy = worldToScreenY(y)
+        if (i === 0) ctx.moveTo(sx, sy)
+        else ctx.lineTo(sx, sy)
+      }
+      ctx.strokeStyle = LANE_TONE.dark
+      ctx.lineWidth = scale * 0.2
+      ctx.stroke()
+      ctx.strokeStyle = LANE_TONE.railLit
+      ctx.lineWidth = scale * 0.09
+      ctx.stroke()
+    }
+  } else {
+    ctx.fillStyle = rail
+    for (const x of [-LANE_HALF, LANE_HALF]) {
+      const sx = worldToScreenX(x)
+      ctx.save()
+      ctx.translate(sx, 0)
+      ctx.fillRect(-scale * 0.09, 0, scale * 0.18, h)
+      ctx.restore()
+    }
   }
   // Posts, spaced on the rung rhythm, to give the rails depth.
   const top2 = roadY + (viewH * CROWD_SCREEN_Y) / scale
@@ -3658,7 +3798,9 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
   ctx.fillStyle = 'rgba(20,22,30,0.85)'
   for (let y = Math.floor(bottom2 / 4) * 4; y < top2 + 4; y += 4) {
     const sy = worldToScreenY(y - lift)
-    for (const x of [-LANE_HALF, LANE_HALF]) {
+    // On the road's own edge, which a split moves out and back.
+    const half = split ? roadHalfAt(y - lift) : LANE_HALF
+    for (const x of [-half, half]) {
       const sx = worldToScreenX(x)
       ctx.fillRect(sx - scale * 0.16, sy - scale * 0.28, scale * 0.32, scale * 0.56)
     }
@@ -6860,6 +7002,245 @@ const drawRocks = (ctx: CanvasRenderingContext2D): void => {
     ctx.rotate(r.spin * 0.25)
     paintBoulder(ctx, w, h, r.seed)
 
+    ctx.restore()
+  }
+}
+
+// ─── The weapon split ───────────────────────────────────────────────────────
+//
+// Four lanes, boulder walls between them, one open weapon case in each with the
+// weapon's name over it — see `game/armory.ts`. The road's widening is
+// `drawLane`'s; the camera's pull-back is `drawScene`'s.
+
+/** What the split says, in the player's language. Handed in by the scene: the
+ *  renderer has no i18n of its own. */
+let armoryTitle = ''
+let armoryName: (id: WeaponId) => string = (id) => id
+export const setArmoryText = (title: string, name: (id: WeaponId) => string): void => {
+  armoryTitle = title
+  armoryName = name
+}
+
+/**
+ * One `Path2D` per weapon, from the HUD's own icon set (`ICON_PATHS`).
+ *
+ * Not `weaponGlyph`: that draws the two originals and nothing else, and a lane
+ * is exactly where the player has to tell six weapons apart. The HUD glyphs are
+ * the same six the weapon chip shows, so the lane and the chip agree. Built once;
+ * a runtime without `Path2D` (the headless tests) gets none and draws the case.
+ */
+const weaponPaths = new Map<WeaponId, Path2D | null>()
+const weaponPath = (id: WeaponId): Path2D | null => {
+  const hit = weaponPaths.get(id)
+  if (hit !== undefined) return hit
+  const d = ICON_PATHS[id]
+  const p = typeof Path2D !== 'undefined' && d ? new Path2D(d.join(' ')) : null
+  weaponPaths.set(id, p)
+  return p
+}
+
+/** "Choose your weapon", painted across the road in front of the walls until
+ *  a weapon has been taken. Ground layer: the crowd walks over it. */
+const drawArmoryGround = (ctx: CanvasRenderingContext2D): void => {
+  const a = getArmory()
+  if (a === null) return
+  drawArmoryLaneFloors(ctx, a)
+  if (a.taken !== null || !armoryTitle) return
+  const sy = worldToScreenY(a.g.mouth - 1.3)
+  if (sy < -60 || sy > viewH + 60) return
+  const fs = Math.max(12, scale * 0.62)
+  const tw = measureLabel(ctx, armoryTitle, fs)
+  // A long translation shrinks to the road rather than running off it.
+  const k = Math.min(1, (ARMORY_ROAD_HALF * 2 * scale * 0.9) / Math.max(1, tw))
+  ctx.save()
+  ctx.translate(worldToScreenX(0), sy)
+  ctx.scale(k, k)
+  ctx.font = `900 ${fs}px Angry, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = Math.max(3, fs * 0.2)
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'
+  ctx.strokeText(armoryTitle, 0, 0)
+  ctx.fillStyle = '#ffd96a'
+  ctx.fillText(armoryTitle, 0, 0)
+  ctx.restore()
+}
+
+/**
+ * Each lane's floor in its weapon's colour (`WEAPON_HUE`), mouth to exit, with
+ * a bright threshold across the mouth.
+ *
+ * The colour is what reads first from the top of the screen — before the glyph
+ * resolves and long before the name does — so it goes on the biggest surface
+ * the lane has. Flat fills, no gradient: four rectangles and four stripes a
+ * frame, for the few seconds a split is on screen.
+ */
+const drawArmoryLaneFloors = (ctx: CanvasRenderingContext2D, a: NonNullable<ReturnType<typeof getArmory>>): void => {
+  const top = worldToScreenY(a.g.exit)
+  const mouth = worldToScreenY(a.g.mouth - 0.4)
+  if (mouth < -20 || top > viewH + 20) return
+  const w = ARMORY_LANE_W * scale
+  const stripe = Math.max(3, scale * 0.14)
+  for (let i = 0; i < a.lanes.length; i++) {
+    const hue = WEAPON_HUE[a.lanes[i]!]
+    // The lane the crowd is in stays lit; the others fade once it has chosen.
+    const k = a.lane < 0 ? 1 : i === a.lane ? (a.taken !== null ? 0.6 : 1) : 0.35
+    const x = worldToScreenX(armoryLaneX(i)) - w / 2
+    ctx.fillStyle = hue.hex
+    ctx.globalAlpha = 0.2 * k
+    ctx.fillRect(x, top, w, mouth - top)
+    ctx.globalAlpha = 0.85 * k
+    ctx.fillRect(x, mouth - stripe / 2, w, stripe)
+  }
+  ctx.globalAlpha = 1
+}
+
+/** Stones per wall, mouth to exit. */
+const ARMORY_STONES = 11
+
+const drawArmory = (ctx: CanvasRenderingContext2D): void => {
+  const a = getArmory()
+  if (a === null) return
+  const bottom = camY - (viewH * (1 - CROWD_SCREEN_Y)) / scale - 2
+  const top = camY + (viewH * CROWD_SCREEN_Y) / scale + 3
+  if (a.g.exit < bottom || a.g.mouth > top) return
+  const t = nowMs()
+
+  // ── The walls ──
+  //
+  // Far stones first, so each nearer one overlaps the one behind it. The stone
+  // at the mouth is a size up: it is the corner the crowd splits around, and it
+  // has to read as the start of a wall from the top of the screen.
+  const sw = ARMORY_WALL_W * 1.3 * scale
+  const sh = ROCK_H * 0.95 * scale
+  for (let k = ARMORY_STONES; k >= 0; k--) {
+    const y = a.g.mouth + (k / ARMORY_STONES) * ARMORY_CORRIDOR
+    if (y < bottom || y > top) continue
+    const sy = worldToScreenY(y)
+    const big = k === 0 ? 1.2 : 1
+    for (let j = 0; j < ARMORY_WALL_XS.length; j++) {
+      const seed = j * 7 + k * 3
+      ctx.save()
+      ctx.translate(worldToScreenX(ARMORY_WALL_XS[j]!), sy)
+      ctx.fillStyle = 'rgba(0,0,0,0.42)'
+      ctx.beginPath()
+      ctx.ellipse(0, sh * 0.42 * big, sw * 0.55 * big, sh * 0.2 * big, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.rotate(((seed % 5) - 2) * 0.12)
+      paintBoulder(ctx, sw * big, sh * big, seed)
+      ctx.restore()
+    }
+  }
+
+  // ── The cases ──
+  //
+  // Open weapon cases, the gift box's look with the gun lifted out of it. Once
+  // the crowd is committed the other lanes dim; once it has taken its weapon
+  // that case is gone (the pickup burst is its exit) and the rest fade back.
+  const caseY = a.g.mouth + ARMORY_CASE_AT
+  const csy = worldToScreenY(caseY)
+  const r = WEAPON_BOX_R * 1.05 * scale
+  const pulse = 0.5 + 0.5 * Math.sin(t / 220)
+  const dimOf = (i: number): number =>
+    a.taken !== null ? 0.28 : a.lane >= 0 && i !== a.lane ? 0.5 : 1
+  for (let i = 0; i < a.lanes.length; i++) {
+    if (a.taken !== null && i === a.lane) continue
+    const id = a.lanes[i]!
+    const dim = dimOf(i)
+    ctx.save()
+    ctx.globalAlpha = dim
+    ctx.translate(worldToScreenX(armoryLaneX(i)), csy)
+    const hue = WEAPON_HUE[id]
+    if (dim === 1 && !minFx) {
+      // In the weapon's own colour (`WEAPON_HUE`) — one ramp per weapon, six at
+      // most, keyed on the id so the cache holds them for the whole session.
+      const glowR = r * 2.6
+      const key = `armoryGlow|${id}|${glowR}`
+      let glow = getRamp(key)
+      if (!glow) {
+        glow = putRamp(key, ctx.createRadialGradient(0, 0, 0, 0, 0, glowR))
+        glow.addColorStop(0, `rgba(${hue.rgb},1)`)
+        glow.addColorStop(1, `rgba(${hue.rgb},0)`)
+      }
+      ctx.globalAlpha = 0.25 + pulse * 0.25
+      ctx.fillStyle = glow
+      ctx.beginPath()
+      ctx.arc(0, 0, glowR, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = dim
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'
+    ctx.beginPath()
+    ctx.ellipse(0, r * 0.86, r * 0.9, r * 0.3, 0, 0, Math.PI * 2)
+    ctx.fill()
+    paintWeaponBoxBody(ctx, r, scale, true, pulse)
+    // A frame in the weapon's colour round the case: the case art is the same
+    // crate in every lane, so without it the colour would live only in the glow
+    // and the glyph.
+    roundRect(ctx, -r * 1.08, -r * 1.08, r * 2.16, r * 2.16, r * 0.26)
+    ctx.lineWidth = Math.max(2.5, r * 0.16)
+    ctx.strokeStyle = hue.hex
+    ctx.stroke()
+    const path = weaponPath(id)
+    if (path) {
+      // Centred on the case's plate (owner, 2026-09-19: lifted out of it, the
+      // glyph sat on the top edge instead of on the yellow), with a small bob,
+      // each lane on its own phase so the four do not breathe as one. 1.35r
+      // keeps the glyph inside the plate rather than over the case's rim.
+      const lift = r * Math.sin(t / 420 + i * 1.7) * 0.04
+      const s = (r * 1.35) / 24
+      ctx.save()
+      ctx.translate(-12 * s, -12 * s - lift)
+      ctx.scale(s, s)
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = 2.4
+      ctx.strokeStyle = 'rgba(12,10,6,0.95)'
+      ctx.stroke(path)
+      // The glyph IN the colour, so shape and colour arrive as one thing.
+      ctx.fillStyle = hue.hex
+      ctx.fill(path)
+      ctx.restore()
+    }
+    ctx.restore()
+  }
+
+  // ── The names ──
+  //
+  // A second pass so no case paints over a plate. One font size for all four,
+  // squeezed per plate only when a translation will not fit the lane.
+  if (a.taken !== null) return
+  const fs = Math.max(10, scale * 0.4)
+  const room = ARMORY_LANE_W * scale * 0.94
+  const ly = worldToScreenY(caseY + 1.5)
+  ctx.font = `900 ${fs}px Angry, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.lineJoin = 'round'
+  for (let i = 0; i < a.lanes.length; i++) {
+    const name = armoryName(a.lanes[i]!)
+    const tw = measureLabel(ctx, name, fs)
+    const pw = Math.min(room, tw + fs * 0.9)
+    const k = Math.min(1, (room - fs * 0.5) / Math.max(1, tw))
+    const ph = fs * 1.4
+    ctx.save()
+    ctx.globalAlpha = dimOf(i)
+    ctx.translate(worldToScreenX(armoryLaneX(i)), ly)
+    roundRect(ctx, -pw / 2, -ph / 2, pw, ph, ph * 0.32)
+    ctx.fillStyle = 'rgba(10,14,26,0.84)'
+    ctx.fill()
+    // Edged in the weapon's colour; the name itself stays white, which is the
+    // one colour every plate can be read in.
+    ctx.lineWidth = Math.max(2, scale * 0.06)
+    ctx.strokeStyle = WEAPON_HUE[a.lanes[i]!].hex
+    ctx.stroke()
+    ctx.scale(k, k)
+    ctx.font = `900 ${fs}px Angry, sans-serif`
+    ctx.lineWidth = Math.max(2, fs * 0.16)
+    ctx.strokeStyle = 'rgba(0,0,0,0.9)'
+    ctx.strokeText(name, 0, fs * 0.04)
+    ctx.fillStyle = '#fff'
+    ctx.fillText(name, 0, fs * 0.04)
     ctx.restore()
   }
 }
