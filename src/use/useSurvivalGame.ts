@@ -20,6 +20,8 @@ import {
   PASSAGE_FIT_MARGIN,
   BOSS_MIN_KILL, bossMinKill, SLAM_FRACTION_MAX, SLAM_MAX_FRACTION, SWEEP_FRACTION_MAX, endlessPressure,
   GATE_DEPTH, GATE_MAX_VALUE, GATE_SUB_MAX, LANE_HALF, MAX_FIRE_RATE, MAX_SQUAD,
+  PEAK_GAIN_MIN, PEAK_GAIN_SHARE, PEAK_HOLD_MS,
+  ROAD_CHEST_AT, ROAD_CHEST_CLEAR, ROAD_CHEST_FROM, ROAD_CHEST_R, ROAD_CHEST_TO,
   SLAM_CD_BASE, SLAM_CD_DECAY, SLAM_CD_MIN, SLAM_RADIUS,
   SLAM_RADIUS_GROWTH, SLAM_RADIUS_MAX, STEER_SPRING,
   TUTORIAL_BAR_SLAM_FRACTION, TUTORIAL_SLAM_FRACTION, TUTORIAL_SLAM_MIN_KILL, UNIT_R,
@@ -168,6 +170,7 @@ import {
   bossHasVariant,
   bossHpMulFor,
   bossKindFor,
+  HERALD_AT, HERALD_FROM_STAGE, HERALD_MAX_KILL, HERALD_RADIUS_MUL, HERALD_SHARE, HERALD_WINDUP_S,
   bossPatternSeed,
   bossVerbPool,
   chargeHalfW, CHARGE_KILL_SHARE,
@@ -687,6 +690,9 @@ let timeScaleTarget = 1
  * turn, which has to read as the fight changing under them — so that one holds.
  */
 let slowHoldMs = 0
+/** The biggest door this run has paid, so the camera answers each new best
+ *  exactly once. See `PEAK_GAIN_SHARE`. */
+let peakGain = 0
 /** Set while the crowd is inside a gate's charge band, so the HUD can prompt. */
 let firingAtGate = false
 /** Health multiplier for every enemy this stage — 1, or `RETRY_HP_RELIEF`. */
@@ -1028,6 +1034,149 @@ const edgesAt = (y: number): void => {
   const half = armoryRoadHalf(a.g, y) - UNIT_R
   edgeLo = -half
   edgeHi = half
+}
+
+// ─── The herald ─────────────────────────────────────────────────────────────
+//
+// One meteor from the boss at the end of the road, thrown before the player has
+// seen it — see `HERALD_FROM_STAGE` in `game/threats.ts` for what it is for.
+
+/** Seconds until the rock lands; 0 when nothing is in the air. */
+let heraldLeft = 0
+let heraldX = 0
+let heraldY = 0
+let heraldR = 0
+/** Armed at `startStage`, spent on the one throw. */
+let heraldArmed = false
+
+/** Is this road allowed to throw one, and is the road clear enough right now? */
+const heraldReady = (): boolean => {
+  if (!heraldArmed || heraldLeft > 0) return false
+  if (phase.value !== 'run' || steerOnly.value || teachingGrenade) return false
+  if (anchorY < track.arenaY * HERALD_AT) return false
+  // Never past the arena: a warning that arrives with the thing it warns about
+  // is not a warning.
+  if (anchorY > track.arenaY - 4) return false
+  // Not while a landmark of its own is on the road — an elite fight is already
+  // the player's whole attention, and two unexplained rings at once is noise.
+  if (eliteAlive.value) return false
+  // …and not inside the weapon split: that stretch is a decision with a camera
+  // move of its own.
+  if (armory !== null && anchorY > armory.g.from - 6 && anchorY < armory.g.to + 2) return false
+  return true
+}
+
+/**
+ * Throw it: the ring goes down on the ground the crowd is standing on, with the
+ * same lead the boss aims its own ring with, and the rock arrives
+ * `HERALD_WINDUP_S` later.
+ */
+const castHerald = (): void => {
+  heraldArmed = false
+  heraldLeft = HERALD_WINDUP_S
+  heraldR = SLAM_RADIUS * HERALD_RADIUS_MUL
+  // Aimed where the crowd is GOING, like every other ring in the game — but on
+  // the ROAD, which the boss's own ring never has to deal with: the crowd
+  // covers a whole wind-up's worth of ground while the rock is falling, so the
+  // mark leads it by exactly that. Without the lead the ring lands behind the
+  // last survivor every time and the attack is scenery.
+  //
+  // The answer is therefore lateral, which is the only verb this game has.
+  heraldX = Math.max(-LANE_HALF + 1, Math.min(LANE_HALF - 1, anchorX + (targetX - anchorX) * 0.35))
+  heraldY = anchorY + stageSpeed(stage.value) * HERALD_WINDUP_S
+  pushFx({
+    kind: 'meteorCast', x: heraldX, y: heraldY, radius: heraldR,
+    ttl: HERALD_WINDUP_S, charged: false
+  })
+}
+
+/** …and the landing. Same shape as a boss swing, a third of the price. */
+const landHerald = (): void => {
+  pushFx({ kind: 'bossSlam', x: heraldX, y: heraldY, radius: heraldR, charged: false, slam: 0 })
+  const inRing = (u: Unit): boolean => {
+    const dx = u.x - heraldX
+    const dy = u.y - heraldY
+    return dx * dx + dy * dy <= heraldR * heraldR
+  }
+  let budget = Math.min(
+    HERALD_MAX_KILL,
+    Math.max(1, Math.round(squadCount.value * HERALD_SHARE))
+  )
+  // The auto-shield eats it, exactly as it eats a real swing.
+  if (absorbedBlow(budget, heraldX, heraldY, inRing)) return
+  for (const u of units) {
+    if (budget <= 0) break
+    if (u.dying > 0 || !inRing(u)) continue
+    killUnit(u, Math.sign(u.x - heraldX), 'slam')
+    budget--
+  }
+}
+
+const stepHerald = (dt: number): void => {
+  if (heraldLeft > 0) {
+    heraldLeft = Math.max(0, heraldLeft - dt)
+    if (heraldLeft === 0) landHerald()
+    return
+  }
+  if (heraldReady()) castHerald()
+}
+
+// ─── The idle chest, on the road ────────────────────────────────────────────
+//
+// See `ROAD_CHEST_AT`. The SIM owns where it stands and whether the crowd has
+// run it over; the SCENE owns the payout, because what the chest is worth is a
+// question about the save's day ledger and not about this road.
+
+export interface RoadChest { x: number; y: number; r: number; taken: boolean }
+
+let roadChest: RoadChest | null = null
+
+/** The chest on this road, or null when there is none to collect. */
+export const getRoadChest = (): RoadChest | null => roadChest
+
+/** Bumped the moment the crowd runs one over. The scene watches it, pays the
+ *  coins and throws them at the badge. */
+export const roadChestTaken = ref(0)
+
+/**
+ * Stand one in the opening stretch. The scene calls this at the top of a stage
+ * when the chest is actually ready to pay.
+ *
+ * The spot is SEARCHED rather than fixed: stage 1 opens with a doorway at
+ * `OPENING_GATE_Y` and every road's first authored beat lands around 14, so a
+ * constant offset put the chest inside a gate on the one stage every player
+ * sees. This walks out from the preferred spot and takes the first place with
+ * `ROAD_CHEST_CLEAR` of empty road either side of it — and if the opening is
+ * wall-to-wall busy, no chest on the road (the HUD button still has it).
+ */
+export const placeRoadChest = (): void => {
+  const busy = (y: number): boolean => track.events.some((e) => {
+    // Only what is DRAWN on the road can collide with it; coins are flat paint
+    // and a foe walks off its spawn before the crowd arrives.
+    if (e.kind === 'coins' || e.kind === 'foes') return false
+    return Math.abs(e.y - y) < ROAD_CHEST_CLEAR
+  })
+  for (let step = 0; step <= ROAD_CHEST_TO - ROAD_CHEST_FROM; step++) {
+    for (const y of [ROAD_CHEST_AT + step, ROAD_CHEST_AT - step]) {
+      if (y < ROAD_CHEST_FROM || y > ROAD_CHEST_TO || busy(y)) continue
+      roadChest = { x: 0, y: anchorY + y, r: ROAD_CHEST_R, taken: false }
+      return
+    }
+  }
+  roadChest = null
+}
+
+const stepRoadChest = (): void => {
+  const c = roadChest
+  if (c === null || c.taken || phase.value !== 'run') return
+  // The crowd's leading edge, not its centre: a wide crowd reaches a thing on
+  // the road before its anchor does, and the eye reads the contact.
+  const reach = crowdRadius() * CROWD_SQUASH + c.r
+  if (anchorY + reach < c.y) return
+  if (Math.abs(anchorX - c.x) > c.r + crowdRadius()) return
+  c.taken = true
+  roadChestTaken.value++
+  pushFx({ kind: 'chestOpen', x: c.x, y: c.y })
 }
 
 /** Deal the split for the road `startStage` just built, if it has one. */
@@ -1566,6 +1715,10 @@ const resetWorld = (): void => {
   teachMs = 0
   grenadeTeachHeld.value = false
   firingAtGate = false
+  peakGain = 0
+  heraldLeft = 0
+  heraldArmed = false
+  roadChest = null
   passageSide = 0
   crushDebt.clear()
   // The bulwark is a PER-STAGE pickup, exactly like `activeWeapon`: it is bought
@@ -1833,6 +1986,9 @@ export const startStage = (n?: number, seed?: number): void => {
 
   resetWorld()
   dealArmory()
+  // The boss announces itself four fifths of the way down, when it is the kind
+  // that throws (`HERALD_FROM_STAGE`).
+  heraldArmed = !expedition && target >= HERALD_FROM_STAGE && bossKindFor(target) === 'meteor'
   squadCount.value = 0
   damage.value = unitDamage.value
   setFireRate(metaFireRate.value)
@@ -3018,6 +3174,8 @@ export const step = (dtMs: number): void => {
   streamTrack()
   stepAnchor(dt)
   stepArmory()
+  stepHerald(dt)
+  stepRoadChest()
   stepUnits(dt)
   stepShooting(dt)
   stepBullets(dt)
@@ -7101,6 +7259,15 @@ const claimBank = (bankId: number): void => {
   // full speed it is over before the eye can register it.
   timeScaleTarget = Math.min(timeScaleTarget, 0.45)
 
+  // …and the BIGGEST door of the run gets the camera as well: the hold runs on
+  // and the frame punches in. Once per new best, so a road cannot end up with
+  // six of them. See `PEAK_GAIN_SHARE`.
+  if (gain > peakGain && gain >= Math.max(PEAK_GAIN_MIN, squadCount.value * PEAK_GAIN_SHARE)) {
+    peakGain = gain
+    slowHoldMs = Math.max(slowHoldMs, PEAK_HOLD_MS)
+    pushFx({ kind: 'peak', x: winner.x, y: winner.y, gain })
+  }
+
   const room = MAX_SQUAD - squadCount.value
   const spawned = Math.max(0, Math.min(gain, room))
   for (let k = 0; k < spawned; k++) {
@@ -11064,6 +11231,11 @@ export const debugChargeDynamo = (v: number): void => {
 /** Test seam: what the boss's bar is priced against right now. The bolt and the
  *  thralls must never appear in it — see `DYNAMO_BOLT_MULT`. */
 export const debugWeaponDamageMul = (): number => weaponDamageMul()
+
+/** Test/dev seam: is this road still holding its herald, and is one in the air?
+ *  See `HERALD_FROM_STAGE`. */
+export const debugHerald = (): { armed: boolean; flying: boolean } =>
+  ({ armed: heraldArmed, flying: heraldLeft > 0 })
 
 /** Test seam: the perfect-play crowd this stage's boss is judged against
  *  (`adaptiveYardstick`), so a probe can place a crowd at a known `perf`. */

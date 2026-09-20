@@ -87,6 +87,45 @@ heavier scene (boss + peak wave + full VFX), or a player report says otherwise.
 
 ---
 
+## 2026-09-20 — the lane was painted twice: base tone under an opaque tile ✅ KEPT
+
+**Why it was looked at.** The passing Poki fit test (5.1.2, 3 m 07 s average)
+reported a **median 33 fps on mobile**, down from 37 on 5.0.0. The retention
+roadmap puts frame rate above every design item on the list for the obvious
+reason: none of the rest survives a stuttering frame.
+
+**The measurement.** `pnpm perf:builds`, two standalone builds, phone profile
+(390x844 @ DPR 2, `--mobile 1`, `--throttle 4`, `tier=high`), census on:
+
+| | screens of fill / frame | from full-screen calls |
+|---|---|---|
+| before | **4.27 – 4.37** | 3.76 from **4.1** calls |
+| after | **3.39** | 2.73 from **3** calls |
+
+**~22 % of all pixel work, gone, with identical output.** The timing columns of
+that run are noise — the machine was at 60-100 % CPU from other sessions and the
+harness's quiet gate never settled — but the census is a COUNT, exact and
+immune to a busy machine, which is the whole reason it exists.
+
+**The fault.** `drawLane` filled the lane with `LANE_TONE.base` and then filled
+the same rectangle again with the gravel pattern. `paintLaneTile` lays
+`LANE_TONE.base` across the whole tile before a single speckle — the tile is
+opaque — so the first fill was covered, pixel for pixel, every frame, on every
+tier that draws gravel.
+
+**The fix.** Build the pattern first and paint the base tone only when there is
+no pattern (`low`/`min`, where the gravel is already off). Nothing about the
+picture changes at any tier; there is simply one full-screen fill instead of
+two. `src/use/useSurvivalArt.ts`, `drawLane`.
+
+**What is left on the fill budget** (same census, after): ~2.7 screens still
+come from three full-screen calls — the gravel itself (~0.9), the lane's depth
+fade (~0.55 of a screen, `laneFade`) and the vignette/HUD scrim in `drawGrades`.
+The fade is the next candidate: it is a static vertical ramp over a scrolling
+road and could be baked into the backdrop texture rather than composited live.
+
+---
+
 ## 2026-09-14 — the game is FILL-bound, and nothing here had measured that ✅ KEPT
 
 **The report.** A Poki playtester on Survivalist 3.1.0 quit after fifteen

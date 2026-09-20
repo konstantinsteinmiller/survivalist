@@ -21,7 +21,7 @@
       button.skills__btn(
         v-else
         type="button"
-        :class="{ 'skills__btn--ready': s.ready, 'skills__btn--live': s.live, 'skills__btn--reveal': s.reveal, 'skills__btn--trial': s.state === 'trial', 'skills__btn--taught': s.taught, [`skills__btn--${s.id}`]: true }"
+        :class="{ 'skills__btn--ready': s.ready, 'skills__btn--live': s.live, 'skills__btn--reveal': s.reveal, 'skills__btn--fresh': s.fresh, 'skills__btn--trial': s.state === 'trial', 'skills__btn--taught': s.taught, [`skills__btn--${s.id}`]: true }"
         :disabled="!s.ready"
         :aria-label="s.label"
         :title="s.label"
@@ -41,6 +41,14 @@
         template(v-if="s.taught")
           span.skills__arrow.skills__arrow--up(aria-hidden="true")
           span.skills__arrow.skills__arrow--down(aria-hidden="true")
+        //- ── "You have never pressed this" ────────────────────────────────
+        //-
+        //- A skill handed over mid-run is a button the player did not ask for
+        //- and will not notice: the reveal plays for 1.25 s while their eyes are
+        //- on the road. So a newly-owned skill keeps a gold halo ring until it
+        //- is pressed for the first time — no text, no arrow, no tutorial stop,
+        //- and it goes away the moment it has done its job. See `fresh`.
+        span.skills__halo(v-if="s.fresh" aria-hidden="true")
         //- The cooldown ring. An SVG arc rather than a CSS conic gradient: the
         //- ring has to read at 44px on a phone, and a stroked circle keeps its
         //- weight at any size where a gradient wedge turns to mush.
@@ -294,6 +302,15 @@ const barStyle = computed(() => {
 /** Reveal keys (`revealKey`) whose reveal is playing right now. Declared ahead
  *  of `visible`, which reads it. */
 const revealing = ref<string[]>([])
+/**
+ * Skills that have been handed over and never pressed.
+ *
+ * In-memory on purpose: the point is "you were given this a moment ago and have
+ * not tried it", which is a fact about THIS session. It is seeded from the same
+ * once-ever claim the reveal uses, so a returning player who already pressed
+ * their shield never sees it again.
+ */
+const fresh = ref<SkillId[]>([])
 
 /**
  * The weapon's slot, or null when the crowd is not carrying one that charges.
@@ -363,6 +380,8 @@ const visible = computed(() => [...SKILL_SLOTS.map((slot, i) => {
     taught: taught === id,
     live,
     reveal: id !== null && usable && revealing.value.includes(revealKey(id, state)),
+    // Owned, never pressed — see the halo in the template.
+    fresh: id !== null && usable && fresh.value.includes(id),
     weapon: false
   }
 }), ...(boltSlot.value ? [boltSlot.value] : [])])
@@ -378,6 +397,8 @@ const onPress = (s: { weapon: boolean; id: SkillId | null; ready: boolean }): vo
 
 const onUse = (id: SkillId | null): void => {
   if (id === null) return
+  // Pressed once is all the halo was ever asking for.
+  if (fresh.value.includes(id)) fresh.value = fresh.value.filter((f) => f !== id)
   // A taught button is pressable whatever its cooldown says — the scene makes
   // the same exception, and the two have to agree or the press is swallowed
   // here and the world never resumes.
@@ -419,6 +440,11 @@ const askReveals = (): void => {
     const key = revealKey(slot.id, state)
     revealing.value = [...revealing.value, key]
     setTimeout(() => { revealing.value = revealing.value.filter((r) => r !== key) }, 1400)
+    // …and it keeps a halo after the reveal until it is pressed. The grenade is
+    // out of it: it is owned from the first frame of the first run, and a halo
+    // on a button the tutorial is about to stop the world for is two teachers
+    // talking at once.
+    if (slot.id !== 'grenade' && !fresh.value.includes(slot.id)) fresh.value = [...fresh.value, slot.id]
     any = true
   }
   // The question mark coming off is a gift being handed over, and it sounds
@@ -647,6 +673,48 @@ img.skills__icon
     filter: none
     box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(255, 217, 60, 0)
 
+// ─── The halo on a skill nobody has pressed yet ─────────────────────────────
+//
+// Two rings leaving the button on a slow clock, plus a gold rim on the button
+// itself. Loud enough to pull the eye off the road for the half second it takes
+// to register a new button; quiet enough that it is not a second cooldown ring.
+// It stops on the first press (`fresh`), so no player ever sees it twice.
+.skills__btn--fresh
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 0 0.18rem rgba(255, 217, 60, 0.55)
+  animation: skill-fresh-lift 1.6s ease-in-out infinite
+
+.skills__halo
+  position: absolute
+  inset: -0.12rem
+  border-radius: inherit
+  pointer-events: none
+  border: 0.16rem solid rgba(255, 217, 60, 0.85)
+  animation: skill-halo 1.6s cubic-bezier(0.2, 0.7, 0.3, 1) infinite
+
+  &::after
+    content: ''
+    position: absolute
+    inset: -0.02rem
+    border-radius: inherit
+    border: 0.12rem solid rgba(255, 240, 170, 0.7)
+    animation: skill-halo 1.6s cubic-bezier(0.2, 0.7, 0.3, 1) 0.55s infinite
+
+@keyframes skill-halo
+  0%
+    transform: scale(1)
+    opacity: 0.9
+  70%
+    opacity: 0
+  100%
+    transform: scale(1.85)
+    opacity: 0
+
+@keyframes skill-fresh-lift
+  0%, 100%
+    transform: translateY(0) scale(1)
+  50%
+    transform: translateY(-0.12rem) scale(1.06)
+
 @keyframes skill-nudge
   0%, 100%
     transform: translateX(0)
@@ -670,6 +738,9 @@ img.skills__icon
 @media (prefers-reduced-motion: reduce)
   .skills__btn--nudge,
   .skills__btn--reveal,
+  .skills__btn--fresh,
+  .skills__halo,
+  .skills__halo::after,
   .skills__btn--trial.skills__btn--ready
     animation: none
 

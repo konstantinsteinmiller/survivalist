@@ -586,6 +586,58 @@ export const gateValueLabel = (value: number): string =>
 export const GATE_MAX_VALUE = 999
 
 /**
+ * ─── The run's biggest door gets the camera ─────────────────────────────────
+ *
+ * Every payout already dips the world into slow motion for a beat
+ * (`claimBank`). The BIGGEST one of the run gets more than that: the hold runs
+ * on, the screen punches in, and the crowd swells inside a frame that is
+ * leaning toward it.
+ *
+ * Why the biggest one specifically: what a player remembers of a session is its
+ * PEAK and its END (peak-end; `dl.acm.org/doi/10.1145/2858036.2858419`), and
+ * this game's peak is a number on a door. It is also self-limiting — a run has
+ * exactly one biggest door at any moment, and a later one has to beat it — so
+ * the effect cannot become the wallpaper that "juice at maximum" turns into
+ * (the measured optimum is medium-to-high, never extreme).
+ *
+ * The floor keeps it off the small stuff: a quarter of the crowd standing at
+ * the door, and never fewer than five bodies.
+ */
+/**
+ * ─── The idle chest, standing on the road ───────────────────────────────────
+ *
+ * The treasure chest fills on wall-clock time and is the one reason this game
+ * gives a player to come back tomorrow — and it has always been a HUD icon in
+ * the corner, which is the one place a runner's eyes never are.
+ *
+ * So when a stage opens and the chest is ready, it is ALSO standing on the
+ * road, in the empty stretch the handover banner rides over, and running it
+ * over opens it. No button, no modal, no words: the reward for coming back is
+ * a thing on the ground in front of you.
+ *
+ * The HUD chest stays exactly as it is — it is the clock, and it is what a
+ * player who wants it NOW can still press.
+ */
+export const ROAD_CHEST_AT = 15
+/** The stretch of road it is allowed to stand in, searched for a gap. */
+export const ROAD_CHEST_FROM = 5
+export const ROAD_CHEST_TO = 26
+/** How much clear road it wants either side of itself — its own half-extent
+ *  plus a gate leaf's art (`GATE_ART_HALF`) and a little air, so the two
+ *  drawings never overlap. Stage 1 opens with a doorway at `OPENING_GATE_Y` = 9
+ *  and the first authored beat lands at 14, which is exactly the collision this
+ *  number is here to avoid. */
+export const ROAD_CHEST_CLEAR = 4
+/** Half-extent. Wider than a supply crate: nothing about this beat is a test of
+ *  aim, and a chest the crowd can miss is a chest that did not arrive. */
+export const ROAD_CHEST_R = 1.15
+
+export const PEAK_GAIN_SHARE = 0.25
+export const PEAK_GAIN_MIN = 5
+/** How long the world holds slow after it. */
+export const PEAK_HOLD_MS = 260
+
+/**
  * Half-width of one gate leaf.
  *
  * `CROWD_MAX_R` (1.9) < `GATE_LEAF_HALF` (2.05), so a properly-aimed crowd

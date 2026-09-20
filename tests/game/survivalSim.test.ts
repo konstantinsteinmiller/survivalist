@@ -677,7 +677,10 @@ describe('the boss can actually reach the crowd', () => {
     // 5000, not 4000, since the weapon split lengthened stage 2's road.
     advance(game, 5000, () => game.phase.value === 'boss' || settled(game))
     expect(game.phase.value, 'the crowd never reached the arena').toBe('boss')
-    expect(game.deathBreakdown().slam).toBe(0)
+    // The herald — one meteor at 80 % of the road, `HERALD_FROM_STAGE` — bills
+    // the same cause as a swing, so the BOSS's own is measured as a delta from
+    // whatever the road already cost rather than from zero.
+    const slamsOnArrival = game.deathBreakdown().slam
 
     // The thumb never moves — `steerTo` is not called again — so the crowd is
     // standing exactly where the telegraph said the slam would land.
@@ -685,10 +688,12 @@ describe('the boss can actually reach the crowd', () => {
     for (let i = 0; i < 500; i++) {
       game.step(STEP_MS)
       waited = (i + 1) * STEP_MS
-      if (game.deathBreakdown().slam > 0 || settled(game)) break
+      if (game.deathBreakdown().slam > slamsOnArrival || settled(game)) break
     }
 
-    expect(game.deathBreakdown().slam, 'the boss slam never connected').toBeGreaterThan(0)
+    expect(
+      game.deathBreakdown().slam - slamsOnArrival, 'the boss slam never connected'
+    ).toBeGreaterThan(0)
     // Three slam cycles of grace. It lands on the first one.
     expect(waited).toBeLessThan(3 * 2600)
   })

@@ -9,18 +9,19 @@ The target changed with the test. Until yesterday the job was to clear Poki's
 three-minute bar. It is cleared. The job now is **average playtime**, and the
 bar to beat is no longer a portal's — it is the genre's.
 
-**If you read nothing else.** One more cleared stage is worth 75–80 seconds of
-session, so the work is removing exits, not adding features. In order:
-**(1)** read the fit test's histogram — it decides whether the loss is the
-stage-1 road or the first result screen, and Poki reads our shape as a
-mid-histogram one, which means depth rather than onboarding; **(2)** stop
-ending a *winning* run at 2:45 — carry the continuous handover through stage 3
-and the first full stop lands at 4:05; **(3)** stop ending a *losing* one with a
-screen — show how close it truly was, on the road, and start running again.
-Everything after that is depth inside the run: a relief beat before each boss,
-gate pairs that stay a real choice, the biggest moment placed late, and a
-wordless telegraph for what is coming. No new buttons, no new screens, no new
-words.
+**If you read nothing else.** The histogram below says the first minute is fixed
+and the **second minute is the wall**: the tallest bar is 1–2 min, and the
+stage-1 boss dies at 1:25. One more cleared stage is worth 75–80 seconds, so the
+work is removing exits, not adding features. In order: **(1)** give the first
+kill something new to hand over — yesterday's weapon split moved that gift to
+*before* the boss, so the biggest win in the game now pays in coins and a
+banner; **(2)** stop ending a *losing* run with a screen — show how close it
+truly was, on the road, and start running again; **(3)** stop ending a *winning*
+one at 2:45 — carry the continuous handover through stage 3 and the first full
+stop lands at 4:05. Everything after that is depth inside the run: a relief beat
+before each boss, gate pairs that stay a real choice, the biggest moment placed
+late, and a wordless telegraph for what is coming. No new buttons, no new
+screens, no new words.
 
 ---
 
@@ -46,6 +47,34 @@ an action outperform games with waiting and downtime"
 ([engagement guide](https://developers.poki.com/guide/engagement)). We have the
 loop. What we do not yet have is a reason for the fourth and fifth minute.
 
+### The histogram, read (two 5.1.2 builds, 19 Sep 18:28 vs 20 Sep 01:05)
+
+| bucket | 19 Sep build | 20 Sep build (passed) |
+| --- | --- | --- |
+| 0–1 min | **227 plays (45 %)** | ~50–80 (~13 %) |
+| 1–2 min | ~123 | **~125 — the tallest bar** |
+| 2–3 min | ~43 | ~79 |
+| 3–4 min | ~48 | ~75 |
+| 4–5 min | ~18 | ~31 |
+| 5 min + | ~40 | **~88** |
+
+Three readings, and they reorder this whole list:
+
+1. **The first minute is fixed.** Nearly half of all sessions used to end inside
+   it; now about one in eight do. The weapon split, the pack change and the
+   softened first pack did that between them. Onboarding is no longer where the
+   players go.
+2. **The wall moved to the second minute**, which is where the stage-1 boss
+   dies. Measured on the sim: the arena opens at **74 s**, the fight runs
+   **11 s**, the stage clears at **1:25** — inside the tallest bar. This game
+   already measured the behaviour once, and it is written in
+   `presentBossReward`: *"about a quarter of the players who killed the stage-1
+   boss closed the game right there"*. The peak of the run is also its natural
+   stopping point.
+3. **The tail more than doubled** (5 min+ from ~40 to ~88). Players who get past
+   the second minute are staying much longer than before, which says the depth
+   past stage 3 is not the binding constraint — the exit at 1:25 is.
+
 **The session clock, measured** (career simulation, cheapest buying, medians of
 three seeds — `tests/sim/career.ts`):
 
@@ -70,8 +99,8 @@ Three facts fall straight out of that table, and they set the whole list:
    [70–80 %](https://gamedesignskills.com/game-design/casual/).
 
 **What the road already does** (so nothing below re-proposes it): continuous
-handover through stage 2 · gift ladder (weapon split stage 1, shield 4, frost 7,
-decoy 10, weapon box every other stage from 4) · four-lane weapon split on
+handover through stage 2 · gift ladder (weapon split stage 1, shield **2**,
+frost 7, decoy 10, weapon box every other stage from 4) · four-lane split on
 stages 1–3 · silent second wind on the stage-1 boss and on stages 2–3 past 75 %
 of the road · milestone coin chest every 5 stages · idle treasure chest on
 wall-clock time · daily expedition · endless past stage 20 · leaderboard rank
@@ -108,24 +137,17 @@ first interstitial at 3 min, 2 min floor between them.
 
 ---
 
-## 3. Step 0 — read the histogram first (free, today)
+## 3. Step 0 — the free measurement, half spent
 
-The fit test ships a **playtime histogram** and **10 recordings with inputs**.
-We have two candidate walls and the histogram separates them in five minutes:
+The histogram is read (section 1) and it set the order of Tier 1. Poki's own
+guide maps the shape: a left lean is onboarding or loading, **a peak in the
+middle columns is "insufficient content depth or engagement hooks"**
+([reading results](https://developers.poki.com/guide/reading-results)). Ours is
+now a middle peak at 1–2 min, which is why item 1 is a missing hook at 1:25
+rather than another difficulty pass.
 
-* mass in the **0–60 s** buckets → the stage-1 road is eating first sessions
-  (item 1 below, and the pack change of 2026-09-19 is the first suspect);
-* mass at **2:30–3:30** → the first result screen is the exit (item 2).
-
-Poki's own reading guide is explicit about the mapping: a left-leaning histogram
-is onboarding or loading, and **a peak in the middle columns means "insufficient
-content depth or engagement hooks"**
-([reading results](https://developers.poki.com/guide/reading-results)). A 3:07
-mean with 39 % past three minutes is most likely that middle shape — which would
-put items 2 and 4–8 ahead of item 1. **Do not build Tier 1 in a different order
-than the histogram dictates.**
-
-Watch the ten recordings for one thing in particular: **input friction**. Poki's
+The other half of the free measurement is unspent: **the ten recordings**.
+Watch them for one thing in particular: **input friction**. Poki's
 own playtest case study found accidental clicks leaving the canvas, fixed it
 with a mouse lock, and engagement went **from 2 minutes to 10**
 ([Poki](https://medium.com/poki/higher-success-rates-with-playtests-1e1316dd70fb)).
@@ -134,29 +156,59 @@ a phone is our equivalent, and only a recording will show it.
 
 ---
 
-## 4. Tier 1 — the three levers that touch the average
+## 4. Tier 1 — the four levers that touch the average
 
-### 1. Stage 1 must not be loseable on a first attempt
-**Moves:** average playtime, conversion · **Effort:** 2 h · **Risk:** low
-**Hook:** `RALLY_STAGES` in `GameScene.vue`, `game/secondWind.ts`
+### 1. The first kill has to hand something over — **BUILT 2026-09-20**
+**Moves:** average playtime, directly at the tallest bar · **Effort:** 3 h · **Risk:** low
+**Hook:** `presentBossReward` in `GameScene.vue`, `SHIELD_GIFT_STAGE` in `game/ladder.ts`, `SkillBar.vue`
 
-The stage-1 **arena** already refuses to end a first session — the second wind
-hands back 120 % of the crowd and the fight continues, no screen. The stage-1
-**road** has none, and since the packs went to three bodies at 1.5× health the
-median player dies there: two attempts, a loss screen at roughly 40 seconds, and
-the whole minute-long road again. Genre guidance is blunt about this — level 1
-should be [near-impossible to fail](https://www.gameanalytics.com/blog/hyper-casual-game-common-mistakes),
-and the first session is a [90-second clock](https://blog.playio.co/mobile-game-onboarding-retention).
+The stage-1 boss dies at **1:25**, inside the bucket that now holds a quarter of
+all sessions, and this game has already measured what happens there: a quarter of
+the players who killed that boss closed the tab on the spot. It is the peak of
+the run and therefore its natural end — peak-end again
+([CHI 2016](https://dl.acm.org/doi/10.1145/2858036.2858419)).
 
-Extend the silent rally to the stage-1 road for players who have never cleared
-stage 1: same rule as stages 2–3 (past 75 % of the road, once), or an earlier
-trigger since the deaths are earlier. The packs stay exactly as they are — what
-changes is that the first loss is a beat rather than a menu.
+Until yesterday the kill answered that with a gift: the boss dropped a launcher,
+or the two-card choice went up. **The weapon split moved that gift to before the
+boss**, so the biggest win in the game now pays out in coins, a banner naming a
+weapon the player already has, and a boss teaser. The split was the right call —
+the first minute proves it — but it left the exit unguarded.
 
-**Measure:** `average` attempts on stage 1 → 1 in the career sim; fit test's
-0–60 s bucket shrinks.
+Give the kill something the player did not have, wordlessly, using UI that
+already exists: **the skill bar shows three `?` slots**, which is a promise with
+no words in it. Fill the first one on the stage-1 clear by moving the shield
+gift from stage 4 (`SHIELD_GIFT_STAGE`) to the first kill: a slot lights, an
+icon lands in it, the road runs on. A new button on a bar the player is already
+looking at is not a menu, and a filled `?` is the cleanest "here is a thing you
+did not have" this game owns.
 
-### 2. Do not stop a winning run before the bar
+Two cheaper variants worth testing in the same slot if the shield is too strong
+this early: the first rescue cage of stage 2 pulled forward so the crowd is
+visibly repaid within seconds of the kill, or the unchosen lanes of the split
+reappearing on the horizon as the next stage opens (see item 9).
+
+**Measure:** the 1–2 min bucket shrinks and 2–3 min grows on the next fit test;
+`stage_end` for stage 1 followed by `stage_start` for stage 2 in our own funnel.
+
+### 2. A loss ends on the road, shows how close it was, and restarts without a screen
+**Moves:** put-down resistance, retries per session · **Effort:** 4 h · **Risk:** medium
+**Hook:** `resultFlow.ts`, the 3 s road hold already built (`WASTED_HOLD_MS`)
+
+Near-misses are a documented retry driver — they fire the same circuitry as a
+win and produce the highest urge to continue in a casual-game lab study
+([PMC5445157](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5445157/)). The
+honest version is the only version we ship: show the **true** distance that was
+left — the boss's remaining sliver of bar, the gate the crowd was three metres
+short of — hold it for a beat on the road, and let the crowd start running
+again. A retry that costs a tap on a screen is a retry the player has to decide
+to make; a retry that is already happening is one they have to decide to stop.
+
+Fabricating the closeness is the dark pattern. Showing it is the craft.
+
+**Measure:** retries per session in our own funnel (`wipe` → next `stage_start`
+latency), and the fit test's engaged %.
+
+### 3. Do not stop a winning run before the bar
 **Moves:** average playtime directly · **Effort:** 1 h + a fit test · **Risk:** medium
 **Hook:** `CONTINUOUS_THROUGH_STAGE` (currently 1) in `GameScene.vue`
 
@@ -181,33 +233,40 @@ our exact numbers tried that: Push Titans cut its first battle to under a
 minute and engagement *fell*; the author rolled it back and tuned difficulty
 instead ([write-up](https://medium.com/@vcorva/push-titans-is-on-poki-f656c7d8cfb7)).
 What that dev gained a minute of playtime from was **telegraphing** and
-**removing** a control, not shorter content — which is item 9 below.
+**removing** a control, not shorter content — which is item 10 below.
 
 **Measure:** fit test average playtime and engaged %, against 3:07 / 39 %.
 
-### 3. A loss ends on the road, shows how close it was, and restarts without a screen
-**Moves:** put-down resistance, retries per session · **Effort:** 4 h · **Risk:** medium
-**Hook:** `resultFlow.ts`, the 3 s road hold already built (`WASTED_HOLD_MS`)
+### 4. Stage 1 must not be loseable on a first attempt
+**Moves:** average playtime, conversion · **Effort:** 2 h · **Risk:** low
+**Hook:** `RALLY_STAGES` in `GameScene.vue`, `game/secondWind.ts`
 
-Near-misses are a documented retry driver — they fire the same circuitry as a
-win and produce the highest urge to continue in a casual-game lab study
-([PMC5445157](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5445157/)). The
-honest version is the only version we ship: show the **true** distance that was
-left — the boss's remaining sliver of bar, the gate the crowd was three metres
-short of — hold it for a beat on the road, and let the crowd start running
-again. A retry that costs a tap on a screen is a retry the player has to decide
-to make; a retry that is already happening is one they have to decide to stop.
+*Demoted from first place by the histogram: the 0–1 min bucket is down to about
+one session in eight, so this is now worth roughly a third of what item 1 is.
+It is still the cheapest item on the list, and it is the one to build if the
+next test's first bucket creeps back up.*
 
-Fabricating the closeness is the dark pattern. Showing it is the craft.
+The stage-1 **arena** already refuses to end a first session — the second wind
+hands back 120 % of the crowd and the fight continues, no screen. The stage-1
+**road** has none, and since the packs went to three bodies at 1.5× health the
+median player dies there: two attempts, a loss screen at roughly 40 seconds, and
+the whole minute-long road again. Genre guidance is blunt about this — level 1
+should be [near-impossible to fail](https://www.gameanalytics.com/blog/hyper-casual-game-common-mistakes),
+and the first session is a [90-second clock](https://blog.playio.co/mobile-game-onboarding-retention).
 
-**Measure:** retries per session in our own funnel (`wipe` → next `stage_start`
-latency), and the fit test's engaged %.
+Extend the silent rally to the stage-1 road for players who have never cleared
+stage 1: same rule as stages 2–3 (past 75 % of the road, once), or an earlier
+trigger since the deaths are earlier. The packs stay exactly as they are — what
+changes is that the first loss is a beat rather than a menu.
+
+**Measure:** `average` attempts on stage 1 → 1 in the career sim; fit test's
+0–60 s bucket shrinks.
 
 ---
 
 ## 5. Tier 2 — depth inside the run, no new screens
 
-### 4. A relief beat before every boss gate
+### 5. A relief beat before every boss gate — **BUILT 2026-09-20**
 Archero puts a healing chest by the door before each boss; the deconstruction
 credits it with "the notion of just-a-bit-more that keeps the player way more
 engaged" ([DoF](https://www.deconstructoroffun.com/blog/2019/8/9/why-archero-banked-25m-but-leaves-25m-hanging-hlx9n)).
@@ -216,7 +275,7 @@ A small crowd top-up there turns a boss wall into a near-thing.
 **Hook:** `track.ts` closing-bank block · **Watch:** the adaptive bar prices the
 fight off the crowd that arrives, so this must be priced, not free.
 
-### 5. Gate pairs that stay a real choice as the crowd scales
+### 6. Gate pairs that stay a real choice as the crowd scales — **BUILT 2026-09-20**
 Multiplication dominates at a small count, flat addition at a large one, so a
 fixed `×2 | +7` pair becomes a non-choice by stage 8 — and the genre's fix is to
 price the pair against the crowd that is actually arriving and to guard the
@@ -225,7 +284,7 @@ Stages 1–5 already do this (`EARLY_CLOSING_CROWD`, `liveDoor`); the long road
 does not.
 **Hook:** `track.ts` `roadDoor` / `liveDoor`, `longRoadCrowdAt`.
 
-### 6. Put the run's biggest beat late, and let the camera hold on it
+### 7. Put the run's biggest beat late, and let the camera hold on it — **BUILT 2026-09-20**
 Peak-end shapes what a player remembers of a session
 ([CHI 2016](https://dl.acm.org/doi/10.1145/2858036.2858419)). Schedule the
 stage's largest multiply near the end of the road rather than the middle, and
@@ -233,7 +292,7 @@ let the camera settle on the aftermath instead of cutting away.
 **Hook:** `track.ts` (the closing bank is already the biggest sum on the road —
 this is about the *camera* and the order, not new content).
 
-### 7. Goal gradient and endowed progress, on the rail that already exists
+### 8. Goal gradient and endowed progress, on the rail that already exists — **BUILT 2026-09-20**
 Effort accelerates as a goal looks nearer — the café-card field study found 12
 days between the first two stamps and 5 between the last two, driven by
 *perceived* progress
@@ -245,7 +304,7 @@ each stage with the run-in visibly already filled, and let the fill accelerate
 through the last quarter.
 **Hook:** `RunHud.vue` progress rail. No new element, no text.
 
-### 8. Stop on an unfinished shape
+### 9. Stop on an unfinished shape
 Zeigarnik's memory effect does not replicate, but **task resumption** does: a
 2025 meta-analysis of 59 studies found 67 % resumption against a 50 % baseline
 ([Nature Humanities & Social Sciences](https://www.nature.com/articles/s41599-025-05000-w)).
@@ -254,7 +313,7 @@ screen — the next gate half-open behind the banner, the boss cresting the
 horizon — which the first second of the next stage completes.
 **Hook:** `StageBanner.vue` + the road behind it.
 
-### 9. Telegraph what is coming, without a word
+### 10. Telegraph what is coming, without a word — **BUILT 2026-09-20** (the herald)
 The closest thing to a controlled experiment on our exact metric: a Poki dev
 whose first fit test came back at 2:30 / 28 % added an animated skeleton
 shouting before each wave, a second telegraph before the giants, and **cut his
@@ -277,7 +336,7 @@ ones who do not.
 
 ## 6. Tier 3 — the feel budget (this is retention, not polish)
 
-### 10. 33 fps is the ceiling on everything above
+### 11. 33 fps is the ceiling on everything above — **FIRST PASS BUILT 2026-09-20**
 The fit test's median is **33 fps on mobile**, down from 37 on 5.0.0. This game
 is fill-bound, not CPU-bound (`PERF-LEDGER.md`), and the armory's wide road plus
 the painted layer are new pixels. Nothing in Tier 1 or 2 survives a stuttering
@@ -285,7 +344,7 @@ frame.
 **Hook:** `pnpm perf:builds` (screens-of-fill per frame), the zoom's transform
 path, `qualityTier`. **Target:** median 45+ on the next test.
 
-### 11. Juice has an optimum, not a maximum — and every milestone gets its moment
+### 12. Juice has an optimum, not a maximum — and every milestone gets its moment
 N = 3 018, four juice levels of the same game: **medium and high beat both none
 and extreme** on play time, experience, intrinsic motivation and performance
 ([Study](https://www.sciencedirect.com/science/article/pii/S1875952118300879);
@@ -304,7 +363,7 @@ pop the doubling squad ladder and the coin cash-out; the beats with no moment of
 their own are the stage clear inside a continuous handover, the first weapon
 taken from a lane, and a boss phase falling.
 
-### 12. Glyphs a six-year-old can name
+### 13. Glyphs a six-year-old can name
 Stripping non-real-world ornament from icons took preschool recognition from
 **17 % to 90 %**
 ([study](https://www.sciencedirect.com/science/article/pii/S1877042812050045/pdf)).
@@ -318,7 +377,7 @@ colour, glyph and name; keep the rule.
 
 ## 7. Returning players, without a calendar
 
-### 13. An in-world streak the crowd carries
+### 14. An in-world streak the crowd carries
 Streaks predict return better than most signals, and the version that works is
 one you can keep on a bad day. Ours must be wordless and must never punish: a
 banner or flame the crowd carries that grows with each consecutive cleared stage
@@ -326,7 +385,7 @@ and gutters out when a run ends. No counter, no menu, no notification, no
 "don't lose your streak!" — that last one is the ICO line and we do not cross it.
 **Hook:** the crowd renderer + the existing challenge streak in the save.
 
-### 14. The chest that is already filling
+### 15. The chest that is already filling — **BUILT 2026-09-20**
 The idle treasure chest fills on wall-clock time and pays on return. It is the
 one returning-player hook the game has, and it is currently a HUD icon. Give its
 arrival a place on the **road** — the chest standing on the verge of the next
@@ -355,7 +414,7 @@ Unchanged from the last version, plus what this pass rules out:
   We want more *completions*, not longer roads.
 * **Shorter stages, as a reflex.** The publisher advice says halving level
   length raises playtime; the one Poki dev who tried it on a game at our numbers
-  measured engagement going DOWN and rolled it back (item 2). Our stages are 75-80 s
+  measured engagement going DOWN and rolled it back (item 3). Our stages are 75-80 s
   by the owner's call of 2026-09-18. Leave them until a histogram says otherwise.
 * **A second currency, or anything gated behind a rewarded video.** Poki names
   both: gems-plus-coins is "a mobile pattern built to drive IAP", and "rewarded
@@ -391,7 +450,7 @@ their prompt, not our code
 Two consequences worth writing down. First, **everything in Tiers 1–2 is still
 the right work** — those bars are reached by clearing more stages, not by
 padding roads. Second, **GamePix rewards a different shape**: many discrete
-plays beat one long one there, so the restart-without-a-screen of item 3 is
+plays beat one long one there, so the restart-without-a-screen of item 2 is
 worth more on GamePix than anywhere else (inference, from their ranking field).
 
 **Ad cadence — we sit inside every published rule, with one thing to revisit.**
@@ -447,6 +506,21 @@ listed so the next person does not "discover" it.
 ---
 
 ## 10. Ledger — what shipped (2026-09-09 → 2026-09-20)
+
+**The 2026-09-20 pass, in one place** (owner picked the items; every one obeys
+section 2's rules — no new button opens a menu, and none of it is a word):
+
+| item | what landed | where |
+| --- | --- | --- |
+| 1 | The shield is handed over at the **stage-1 kill**, not stage 4. Its `?` slot fills, the reveal plays, and the button keeps a gold halo until the player presses it for the first time. | `SHIELD_GIFT_STAGE`, `presentBossReward`, `SkillBar.vue` |
+| 5 | The auto-shield box (the pre-boss relief beat) debuts on **stage 4** instead of 8 — every road past the tutorial now carries insurance for the fight at the end of it. | `BULWARK_STAGE` |
+| 6 | The closing bank's `+N` is priced against **the crowd that actually arrives** on stages 6-29, as stages 1-5 and 9-15 already were. Stage 30+ is frozen and untouched. | `crowdAt`, `liveDoor`, `buildTrack` |
+| 7 | The **biggest payout of the run** holds the world slow a beat longer and punches the camera in, once per new best. | `PEAK_GAIN_SHARE`, `drawScene` |
+| 8 | The progress rail opens **pre-filled** by the run-in and fills **convex**, so the last quarter rushes. The beat marks ride the same curve. | `railFill` in `RunHud.vue` |
+| 10 | **The herald**: one meteor at 80 % of the road from a boss nobody has met, only where that boss actually throws, dodgeable sideways, a tenth of a swing. | `HERALD_FROM_STAGE`, `stepHerald` |
+| 11 | The lane was painted **twice** — an opaque tile over an opaque base fill. Census: **4.37 → 3.39 screens of fill per frame**, one fewer full-screen pass, identical output. | `drawLane`, `PERF-LEDGER.md` |
+| 15 | The idle chest now **stands on the road** at the opening of a stage when it is ready, and the crowd opens it by running it over. The HUD chest stays as the clock. | `ROAD_CHEST_AT`, `drawRoadChest`, `GameScene.vue` |
+
 
 One line each; the reasoning behind every one is in git history and in the
 module docstrings, which is where it belongs.

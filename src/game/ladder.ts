@@ -11,8 +11,8 @@ import { armoryAtFor } from '@/game/armory'
  *
  *   stage 1 cleared → the boss's launcher, as a reveal (`BOSS_REWARD_STAGE`);
  *                     the HUD chip says: choose a weapon, next stage
- *   stage 2 cleared → the reveal: launcher or gatling, for stage 3
- *   stage 3 cleared → the shield, and the banner says: a weapon on the road at 4
+ *   stage 1 cleared → THE SHIELD, on the banner that opens stage 2
+ *   stage 3 cleared → the banner says: a weapon on the road at 4
  *   stage 4 cleared → ONE free Frost Nova, a taste of the skill three stages early
  *   stage 4+        → the next puzzle stage, named by the weapon its box holds —
  *                     or the next SKILL, when one opens first (Frost Nova on 7,
@@ -22,8 +22,27 @@ import { armoryAtFor } from '@/game/armory'
  * what is next. Pure functions of the stage number, like the road itself.
  */
 
-/** The shield arrives with the banner that opens this stage. */
-export const SHIELD_GIFT_STAGE = 4
+/**
+ * The shield arrives with the banner that opens this stage.
+ *
+ * ─── TWO since 2026-09-20, and it is the fit test that moved it ─────────────
+ *
+ * The playtime histogram put the wall in the SECOND minute, and the sim puts
+ * the stage-1 kill at 1:25 — inside it. The code has measured that exit before
+ * ("about a quarter of the players who killed the stage-1 boss closed the game
+ * right there", `presentBossReward`), and the answer has always been the same:
+ * hand something over in the same breath. The four-lane split took that gift
+ * away by moving the weapon choice to BEFORE the boss, so the kill paid in
+ * coins and a banner naming a gun the player already had.
+ *
+ * The shield fills it, and it is the right thing to fill it with: it is the
+ * only other button the bar can light this early, the slot is already visible
+ * as a `?` (a promise with no words in it), and the reveal animation and its
+ * sound already exist (`claimReveal`, `SkillBar.vue`). What the player gets at
+ * the first kill is a new verb, announced on the next banner and pulsing on the
+ * HUD until they press it.
+ */
+export const SHIELD_GIFT_STAGE = 2
 
 /**
  * ─── The two late skills ────────────────────────────────────────────────────
@@ -74,13 +93,17 @@ export const nextWeaponStage = (stage: number, horizon = 400): number | null => 
  * `null` past the horizon only — on the authored road there is always a next
  * box, because the puzzle runs every other stage forever.
  */
-export const nextUnlock = (stage: number): Unlock | null => {
+export const nextUnlock = (stage: number, splitTaken = false): Unlock | null => {
   const s = Math.max(1, Math.floor(stage))
   // The choice is offered at the first boss's kill now
   // (`WEAPON_PICK_OFFER_STAGE`), so stage 1 is the one road that promises it.
   // …and since the four-lane split (`game/armory.ts`) it stands ON stage 1's
   // road, right before the boss: the promise is for THIS stage.
-  if (s < WEAPON_PICK_OFFER_STAGE) {
+  // `splitTaken` is the one thing this function cannot read off the stage
+  // number: once the crowd has walked into a lane, the promise on that road is
+  // spent and the chip has to move on to the next one (the shield) rather than
+  // pointing at a gift the player is already carrying.
+  if (s < WEAPON_PICK_OFFER_STAGE && !(splitTaken && armoryAtFor(s) !== null)) {
     return { atStage: armoryAtFor(s) !== null ? s : WEAPON_PICK_OFFER_STAGE, icon: 'gift', kind: 'weaponPick' }
   }
   if (s < SHIELD_GIFT_STAGE) {

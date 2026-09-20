@@ -494,8 +494,28 @@ export const CAGE_TAKES: CrateKind = 'rate'
  * heavier bodies and the second miniboss arrive (`MINIBOSS_SECOND`,
  * `PAIR_STAGE`), so it is the first stage on which a big blow is the normal
  * experience rather than the unlucky one.
+ *
+ * ─── FOUR since 2026-09-20: the relief beat before the boss ────────────────
+ *
+ * The retention pass asked for Archero's healing-chest-by-the-door on every
+ * road, and this box already IS that beat: `placeRescues` stands it at 74 % of
+ * the road, "within sight of the arena", on the shoulder away from the best
+ * door. What was wrong was the debut — three quarters of the campaign a player
+ * actually reaches had no relief at all before the fight at the end of it.
+ *
+ * Four, not eight, because the argument above has been overtaken: since the
+ * boss attacks were made to hurt (2026-09-16) every boss from stage 1 swings
+ * for a real share of the crowd, so by stage 4 a big blow is already the normal
+ * experience. Four is also where the road stops being a tutorial —
+ * `HARD_OBSTACLE_FROM_STAGE` — so the insurance arrives on the first stage that
+ * can take the crowd apart. Stages 1-3 keep the silent rally instead
+ * (`RALLY_STAGES`, `game/secondWind.ts`), which is relief of the same kind.
+ *
+ * It is the one relief that does not inflate the fight it relieves: the
+ * adaptive bar is priced off the crowd and its firepower (`fightModel`), and an
+ * absorb is neither.
  */
-export const BULWARK_STAGE = 8
+export const BULWARK_STAGE = 4
 
 /**
  * What a cage pays, as a share of what a door on the same stage prints.
@@ -1891,6 +1911,20 @@ const earlyCrowdAt = (b: Beat, y: number): number => {
  */
 const roadDoor = (b: Beat, crowd: number): number =>
   Math.max(gateAddBase(b.stage), Math.round(crowd * GATE_ROAD_SHARE))
+
+/**
+ * Roughly what a middling run is holding `y` units down THIS stage's road,
+ * whichever curve that stage was measured against.
+ *
+ * One entry point so a caller does not have to know which of the three walks a
+ * stage belongs to: the opening five (`earlyCrowdAt`, geometric), the long
+ * middle road (`longRoadCrowdAt`, linear to ~450) and everything between
+ * (`longCrowdAt`, linear between the measured ends of `LONG_CROWD`).
+ */
+const crowdAt = (b: Beat, y: number): number =>
+  b.stage <= ADAPTIVE_BOSS_STAGES
+    ? earlyCrowdAt(b, y)
+    : isLongRoad(b.stage) ? longRoadCrowdAt(b, y) : longCrowdAt(b, y)
 
 /**
  * ─── …and the same idea for the door that TAKES ─────────────────────────────
@@ -6258,6 +6292,11 @@ export const motifSignature = (b: Beat, from?: number, lift = 0, mass = 1): numb
 /** First stage of the long middle road: the first generated one. */
 export const LONG_ROAD_FROM = 16
 
+/** The first stage whose road is frozen prop-for-prop — see
+ *  `tests/game/lateStagesFrozen.test.ts`. Nothing this file does to the middle
+ *  road may reach it. */
+export const LATE_FROZEN_FROM = 30
+
 /** Is this stage one of the re-cut generated roads, 16..`STAGE_RUN_BLEND_TO` − 1? */
 export const isLongRoad = (stage: number): boolean =>
   stage >= LONG_ROAD_FROM && stage < STAGE_RUN_BLEND_TO
@@ -8978,7 +9017,9 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
     // last thing a player reads before the arena should be "the safe answer is
     // straight ahead, and it is not the best one".
     const big = mul(b.rng() < 0.5 ? 3 : 2)
-    const fat = add(base + 8)
+    // Priced against the crowd that arrives, not against the stage number — see
+    // `CLOSING_LIVE_FROM`. Stage 30+ keeps the authored literal it froze on.
+    const fat = add(stage < LATE_FROZEN_FROM ? liveDoor(crowdAt(b, closing)) : base + 8)
     const flip = b.rng() < 0.5
     bank(b, closing, flip ? fat : big, add(base + 3), flip ? big : fat)
   } else if (stage <= ADAPTIVE_BOSS_STAGES) {
@@ -9011,7 +9052,23 @@ export const buildTrack = (stage: number, seed: number = stage): Track => {
     // Stage 1 keeps its routing pair: its one multiplier is the swell.
     if (stage >= 2) bank(b, closing, add(liveDoor(arrive)), mul(2))
     else bank(b, closing, add(roadDoor(b, arrive)), add(Math.round(roadDoor(b, arrive) * 0.4)))
-  } else if (stage >= 5) bank(b, closing, add(base + 6), mul(b.rng() < 0.5 ? 3 : 2))
+  } else if (stage >= 5) {
+    // ── The last bank stays a question at every crowd size ──
+    //
+    // `add(base + 6)` is a number authored for the STAGE standing next to a
+    // multiplier that pays a share of the CROWD, and the two diverge as the
+    // road gets longer: by stage 12 a middling run reaches the run-in with ~150
+    // survivors, so `×2` pays +150 against a printed `+18`. That is not a
+    // decision, it is a sign saying "take the right-hand door", and the genre's
+    // own guidance is that a fixed `×`/`+` pair becomes a non-choice exactly
+    // this way. Stages 1-5 have been priced off the arriving crowd since the
+    // early-road pass and 9-15 author their own run-in the same way; this is
+    // the same rule for the stages in between and for the long middle road.
+    //
+    // 30+ is frozen (`lateStagesFrozen.test.ts`) and keeps the literal.
+    const fat = stage < LATE_FROZEN_FROM ? liveDoor(crowdAt(b, closing)) : base + 6
+    bank(b, closing, add(fat), mul(b.rng() < 0.5 ? 3 : 2))
+  }
   else bank(b, closing, add(base + 2), add(base + 5))
 
   ensureSupplies(b)

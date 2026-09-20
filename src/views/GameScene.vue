@@ -17,7 +17,7 @@ import {
   sideWeapon, sideWeaponPower,
   rallies, readWeaponPick, setRallyPolicy, stageBeats, worldVersion,
   isExpedition, startExpedition, cashOutSquad, type RallyAsk,
-  armoryTaken, roadHalfNow
+  armoryTaken, roadHalfNow, getRoadChest, placeRoadChest, roadChestTaken
 } from '@/use/useSurvivalGame'
 import { EXPEDITION_STAGE } from '@/use/useDailyExpedition'
 import {
@@ -68,6 +68,7 @@ import {
   SHOP_SPOTLIGHT_KEY, TUTORIAL_KEY, WEAPON_PICK_KEY
 } from '@/keys'
 import useTowerEconomy from '@/use/useTowerEconomy'
+import { useTreasureChest } from '@/use/useTreasureChest'
 import { affordableCount, grantUpgrade } from '@/use/useUpgrades'
 import { track, exposeAnalytics } from '@/use/useAnalytics'
 import { isDebug } from '@/use/useMatch'
@@ -165,6 +166,10 @@ import GameIcon from '@/components/icons/GameIcon.vue'
 
 const { t, te, locale } = useI18n()
 const { coins, addCoins } = useTowerEconomy()
+/** The idle chest's own clock, for the copy of it that stands on the ROAD —
+ *  see the two watchers below. The HUD button owns a second instance; both read
+ *  the same save, and only one of them can ever be the first to `collect`. */
+const chest = useTreasureChest()
 /**
  * How many shop tracks the wallet can pay for right now.
  *
@@ -1399,8 +1404,8 @@ const unlockWhenFor = (forStage: number, u: Unlock): string =>
   u.atStage <= Math.floor(forStage) ? t('ladder.thisStage') : unlockWhen(stagesAway(forStage, u))
 
 /** The chip: a glyph and "Shield · next stage". */
-const ladderChip = (forStage: number): { icon: GameIconName; text: string } | null => {
-  const u = nextUnlock(forStage)
+const ladderChip = (forStage: number, splitTaken = false): { icon: GameIconName; text: string } | null => {
+  const u = nextUnlock(forStage, splitTaken)
   if (!u) return null
   return { icon: u.icon, text: `${unlockLabel(u)} · ${unlockWhenFor(forStage, u)}` }
 }
@@ -1416,7 +1421,9 @@ const ladderLine = (forStage: number): { icon: GameIconName; text: string } | nu
 }
 
 /** What the HUD promises during this stage. */
-const hudNext = computed(() => ladderChip(stage.value))
+// `activeWeapon` is read so the chip stops promising the weapon split the
+// moment the crowd walks out of a lane with one — see `nextUnlock`.
+const hudNext = computed(() => ladderChip(stage.value, activeWeapon.value !== null))
 
 /**
  * The long-term goal beside it: the next milestone payout, in coins and stages
@@ -1630,7 +1637,15 @@ const presentBossReward = (): void => {
   // the crowd is walking on with.
   const walkedIn = armoryTaken()
   if (walkedIn !== null) {
-    completeHandover({ icon: walkedIn, label: t(`weapons.${walkedIn}`) })
+    // ── The kill hands over the SHIELD, not the gun they already hold ──
+    //
+    // `SHIELD_GIFT_STAGE` moved to 2 on 2026-09-20: the histogram put the wall
+    // in the second minute and this kill lands at 1:25, inside it. The banner
+    // names the new verb; the weapon that came out of the split a few seconds
+    // ago is not news. It is granted HERE, before the road moves, so a tab
+    // closed on the banner still opens stage 2 with the button filled.
+    const shield = grantStageGift(summary.value.stage)
+    completeHandover(shield ?? { icon: walkedIn, label: t(`weapons.${walkedIn}`) })
     showDeferredCash()
     return
   }
@@ -2085,6 +2100,45 @@ const endSquadCash = (): void => {
   if (squadCashTimer !== null) { clearTimeout(squadCashTimer); squadCashTimer = null }
   squadCashed = false
 }
+
+/**
+ * ─── The idle chest, standing on the road ───────────────────────────────────
+ *
+ * The chest that fills on wall-clock time is the game's one reason to come back
+ * tomorrow, and it has always been an icon in a corner a runner never looks at.
+ * So when a stage opens with one ready, it ALSO stands in the opening stretch
+ * of the road (`ROAD_CHEST_AT`) and the crowd opens it by running it over.
+ *
+ * The scene owns the payout for the same reason the HUD button does: what the
+ * chest is worth is a question about the save's day ledger, not about this
+ * road. The sim only says "they ran it over".
+ *
+ * The HUD chest is untouched — it is the clock, and it is still pressable.
+ */
+watch(worldVersion, () => {
+  if (isExpedition.value || !chest.isReady.value) return
+  placeRoadChest()
+})
+
+watch(roadChestTaken, () => {
+  const c = getRoadChest()
+  const badge = coinBadgeEl.value
+  const won = chest.collect()
+  if (won <= 0) return
+  addCoins(won)
+  if (!c || !badge) return
+  // One origin per coin drawn, jittered over the chest's own footprint so the
+  // burst has the shape of a box opening rather than of a point emitting.
+  const n = Math.min(24, 6 + Math.round(won / 6))
+  const sx = worldToScreenX(c.x)
+  const sy = worldToScreenY(c.y)
+  const spread = getScale() * c.r
+  const origins = Array.from({ length: n }, () => ({
+    x: sx + (Math.random() - 0.5) * spread * 1.6,
+    y: sy + (Math.random() - 0.5) * spread
+  }))
+  spawnCoinTrail({ origins, targetEl: badge })
+})
 
 const convertSquadToCoins = (): void => {
   if (squadCashTimer !== null) clearTimeout(squadCashTimer)

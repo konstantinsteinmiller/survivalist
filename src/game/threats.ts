@@ -63,6 +63,40 @@ export const MINIBOSS_POOL: readonly MinibossKind[] = ['roller', 'bomber', 'gunn
 export const BOSS_POOL: readonly BossKind[] = ['claw', 'healer', 'summoner', 'meteor']
 
 /**
+ * ─── The herald: one meteor from a boss nobody has met yet ──────────────────
+ *
+ * Four fifths of the way down the road, a single meteor falls on the crowd —
+ * telegraphed exactly like the boss's own (`meteorCast` ring, the same
+ * wind-up), landing for a fraction of what a real swing takes, and then
+ * nothing. There is no body on screen to explain it.
+ *
+ * It is a TELEGRAPH, not an attack: the thing at the end of the road announces
+ * itself before it can be seen, and the question it plants ("where did THAT
+ * come from") is the cheapest reason to keep running there is. The Poki
+ * postmortem that matches this game's numbers gained a minute of playtime from
+ * two wordless telegraphs and a removed button; this is the road's version.
+ *
+ * ONLY where the boss actually owns the move (`bossKindFor` === 'meteor'):
+ * a sky that drops rocks on a stage whose boss rakes the ground is a lie about
+ * what is coming. And never on stage 1 — the tutorial road already has a
+ * grenade lesson, a weapon split and its own elite to introduce.
+ */
+export const HERALD_FROM_STAGE = 2
+/** How far down the road it lands, as a share of the run to the arena. */
+export const HERALD_AT = 0.8
+/** The share of the crowd it takes — a third of a real swing, so it reads as a
+ *  warning shot rather than as the fight starting early. */
+export const HERALD_SHARE = 0.1
+/** …and never more than this, however big the crowd. */
+export const HERALD_MAX_KILL = 12
+/** Seconds between the ring appearing and the rock arriving. Longer than a
+ *  boss's own wind-up: the player has no boss on screen to read, so the ground
+ *  has to carry the whole warning. */
+export const HERALD_WINDUP_S = 1.35
+/** How wide it lands. The boss's opening ring, unmodified. */
+export const HERALD_RADIUS_MUL = 1.15
+
+/**
  * ─── …and the tier the pool grows into ──────────────────────────────────────
  *
  * Four elites is enough variety to stop a stage being one fight, and it is not

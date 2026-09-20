@@ -15,10 +15,13 @@ import {
 } from '@/game/weapons'
 
 describe('the ladder', () => {
-  it('runs choice → shield → weapon on the road, on consecutive stages', () => {
+  it('runs split → shield → weapon on the road, one gift per stage', () => {
+    // Since 2026-09-20 the shield lands on the banner that opens stage 2 — the
+    // stage-1 kill is the exit the playtime histogram found, and it had nothing
+    // to hand over once the weapon split moved the choice before the boss.
+    expect(SHIELD_GIFT_STAGE).toBe(2)
     expect(WEAPON_PICK_STAGE).toBe(3)
-    expect(SHIELD_GIFT_STAGE).toBe(WEAPON_PICK_STAGE + 1)
-    expect(WEAPON_STAGE).toBe(SHIELD_GIFT_STAGE)
+    expect(WEAPON_STAGE).toBe(4)
     // …and the puzzle keeps coming every other stage, forever — every stage on
     // the long middle road, 16-29 (see `longRoad.test.ts`).
     expect(WEAPON_EVERY).toBe(2)
@@ -36,11 +39,17 @@ describe('the ladder', () => {
     expect(u.atStage).toBe(1)
     expect(WEAPON_PICK_OFFER_STAGE).toBe(2)
     expect(u.icon).toBe('gift')
+    // …and the shield is promised on that same road, for the stage the kill
+    // opens. From stage 2 on it is already owned, so the promise moves to the
+    // first weapon box (stage 4).
+    const shield = nextUnlock(1, true)!
+    expect(shield.kind).toBe('shield')
+    expect(shield.atStage).toBe(SHIELD_GIFT_STAGE)
+    expect(shield.icon).toBe('shield')
     for (const s of [2, 3]) {
-      const shield = nextUnlock(s)!
-      expect(shield.kind).toBe('shield')
-      expect(shield.atStage).toBe(SHIELD_GIFT_STAGE)
-      expect(shield.icon).toBe('shield')
+      const next = nextUnlock(s)!
+      expect(next.kind, `stage ${s}`).toBe('weapon')
+      expect(next.atStage, `stage ${s}`).toBe(WEAPON_STAGE)
     }
   })
 

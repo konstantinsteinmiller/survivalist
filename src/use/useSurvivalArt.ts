@@ -31,7 +31,7 @@ import {
   bossFallDir, getBossCorpse, progress01, roadScrollY, takeDepartedSurvivors,
   frostActive, frostFrozenAt,
   getBossDrain,
-  armoryZoomNow, getArmory, roadHalfAt
+  armoryZoomNow, getArmory, getRoadChest, roadHalfAt
 } from '@/use/useSurvivalGame'
 import {
   ARMORY_CASE_AT, ARMORY_CORRIDOR, ARMORY_LANE_W, ARMORY_ROAD_HALF, ARMORY_WALL_W, ARMORY_WALL_XS,
@@ -188,6 +188,19 @@ export const setViewport = (w: number, h: number, topInset = 0, bottomInset = 0)
  */
 let zoom = 1
 let armoryZoomFloor = ARMORY_ZOOM_FLOOR
+/**
+ * ─── The peak punch ─────────────────────────────────────────────────────────
+ *
+ * The run's biggest door leans the frame toward it: a fast push IN and a slow
+ * settle back, riding the same transform the split's pull-back uses so the two
+ * compose instead of fighting. Milliseconds remaining, counted down on wall
+ * time — the world is already in slow motion when this fires (`PEAK_HOLD_MS`),
+ * and a punch that slowed down with it would last three times as long as the
+ * beat it belongs to.
+ */
+const PEAK_PUNCH_MS = 520
+const PEAK_PUNCH_AMP = 0.07
+let punchLeftMs = 0
 /** The REAL frame height, latched per frame: the ramps that are keyed on the
  *  viewport read this rather than the pull-back's enlarged one. */
 let frameH = 0
@@ -3160,7 +3173,16 @@ export const drawScene = (
   // drawn into a viewport `1 / zoom` the size of the real one and scaled back
   // down, so every culling test below sees the road the camera now shows.
   zoom = cutsceneCam === null ? 1 - (1 - armoryZoomFloor) * armoryZoomNow() : 1
-  if (zoom > 0.999) zoom = 1
+  // The peak punch, composed on top: in fast, out slow.
+  if (punchLeftMs > 0) {
+    punchLeftMs = Math.max(0, punchLeftMs - dtMs)
+    const k = punchLeftMs / PEAK_PUNCH_MS
+    // A quick rise over the first fifth and an ease back over the rest, so the
+    // push lands with the payout rather than after it.
+    const shape = k > 0.8 ? (1 - k) * 5 : (k / 0.8) ** 1.6
+    zoom *= 1 + PEAK_PUNCH_AMP * shape
+  }
+  if (Math.abs(zoom - 1) < 0.001) zoom = 1
   const vw = w / zoom
   const vh = h / zoom
   // The late skills draw from their own module, through this frame's camera.
@@ -3316,6 +3338,7 @@ export const drawScene = (
   // and the one thing that must never happen is a lever hidden behind scenery
   // the player is not required to look at.
   drawWeaponBoxes(ctx)
+  drawRoadChest(ctx)
   drawGuards(ctx)
   drawBarricades(ctx)
   drawLevers(ctx)
@@ -3677,9 +3700,6 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
   }
   ctx.clip()
 
-  ctx.fillStyle = LANE_TONE.base
-  ctx.fillRect(fillL, 0, fillW, h)
-
   // The gravel is the road's texture and it is also a full-lane fill of a
   // repeating pattern — the most expensive thing on the ground pass, and
   // measured the single biggest one in the frame on a portrait phone: 0.93 of a
@@ -3690,6 +3710,19 @@ const drawLane = (ctx: CanvasRenderingContext2D, w: number, h: number): void => 
   // under 40 fps, and the rungs below are what actually carry the sensation of
   // speed — the gravel is texture on a surface that is moving too fast to read.
   const pattern = cheapFx ? null : buildLaneTile(ctx)
+
+  // ── …and the base tone is only painted when the gravel is NOT ──
+  //
+  // The tile is opaque: `paintLaneTile` lays `LANE_TONE.base` across the whole
+  // of it before a single speckle, and the pattern fill below covers every
+  // pixel this rect did, plus a tile of headroom. So on any tier that draws the
+  // gravel, this was a second full-lane fill of the same colour underneath it —
+  // measured 2026-09-20 at 4.37 screens of fill per frame on a 390x844 phone,
+  // 3.74 of it from ~4 full-screen calls, and this was one of them.
+  if (!pattern) {
+    ctx.fillStyle = LANE_TONE.base
+    ctx.fillRect(fillL, 0, fillW, h)
+  }
   if (pattern) {
     // Scroll the pattern with the camera. Translating the context (rather than
     // the pattern's own matrix) keeps this working on every browser we ship to.
@@ -6347,6 +6380,145 @@ const drawWeaponBoxes = (ctx: CanvasRenderingContext2D): void => {
 
     ctx.restore()
   }
+}
+
+/**
+ * The idle chest, standing in the opening stretch of a road (`ROAD_CHEST_AT`).
+ *
+ * Drawn from the same case the weapon boxes use, in gold, with a coin above it
+ * — the HUD chest's own vocabulary, so the thing on the road and the thing in
+ * the corner read as the same object. It is not a test of aim (see
+ * `ROAD_CHEST_R`), so it is lit hard: a halo, a bob and a rising shine.
+ */
+const drawRoadChest = (ctx: CanvasRenderingContext2D): void => {
+  const c = getRoadChest()
+  if (c === null || c.taken) return
+  const sy = worldToScreenY(c.y)
+  if (sy < -80 || sy > viewH + 80) return
+  const t = nowMs()
+  const r = c.r * scale * 0.8
+  const pulse = 0.5 + 0.5 * Math.sin(t / 260)
+
+  ctx.save()
+  ctx.translate(worldToScreenX(c.x), sy)
+
+  if (!minFx) {
+    const glowR = r * 2.4
+    const key = `chestGlow|${glowR}`
+    let glow = getRamp(key)
+    if (!glow) {
+      glow = putRamp(key, ctx.createRadialGradient(0, 0, 0, 0, 0, glowR))
+      glow.addColorStop(0, 'rgba(255,214,96,1)')
+      glow.addColorStop(1, 'rgba(255,214,96,0)')
+    }
+    ctx.globalAlpha = 0.3 + pulse * 0.3
+    ctx.fillStyle = glow
+    ctx.beginPath()
+    ctx.arc(0, 0, glowR, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.globalAlpha = 1
+  }
+
+  ctx.fillStyle = 'rgba(0,0,0,0.42)'
+  ctx.beginPath()
+  ctx.ellipse(0, r * 0.86, r * 0.9, r * 0.28, 0, 0, Math.PI * 2)
+  ctx.fill()
+
+  // ── The chest itself: the HUD's chest, not a second design ──
+  //
+  // The painting the HUD shows (`images/ui/chest.webp`) when the art layer has
+  // it, and otherwise the HUD's own SVG, ported unit for unit out of
+  // `TreasureChest.vue` — same 64-unit box, same two gradients, same lock and
+  // bands. The player meets this object twice on one screen; it may not be two
+  // different chests.
+  paintChestBody(ctx, r)
+
+  // …and the coin riding over it, so what is inside needs no word.
+  const bob = Math.sin(t / 380) * r * 0.08
+  const coinR = r * 0.52
+  ctx.save()
+  ctx.translate(0, -r * 0.95 + bob)
+  ctx.fillStyle = '#ffd23f'
+  ctx.beginPath()
+  ctx.ellipse(0, 0, coinR, coinR * 0.86, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.lineWidth = Math.max(1.4, coinR * 0.18)
+  ctx.strokeStyle = '#8a5a12'
+  ctx.stroke()
+  ctx.fillStyle = 'rgba(255,248,214,0.9)'
+  ctx.beginPath()
+  ctx.ellipse(-coinR * 0.22, -coinR * 0.2, coinR * 0.32, coinR * 0.24, -0.4, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+
+  ctx.restore()
+}
+
+/**
+ * The chest, drawn into a box `2r` across centred on the origin.
+ *
+ * The SVG path is `TreasureChest.vue`'s, mapped from its 64-unit viewBox: body
+ * `rect(6,28,52,28,r3)`, lid `M6 28 Q32 8 58 28 Z`, lock, two bands. Kept in
+ * the same proportions rather than re-drawn by eye, because the two chests sit
+ * on screen together and any drift reads as two different objects.
+ */
+const paintChestBody = (ctx: CanvasRenderingContext2D, r: number): void => {
+  const painted = art('ui', 'chest')
+  if (painted) {
+    ctx.drawImage(painted, -r, -r, r * 2, r * 2)
+    return
+  }
+  // 64-unit viewBox → the box we were handed. The art sits in y 8..56 of it, so
+  // the chest is centred on that band rather than on the viewBox.
+  const u = (r * 2) / 64
+  const X = (v: number): number => (v - 32) * u
+  const Y = (v: number): number => (v - 32) * u
+
+  let body = getRamp(`chestBody|${r}`)
+  if (!body) {
+    body = putRamp(`chestBody|${r}`, ctx.createLinearGradient(0, Y(28), 0, Y(56)))
+    body.addColorStop(0, '#a05a2c')
+    body.addColorStop(1, '#5a2e10')
+  }
+  let lid = getRamp(`chestLid|${r}`)
+  if (!lid) {
+    lid = putRamp(`chestLid|${r}`, ctx.createLinearGradient(0, Y(8), 0, Y(28)))
+    lid.addColorStop(0, '#c0732e')
+    lid.addColorStop(1, '#7d4017')
+  }
+
+  ctx.lineWidth = Math.max(1.4, 2 * u)
+  ctx.strokeStyle = '#2a1607'
+  ctx.fillStyle = body
+  roundRect(ctx, X(6), Y(28), 52 * u, 28 * u, 3 * u)
+  ctx.fill()
+  ctx.stroke()
+
+  // The lid: one quadratic, exactly as the SVG draws it.
+  ctx.beginPath()
+  ctx.moveTo(X(6), Y(28))
+  ctx.quadraticCurveTo(X(32), Y(8), X(58), Y(28))
+  ctx.closePath()
+  ctx.fillStyle = lid
+  ctx.fill()
+  ctx.stroke()
+
+  // The two iron bands across the body.
+  ctx.fillStyle = 'rgba(58,29,9,0.6)'
+  ctx.fillRect(X(6), Y(38), 52 * u, 3 * u)
+  ctx.fillRect(X(6), Y(50), 52 * u, 3 * u)
+
+  // …and the lock.
+  ctx.fillStyle = '#fcd34d'
+  roundRect(ctx, X(26), Y(34), 12 * u, 14 * u, 2 * u)
+  ctx.fill()
+  ctx.lineWidth = Math.max(1, 1.5 * u)
+  ctx.strokeStyle = '#5a3408'
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(X(32), Y(40), 2 * u, 0, Math.PI * 2)
+  ctx.fillStyle = '#5a3408'
+  ctx.fill()
 }
 
 const drawCrates = (ctx: CanvasRenderingContext2D): void => {
@@ -11172,6 +11344,49 @@ const applyFx = (e: FxEvent): void => {
       // dismissal is loud in its own frame and silent everywhere else.
       spawnDismissal(e.x, e.y, e.halfW, e.op, e.value, e.distance, e.flipped === true, e.prize)
       break
+
+    case 'chestOpen': {
+      // Gold, upward, and loud enough to be the reason the player looks at the
+      // corner of the screen where the coins are about to land.
+      triggerShake('small')
+      playFx('weaponOpen')
+      const n = minFx ? 0 : cheapFx ? 14 : 30
+      for (let i = 0; i < n; i++) {
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.5
+        const sp = 4 + Math.random() * 7
+        emit({
+          x: e.x, y: e.y + 0.2, vx: Math.cos(a) * sp, vy: Math.sin(a) * -sp + 2,
+          life: 560 + Math.random() * 320, size: 0.1 + Math.random() * 0.07,
+          color: [255, 214, 96], additive: true, shape: 2, drag: 1.5, gravity: 5
+        })
+      }
+      break
+    }
+
+    case 'peak': {
+      // ── The biggest door of the run ────────────────────────────────────
+      //
+      // The sim is already holding the world slow (`PEAK_HOLD_MS`); this is the
+      // frame leaning in. Deliberately only three channels — punch, shake, a
+      // ring of gold off the door — because the `gatePass` for the same door is
+      // landing in this very batch with its own burst and number, and stacking
+      // a fourth on top is how "juice" turns into the extreme setting that
+      // measured WORSE than medium.
+      punchLeftMs = PEAK_PUNCH_MS
+      triggerShake('strong')
+      if (!minFx) {
+        const n = cheapFx ? 10 : 22
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2
+          emit({
+            x: e.x, y: e.y + 0.2, vx: Math.cos(a) * 7, vy: Math.sin(a) * 4 + 1.5,
+            life: 520 + Math.random() * 260, size: 0.12 + Math.random() * 0.06,
+            color: [255, 226, 140], additive: true, shape: 2, drag: 1.8, gravity: 1.2
+          })
+        }
+      }
+      break
+    }
 
     case 'crateBreak': {
       // The two crates cost the same detour, so their payoffs have to be told

@@ -83,6 +83,12 @@ export type FxEvent =
     }
   /** A supply crate burst. `crate` picks which stat went up and `value` is the
    *  new total, so the floating text can read "DMG 4" or "RATE 2.4". */
+  /** The biggest payout of the run so far, the instant it lands. The renderer
+   *  answers with a camera punch and a shake; the sim is already holding the
+   *  world slow (`PEAK_HOLD_MS`). See `PEAK_GAIN_SHARE`. */
+  | { kind: 'peak'; x: number; y: number; gain: number }
+  /** The idle chest, run over on the road (`ROAD_CHEST_AT`). */
+  | { kind: 'chestOpen'; x: number; y: number }
   | { kind: 'crateBreak'; x: number; y: number; crate: 'damage' | 'rate'; value: number }
   | { kind: 'barricadeBreak'; x: number; y: number }
   | { kind: 'foeDie'; x: number; y: number; big: boolean }

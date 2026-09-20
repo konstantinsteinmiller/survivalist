@@ -146,9 +146,42 @@ const goals = computed(() => {
   return out
 })
 const goal = computed(() => goals.value.length === 0 ? null : goals.value[goalTick.value % goals.value.length]!)
-const railPct = computed(() =>
-  Math.round(Math.max(0, Math.min(1, num(isBoss.value ? props.bossHp : props.progress))) * 100)
-)
+/**
+ * ─── The rail is not a ruler ────────────────────────────────────────────────
+ *
+ * Two measured effects, one mapping, and the beats ride it too so a mark never
+ * drifts off the thing it marks.
+ *
+ * ENDOWED PROGRESS. A card handed over with two stamps already on it is
+ * completed far more often than an empty one with the same number of stamps to
+ * go — 19 % against 34 % in the original study (Nunes & Drèze). Every stage
+ * opens on fifteen units of empty road before anything happens (the handover
+ * banner rides over it), so the rail starts that road already spent: the
+ * player's first glance says "started", not "nothing yet".
+ *
+ * THE GOAL GRADIENT. Effort accelerates as the goal looks nearer, and it is
+ * PERCEIVED progress that drives it (Kivetz et al.'s café cards: 12 days
+ * between the first two stamps, 5 between the last two). So the fill is mildly
+ * convex — the last quarter of the road covers more rail than the first — and
+ * the end of a stage visibly rushes toward the skull.
+ *
+ * Both are deliberately small. The rail still has to be true enough to plan a
+ * skill around, and a bar that lies by a fifth is a bar nobody trusts twice.
+ * The BOSS bar is exempt: a health bar is a fact, not an encouragement.
+ */
+const RAIL_ENDOWED = 0.06
+const RAIL_GRADIENT = 1.15
+
+const railFill = (p: number): number => {
+  const k = Math.max(0, Math.min(1, p))
+  return RAIL_ENDOWED + (1 - RAIL_ENDOWED) * k ** RAIL_GRADIENT
+}
+
+const railPct = computed(() => Math.round(
+  isBoss.value
+    ? Math.max(0, Math.min(1, num(props.bossHp))) * 100
+    : railFill(num(props.progress)) * 100
+))
 const elitePct = computed(() => Math.round(Math.max(0, Math.min(1, num(props.eliteHp)) * 100)))
 
 /**
@@ -422,7 +455,7 @@ onBeforeUnmount(() => {
           :key="i"
           :name="b.icon"
           :class="[`is-${b.kind}`, { 'is-passed': progress >= b.at }]"
-          :style="{ left: (b.at * 100).toFixed(1) + '%' }"
+          :style="{ left: (railFill(b.at) * 100).toFixed(1) + '%' }"
         )
 
     //- Miniboss bar. Sits UNDER the stage rail rather than replacing it: the
