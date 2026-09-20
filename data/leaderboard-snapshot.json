@@ -1,8 +1,8 @@
 {
   "source": "https://survivalist-leaderboard.hyperg8.workers.dev",
-  "fetchedAt": 1789824908656,
-  "updatedAt": 1789824755726,
-  "total": 5227,
+  "fetchedAt": 1789835606113,
+  "updatedAt": 1789835606117,
+  "total": 5234,
   "entries": [
     {
       "rank": 1,
@@ -780,7 +780,7 @@
     ],
     [
       5,
-      318
+      319
     ],
     [
       4,
@@ -788,15 +788,15 @@
     ],
     [
       3,
-      1109
+      1110
     ],
     [
       2,
-      823
+      824
     ],
     [
       1,
-      1683
+      1687
     ]
   ]
 }
