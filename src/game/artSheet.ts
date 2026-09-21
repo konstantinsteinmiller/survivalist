@@ -564,6 +564,32 @@ const SIDE_POSES: readonly string[] = [
   'fallen — the same body in the same place as panel 7, lying still on its flank with its legs stretched out stiff, facing the same way, eyes shut and every inner light out. It has NOT turned round or rolled over between the two panels: this panel is panel 7 gone quiet. The game holds it on screen as the body, so it must read as "defeated" at a glance, even small'
 ]
 
+/**
+ * ─── …and the first death of something that FLIES ───────────────────────────
+ *
+ * `SIDE_POSES` is written for a four-legged body: knees buckle, front legs fold,
+ * a flank hits the dirt. A wyrm does none of that — and the panel it kept
+ * getting wrong was not the fall, it was the BOUNCE. "the body jolted up just a
+ * finger's width off the ground" is a sentence about a corpse settling, and
+ * twice in a row a painter read it as the creature rising: once standing, once
+ * back in the air with its wings spread, in the middle of its own death.
+ *
+ * Saying it again in the character's own paragraph did not fix it (the panel
+ * line is what a painter paints), so the panel line is the thing that changes.
+ * These are `SIDE_POSES` with the flying half rewritten and every mention of
+ * rising taken out of the ground panels.
+ */
+const AIR_DEATH_POSES: readonly string[] = [
+  'the blow lands — still in the air, the whole body jolted upward and back, wings thrown wide and high, neck arched, head flung up, the eye blazing',
+  'it stalls — the wings stop beating and start to drag, the body pitching nose-down as it begins to drop, the tail whipping up behind',
+  'falling — wings half folded and trailing above it, the body tipping over onto its near flank as it comes down, legs loose, the light in its eye dimming',
+  'it hits the ground — landing along its side, low and flat, the neck stretched out ahead of it, the wings crumpling under and over the body',
+  'flat out — lying on its flank along the ground, head and jaw flat in the dirt, the tail stretched straight out behind, one wing folded over the body and one under it',
+  'settling — the same body in the same place as panel 5, still flat on the same flank and facing the same way. Only its edges move: a wing slipping down, the tail dropping the last inch. It does NOT rise, stand, hover, fly, flap or lift off the ground — nothing about this panel is higher than panel 5',
+  'going out — lying exactly as in panel 5 and 6, limbs slack where they fell, the jaw open against the dirt, the eye closing, the fire in it guttering out',
+  'fallen — the same body in the same place again, lying still on its flank with the neck stretched out and the wings crumpled, facing the same way, eye shut and every inner light out. It has NOT turned round, rolled over or got up between the panels: this panel is panel 7 gone quiet. The game holds it on screen as the body, so it must read as "defeated" at a glance, even small'
+]
+
 export const DEATH_POSES: Readonly<Record<DeathStance, readonly string[]>> = {
   upright: UPRIGHT_POSES,
   side: SIDE_POSES
@@ -670,6 +696,17 @@ export const HURL_HOW: Readonly<Record<string, {
   /** What the arm that does NOT throw does, when it is not simply balancing
    *  and pointing the way. */
   other?: string
+  /**
+   * This one is in the AIR for the whole attack.
+   *
+   * The side-on panel lines end with "its hind feet stay planted on the ground
+   * in every panel", which is true of every four-legged boss and false of the
+   * only flying one — and a prompt that contradicts itself is answered by the
+   * painter picking a side. Measured: the first painted breath planted the
+   * wyrm's feet in panel 7 by turning the whole creature to face the viewer in
+   * a crouch, which is the one thing the same paragraph forbids.
+   */
+  hovers?: boolean
 }>> = {
   grumpling: {
     side: 'right',
@@ -697,6 +734,12 @@ export const HURL_HOW: Readonly<Record<string, {
   snaggletusk: {
     side: 'head',
     how: 'It has no hands: it throws with its HEAD and TUSKS — scoops low, rears up on its hind legs tossing its head back with the snout to the sky, then comes down hard with the head whipping forward.'
+  },
+  skewer: {
+    side: 'head',
+    hovers: true,
+    how: 'It has no hands and throws nothing: it BREATHES. The whole move is the neck and the head — it curls the neck back over its shoulders and swells its chest to draw the breath (panels 2-3), then snaps the head forward and sweeps it right across the road, jaws stretched wide open the whole way (panels 4-6), and comes up empty (panels 7-8). The wings hold it in the air throughout — spread wide and high while it draws, beating hard while it sweeps — and its feet never touch the ground in any panel.',
+    other: 'is a wing, and keeps it flying'
   },
   cinderhound: {
     side: 'head',
@@ -726,15 +769,58 @@ const SIDE_HURL: readonly string[] = [
   'ready again — standing on all four legs as in panel 1'
 ]
 
+/**
+ * ─── …and the one boss that does not throw anything ─────────────────────────
+ *
+ * The wyrm's signature is a jet of fire swept across the road in four timed
+ * flare-ups (`game/wyrm.ts`), and it is the same KIND of sheet as a throw: the
+ * boss's one big attack, eight panels, played in place of the walk on the
+ * cast's own clock. So it rides the same pipeline — the same grid, the same
+ * bake, the same `images/hurls` folder — with its own poses, because "the
+ * scoop, the cock, the release" is a description of arms and this one has
+ * none.
+ *
+ * The sweep runs from the panel's far side toward the crowd, which is what the
+ * simulation does (`wyrmSweepDir`), and the head leads it: the jet is drawn by
+ * the game, so what these panels have to carry is the HEAD TURNING across the
+ * road with its jaws open, and the body committing behind it.
+ */
+const BREATH_POSES: readonly string[] = [
+  'ready — hovering level, wings mid-beat, head low and forward, jaws shut',
+  'the draw — it rears back and up, the neck curling back over its shoulders, the chest swelling, jaws parted; the wings thrown wide and high to hold it there',
+  'full — held at the top: neck arched right back, head up, jaws wide open, the throat and the back of the mouth lit from inside; the wings spread at their widest',
+  'the jet starts — the head snaps forward and DOWN, turned to point off the far side of the panel, jaws stretched open at their widest, the neck stretched straight out; the wings sweeping back',
+  'sweeping — the head tracking across, now pointing forward and a little toward the middle, jaws still wide open, the body leaning after it, the wings beating hard to hold the turn',
+  'sweeping on — the head carried further across, pointing toward the near side of the panel, jaws still wide, the neck stretched across the body, the tail thrown out the other way for balance',
+  'the end of it — the head at the end of its travel, low and turned right across to the near side, jaws closing, the chest empty, the body slumped forward after the effort',
+  'recovering — back level, head coming up and round to the front, jaws shut, the wings back to their ordinary beat, as in panel 1'
+]
+
 export const HURL_POSES: Readonly<Record<DeathStance, readonly string[]>> = {
   upright: UPRIGHT_HURL,
   side: SIDE_HURL
+}
+
+/** Which big attack a boss body's sheet shows — see `BREATH_POSES`. */
+export type BossAttack = 'hurl' | 'breath'
+
+/** The word for it, in the prompt's heading and the jobs list. */
+export const ATTACK_LABEL: Readonly<Record<BossAttack, string>> = {
+  hurl: 'throw',
+  breath: 'fire breath'
 }
 
 export interface HurlSpec {
   kind: 'hurl'
   /** The sheet's own id — `hurl-<design>`, never the bare design. */
   id: string
+  /**
+   * Which attack these panels show. The `hurl` FOLDER holds both, because it
+   * is one slot — a design's big attack animation, played in place of its walk
+   * — and a body only ever has one: the meteor bosses throw, the wyrm breathes,
+   * and nothing does both. See `BREATH_POSES`.
+   */
+  attack: BossAttack
   design: string
   file: string
   target: string
@@ -760,9 +846,30 @@ export interface HurlSpec {
  * gets a sheet without anybody listing it.
  */
 export const hurlDesigns = (): string[] => {
-  const throws = new Set<string>()
-  for (let n = 1; n <= 120; n++) if (bossKindFor(n) === 'meteor') throws.add(bossDesign(n))
-  return bossDesigns().filter((d) => throws.has(d))
+  const attacks = bossAttacks()
+  return bossDesigns().filter((d) => attacks.has(d))
+}
+
+/**
+ * Every boss body with a big attack animation, and which one it plays.
+ *
+ * Derived from the boss kinds over the whole campaign rather than listed, so a
+ * design rotated onto a meteor stage — or onto a wyrm one — gets its sheet
+ * without anybody remembering to add it. A body that somehow drew both would
+ * keep the first, which cannot happen today: `bossDesign` welds the wyrm to its
+ * own body (`WYRM_DESIGN`) precisely so the two never meet.
+ */
+export const bossAttacks = (): Map<string, BossAttack> => {
+  const out = new Map<string, BossAttack>()
+  for (let n = 1; n <= 120; n++) {
+    const kind = bossKindFor(n)
+    const attack: BossAttack | null =
+      kind === 'meteor' ? 'hurl' : kind === 'wyrm' ? 'breath' : null
+    if (attack === null) continue
+    const design = bossDesign(n)
+    if (!out.has(design)) out.set(design, attack)
+  }
+  return out
 }
 
 export const BOSS_HURLS: HurlSpec[] = hurlDesigns().map((design) => {
@@ -770,6 +877,7 @@ export const BOSS_HURLS: HurlSpec[] = hurlDesigns().map((design) => {
   return {
     kind: 'hurl',
     id: `hurl-${design}`,
+    attack: bossAttacks().get(design) ?? 'hurl',
     design,
     file: `hurl-${design}`,
     target: `${ART_FOLDERS.hurl}/${design}.webp`,
@@ -1247,6 +1355,12 @@ export const STILLS: StillSpec[] = [
   still('round', 'pellet', 'The shotgun\'s pellet',
     'A shotgun pellet in flight: a short, fat slug of hot lead — a white-gold core with a stubby ember-orange smear behind it, no longer than it is wide and a half. It is drawn ADDITIVELY over the road, so dark pixels add nothing and the shape has to carry itself IN LIGHT ALONE: there is no ink outline anywhere on it, no black contour, no grey body, no cracks, no metal, no casing and no surface of any kind - this is not an object, it is the glow a round leaves as it goes past. The "INK FIRST" rule in the style block below applies to every other sheet in this game and NOT to this one. Two returns have already come back as a solid inked object (a brass cartridge, then a cracked metal drum with a lit end) and both were unusable. It is one of nine on screen at once, so it has to read as a lump rather than as a line: keep it COMPACT, and nothing like the long thin tracer the squad\'s own rifle fires. Centred, filling most of the frame exactly as the reference does — the game draws it small, and a pellet that leaves a margin here arrives smaller still.',
     { maxEdge: 96, fit: false, glow: true }),
+  still('round', 'ember', 'The wyrm\'s gout',
+    'A mouthful of fire in flight, seen from the side: a fat, ragged ball of flame with a streaming trail of smaller flame and sparks behind it, thinning to nothing at the tail. A white-hot core, an ember-orange body and a few torn flecks flung off the edges. It is SPAT, not fired, so it is uneven and lumpy — never a neat fireball, never a ring, never a comet with a straight pencil tail. It is drawn ADDITIVELY over a dark road, so dark pixels add nothing and the shape must carry itself IN LIGHT ALONE: no ink outline anywhere on it, no black contour, no grey body, no smoke and no object of any kind. The "INK FIRST" rule in the style block below applies to every other sheet in this game and NOT to this one. Authored pointing RIGHT: the burning head sits at the RIGHT edge of the frame and is about a third of its width, and the trail runs back from it to the LEFT edge, so the game can turn it onto whatever line it is travelling.',
+    {
+      w: 512, h: 256, maxEdge: 160, fit: false, glow: true,
+      authored: 'pointing RIGHT: the head at the right edge, the trail streaming back to the left'
+    }),
   still('round', 'rocket', 'The launcher\'s rocket',
     'The launcher\'s rocket in flight, nose up: a fat black-iron shell with a blunt warhead, a band of rust round its middle, two or three swept fins at its tail, and a hot exhaust plume streaming DOWN from it — a white-gold core inside ember-orange flame that frays into smoke. The SHELL sits in the upper part of the frame with its nose a little below the top edge and is about half the frame\'s width; the PLUME runs from the fins down to the bottom edge and may be as wide as the frame. It is the heaviest thing the player fires, so it must read as iron, not as a spark.',
     {
@@ -1294,6 +1408,24 @@ export const STILLS: StillSpec[] = [
   still('fx', 'gild', 'The gold burst',
     'A burst of gold: a thin ring of light with coins and glinting shards flying outward through it. THE GOLD IS THE ONE HOT ACCENT OF THIS IMAGE: paint it at a luminous midtone around #E8B93A with near-white glints around #FFF6D8, bright enough to name as GOLD at a glance. The style rule about desaturated low-key colour applies to nothing here, and the game draws this additively over a dark road, so every dark pixel disappears: no ink outlines, no brown, no grey, no dark mass. A burst that comes back tarnished, muddy or grey is a failed image. The ring and the shards are caught at the moment it opens, caught at the moment it opens. It is what a corpse turned to gold leaves behind when it bursts, so it reads as MONEY rather than as fire — no flame, no embers, no orange heat. The ring spans about 70% of the frame and the shards stay inside the frame edge.',
     { glow: true, fit: false }),
+  // ── The wyrm's ground ──
+  //
+  // Four marks the stage-3 fight is read off (`game/wyrm.ts`), and the only
+  // set in the game a player has to read WHILE MOVING — so each is written for
+  // the silhouette first and the detail second. All four are stretched into a
+  // billed rectangle or radius by the renderer, so each says what fills its
+  // frame and what must stay inside it.
+  still('fx', 'flame-wall', 'Wyrm fire, burning',
+    'A standing wall of fire on the road, seen from the front: one solid column of flame filling the whole frame edge to edge, rooted at the bottom and roaring up. Pale yellow-white at the base, ember-orange through the body, deep red at the tips, with a ragged licking top edge and a few sparks leaving it. NO smoke, no logs, no ground, no creature and no scorch under it — the flame alone, on flat magenta. The game stretches it into the strip of road that burns, so the fire must reach the left, right and bottom edges of the frame with no margin: a flame drawn small in the middle leaves a gap the player reads as safe ground.',
+    { glow: true }),
+  still('fx', 'spines', 'Bone spines',
+    'A cluster of bone spikes burst up through the road, seen from the front: three or four pale ivory spikes of uneven height, thick at the base and tapering to sharp points, leaning slightly apart, with cracked road and a little dust thrown up around their bases. Old, chipped, worn bone — not teeth, not crystal, not stone, and nothing organic hanging off them. They stand ON the bottom edge of the frame and fill it left to right; the tallest reaches the top edge. The game repeats this cluster along the road to make a wall of them, so it must tile: nothing may hang past the left or right edge, and the bases must meet both of them. Nothing alive appears in this image — no people, no crowd, no creature.',
+    {}),
+  still('fx', 'ember-splash', 'Ember splash',
+    'A splash of burning fire on the road, seen from above: an irregular pool of ember-orange light, wider than it is tall, brightest and palest at its ragged centre and darkening to charred red-black at its torn edges, with a few sparks and flecks thrown clear. It is a mouthful of fire that has just hit the ground, so the shape is uneven and thrown — never a clean circle, a ring or a target. Fades to nothing at the frame edge; no ground line, no smoke column and no creature.',
+    // The splash's own box, 2 : 0.84 — the billed circle as the road
+    // foreshortens it, so the painting maps onto the kill and not around it.
+    { w: 512, h: 215, maxEdge: 192, fit: false, glow: true }),
   still('fx', 'crest-shield', 'Shield crest',
     'A heater shield crest — flat top, straight shoulders, tapering to a rounded point — in cold blue with a heavy near-black rim, a chief band across the top and a centre rib. Heraldry read at 20 px. Fills the frame.',
     { maxEdge: 128, fill: true }),
@@ -1626,6 +1758,9 @@ export const DEATH_IDENTITY: Readonly<Record<string, {
   looks: string
   holds?: string
   marks?: string
+  /** This one dies in the AIR: it takes `AIR_DEATH_POSES` instead of the
+   *  four-legged panel lines. See there for what it cost to find out. */
+  flies?: boolean
   /**
    * How THIS body falls, when the shared panel lines do not fit it. They are
    * written for something with knees, hips and hands, and a creature built
@@ -1661,6 +1796,12 @@ export const DEATH_IDENTITY: Readonly<Record<string, {
     looks: 'A gaunt grey hound seen side-on, stylised and lean: a long narrow head with bared teeth and one pale staring eye, ears swept back, a thin neck, a deep narrow chest with the ribs showing through cracked grey hide, a bony back, long thin legs, and a thin tail. A mane of ORANGE FLAME burns along its shoulders and back, ember-orange cracks glow between its ribs, and the tip of its tail burns and trails smoke. Charcoal-grey hide, no fur detail.',
     marks: 'the burning orange mane along its back, the glowing ember cracks over its ribs, the burning smoking tail-tip, the pale staring eye and the cracked grey hide'
   },
+  skewer: {
+    flies: true,
+    looks: 'A small STYLISED WYRMLING seen side-on, facing the left of the panel — a lean four-limbed dragonet, chunky and cartoon-solid, never a realistic lizard and never cute. A long low barrel body in dull sea-green scales with a pale sand-yellow belly, a row of short dark spines down its back. A long neck thrust forward and low into a narrow wedge head with a heavy jaw, five small white teeth along it, one pale curved horn swept back off the brow, a crest of short bone spines behind the skull, and one round ORANGE eye with a small dark pupil. Two membrane wings, rust-orange and leathery, each spread on three clawed fingers with a scalloped trailing edge. Four short legs tucked up under the belly, each ending in three pale claws. A long whipping tail ending in a flat bone BLADE.',
+    body: 'It FLIES — there are no knees to buckle and no feet to be kicked out from under it. It goes down the way a flying thing does: the wings stall and are thrown wide, then drag, then fold in against its flank as it drops, and it lands along its side with the neck stretched out, the tail trailing straight behind and the wings crumpled under and over it. It never stands, kneels or falls onto its back. ONCE IT IS DOWN IT STAYS DOWN: from the panel it lands in to the last one it is lying flat along the ground on the same flank, facing the same way, and it never gets up, stands, hovers, flies, perches or crouches again. The "small bounce" is the body jolted a hand\'s width off the dirt and dropping straight back onto it — not the creature rising, and not it taking off.',
+    marks: 'the single orange eye, the pale swept-back horn, the bone crest behind the skull, the dark spines down its back, the rust-orange membrane wings on three clawed fingers, the pale sand belly and the flat bone blade at the end of its tail'
+  },
   rattlejack: {
     looks: 'A skinny, rickety skeleton seen front-on, stylised and knobbly: a bare pale skull under a dented rusty iron COOKING POT worn as a helmet (a plain bucket shape, no visor), one eye socket glowing red and the other dark, a narrow ribcage, thin bone arms and legs with knobbly joints, and a torn dark-red rag hanging from its hips.',
     holds: 'a rusty meat cleaver raised in one hand, and a round wooden shield with a pale skull painted on it strapped to the other arm',
@@ -1693,7 +1834,7 @@ export const promptForDeath = (d: DeathSpec): string => {
   const n = d.frames
   const side = d.stance === 'side'
   const who = DEATH_IDENTITY[d.design]
-  const poses = DEATH_POSES[d.stance]
+  const poses = who?.flies ? AIR_DEATH_POSES : DEATH_POSES[d.stance]
   return [
     `# ${d.id} — ${d.name}, defeated  (${d.target})`,
     '',
@@ -1789,21 +1930,34 @@ export const promptForDeath = (d: DeathSpec): string => {
 export const promptForHurl = (d: HurlSpec): string => {
   const n = d.frames
   const side = d.stance === 'side'
+  const breathing = d.attack === 'breath'
   const who = DEATH_IDENTITY[d.design]
   const how = HURL_HOW[d.design]
-  const poses = HURL_POSES[d.stance]
-  const holder = side ? (d.design === 'cinderhound' ? 'jaws' : 'snout') : 'throwing hand'
+  // A breath is a head and a neck, so it takes its own panel lines whatever the
+  // body's stance is — see `BREATH_POSES`.
+  const poses = breathing ? BREATH_POSES : HURL_POSES[d.stance]
+  const holder = breathing ? 'open jaws' : side ? (d.design === 'cinderhound' ? 'jaws' : 'snout') : 'throwing hand'
   return [
-    `# ${d.id} — ${d.name}, throwing  (${d.target})`,
+    `# ${d.id} — ${d.name}, ${breathing ? 'breathing fire' : 'throwing'}  (${d.target})`,
     '',
-    `A SPRITE SHEET: ${n} panels of THIS creature making one big THROW. Two images come with this prompt, in this order:`,
+    breathing
+      ? `A SPRITE SHEET: ${n} panels of THIS creature breathing ONE long sweep of fire. Two images come with this prompt, in this order:`
+      : `A SPRITE SHEET: ${n} panels of THIS creature making one big THROW. Two images come with this prompt, in this order:`,
     `  IMAGE 1 — \`${d.model}\` — THE CHARACTER: one frame of this exact creature,`,
     '     exactly as the game shows it. Every panel shows this individual.',
     `  IMAGE 2 — \`${d.file}.png\` — THE ANIMATION: the game's own rough placeholder`,
-    '     drawing of the throw. FOLLOW ITS POSES — where the head, arms, legs and body',
-    '     are in each panel, and above all where the throwing hand is — and take nothing',
-    '     else from it: not its limb lengths, shapes, colours, details or style. Image 2',
-    '     is a flat stand-in; image 1 is the creature.',
+    breathing
+      ? '     drawing of the breath. FOLLOW ITS POSES — where the head, neck, wings, body'
+      : '     drawing of the throw. FOLLOW ITS POSES — where the head, arms, legs and body',
+    breathing
+      ? '     and tail are in each panel, and above all where the head is pointing — and take'
+      : '     are in each panel, and above all where the throwing hand is — and take nothing',
+    breathing
+      ? '     nothing else from it: not its limb lengths, shapes, colours, details or style.'
+      : '     else from it: not its limb lengths, shapes, colours, details or style. Image 2',
+    breathing
+      ? '     Image 2 is a flat stand-in; image 1 is the creature.'
+      : '     is a flat stand-in; image 1 is the creature.',
     // A grumpling re-roll painted its last three panels in image 2's flat
     // cartoon look — bright green, big round yellow eyes — and the first five
     // as the painted imp: a costume change mid-throw.
@@ -1821,7 +1975,7 @@ export const promptForHurl = (d: HurlSpec): string => {
       : '· It wears and carries NOTHING: no clothes, loincloth, rags, belt, weapon or shield. Add none.',
     '· Its PROPORTIONS stay exactly as in image 1 in every panel: the head the same size',
     '  against the body, the limbs the same length and thickness. It does not grow taller,',
-    '  leaner or more muscular to throw — it is the same body, moving its joints.',
+    `  leaner or more muscular to ${breathing ? 'breathe' : 'throw'} — it is the same body, moving its joints.`,
     '· The same face, colours and markings as image 1.',
     '',
     'THE LOOK — paint it the way image 1 is painted, never as a clean cartoon:',
@@ -1834,22 +1988,37 @@ export const promptForHurl = (d: HurlSpec): string => {
     `THE ANIMATION — ${d.cols} across and ${d.rows} rows, read left to right along the top row, then the bottom row.`,
     'These lines are for you to read. Never write them, or any other words, in the image:',
     ...poses.map((p, i) => `· panel ${i + 1}: ${p}.`),
-    ...(how ? [`· HOW THIS ONE THROWS: ${how.how}`] : []),
-    ...(how && how.side !== 'head'
+    ...(how ? [`· HOW THIS ONE ${breathing ? 'BREATHES' : 'THROWS'}: ${how.how}`] : []),
+    ...(how && how.side !== 'head' && !breathing
       ? [`· WHICH ARM: the throwing arm is the one on the panel's ${how.side.toUpperCase()} in EVERY panel — the arm that scoops (panel 2), is held up and back (panel 4), whips over (panel 5) and sweeps across the body (panel 6). The arm on the panel's ${how.side === 'left' ? 'RIGHT' : 'LEFT'} ${how.other ?? 'only swings out low for balance and never points'}. Never swap them between panels.`]
       : []),
     ...(side
-      ? [`· FACING: image 1 faces ${facing(d.faces)}, and so does every one of the ${n} panels — head at the ${facing(d.faces)} end, rump at the other. Never mirror it, never turn it to face the viewer. Its hind feet stay planted on the ground in every panel.`]
-      : ['· It stays facing the viewer in every panel — a throw seen from the front. It never turns side-on or shows its back.']),
+      ? [`· FACING: image 1 faces ${facing(d.faces)}, and so does every one of the ${n} panels — head at the ${facing(d.faces)} end, rump at the other. Never mirror it, never turn it to face the viewer, and never show it from the front or three-quarters: it is a flat side view in all ${n} panels. ${how?.hovers ? 'It is in the AIR the whole time: its feet NEVER touch the ground and nothing is under it but a small soft shadow. It does not stand, land, crouch or perch in any panel.' : 'Its hind feet stay planted on the ground in every panel.'}`]
+      : [`· It stays facing the viewer in every panel — a ${breathing ? 'breath' : 'throw'} seen from the front. It never turns side-on or shows its back.`]),
     '· The motion is in the JOINTS — shoulders, elbows, knees, neck. Never stretch, squash,',
     '  bend or tilt the whole body like rubber to show effort.',
     '',
-    `NOTHING IS THROWN IN THE PICTURE — the game paints its own burning rock into the ${holder}:`,
-    side
-      ? `· The ${holder} is EMPTY in every panel. Paint NO rock, stone, boulder, ball, fireball, meteor, flame, glow or spark at its mouth or anywhere else.`
-      : `· The ${holder} is EMPTY in every panel — cupped and curled as if around a ball the size of its own head in panels 2-4, fingers spread open in panels 5-6. Paint NO rock, stone, boulder, ball, fireball, meteor, flame, glow or spark in it or anywhere else.`,
-    '· No motion lines, speed streaks, trails, dust clouds or impact bursts either.',
-    `· The ${holder} is exactly where image 2 puts it in every panel: the game will put the rock there.`,
+    ...(breathing
+      ? [
+        // The jet is four timed columns of fire on the ROAD, drawn by the game
+        // (`drawWyrmMarks`) — a painted flame coming out of the mouth would sit
+        // over them in the wrong place, at the wrong moment, four times a fight.
+        'NO FIRE IS PAINTED IN THE PICTURE — the game draws its own jet out of the open jaws:',
+        '· The jaws are EMPTY and dark inside in every panel. Paint NO flame, fireball, jet,',
+        '  stream, smoke, sparks, embers or glow coming out of the mouth, and none on the ground.',
+        '· The only light from inside it is the THROAT in panels 2 and 3 — a dull ember glow deep',
+        '  in the back of the open mouth, no bigger than one of its own eyes, and nothing outside the head.',
+        '· No motion lines, speed streaks, trails, dust clouds or impact bursts either.',
+        '· The head is exactly where image 2 points it in every panel: the game puts the fire there.'
+      ]
+      : [
+        `NOTHING IS THROWN IN THE PICTURE — the game paints its own burning rock into the ${holder}:`,
+        side
+          ? `· The ${holder} is EMPTY in every panel. Paint NO rock, stone, boulder, ball, fireball, meteor, flame, glow or spark at its mouth or anywhere else.`
+          : `· The ${holder} is EMPTY in every panel — cupped and curled as if around a ball the size of its own head in panels 2-4, fingers spread open in panels 5-6. Paint NO rock, stone, boulder, ball, fireball, meteor, flame, glow or spark in it or anywhere else.`,
+        '· No motion lines, speed streaks, trails, dust clouds or impact bursts either.',
+        `· The ${holder} is exactly where image 2 puts it in every panel: the game will put the rock there.`
+      ]),
     '',
     'LAYOUT — the grid is cut blindly:',
     `· EXACTLY ${n} panels: ${d.cols} across, ${d.rows} rows. Not 1, not ${d.cols}, not ${n + 4}, not ${n * 2} — do not add a row. One big painting is the wrong answer.`,
@@ -1877,7 +2046,7 @@ export const promptForHurl = (d: HurlSpec): string => {
     ...(who?.holds
       ? [`· Its gear is in all ${n} panels, never dropped, swapped or put away: ${who.holds}.`]
       : []),
-    ...(how && how.side !== 'head'
+    ...(how && how.side !== 'head' && !breathing
       ? [`· Panel 4: the hand held up and back is the one on the panel's ${how.side.toUpperCase()}, exactly where image 2 holds it.`]
       : []),
     ...(side
@@ -2225,24 +2394,30 @@ export const promptDocs = (_fits?: Record<string, Fit>): Record<string, string> 
     ''
   ].join('\n'),
   'PROMPTS-HURLS.md': [
-    '# Boss meteor-throw prompts — one boss per generation',
+    '# Boss attack prompts — one boss per generation',
     '',
     'Generated from the manifest — do not hand-edit, re-export instead.',
+    '',
+    'One sheet per boss body: the big attack it plays in place of its walk while a',
+    'cast winds up. Most of them THROW a meteor; the wyrm BREATHES (`BREATH_POSES`),',
+    'and the two share this folder because they share the slot — a body has one big',
+    'attack animation, and no body has both.',
     '',
     'Attach TWO images with each block, in this order: `art-sheets/models/<design>.png`',
     '(the character — one frame of its walk as the game shows it, cut by',
     '`pnpm art:models`) and then `art-sheets/hurl-<design>.png` (the animation). The',
-    'layout is the game\'s own drawing of the throw — scoop, lift, cock, release,',
-    'follow-through — and the prompt asks for exactly that throw, painted as exactly that',
-    'creature, with an EMPTY hand: the game draws the burning rock into it.',
+    'layout is the game\'s own drawing of the attack — scoop, lift, cock, release and',
+    'follow-through for a throw; draw, hold and sweep for a breath — and the prompt asks',
+    'for exactly that, painted as exactly that creature, with an EMPTY hand and nothing',
+    'coming out of the mouth: the game draws the burning rock, and the jet of fire.',
     '',
     'Drop results in `art-sheets/painted/`, keeping the `hurl-<design>` in the',
-    'name, then run `pnpm slice-sheets`. The game plays the same throw, drawn, until',
+    'name, then run `pnpm slice-sheets`. The game plays the same attack, drawn, until',
     'one exists, and puts the rock where the drawing\'s hand is either way.',
     'Each prompt is a fenced block — the preview\'s copy button takes all of it.',
     'Each heading names both images, and the Art Desk attaches both, in order.',
     '',
-    BOSS_HURLS.map((d) => promptBlock(`${d.name} — throw`, d.file, d.target, promptForHurl(d), [d.model])).join('\n\n---\n\n'),
+    BOSS_HURLS.map((d) => promptBlock(`${d.name} — ${ATTACK_LABEL[d.attack]}`, d.file, d.target, promptForHurl(d), [d.model])).join('\n\n---\n\n'),
     ''
   ].join('\n')
 })
@@ -2256,7 +2431,7 @@ export const sheetRows = (): Array<{ what: 'walk' | 'still' | 'death' | 'fall' |
   ...STILLS.map((s) => ({ what: 'still' as const, id: s.id, title: s.name, stem: s.file, doc: 'PROMPTS-STILLS.md', target: s.target })),
   ...BOSS_DEATHS.map((d) => ({ what: 'death' as const, id: d.id, title: `${d.name} — death`, stem: d.file, doc: 'PROMPTS-DEATHS.md', target: d.target })),
   ...SURVIVOR_FALLS.map((f) => ({ what: 'fall' as const, id: f.id, title: f.name, stem: f.file, doc: 'PROMPTS-DEATHS.md', target: f.target })),
-  ...BOSS_HURLS.map((d) => ({ what: 'hurl' as const, id: d.id, title: `${d.name} — throw`, stem: d.file, doc: 'PROMPTS-HURLS.md', target: d.target }))
+  ...BOSS_HURLS.map((d) => ({ what: 'hurl' as const, id: d.id, title: `${d.name} — ${ATTACK_LABEL[d.attack]}`, stem: d.file, doc: 'PROMPTS-HURLS.md', target: d.target }))
 ]
 
 // ─── Consistency with the runtime catalogue ─────────────────────────────────

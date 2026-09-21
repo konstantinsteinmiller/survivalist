@@ -100,7 +100,8 @@ export default {
       'thornwick': "Терновик",
       'marrowknight': "Кістяний лицар",
       'cinderhound': "Попелястий пес",
-      'rattlejack': "Гримучий Джек"
+      'rattlejack': "Гримучий Джек",
+      'skewer': "Вертел"
     }
 
   },

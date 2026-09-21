@@ -306,8 +306,47 @@ export const DYNAMO_BOLT_S = 0.35
 
 // --- Gravecall's thralls ---------------------------------------------------
 
-/** The most of the dead that may be on their feet at once. */
-export const THRALL_MAX = 15
+/**
+ * ─── How many of the dead may be on their feet ──────────────────────────────
+ *
+ * The cap is EARNED, not given: it starts at `THRALL_CAP_BASE` and grows by one
+ * for every `THRALL_CAP_PER` bodies the weapon has put down this run, up to
+ * `THRALL_MAX`. The owner's brief — "the 10 monsters scale with the amount of
+ * killed monsters with the gravecall weapon" — and it is what makes the pick
+ * read as an investment rather than a flat number: the first road with it is a
+ * handful of bodies, and by the second the player is walking behind a line of
+ * them.
+ *
+ * `THRALL_MAX` was 15 before and is 10 now, which is not the cut it looks like.
+ * Fifteen was never reached: a thrall walked at `THRALL_SPEED` = 3.4 against a
+ * road that runs at `RUN_SPEED` 5.1 to 7.4, so it could not stay in front of
+ * the crowd, let alone reach the lead line — every one of them was pinned to
+ * the floor behind the squad, met nothing, and swung at nothing. The owner saw
+ * what that is worth: "pretty useless on the road ... the player can just have
+ * 1 unit". Ten that fight are worth more than fifteen that trail.
+ */
+export const THRALL_MAX = 10
+
+/** What the weapon raises before it has killed anything with it. */
+export const THRALL_CAP_BASE = 4
+
+/** …and the bodies it takes to earn one more slot, up to `THRALL_MAX`. Six is
+ *  about a pack and a half, so the cap moves visibly inside one road without
+ *  being full before the first gate. */
+export const THRALL_CAP_PER = 6
+
+/**
+ * The cap, given what this run has killed while carrying it.
+ *
+ * Counted over the STAGE, which is the lifetime of everything else this weapon
+ * leaves standing: the thralls themselves are cleared by `resetWorld`, the
+ * Dynamo's meter with them, and the weapon is re-granted from the saved pick at
+ * every start. A count that outlived that would be the one part of Gravecall
+ * that compounds across a career, and the cap is meant to be earned on the road
+ * it is spent on.
+ */
+export const thrallCapFor = (kills: number): number =>
+  Math.min(THRALL_MAX, THRALL_CAP_BASE + Math.floor(Math.max(0, kills) / THRALL_CAP_PER))
 
 /**
  * How far in front of the crowd a thrall walks.
@@ -322,12 +361,59 @@ export const THRALL_LEAD = 3.2
 /** ...and how far it may drift off the crowd's column to find work. */
 export const THRALL_SPREAD = 2.6
 
-/** How fast it closes on what it is attacking, world units a second, on top of
- *  the road's own speed. */
+/**
+ * The furthest ahead of the crowd it may go, however far away its target is.
+ *
+ * The lead line is where it STANDS with nothing to do; this is the end of its
+ * leash. Without one it chases the nearest body up the road — measured at
+ * fourteen units ahead once they could keep up, which is off the top of the
+ * screen: help the player cannot see is help they do not know they bought. Two
+ * lead lines and a bit is the band the camera actually shows.
+ */
+export const THRALL_LEAD_MAX = THRALL_LEAD * 2.2
+
+/**
+ * How fast it closes on what it is attacking, world units a second, ON TOP OF
+ * THE ROAD'S OWN SPEED.
+ *
+ * The "on top of" was the contract from the first version and the code did not
+ * keep it: the step was `THRALL_SPEED * dt` in world units, and the world runs
+ * past at `stageSpeed` — 5.1 at stage 1, up to 7.4 — so a thrall closing at 3.4
+ * fell behind the crowd every single frame and lived on the floor that stops it
+ * being left behind entirely (`anchorY - 1.5`). It is carried now, so this
+ * number is what it is: the speed it closes the last few units at.
+ */
 export const THRALL_SPEED = 3.4
 
 /** Reach of its swing, past the two bodies' own radii. */
 export const THRALL_REACH = 0.55
+
+/**
+ * How much nearer a MINIBOSS or a BOSS counts than it is, when a thrall is
+ * choosing what to hit.
+ *
+ * The owner's brief: the dead are worth having "primarily" against minibosses
+ * and bosses. Nearest-wins spent them on whatever creep was underfoot, which is
+ * the one job the squad's own guns are already good at — a landmark is the
+ * thing the crowd has to stand still for.
+ *
+ * A discount and not a rule: at 0.45 an elite four units away beats a creep two
+ * away, and a creep actually biting the thrall still wins, so it never walks
+ * past what is hitting it.
+ */
+export const THRALL_LANDMARK_PULL = 0.45
+
+/**
+ * How near a thrall has to be to a boss for the boss to turn toward IT.
+ *
+ * The distraction half of the brief. The boss's body drifts slowly after the
+ * crowd (or after a burning flare); a thrall in contact takes that drift, so a
+ * line of the dead pulls the fight off the squad's column. It moves the BODY
+ * and nothing else — where a swing lands is still aimed at the crowd, because
+ * a boss that could be made to throw its ring somewhere harmless would be a
+ * weapon that turns the climax off.
+ */
+export const THRALL_BOSS_PULL_R = 2.6
 
 /** Seconds between its swings. */
 export const THRALL_HIT_CD = 0.6

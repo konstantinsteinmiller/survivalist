@@ -82,6 +82,33 @@ describe('art overrides, on', () => {
     expect(requested.some((u) => u.endsWith('images/fx/muzzle.webp'))).toBe(true)
   })
 
+  it('asks for nothing when the drawable has no id', async () => {
+    // Reported from CrazyGames' QA on the hosted build:
+    //   ⚠ Missing resource detected: …/images/ui/.webp
+    // An id of `''` built a path to a file that cannot exist and 404ed. It was
+    // invisible in play — the glyph under it is the fallback either way — and
+    // the caller was the Dynamo's bolt button, a weapon's meter sitting in the
+    // skill row with no painting of its own (`SkillBar.boltSlot`); any skill
+    // whose `art` is null would have done the same.
+    //
+    // Guarded in `spriteFor` because that is the one place a URL is built from
+    // an id, so every future caller with an optional one gets the drawing
+    // rather than a miss.
+    const requested = trackImages()
+    const art = await loadArt(true)
+
+    expect(art.spriteFor('ui', '')).toBeNull()
+    expect(art.spriteFor('ui', '   ')).toBeNull()
+    expect(art.spriteFor('monster', '')).toBeNull()
+    expect(requested, 'a path was built from an empty id').toEqual([])
+    expect(art.artProbeCount(), 'an empty id took a probe slot').toBe(0)
+
+    // …and a real id still goes out, so the guard is a guard and not an off
+    // switch.
+    art.spriteFor('ui', 'chest')
+    expect(requested.some((u) => u.endsWith('images/ui/chest.webp'))).toBe(true)
+  })
+
   it('asks for each id once, however often it is drawn', async () => {
     const requested = trackImages()
     const art = await loadArt(true)

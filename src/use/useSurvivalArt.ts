@@ -30,13 +30,18 @@ import {
   nowMs, phase, runFireRate, squadCount, stage,
   bossFallDir, getBossCorpse, progress01, roadScrollY, takeDepartedSurvivors,
   frostActive, frostFrozenAt,
-  getBossDrain,
+  getBossDrain, getWyrmBreath, bossAttackArmoured,
   armoryZoomNow, getArmory, getRoadChest, roadHalfAt
 } from '@/use/useSurvivalGame'
 import {
   ARMORY_CASE_AT, ARMORY_CORRIDOR, ARMORY_LANE_W, ARMORY_ROAD_HALF, ARMORY_WALL_W, ARMORY_WALL_XS,
   ARMORY_ZOOM_FLOOR, armoryLaneX
 } from '@/game/armory'
+import {
+  WYRM_FLARES, WYRM_FLARE_S, WYRM_FLAME_HALF_D, WYRM_FLAME_HALF_W, WYRM_GAP_HALF,
+  WYRM_SPINE_HALF_D, WYRM_SWEEP_S,
+  wyrmFlareAt, wyrmFlareX, wyrmSpineRuns
+} from '@/game/wyrm'
 import { ICON_PATHS } from '@/components/icons/iconPaths'
 import {
   applySkillFx, drawIceOn, drawSkillAir, drawSkillGround, drawSkillScreen, isSkillFx,
@@ -79,7 +84,7 @@ import { VIGNETTE_GRADIENT } from '@/use/perfVariants'
 import { clearLabelWidths, measureLabel } from '@/use/useTextMetrics'
 import { bossOwnsCast, type CastKind } from '@/game/bossTells'
 import {
-  METEOR_RELEASE, POSE_AFTER_S, REST_POSE, advanceBeats, bossPose, hurlArc, hurlPoint,
+  METEOR_RELEASE, POSE_AFTER_S, REST_POSE, advanceBeats, bossPose, breathPanel, hurlArc, hurlPoint,
   meteorHurlPanel, windupBeats, type BossPose, type WindupBeat, type WindupCue, type WindupKind
 } from '@/game/bossWindup'
 
@@ -1913,6 +1918,190 @@ export const paintScorch = (ctx: CanvasRenderingContext2D, r: number, o?: PaintO
   ctx.fill()
 }
 
+// ─── The wyrm's ground, as four paintable objects ───────────────────────────
+//
+// Its tells were the one set of marks in the game drawn entirely in flat
+// rectangles: a hazard band for the fire to come, a band of fire, a row of
+// triangles for the bone, a filled ellipse for a gout. They READ — the shapes
+// are the billed shapes and nothing lies — but they read as a diagram on a road
+// that is otherwise painted.
+//
+// So each of the four is a painter of its own, on the pattern `paintScorch` and
+// `paintGuardHex` set: it prefers the painted still and falls back to the
+// drawing, and the BENCH calls the same function to export the reference the
+// painting is made from (`ArtSheets.vue`). The drawing is never deleted — it is
+// what a player with art overrides off sees, what the reference is, and what
+// the specs measure.
+//
+// All four are drawn around the ORIGIN, so a caller translates to the mark's
+// own place on the road and hands over a size in screen pixels. The simulation's
+// geometry stays where it was (`game/wyrm.ts`); none of this may move a hit.
+
+/** One flare of the jet, burning: `w` × `h` centred on the origin, `k` its age
+ *  from 0 (just lit) to 1 (going out). */
+export const paintFlameWall = (
+  ctx: CanvasRenderingContext2D, w: number, h: number, k: number, o?: PaintOpts
+): void => {
+  const rise = Math.min(1, Math.max(0.001, k * 3))
+  const painted = art('fx', 'flame-wall', o)
+  if (painted) {
+    // Grows out of the road on the frame it lights, and is not re-coloured as
+    // it dies — the fade is the caller's alpha, so one painting serves the
+    // whole burn.
+    ctx.drawImage(painted, -w * rise, -h / 2, w * 2 * rise, h)
+    return
+  }
+  const grad = ctx.createLinearGradient(0, h / 2, 0, -h / 2)
+  grad.addColorStop(0, 'rgba(255,214,120,0.95)')
+  grad.addColorStop(0.5, 'rgba(255,120,36,0.8)')
+  grad.addColorStop(1, 'rgba(180,40,20,0.35)')
+  ctx.fillStyle = grad
+  ctx.fillRect(-w * rise, -h / 2, w * 2 * rise, h)
+}
+
+/**
+ * …and the mark that says it is coming, `fill` of it counted down.
+ *
+ * ── The one tell here that is NOT painted, and stays that way ──
+ *
+ * It had a painting for an afternoon (`fx/flame-mark`: a charred border with a
+ * hole through it) and the owner threw it out on sight — "that image before the
+ * flame pillar is a bit weird, leave it out". It is worth writing down why,
+ * because the picture itself was fine: four of these stand on the road at once,
+ * side by side, and anything with a BORDER turns them into four framed panels —
+ * a row of windows laid on the road, which is what the screenshot showed. The
+ * other three marks are one object each and can carry as much paint as they
+ * like; this one is a set, and a set reads as a pattern before it reads as
+ * anything else.
+ *
+ * So it is drawn, and drawn thin: a hairline of ember and a fill that is only
+ * the clock. If it is ever painted again, the thing to paint is the GROUND
+ * (scorched road, cracks lighting up), never a frame around it.
+ */
+export const paintFlameMark = (
+  ctx: CanvasRenderingContext2D, w: number, h: number, fill: number, lw: number
+): void => {
+  const k = Math.max(0, Math.min(1, fill))
+  ctx.fillStyle = 'rgba(255,120,40,0.16)'
+  ctx.fillRect(-w, -h / 2, w * 2, h)
+  ctx.strokeStyle = 'rgba(255,190,110,0.75)'
+  ctx.lineWidth = lw
+  ctx.strokeRect(-w, -h / 2, w * 2, h)
+  // The fill is the clock, so it is never painted into a still: a painting of a
+  // half-full mark says the wrong time on every frame but one.
+  ctx.fillStyle = 'rgba(255,168,64,0.4)'
+  ctx.fillRect(-w, h / 2 - h * k, w * 2, h * k)
+}
+
+/** One cluster of bone spikes standing on the road, `w` × `h`, `rise` of the
+ *  way out of it. Laid end to end along a run — see `drawWyrmMarks`. */
+export const paintSpineTile = (
+  ctx: CanvasRenderingContext2D, w: number, h: number, rise: number, seed: number, o?: PaintOpts
+): void => {
+  const up = Math.max(0.001, Math.min(1, rise))
+  const painted = art('fx', 'spines', o)
+  if (painted) {
+    // Grown from the road line, so the spikes come UP out of it rather than
+    // fading in over it.
+    ctx.drawImage(painted, -w / 2, h / 2 - h * up, w, h * up)
+    return
+  }
+  const step = w / 3
+  for (let i = 0; i < 3; i++) {
+    const x = -w / 2 + i * step
+    const tall = h * up * (0.6 + ((Math.abs(seed) + i * 7919) % 37) / 74)
+    ctx.fillStyle = '#e8e2d2'
+    ctx.beginPath()
+    ctx.moveTo(x, h / 2)
+    ctx.lineTo(x + step * 0.45, h / 2 - tall)
+    ctx.lineTo(x + step * 0.9, h / 2)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = 'rgba(120,96,80,0.55)'
+    ctx.beginPath()
+    ctx.moveTo(x + step * 0.45, h / 2 - tall)
+    ctx.lineTo(x + step * 0.9, h / 2)
+    ctx.lineTo(x + step * 0.62, h / 2)
+    ctx.closePath()
+    ctx.fill()
+  }
+}
+
+/**
+ * The gout ITSELF, in the air: the mouthful of fire between the wyrm's jaws and
+ * the mark it is aimed at.
+ *
+ * Authored pointing RIGHT — head at +x, tail streaming back to −x — and the
+ * caller rotates it onto the line it is travelling, which is the rule every
+ * round in this game is drawn by (`round/rocket` is authored nose-up, the
+ * tracer pointing up). `r` is the head's radius in screen pixels and `tail` how
+ * far the trail reaches behind it.
+ *
+ * It is the one piece of this attack the player's eye actually follows — the
+ * mark says where, the ember says when — so it carries the countdown on its
+ * own: no clock hand is drawn anywhere on the spit.
+ */
+export const paintEmberRound = (
+  ctx: CanvasRenderingContext2D, r: number, tail: number, o?: PaintOpts
+): void => {
+  const painted = art('round', 'ember', o)
+  if (painted) {
+    // The painting holds the head AND its trail, so it is blitted along the
+    // whole length rather than at the head: `tail` back from the origin to the
+    // head, and as tall as the head is wide.
+    //
+    // `r` is the CORE — the white dot the drawing puts at the head — and a
+    // painted gout is the whole burning mouthful around it, so the blit is
+    // sized off `EMBER_ART_R` instead. Measured on a phone-sized canvas the
+    // core is about five pixels: a painting blitted at that is a smudge, and
+    // the thing it lands in (`WYRM_SPIT_R`) is twenty times wider.
+    const R = r * EMBER_ART_R
+    const len = tail + R * 2
+    ctx.drawImage(painted, -tail - R, -R * 1.6, len, R * 3.2)
+    return
+  }
+  const grad = ctx.createLinearGradient(-tail, 0, 0, 0)
+  grad.addColorStop(0, 'rgba(255,120,40,0)')
+  grad.addColorStop(1, 'rgba(255,224,150,0.95)')
+  ctx.strokeStyle = grad
+  ctx.lineWidth = Math.max(2.5, r * 1.2)
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(-tail, 0)
+  ctx.lineTo(0, 0)
+  ctx.stroke()
+  ctx.fillStyle = '#fff1c8'
+  ctx.beginPath()
+  ctx.arc(0, 0, r, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+/** How much bigger the PAINTED gout is than the drawn core it replaces — see
+ *  `paintEmberRound`. The drawing is a dot with a streak behind it; the
+ *  painting is a burning mouthful, and it needs the room. */
+const EMBER_ART_R = 2.4
+
+/** A gout's splash on the road: the ground it is aimed at, and the ground it
+ *  lands on. `r` is the billed radius in screen pixels. */
+export const paintEmberSplash = (
+  ctx: CanvasRenderingContext2D, r: number, hot: boolean, o?: PaintOpts
+): void => {
+  const painted = art('fx', 'ember-splash', o)
+  if (painted) {
+    // Blitted at exactly the billed ellipse — `r` across and `r * 0.42` down,
+    // the road's own foreshortening — and NOT at the scorch's roomier 2 : 1.1
+    // box. A scorch is a decal and may be as big as it likes; this one is the
+    // attack's own footprint, and a painting hanging past it is a mark that
+    // says the wrong thing about where the fire lands.
+    ctx.drawImage(painted, -r, -r * 0.42, r * 2, r * 0.84)
+    return
+  }
+  ctx.fillStyle = hot ? 'rgba(255,240,190,0.5)' : 'rgba(210,70,30,0.3)'
+  ctx.beginPath()
+  ctx.ellipse(0, 0, r, r * 0.42, 0, 0, Math.PI * 2)
+  ctx.fill()
+}
+
 /** The three ring families the field draws: a gate's blast, an attack about to
  *  land, and a heal gathering. One painting each; the drawn ring keeps its
  *  per-site colour and width. */
@@ -2049,26 +2238,37 @@ export const paintShieldDome = (
  * below the origin, pulsing on `pulse`. Drawn UNDER the body so the boss
  * stands inside it; the crest goes over it separately.
  */
+/**
+ * The boss's barrier.
+ *
+ * `dim` thins the whole thing, and it exists for one caller: a wyrm mid-attack
+ * is immune without being planted (`bossAttackArmoured`), and the barrier there
+ * is a note rather than the event — the body behind it is playing the attack
+ * the fight is named for. At full strength the PAINTED hex is a slab of stone
+ * and the boss reads as standing in front of an emblem; at a third of it the
+ * same asset reads as a shimmer around the body, which is what an armour that
+ * lasts two seconds should look like.
+ */
 export const paintGuardHex = (
   ctx: CanvasRenderingContext2D, cy: number, rx: number, ry: number, pulse: number,
-  scale: number, o?: PaintOpts
+  scale: number, o?: PaintOpts, dim = 1
 ): void => {
   const painted = art('fx', 'guard', o)
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
   if (painted) {
-    ctx.globalAlpha = 0.55 + pulse * 0.35
+    ctx.globalAlpha = (0.55 + pulse * 0.35) * dim
     const px = rx * FX_PAD
     const py = ry * FX_PAD
     ctx.drawImage(painted, -px, cy - py, px * 2, py * 2)
     ctx.restore()
     return
   }
-  ctx.globalAlpha = 0.16 + pulse * 0.14
+  ctx.globalAlpha = (0.16 + pulse * 0.14) * dim
   ctx.fillStyle = '#ff6a3a'
   guardHexPath(ctx, cy, rx, ry)
   ctx.fill()
-  ctx.globalAlpha = 0.5 + pulse * 0.4
+  ctx.globalAlpha = (0.5 + pulse * 0.4) * dim
   ctx.strokeStyle = '#ffd08a'
   ctx.lineWidth = Math.max(1.5, scale * 0.05)
   guardHexPath(ctx, cy, rx, ry)
@@ -3203,8 +3403,11 @@ export const drawScene = (
     primeMonsterDeaths([bossDesign(stage.value), bossDesign(stage.value + 1)])
     // …and the meteor bosses' drawn throws, whose hand anchors the painted
     // throw uses too (`monsterHurlFrame`).
+    // Both attack strips live in one slot, so both are primed through one call:
+    // a meteor boss's throw and a wyrm's breath (`bossAttacks`).
     primeMonsterHurls([stage.value, stage.value + 1]
-      .filter((n) => bossKindFor(n) === 'meteor').map((n) => bossDesign(n)))
+      .filter((n) => bossKindFor(n) === 'meteor' || bossKindFor(n) === 'wyrm')
+      .map((n) => bossDesign(n)))
   }
 
   // The guarantee that closes the last hole. The idle baker is switched OFF
@@ -3274,6 +3477,7 @@ export const drawScene = (
 
   stepDismissals(dtMs)
   stepRakes(tellDtMs)
+  stepWyrmMarks(tellDtMs)
   stepHealTells(tellDtMs)
   // Particles, floating text and decals deliberately stay on WALL time. They
   // carry no deadline — nothing in the simulation is waiting for a spark to
@@ -3371,6 +3575,10 @@ export const drawScene = (
   drawSkillAir(ctx)
   // Above the crowd: a telegraph nobody can see is not a telegraph.
   drawCasts(ctx)
+  // …and the wyrm's fire once it has landed, on the same layer and for the same
+  // reason the drain's beam is: it is burning THROUGH the crowd, so the crowd
+  // may not hide it. See `drawWyrmMarks`.
+  drawWyrmMarks(ctx)
   // …and the healer's beam once it has landed, read straight off the
   // simulation. Same layer: it is reaching INTO the crowd, so the crowd may not
   // hide it. See `drawDrainBeam`.
@@ -4514,6 +4722,199 @@ const drawCasts = (ctx: CanvasRenderingContext2D): void => {
       continue
     }
 
+    if (c.kind === 'breath') {
+      // ── The jet, before it is lit ──
+      //
+      // Four footprints, in the order they will burn, and a line of chevrons
+      // running along them in the direction the fire will travel. The first one
+      // fills with the wind-up's own clock, so the mark the player will be
+      // looking at when the flame arrives is the one that told them when.
+      //
+      // The whole sweep is on the road from the start, which is the opposite of
+      // how the ring works and it has to be: the answer to this attack is a
+      // ROUTE across four moments, and a route cannot be planned one step at a
+      // time at a third of a second a step.
+      for (let i = 0; i < WYRM_FLARES; i++) {
+        // The ones after the first are dimmer, not hidden. They say "and then,
+        // and then" — the shape of the attack — without competing with the
+        // flare that is actually about to land.
+        flareMarkAt(
+          ctx, wyrmFlareX(i, c.dir), c.y,
+          i === 0 ? p : 0, (c.done ? 1 - after : 1) * (i === 0 ? 1 : 0.55)
+        )
+      }
+      if (!c.done && !cheap) {
+        // The direction, as three chevrons marching along the row. Same device
+        // the shock's eye uses to say "inward", turned to say "this way" — and
+        // it is the only element here that answers the question a player asks
+        // first, which is not "where is the fire" but "where is it going".
+        const y0 = worldToScreenY(c.y)
+        const from = worldToScreenX(wyrmFlareX(0, c.dir))
+        const to = worldToScreenX(wyrmFlareX(WYRM_FLARES - 1, c.dir))
+        ctx.save()
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.strokeStyle = '#ffc06a'
+        ctx.lineWidth = Math.max(2, scale * 0.055)
+        const step = Math.sign(to - from) * scale * 0.34
+        for (let i = 0; i < 3; i++) {
+          const march = (p * 1.4 + i / 3) % 1
+          const at = from + (to - from) * march
+          ctx.globalAlpha = 0.55 * (1 - Math.abs(march - 0.5) * 1.3)
+          ctx.beginPath()
+          ctx.moveTo(at - step, y0 - scale * 0.26)
+          ctx.lineTo(at, y0)
+          ctx.lineTo(at - step, y0 + scale * 0.26)
+          ctx.stroke()
+        }
+        ctx.restore()
+      }
+      continue
+    }
+
+    if (c.kind === 'spines') {
+      // ── The wall, and the one way through it ──
+      //
+      // The shock's problem exactly — a mark that has to say "not here" and
+      // "HERE" at once — so it is answered in the shock's vocabulary, and
+      // deliberately in the shock's own two colours: the wall in the heat the
+      // player has been taught means damage since stage one, the gap in the
+      // corner badge's blue, which is the colour this game only ever uses for
+      // ground to get to.
+      const top = worldToScreenY(c.y + WYRM_SPINE_HALF_D)
+      const bottom = worldToScreenY(c.y - WYRM_SPINE_HALF_D)
+      const h = bottom - top
+      ctx.save()
+      ctx.globalAlpha = c.done ? 1 - after : 1
+      for (const [from, to] of wyrmSpineRuns(c.x)) {
+        const x0 = worldToScreenX(from)
+        const x1 = worldToScreenX(to)
+        ctx.fillStyle = 'rgba(255,96,28,0.2)'
+        ctx.fillRect(x0, top, x1 - x0, h)
+        // Filling downward, the furrow's own clock: the fraction of the strip
+        // that is hot is the fraction of the wind-up that is gone.
+        ctx.fillStyle = c.done ? 'rgba(255,255,255,0.45)' : 'rgba(255,140,60,0.4)'
+        ctx.fillRect(x0, top, x1 - x0, h * p)
+        // …and the teeth coming, drawn as a row of rising points so the strip
+        // is legibly BONE rather than another patch of fire.
+        if (!cheap) {
+          // The teeth coming, at half height and half strength: the same
+          // painting the erupted wall uses (`paintSpineTile`), so what the
+          // player learns to read during the wind-up is what arrives.
+          const tile = Math.max(10, scale * 0.95)
+          ctx.save()
+          ctx.globalAlpha *= 0.35 + p * 0.5
+          for (let x = x0; x < x1 - 1; x += tile) {
+            const tw = Math.min(tile, x1 - x)
+            ctx.save()
+            ctx.translate(x + tw / 2, bottom - h / 2)
+            paintSpineTile(ctx, tw, h, p * 0.5, x)
+            ctx.restore()
+          }
+          ctx.restore()
+        }
+      }
+
+      // ── Nothing is drawn in the gap ──
+      //
+      // It had the shock's own vocabulary for a while: the safe ground washed
+      // in the corner badge's blue, with the countdown along its bottom edge.
+      // The owner took it out — "its obvious where the player should dodge to,
+      // if he doesnt want to be hit by the spikes" — and that is the shock's
+      // argument turned around. A shock is a RING, so its hole is a place you
+      // could read as more of the same and has to be coloured against it; this
+      // one is a wall with a piece missing, and a piece missing is already the
+      // loudest thing on the road. Painting it only added a second instruction
+      // to a mark that already had one.
+      //
+      // The clock went with it and is not missed: the wall's own fill rises
+      // with `p`, so the "when" is on the thing the player is leaving, which is
+      // where their eye already is while they are still standing in it.
+      ctx.restore()
+      continue
+    }
+
+    if (c.kind === 'spit') {
+      // ── One gout, and it is NOT a ring ──
+      //
+      // The first version borrowed the meteor's mark — a circle with a wedge
+      // sweeping round it — and the owner read it, rightly, as a meteor. It is
+      // the same vocabulary, and the vocabulary is the attack: a ring says
+      // "something falls out of the sky onto this spot", which is the other
+      // boss's whole idea and the opposite of this one's.
+      //
+      // So a gout says what it actually is, in three parts and no ring:
+      //
+      //   THE LINE    a streak from the wyrm's mouth to the ground, so the eye
+      //               is told WHERE IT COMES FROM. Nothing else in the game
+      //               draws that, because nothing else is spat.
+      //   THE EMBER   the thing itself, in the air, travelling the line over
+      //               the mark's own clock. It IS the countdown — no clock
+      //               hand, because a player who can see it coming does not
+      //               need one, and three clock hands at once is unreadable.
+      //   THE SPLASH  a scorch on the ground at exactly the billed radius, low
+      //               and flat, brightening as the ember arrives.
+      const r = c.r * scale
+      const b = getBoss()
+      // The mouth, as near as the body's own box allows: the wyrm's head is the
+      // top of it, and a gout leaving the feet would read as thrown.
+      const fx = b && !b.dead ? worldToScreenX(b.x) : sx
+      const fy = (b && !b.dead ? worldToScreenY(b.y) : sy - scale * 2.4) - scale * 1.05
+      const ang = Math.atan2(sy - fy, sx - fx)
+
+      ctx.save()
+      ctx.globalAlpha = c.done ? 1 - after : 1
+
+      // The splash. A flat scorch at the radius that burns, and a rim that is
+      // brightest on the far side — the side the ember is coming over — so the
+      // mark reads as being aimed at rather than as sitting there.
+      ctx.save()
+      ctx.translate(sx, sy)
+      paintEmberSplash(ctx, r, c.done)
+      ctx.restore()
+      ctx.strokeStyle = c.done ? '#fff3c4' : '#ffd24a'
+      ctx.lineWidth = Math.max(2, scale * 0.05)
+      ctx.globalAlpha *= 0.55 + p * 0.45
+      ctx.beginPath()
+      ctx.ellipse(sx, sy, r, r * 0.42, 0, ang - 1.5, ang + 1.5)
+      ctx.stroke()
+
+      if (!c.done) {
+        // The line, faint: it is context, not the warning. Dashed so it cannot
+        // be mistaken for the healer's beam, which is a solid column and the one
+        // other thing in the game drawn from the boss to the ground.
+        ctx.globalAlpha = 0.28
+        ctx.strokeStyle = '#ffb45a'
+        ctx.lineWidth = Math.max(1.5, scale * 0.03)
+        ctx.setLineDash([scale * 0.22, scale * 0.3])
+        ctx.beginPath()
+        ctx.moveTo(fx, fy)
+        ctx.lineTo(sx, sy)
+        ctx.stroke()
+        ctx.setLineDash([])
+
+        // The ember, on the cast's own clock, with a tail behind it. Eased so it
+        // leaves the mouth fast and settles onto the mark — a spit, not a lob.
+        // Drawn by `paintEmberRound`, turned onto the line it is travelling.
+        //
+        // Ease OUT, not smoothstep: smoothstep starts slow, and on a half-second
+        // flight that reads as the gout hanging at the wyrm's mouth for the
+        // first fifth of it (seen in a capture, frames 80 ms apart).
+        const k = 1 - (1 - p) * (1 - p)
+        const ex = fx + (sx - fx) * k
+        const ey = fy + (sy - fy) * k
+        const tail = Math.max(scale * 0.2, scale * 0.5 * (1 - k))
+        ctx.globalAlpha = 0.85
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.save()
+        ctx.translate(ex, ey)
+        ctx.rotate(ang)
+        paintEmberRound(ctx, Math.max(2, scale * 0.075), tail)
+        ctx.restore()
+      }
+      ctx.restore()
+      continue
+    }
+
     if (c.kind === 'ward') {
       // ── The healer's ward ──
       //
@@ -4889,6 +5290,151 @@ const RAKE_AFTER_S = 0.46
 const RAKE_SLASH_S = 0.16
 
 const rakes: Rake[] = []
+
+// ─── The wyrm's fire, once it has landed ────────────────────────────────────
+//
+// The casts above are the WARNING; this is the thing itself, and it needs its
+// own pool for one reason: both of the wyrm's ground attacks outlive the frame
+// they land on. A flare burns for `WYRM_FLARE_S` and a wall of spines stands
+// for a beat after it erupts, and neither is a particle burst — the player has
+// to be able to look at the road and see where the fire IS, not where it was.
+//
+// Stepped on `tellDtMs` like every other hostile clock, so a Frost Nova holds
+// the fire exactly where it caught it, and emptied by `clearBossTells`, because
+// a jet is the wyrm's own breath and a corpse is not breathing.
+interface WyrmMark {
+  kind: 'flame' | 'spines'
+  x: number
+  y: number
+  /** Which way the sweep was travelling — the flame leans with it. */
+  dir: number
+  t: number
+  life: number
+}
+
+/** How long a wall of spines stands after it erupts. Longer than the flare it
+ *  shares a pool with: the spikes are a SCAR (`RAKE_AFTER_S`'s argument), and
+ *  the gap they leave is the thing the player should still be able to see when
+ *  they wonder why they survived. */
+const SPINES_AFTER_S = 0.7
+
+const wyrmMarks: WyrmMark[] = []
+
+const stepWyrmMarks = (dtMs: number): void => {
+  const dt = dtMs / 1000
+  for (let i = wyrmMarks.length - 1; i >= 0; i--) {
+    const m = wyrmMarks[i]!
+    m.t += dt
+    if (m.t >= m.life) wyrmMarks.splice(i, 1)
+  }
+}
+
+/**
+ * One flare's footprint on the road, exactly the rectangle that will burn.
+ *
+ * Shared by the wind-up (`drawCasts`, before the jet exists) and by the sweep
+ * itself (`drawWyrmMarks`, for the flares still to come), so the mark a player
+ * learns during the cast is the same mark that counts the rest of the sweep
+ * down. `fill` is how far along that flare's own countdown is, 0 → 1.
+ */
+const flareMarkAt = (
+  ctx: CanvasRenderingContext2D, x: number, y: number, fill: number, alpha: number
+): void => {
+  const w = WYRM_FLAME_HALF_W * scale
+  const top = worldToScreenY(y + WYRM_FLAME_HALF_D)
+  const bottom = worldToScreenY(y - WYRM_FLAME_HALF_D)
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.translate(worldToScreenX(x), (top + bottom) / 2)
+  // The outline says WHERE, the fill says WHEN — the meteor ring's two jobs,
+  // split the same way, because four marks on the road at once cannot each
+  // carry a clock hand and still be read at a glance.
+  paintFlameMark(ctx, w, bottom - top, fill, Math.max(1.5, scale * 0.04))
+  ctx.restore()
+}
+
+/**
+ * The fire on the road, and the bone through it.
+ *
+ * Drawn from `WYRM_FLAME_HALF_W` / `WYRM_FLAME_HALF_D` and `wyrmSpineRuns` —
+ * the same functions the simulation bills against — so what burns is what was
+ * painted, to the unit.
+ */
+const drawWyrmMarks = (ctx: CanvasRenderingContext2D): void => {
+  // ── The flares still to come ──
+  //
+  // Read straight off the simulation's own sweep, which is the only honest way
+  // to draw them: the cast that announced the attack is over by now, and a
+  // renderer running its own copy of the clock would be free to disagree with
+  // the one billing the damage. Every flare therefore counts down on the frame
+  // it will actually light, and a sweep that ends early (the boss died) has
+  // nothing left to show.
+  const jet = getWyrmBreath()
+  if (jet) {
+    for (let i = jet.next; i < WYRM_FLARES; i++) {
+      const left = wyrmFlareAt(i) - jet.t
+      if (left < 0) continue
+      // Every mark is on the road for the whole sweep; the one about to light
+      // is the one that is nearly full, so the eye is pulled along the road in
+      // the direction the fire is travelling without anything having to move.
+      flareMarkAt(ctx, wyrmFlareX(i, jet.dir), jet.y, 1 - left / WYRM_SWEEP_S, 0.9)
+    }
+  }
+  if (wyrmMarks.length === 0) return
+  const cheap = cheapFx
+
+  for (const m of wyrmMarks) {
+    const k = Math.max(0, Math.min(1, m.t / Math.max(0.001, m.life)))
+    const top = worldToScreenY(m.y + (m.kind === 'flame' ? WYRM_FLAME_HALF_D : WYRM_SPINE_HALF_D))
+    const bottom = worldToScreenY(m.y - (m.kind === 'flame' ? WYRM_FLAME_HALF_D : WYRM_SPINE_HALF_D))
+
+    if (m.kind === 'flame') {
+      // A column of fire, brightest as it lights and guttering out. The body of
+      // it is exactly the billed rectangle; everything outside that is licked
+      // flame drawn with `lighter`, so it reads as heat around the kill rather
+      // than as a wider kill.
+      const w = WYRM_FLAME_HALF_W * scale
+      const cx = worldToScreenX(m.x)
+      ctx.save()
+      ctx.globalAlpha = (1 - k * k) * 0.85
+      ctx.translate(cx, (top + bottom) / 2)
+      paintFlameWall(ctx, w, bottom - top, k)
+      if (!cheap) {
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.globalAlpha = (1 - k) * 0.5
+        ctx.fillStyle = 'rgba(255,170,60,0.5)'
+        const rise = Math.min(1, k * 3)
+        ctx.fillRect(-w * 1.5 * rise, -(bottom - top) / 2 - 6, w * 3 * rise, bottom - top + 12)
+      }
+      ctx.restore()
+      continue
+    }
+
+    // The spines: a run of bone up out of the road on either side of the gap,
+    // and NOTHING drawn in the gap. That absence is the whole tell — a decal
+    // laid across the clear ground would be the one lie this attack cannot
+    // afford, because the clear ground is where the player was told to stand.
+    ctx.save()
+    ctx.globalAlpha = k < 0.15 ? 1 : 1 - (k - 0.15) / 0.85
+    const h = (bottom - top) * 1.15
+    // Laid end to end rather than stretched: a run is anything from half a unit
+    // to most of the road wide, and one painting pulled across all of that is a
+    // different creature's teeth at either end.
+    const tile = Math.max(10, scale * 0.95)
+    for (const [from, to] of wyrmSpineRuns(m.x)) {
+      const x0 = worldToScreenX(from)
+      const x1 = worldToScreenX(to)
+      for (let x = x0; x < x1 - 1; x += tile) {
+        const w = Math.min(tile, x1 - x)
+        ctx.save()
+        ctx.translate(x + w / 2, bottom - h / 2)
+        paintSpineTile(ctx, w, h, Math.min(1, k * 6), x)
+        ctx.restore()
+      }
+    }
+    ctx.restore()
+  }
+}
 
 const stepRakes = (dtMs: number): void => {
   const dt = dtMs / 1000
@@ -9720,6 +10266,10 @@ const clearBossTells = (): void => {
   rakes.length = 0
   healTells.length = 0
   gazeBeams.length = 0
+  // The jet and the spikes go too. The simulation already stopped billing them
+  // on the kill (`killBoss`), and fire left burning over a corpse would be the
+  // one promise this file exists to take off the road.
+  wyrmMarks.length = 0
 }
 
 // ─── The body winds up too ──────────────────────────────────────────────────
@@ -9802,7 +10352,19 @@ const findWindup = (b: LiveBoss, t: number): Windup | null => {
     if (c.kind === 'meteor' || c.kind === 'shock' || c.kind === 'charge' || c.kind === 'drain') {
       take(c.kind, c.t, c.life, c.charged, c.x - b.x)
     }
+    // The wyrm's three read the same way: the cast's own clock, and the side is
+    // the mark's side of the body — which for the breath is the edge the jet
+    // starts on, so the head is already turned to the first flare before it
+    // lights.
+    if (c.kind === 'breath' || c.kind === 'spines' || c.kind === 'spit') {
+      take(c.kind, c.t, c.life, false, c.x - b.x)
+    }
   }
+  // …and the jet KEEPS the exhale for as long as it is burning, the drain's
+  // rule: the fire is coming out of the body, so the body may not settle back
+  // onto its walk while the road is still alight.
+  const jet = getWyrmBreath()
+  if (jet) take('breath', 1, 1, false, jet.dir < 0 ? 1 : -1, 1, true)
   for (const r of rakes) {
     let mid = 0
     for (const x of r.lanes) mid += x
@@ -9897,7 +10459,18 @@ const WINDUP_RGB: Record<WindupKind, string> = {
   // threat, and green is the one colour this game keeps for the bar going back
   // UP (`drawHealTell`). The green arrives at the end, on the souls reaching the
   // boss — the same event, seen from the other end.
-  drain: '255,58,104'
+  drain: '255,58,104',
+  // The wyrm's three, all the same fire, because they ARE the same fire: the
+  // jet, the gouts it spits and the heat that cracks the road open under the
+  // spikes. One colour across the fight is what makes the body's glow readable
+  // as "this thing is about to burn something" whichever of the three is
+  // coming — the kind is carried by the GROUND tell, which is the part that
+  // differs.
+  breath: '255,146,40',
+  spit: '255,146,40',
+  // A hair cooler: the spines are bone lit from underneath rather than flame,
+  // and the ground mark they belong to is the one the player has to stand in.
+  spines: '255,196,110'
 }
 
 /**
@@ -10189,12 +10762,21 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
   //
   // The barrier fill and its outline share ONE hexagon path (`guardHexPath`).
   const guarding = b.guard > 0 && !b.dead
+  // …and WHY it is up. A wyrm mid-attack is immune without being planted, and
+  // the barrier is painted down to a shimmer for it: the body is playing the
+  // attack the fight is named for, and the full hex and its crest cover it —
+  // measured on the first playtest, which came back as a shield with a wing
+  // sticking out of it. See `bossAttackArmoured`.
+  const attackArmour = guarding && bossAttackArmoured()
   const gPulse = 0.55 + Math.sin(t / 70) * 0.25
   const gR = size * 0.95
   const gCy = -size * 0.55
   const gRy = gR * 1.15
 
-  if (guarding) paintGuardHex(ctx, gCy, gR, gRy, gPulse, scale)
+  if (guarding) {
+    paintGuardHex(ctx, gCy, gR, gRy, attackArmour ? gPulse * 0.35 : gPulse, scale, undefined,
+      attackArmour ? 0.4 : 1)
+  }
 
   // Frozen, it holds the pose it was caught in — see `drawFoes`.
   const frozen = frostActive() && !b.dead
@@ -10213,7 +10795,20 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
   // place of the walk, and the rock sits in the hand the drawing put it in.
   // The pose below is rest for a meteor; nothing stretches the body.
   const hurlAt = wu?.kind === 'meteor' ? meteorHurlPanel(wu.p) : null
-  const hurl = hurlAt === null ? null : monsterHurlFrame(b.design, hurlAt)
+  // ── …and a breath is the same strip on a different clock ──
+  //
+  // The wyrm's attack animation lives in the same slot as a throw and is looked
+  // up the same way (`monsterHurlFrame`) — a body has one big attack animation
+  // and no body has both. The split across the cast and the jet is
+  // `breathPanel`'s; the jet's own progress is read from the simulation, so the
+  // head is where the fire is on every frame, including a frozen one.
+  const jetNow = getWyrmBreath()
+  const breathAt = wu?.kind === 'breath'
+    ? breathPanel(wu.p, jetNow ? Math.min(1, jetNow.t / WYRM_SWEEP_S) : null)
+    : null
+  const hurl = hurlAt !== null
+    ? monsterHurlFrame(b.design, hurlAt)
+    : breathAt === null ? null : monsterHurlFrame(b.design, breathAt)
   const frame = hurl?.frame ?? monsterFrame(b.design, ((frozen ? frostFrozenAt() : t) / 900) % 1)
   const pose = easeBossPose(
     wu ? bossPose(wu.kind, wu.p, {
@@ -10327,7 +10922,10 @@ const drawBossBody = (ctx: CanvasRenderingContext2D): void => {
   // Normal compositing (not `lighter`) and a dark rim: additive on top of an
   // already-bright orange barrier washes out to a pale blob, and the rim is what
   // holds the silhouette against both the barrier and the boss behind it.
-  if (guarding) {
+  // The crest is the guard PHASE's emblem and only ever that: an attack armour
+  // paints the barrier alone, so the body it is wrapped around stays the thing
+  // on screen.
+  if (guarding && !attackArmour) {
     // Sized to read as an emblem ON the barrier rather than a lid over the
     // fight: much larger and it simply erases the boss, which is the thing the
     // player is being told to stop shooting.
@@ -11946,6 +12544,127 @@ const applyFx = (e: FxEvent): void => {
       break
     }
 
+    // ─── The wyrm's three ───────────────────────────────────────────────
+    //
+    // Each cast carries the exact seconds to the damage and each impact carries
+    // the geometry that was billed, so the picture and the kill cannot drift
+    // apart. The body's own wind-up rides on the cast's clock through
+    // `windupBeats`, exactly as the meteor's gather and the shock's stomp do —
+    // no cue is played here, because a sound fired from the event would be a
+    // sound the freeze could not hold.
+    case 'breathCast':
+      casts.push({
+        kind: 'breath', x: e.x, y: e.y, r: WYRM_FLAME_HALF_W, inner: 0, dir: e.dir,
+        charged: false, tx: e.x, ty: e.y, t: 0, life: e.ttl, done: false,
+        beats: windupBeats('breath', e.ttl, { sweepS: WYRM_SWEEP_S }), beat: 0
+      })
+      break
+
+    case 'spinesCast':
+      // `x` is the middle of the SAFE ground. The renderer draws the wall, not
+      // the gap, for the reason `drawWyrmMarks` gives: the one thing this
+      // attack may never paint over is the ground it is telling you to stand on.
+      casts.push({
+        kind: 'spines', x: e.x, y: e.y, r: WYRM_GAP_HALF, inner: 0, dir: 1,
+        charged: false, tx: e.x, ty: e.y, t: 0, life: e.ttl, done: false,
+        beats: windupBeats('spines', e.ttl), beat: 0
+      })
+      break
+
+    case 'spitCast':
+      // Every gout gets one of these, including the two aimed mid-attack — so
+      // the body snaps three times and the ear hears three, which is what makes
+      // a spit read as three questions rather than one long one.
+      casts.push({
+        kind: 'spit', x: e.x, y: e.y, r: e.r, inner: 0, dir: 1,
+        charged: false, tx: e.x, ty: e.y, t: 0, life: e.ttl, done: false,
+        beats: windupBeats('spit', e.ttl), beat: 0
+      })
+      break
+
+    case 'wyrmFlare': {
+      // One flare-up of the jet. The shake is small and the sound is the rake's
+      // strike: four of these land in under two seconds, and a full slam's
+      // worth of screen shake four times over would make the attack unreadable
+      // at exactly the moment it has to be read.
+      playFx('windStrike', 0, 0, WYRM_FLARE_S)
+      triggerShake(e.i === WYRM_FLARES - 1 ? 'big' : 'small')
+      wyrmMarks.push({
+        kind: 'flame', x: e.x, y: e.y, dir: e.dir, t: 0,
+        // The mark outlives the BILLED burn by a beat of guttering, and that is
+        // deliberate in the safe direction: the fire is drawn a little after it
+        // has stopped killing, never a little before it starts.
+        life: WYRM_FLARE_S + 0.22
+      })
+      emitDecal(e.x, e.y, WYRM_FLAME_HALF_W * 1.4, 0.4)
+      const n = minFx ? 6 : cheapFx ? 12 : 22
+      for (let i = 0; i < n; i++) {
+        const t = i / n
+        emit({
+          x: e.x + (Math.random() - 0.5) * WYRM_FLAME_HALF_W * 2,
+          y: e.y - WYRM_FLAME_HALF_D + t * WYRM_FLAME_HALF_D * 2,
+          vx: e.dir * (1.5 + Math.random() * 2.5), vy: (Math.random() - 0.4) * 2,
+          life: 380 + Math.random() * 320, size: 0.1 + Math.random() * 0.09,
+          color: Math.random() < 0.6 ? [255, 180, 70] : [220, 90, 40],
+          additive: true, shape: 2, drag: 1.6, gravity: -2
+        })
+      }
+      break
+    }
+
+    case 'wyrmSpines': {
+      // The ground breaking. The boss's own stomp lands on this frame
+      // (`bossPose`), so the dust comes off the body as well as off the road —
+      // one event, two places, which is what stops it reading as two.
+      playFx('bossSlam', 0.5)
+      triggerShake('big')
+      wyrmMarks.push({ kind: 'spines', x: e.x, y: e.y, dir: 1, t: 0, life: SPINES_AFTER_S })
+      const runs = wyrmSpineRuns(e.x)
+      const per = minFx ? 3 : cheapFx ? 6 : 11
+      for (const [from, to] of runs) {
+        emitDecal((from + to) / 2, e.y, Math.abs(to - from) * 0.25, 0.35)
+        for (let i = 0; i < per; i++) {
+          const x = from + ((to - from) * (i + 0.5)) / per
+          emit({
+            x, y: e.y + (Math.random() - 0.5) * WYRM_SPINE_HALF_D,
+            vx: (Math.random() - 0.5) * 3, vy: -3 - Math.random() * 4,
+            life: 460 + Math.random() * 300, size: 0.11 + Math.random() * 0.08,
+            color: Math.random() < 0.5 ? [232, 226, 210] : [150, 126, 104],
+            shape: 1, gravity: 11, drag: 1.4, rot: Math.random() * 6, vrot: 7
+          })
+        }
+      }
+      break
+    }
+
+    case 'wyrmSpit': {
+      // The smallest of the three, and it sounds like it: the gunner's round
+      // going off rather than a slam. Three land in under a second, so the
+      // shake stays small for all of them.
+      playFx('windZap', 0.4)
+      triggerShake('small')
+      emitDecal(e.x, e.y, e.r * 0.8, 0.45)
+      // It SPLASHES, forward. A radial burst is what a rock landing looks like
+      // and this is a mouthful of fire arriving at an angle, so the embers go
+      // on down the road in the direction it was travelling — the one frame of
+      // this attack that has to say "spat", not "dropped".
+      const src = getBoss()
+      const away = src && !src.dead ? Math.atan2(e.y - src.y, e.x - src.x) : Math.PI / 2
+      const n = minFx ? 5 : cheapFx ? 10 : 18
+      for (let i = 0; i < n; i++) {
+        const a = away + (Math.random() - 0.5) * 1.9
+        const sp = 2.5 + Math.random() * 7
+        emit({
+          x: e.x, y: e.y,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6 + 1.2,
+          life: 320 + Math.random() * 280, size: 0.09 + Math.random() * 0.08,
+          color: Math.random() < 0.5 ? [255, 190, 90] : [200, 70, 40],
+          additive: Math.random() < 0.6, shape: 2, drag: 1.8, gravity: 6
+        })
+      }
+      break
+    }
+
     case 'wardCast':
       // No combat cue at all. The one thing on the road that is not about to hurt
       // anybody gets the pickup's own chime, because that is what the player
@@ -12896,6 +13615,7 @@ export const invalidateArt = (): void => {
   rakes.length = 0
   gazeBeams.length = 0
   healTells.length = 0
+  wyrmMarks.length = 0
   // …and with them the clock they were being stepped against. `resetWorld` puts
   // the simulation clock back to zero, so a delta taken across a stage change is
   // negative; it is clamped rather than trusted, but saying so here is cheaper

@@ -27,7 +27,9 @@
 import { HURL_KEYS, HURL_RELEASE_PANEL } from '@/game/monsterKit'
 
 /** Which wind-up the body is performing. */
-export type WindupKind = 'meteor' | 'shock' | 'charge' | 'rake' | 'heal' | 'bolt' | 'summon' | 'drain'
+export type WindupKind =
+  | 'meteor' | 'shock' | 'charge' | 'rake' | 'heal' | 'bolt' | 'summon' | 'drain'
+  | 'breath' | 'spines' | 'spit'
 
 /**
  * A body pose, applied around the FEET.
@@ -87,6 +89,25 @@ export const HEAL_GATHER_AT = 0.7
  */
 export const DRAIN_REACH_AT = 0.8
 
+// ─── The wyrm's three ───────────────────────────────────────────────────────
+//
+// All three turn LATE, and later than anything else in this file, because all
+// three are the same body doing the same thing: a wyrmling drawing itself back
+// over the whole wind-up and then snapping forward on the beat. The ground
+// tells say what is coming (fire across the road, spikes out of it, three
+// gouts); the body says only WHEN, and it says it by holding the coil until
+// there is almost no time left.
+
+/** The breath: the head is fully reared and the throat fully lit this far
+ *  through the cast, and the jet leaves on the beat. */
+export const BREATH_EXHALE_AT = 0.86
+/** The spines: the body is at the top of its rise here, and drops onto the road
+ *  — the stomp that cracks it open. `SHOCK_DROP_AT`'s shape, a hair earlier,
+ *  because this one lands leaning down the road rather than straight down. */
+export const SPINES_DROP_AT = 0.88
+/** The spit: the head is drawn fully back here and snaps out on the beat. */
+export const SPIT_SNAP_AT = 0.84
+
 /**
  * How much of the rock's flight the throw's follow-through takes — the panels
  * after the release. Short of the whole flight on purpose: the body is back at
@@ -116,6 +137,37 @@ export const meteorHurlPanel = (p: number): number | null => {
   const after = HURL_KEYS - HURL_RELEASE_PANEL
   const i = Math.floor((w / HURL_FOLLOW_SHARE) * after)
   return i < after ? HURL_RELEASE_PANEL + i : null
+}
+
+/**
+ * ─── The breath's panels ────────────────────────────────────────────────────
+ *
+ * The wyrm's strip lives in the same slot a meteor boss's throw does (see
+ * `BREATH_POSES` in `artSheet`, and `breathBeats` in `monsterKit`), so the
+ * renderer plays it with the same lookup. What differs is the CLOCK: a throw is
+ * one cast long, and a breath is a cast and then a two-second sweep the
+ * simulation is still billing (`WYRM_SWEEP_S`). So the panels are split across
+ * the two, and the join is exact — the cast ends on the panel before the jet
+ * starts, and the jet's own first frame is the panel that opens the jaws.
+ *
+ * Panels 1-3 (the draw) play over the wind-up; 4-8 (the sweep) over the jet.
+ */
+export const BREATH_PANELS = 8
+/** The panel the jet leaves the mouth on — the first of the sweep's. */
+export const BREATH_JET_PANEL = 3
+
+/**
+ * Which panel of the breath shows now. `p` is the cast's progress, and `sweep`
+ * the jet's own 0..1 once it is burning — `null` while the boss is still
+ * drawing breath. `null` back means the body is on its walk again.
+ */
+export const breathPanel = (p: number, sweep: number | null): number | null => {
+  if (sweep === null) {
+    return Math.min(BREATH_JET_PANEL - 1, Math.floor(clamp01(p) * BREATH_JET_PANEL))
+  }
+  const after = BREATH_PANELS - BREATH_JET_PANEL
+  const i = BREATH_JET_PANEL + Math.floor(clamp01(sweep) * after)
+  return Math.min(BREATH_PANELS - 1, i)
 }
 
 /** How long a pose takes to settle after its impact, seconds. Matches the
@@ -265,6 +317,56 @@ export const bossPose = (kind: WindupKind, p: number, o: PoseOpts = {}): BossPos
       return mixPose(gathered, reaching, smooth((k - DRAIN_REACH_AT) / (1 - DRAIN_REACH_AT)))
     }
 
+    case 'breath': {
+      // Draw back and INHALE — the body swells, rises and lights from the
+      // inside — then throw the head forward and across as the jet leaves. The
+      // lean is toward the side the fire STARTS on, which is the far side from
+      // the crowd (`wyrmSweepDir`), so the body points at the first flare
+      // before it lights and the eye is already there when it does.
+      const drawn = pose({ lean: -0.2 * side, sy: 1.14, sx: 0.94, lift: 0.05, glow: 1 })
+      const blown = pose({ lean: 0.1 * side, sy: 0.9, sx: 1.12, dip: 0.09, glow: 1 })
+      // Still breathing: the jet outlives the cast by the whole sweep, so the
+      // body holds the exhale and shakes with it rather than settling back onto
+      // its walk while the road is alight. Asked FIRST, exactly as the drain's
+      // hold is, because a held cast has no time left on it to be `after`.
+      if (o.holding) return { ...blown, shake: 0.013 }
+      if (after > 0) return mixPose(blown, REST_POSE, settle)
+      if (k < BREATH_EXHALE_AT) {
+        const g = smooth(k / BREATH_EXHALE_AT)
+        const out = mixPose(REST_POSE, drawn, g)
+        // The tremble grows into the inhale, the charge's coil for a thing that
+        // is filling up rather than winding up.
+        out.shake = 0.02 * g * g
+        return out
+      }
+      return mixPose(drawn, blown, smooth((k - BREATH_EXHALE_AT) / (1 - BREATH_EXHALE_AT)))
+    }
+
+    case 'spines': {
+      // Rise, hang, and come down ON the road — the ground opens where the body
+      // lands, so the drop and the spikes are one event. The shock's curve with
+      // a forward lean: this one drives the spikes down the road rather than
+      // stamping a ring around itself.
+      const risen = pose({ sy: 1.16, sx: 0.92, lift: 0.26, glow: 1 })
+      const landed = pose({ sy: 0.78, sx: 1.18, dip: 0.08, glow: 0.45 })
+      if (after > 0) return mixPose(landed, REST_POSE, settle)
+      if (k < 0.78) return mixPose(REST_POSE, risen, smooth(k / 0.78))
+      if (k < SPINES_DROP_AT) return { ...risen, shake: 0.014 }
+      const d = (k - SPINES_DROP_AT) / (1 - SPINES_DROP_AT)
+      return mixPose(risen, landed, d * d)
+    }
+
+    case 'spit': {
+      // A short, sharp snap — the fastest wind-up the fight has, because the
+      // gout it throws is the smallest thing in it and the attack's difficulty
+      // is the chase rather than the blow.
+      const cocked = pose({ lean: -0.1 * side, sy: 1.07, sx: 0.96, lift: 0.03, glow: 1 })
+      const snapped = pose({ lean: 0.08 * side, sy: 0.93, sx: 1.06, dip: 0.1, glow: 0.5 })
+      if (after > 0) return mixPose(snapped, REST_POSE, settle)
+      if (k < SPIT_SNAP_AT) return mixPose(REST_POSE, cocked, smooth(k / SPIT_SNAP_AT))
+      return mixPose(cocked, snapped, smooth((k - SPIT_SNAP_AT) / (1 - SPIT_SNAP_AT)))
+    }
+
     case 'summon': {
       // Arms up over the road, then brought down as the ground opens.
       const called = pose({ sy: 1.1, sx: 0.95, lift: 0.05, glow: 1 })
@@ -359,6 +461,11 @@ export interface BeatOpts {
   /** How long a drain's beam holds once it lands (`DRAIN_HOLD_S`) — the length
    *  the pull's own sound is fitted to. */
   holdS?: number
+  /** How long the wyrm's jet burns for once the cast lands (`WYRM_SWEEP_S`).
+   *  The drain's `holdS` for an attack that keeps going: the release cue is
+   *  fitted to the whole sweep, so the ear hears how long the road is on fire
+   *  rather than one whoosh at the start of it. */
+  sweepS?: number
 }
 
 /**
@@ -407,6 +514,32 @@ export const windupBeats = (kind: WindupKind, life: number, o: BeatOpts = {}): W
       // follow-through of a throw that happens on `t = life`.
       return [
         { atS: 0, cue: 'charge', seconds: L * BOLT_THRUST_AT },
+        { atS: L, cue: 'zap', seconds: 0 }
+      ]
+    case 'breath': {
+      // The inhale, and then the jet. The release sits at the END of the cast
+      // rather than at `BREATH_EXHALE_AT`, because the fire itself starts on
+      // the beat the cast lands — the pose turns a frame early so the head is
+      // already moving when the flame leaves it, which is the order the eye
+      // expects and the opposite of what the ear can forgive.
+      return [
+        { atS: 0, cue: 'gather', seconds: L * BREATH_EXHALE_AT },
+        { atS: L, cue: 'hurl', seconds: Math.max(0, o.sweepS ?? 0) }
+      ]
+    }
+    case 'spines': {
+      const at = L * SPINES_DROP_AT
+      return [
+        { atS: 0, cue: 'rise', seconds: at },
+        { atS: at, cue: 'drop', seconds: L - at }
+      ]
+    }
+    case 'spit':
+      // The bolt's pair: a build under the drawn-back head, and the snap on the
+      // frame the first gout leaves. The two that follow sound themselves off
+      // their own events — they are aimed after this cast is over.
+      return [
+        { atS: 0, cue: 'charge', seconds: L * SPIT_SNAP_AT },
         { atS: L, cue: 'zap', seconds: 0 }
       ]
     case 'summon':

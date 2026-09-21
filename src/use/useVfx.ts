@@ -350,6 +350,44 @@ export type FxEvent =
        *  only the swing number puts them back together. */
       slam: number
     }
+  /*
+   * ─── The wyrm's three ─────────────────────────────────────────────────────
+   *
+   * Same contract as everything above: a cast carries the exact seconds until
+   * the damage starts, and an impact event carries the geometry the kill was
+   * measured against. What is new is that two of the three keep going after
+   * they land — the jet burns across the road for `WYRM_SWEEP_S` and the spit
+   * throws three gouts over `WYRM_SPIT_S` — so each beat of those is its own
+   * event rather than one long one. The renderer therefore never has to hold a
+   * clock the simulation is not also holding, which is the rule that keeps a
+   * frozen fight's fire frozen and a dead wyrm's fire off the road.
+   */
+  /**
+   * The wyrm is about to breathe. `dir` is which way the jet will travel (−1 is
+   * right to left) and `x`/`y` the first flare's ground, so the mark is already
+   * on the road the eye will be looking at.
+   */
+  | {
+      kind: 'breathCast'; x: number; y: number
+      dir: number
+      ttl: number
+    }
+  /** One flare-up of the jet, lit. `i` is which of `WYRM_FLARES` it is — the
+   *  renderer reads it to fade the trail of the ones already burnt. */
+  | { kind: 'wyrmFlare'; x: number; y: number; i: number; dir: number }
+  /** Spikes are coming up everywhere but a gap centred on `x`. */
+  | { kind: 'spinesCast'; x: number; y: number; ttl: number }
+  /** …and they are up. */
+  | { kind: 'wyrmSpines'; x: number; y: number }
+  /**
+   * One gout of an emberspit, aimed. `ttl` is `WYRM_SPIT_LEAD` for every gout
+   * including the first, whose wind-up the cast shares — the mark has to mean
+   * the same length of warning each time it appears, or the attack teaches a
+   * beat it does not keep.
+   */
+  | { kind: 'spitCast'; x: number; y: number; r: number; ttl: number }
+  /** …and it landed. */
+  | { kind: 'wyrmSpit'; x: number; y: number; r: number; i: number }
   /**
    * The healer planted a ward, a full cast before the heal it belongs to.
    *

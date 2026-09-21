@@ -228,7 +228,8 @@ export default {
       'thornwick': "Thornwick",
       'marrowknight': "Marrowknight",
       'cinderhound': "Cinderhound",
-      'rattlejack': "Rattlejack"
+      'rattlejack': "Rattlejack",
+      'skewer': "Skewer"
     }
   },
   // ─── The gift ladder ──────────────────────────────────────────────────────

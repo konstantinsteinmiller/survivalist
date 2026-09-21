@@ -1,5 +1,5 @@
 import { earlyFoeHpMul } from '@/game/survival'
-import { bossKindFor, minibossDesignsFor, SUMMON_DESIGN } from '@/game/threats'
+import { bossKindFor, minibossDesignsFor, SUMMON_DESIGN, WYRM_DESIGN } from '@/game/threats'
 /**
  * ─── The cast that wants your crowd ─────────────────────────────────────────
  *
@@ -230,6 +230,13 @@ export const bossDesign = (stage: number): string => {
   // as a bug rather than as a boss — the body has to be the thing it summons,
   // at boss size. Every other kind keeps its place in the cycle below.
   if (bossKindFor(stage) === 'summoner') return SUMMON_DESIGN
+  // THE WYRM IS ALWAYS THE SKEWER, for the marrow knight's reason. Its whole
+  // fight is a jet of fire swept down the road and a wall of spines out of it,
+  // and the skewer is the one body in the cast that is a wyrmling — "small,
+  // fast, and almost entirely the pointy end". A boar that breathes fire reads
+  // as a bug. It is also already on the road from stage 5 as the burrower, so a
+  // player meets the silhouette either side of the fight.
+  if (bossKindFor(stage) === 'wyrm') return WYRM_DESIGN
   return BOSS_DESIGNS[(stage - 1) % BOSS_DESIGNS.length] ?? 'snaggletusk'
 }
 
@@ -281,9 +288,14 @@ export const rosterDesigns = (stage: number): string[] => {
  * borrowed bodies, then the rotation. What the art bench paints a death strip
  * for (`artSheet.BOSS_DEATHS`) — derived here so a design added to the rotation
  * gets a death sheet without anybody remembering to list it twice.
+ *
+ * `WYRM_DESIGN` is here even though it is not in the rotation: `bossDesign`
+ * welds the wyrm to it, so it is a boss body like any other and needs the same
+ * two sheets — the death it falls in, and the big attack it plays while it
+ * winds one up (`BOSS_HURLS`, which for this one is a breath).
  */
 export const bossDesigns = (): string[] =>
-  [...new Set([bossDesign(1), bossDesign(2), ...BOSS_DESIGNS, SUMMON_DESIGN])]
+  [...new Set([bossDesign(1), bossDesign(2), ...BOSS_DESIGNS, SUMMON_DESIGN, WYRM_DESIGN])]
 
 /** Every design the game can ask for, so the baker can prime them all on an
  *  idle slot after first paint. */

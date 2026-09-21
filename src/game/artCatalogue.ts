@@ -35,7 +35,9 @@ export const ART_CATALOGUE: Record<Exclude<ArtKind, 'monster' | 'hero' | 'death'
   round: [
     'tracer', 'bolt-gunner', 'bolt-boss', 'roller', 'meteor', 'bomb', 'grenade', 'rocket',
     // The shotgun's pellet — see `game/weapons.ts`.
-    'pellet'
+    'pellet',
+    // The wyrm's gout, in the air between its jaws and the mark it is aimed at.
+    'ember'
   ],
   fx: [
     'muzzle', 'smoke', 'scorch',
@@ -44,7 +46,11 @@ export const ART_CATALOGUE: Record<Exclude<ArtKind, 'monster' | 'hero' | 'death'
     // One mark each for three of the four later weapons: the Dynamo's bolt,
     // the light over one of Gravecall's dead, and the burst a gilded corpse
     // ends in. The fourth, the shotgun's pellet, is a round.
-    'bolt', 'wisp', 'gild'
+    'bolt', 'wisp', 'gild',
+    // The wyrm's ground: the fire, the bone that comes up through the road,
+    // and a gout's splash. The fourth mark — the footprint a flare is coming
+    // to — is deliberately NOT painted; `paintFlameMark` says why.
+    'flame-wall', 'spines', 'ember-splash'
   ],
   // No road tile: painted cobbles read as objects under the crowd, and the
   // procedural gravel stays. See `artSheet.ts`.

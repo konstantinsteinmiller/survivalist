@@ -1099,6 +1099,47 @@ export interface HurlBeats {
   effort: number
 }
 
+/**
+ * ─── …and the one boss that breathes instead of throwing ────────────────────
+ *
+ * The wyrm's big attack is a jet of fire swept across the road, and it plays in
+ * the same slot a throw does — in place of the walk, on the cast's own clock,
+ * eight keys to eight panels (`BREATH_POSES` names them, in this order). It
+ * rides `drawHurl`/`hurlingAt` rather than a second latch of its own, because a
+ * body has exactly one big attack animation and nothing needs to ask which.
+ *
+ * Every track below is per-PANEL, so the drawing and the words cannot drift:
+ * panel 3 is the top of the draw in both, panel 6 is the middle of the sweep in
+ * both, and a line changed here without its line in `BREATH_POSES` is a sheet
+ * that comes back painted as something else.
+ */
+export interface BreathBeats {
+  k: number
+  /** Neck curled back and up over the shoulders, 0..1 — drawing the breath. */
+  draw: number
+  /** The head's travel across the road: 0 where the jet starts, 1 where it
+   *  ends. Only meaningful once the jaws are open. */
+  sweep: number
+  /** How far the jaws are open, 0..1. */
+  gape: number
+  /** The throat lit from inside while the breath is drawn — and only then. */
+  throat: number
+  /** How hard the wings are working to hold the turn, 0..1. */
+  effort: number
+}
+
+/** The eight moments of a breath, one per panel of the strip (`k = i / 7`). */
+export const BREATH_KEYS = 8
+
+export const breathBeats = (k: number): BreathBeats => ({
+  k,
+  draw: track([0, 0.62, 1, 0.5, 0.16, 0.04, 0, 0], k),
+  sweep: track([0, 0, 0, 0.06, 0.42, 0.76, 1, 0.42], k),
+  gape: track([0, 0.45, 1, 1, 1, 0.94, 0.4, 0], k),
+  throat: track([0, 0.6, 1, 0.3, 0, 0, 0, 0], k),
+  effort: track([0, 0.55, 0.9, 1, 1, 0.85, 0.4, 0], k)
+})
+
 export const hurlBeats = (k: number, side: -1 | 1): HurlBeats => ({
   k,
   side,

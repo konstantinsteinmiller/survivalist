@@ -100,7 +100,8 @@ export default {
       'thornwick': "荆棘树妖",
       'marrowknight': "骸骨骑士",
       'cinderhound': "余烬猎犬",
-      'rattlejack': "咔嗒杰克"
+      'rattlejack': "咔嗒杰克",
+      'skewer': "穿刺者"
     }
 
   },

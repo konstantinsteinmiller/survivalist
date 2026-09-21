@@ -738,10 +738,31 @@ describe('adaptive difficulty: the opening five stages size their boss', () => {
       const cap = Math.ceil((30 * 1000) / STEP_MS)
       while (steps < cap && game.phase.value === 'boss' && !game.getBoss()?.dead) {
         const b = game.getBoss()
-        // Off the line of whatever is being aimed, which is all the fight asks.
-        if (b && !b.dead && b.aimed) {
-          const away = [b.slamX - 4.3, b.slamX + 4.3].filter((x) => Math.abs(x) <= 3.9)
-          game.steerTo(away[0] ?? (b.slamX > 0 ? -3.9 : 3.9))
+        // ── Reading the telegraphs, which is what the brief says ──
+        //
+        // Stage 3 is the WYRM, and its three attacks have three different
+        // answers — so a policy that reads every mark as "not here" is not a
+        // player holding their nerve, it is a player who has learned one fight.
+        // What it reads is exactly what the corner badge tells a real player
+        // (`incomingThreat`), and nothing the badge does not know:
+        //
+        //   gap   the spikes. `slamX` is the SAFE ground — get in it.
+        //   fire  the jet. While it is still being drawn breath (`b.aimed`),
+        //         hold: the sweep is locked on the side the crowd is on, and
+        //         walking into the edge it starts from is walking into the
+        //         first flare. Once it is burning, cross to that edge — the
+        //         ground behind the flame is the ground that has already burnt.
+        //   else  a ring, a gout: off the line.
+        const t = game.incomingThreat()
+        if (b && !b.dead && (b.aimed || t?.kind === 'fire')) {
+          if (t?.kind === 'gap') {
+            game.steerTo(b.slamX)
+          } else if (t?.kind === 'fire' && !b.aimed) {
+            game.steerTo(Math.max(-3.9, Math.min(3.9, b.slamX)))
+          } else if (t?.kind !== 'fire') {
+            const away = [b.slamX - 4.3, b.slamX + 4.3].filter((x) => Math.abs(x) <= 3.9)
+            game.steerTo(away[0] ?? (b.slamX > 0 ? -3.9 : 3.9))
+          }
         }
         game.step(STEP_MS)
         steps++

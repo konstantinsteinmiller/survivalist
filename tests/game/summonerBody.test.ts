@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { bossDesign, stageDesigns } from '@/game/foes'
-import { bossKindFor, SUMMON_DESIGN, THREAT_POOL_FROM_STAGE } from '@/game/threats'
+import {
+  bossKindFor, SUMMON_DESIGN, THREAT_POOL_FROM_STAGE, WYRM_DESIGN, WYRM_STAGE
+} from '@/game/threats'
 
 /**
  * The summoner wears the body it raises.
@@ -30,8 +32,25 @@ describe('the summoner boss', () => {
     expect(bossDesign(2)).toBe('bonecap')
     const cycle = ['snaggletusk', 'thornwick', 'marrowknight', 'cinderhound', 'rattlejack']
     for (let stage = THREAT_POOL_FROM_STAGE; stage <= 40; stage++) {
-      if (bossKindFor(stage) === 'summoner') continue
+      const kind = bossKindFor(stage)
+      // Two kinds are welded to a body for the same reason and neither is in
+      // the cycle: a boar that conjures skeletons reads as a bug, and so does
+      // one that breathes fire.
+      if (kind === 'summoner' || kind === 'wyrm') continue
       expect(cycle).toContain(bossDesign(stage))
     }
+  })
+
+  it('is the Skewer on every wyrm stage, and bakes with the stage', () => {
+    let seen = 0
+    for (let stage = 1; stage <= 40; stage++) {
+      if (bossKindFor(stage) !== 'wyrm') continue
+      seen++
+      expect(bossDesign(stage), `stage ${stage}`).toBe(WYRM_DESIGN)
+      expect(stageDesigns(stage), `stage ${stage} bake`).toContain(WYRM_DESIGN)
+    }
+    // The hand-placed debut, and then the rotation once it joins it.
+    expect(seen).toBeGreaterThan(1)
+    expect(bossDesign(WYRM_STAGE)).toBe(WYRM_DESIGN)
   })
 })

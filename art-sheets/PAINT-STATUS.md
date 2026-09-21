@@ -4,7 +4,7 @@ A report, not a contract: it is a picture of `art-sheets/painted/` and the
 slicer's receipt at the moment it was written. Re-run `pnpm art:prompts`
 after painting or slicing anything.
 
-**25 sliced · 1 need a repaint · 61 painted, unreceipted · 1 outstanding**
+**31 sliced · 1 need a repaint · 61 painted, unreceipted · 1 outstanding**
 
 | | Sheet | Prompt block in | Reference | State |
 | --- | --- | --- | --- | --- |
@@ -53,6 +53,7 @@ after painting or slicing anything.
 | ? | **The bomber's charge** | `PROMPTS-STILLS.md` | `still-round-bomb.png` (rev `9e46ae6fff9b`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **The player's grenade** | `PROMPTS-STILLS.md` | `still-round-grenade.png` (rev `602f7170a511`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ✓ | **The shotgun's pellet** | `PROMPTS-STILLS.md` | `still-round-pellet.png` (rev `4ce926ac7052`) | sliced 2026-09-18 |
+| ✓ | **The wyrm's gout** | `PROMPTS-STILLS.md` | `still-round-ember.png` (rev `7cc142807087`) | sliced 2026-09-20 |
 | ? | **The launcher's rocket** | `PROMPTS-STILLS.md` | `still-round-rocket.png` (rev `3cd257c17d95`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Muzzle flash** | `PROMPTS-STILLS.md` | `still-fx-muzzle.png` (rev `cacc2b1e833b`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Smoke puff** | `PROMPTS-STILLS.md` | `still-fx-smoke.png` (rev `a2f499ecff8f`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
@@ -65,6 +66,9 @@ after painting or slicing anything.
 | ✓ | **The Dynamo's bolt** | `PROMPTS-STILLS.md` | `still-fx-bolt.png` (rev `f59fb39c528e`) | sliced 2026-09-17 |
 | ✓ | **The thrall's wisp** | `PROMPTS-STILLS.md` | `still-fx-wisp.png` (rev `b86ce16f5334`) | sliced 2026-09-17 |
 | ✓ | **The gold burst** | `PROMPTS-STILLS.md` | `still-fx-gild.png` (rev `29e9762f6482`) | sliced 2026-09-17 |
+| ✓ | **Wyrm fire, burning** | `PROMPTS-STILLS.md` | `still-fx-flame-wall.png` (rev `c186e3a8114d`) | sliced 2026-09-20 |
+| ✓ | **Bone spines** | `PROMPTS-STILLS.md` | `still-fx-spines.png` (rev `fa29c384c63b`) | sliced 2026-09-20 |
+| ✓ | **Ember splash** | `PROMPTS-STILLS.md` | `still-fx-ember-splash.png` (rev `39b0e9f3baf2`) | sliced 2026-09-20 |
 | ? | **Shield crest** | `PROMPTS-STILLS.md` | `still-fx-crest-shield.png` (rev `7feff3298ed0`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Guard crest** | `PROMPTS-STILLS.md` | `still-fx-crest-guard.png` (rev `eb91311ff9a5`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
 | ? | **Far ridge** | `PROMPTS-STILLS.md` | `still-bg-ridge-far.png` (rev `2b8353641a23`) | painted, and a slice is on disk; no receipt yet — `pnpm slice-sheets --dry` to check it |
@@ -88,6 +92,7 @@ after painting or slicing anything.
 | ✓ | **Marrow Knight — death** | `PROMPTS-DEATHS.md` | `death-marrowknight.png` (rev `5e868a51b238`) | sliced 2026-09-12 |
 | ✓ | **Cinderhound — death** | `PROMPTS-DEATHS.md` | `death-cinderhound.png` (rev `c926e611e39c`) | sliced 2026-09-12 |
 | ✓ | **Rattlejack — death** | `PROMPTS-DEATHS.md` | `death-rattlejack.png` (rev `b7feff195a16`) | sliced 2026-09-12 |
+| ✓ | **Skewer — death** | `PROMPTS-DEATHS.md` | `death-skewer.png` (rev `a4660878d26a`) | sliced 2026-09-20 |
 | ✓ | **Survivors, down** | `PROMPTS-DEATHS.md` | `fall-survivors.png` (rev `7ec7e5d15b1b`) | sliced 2026-09-12 |
 | ✓ | **Grumpling — throw** | `PROMPTS-HURLS.md` | `hurl-grumpling.png` (rev `ddebf233bf2f`) | sliced 2026-09-18 |
 | ! | **Bonecap — throw** | `PROMPTS-HURLS.md` | `hurl-bonecap.png` (rev `cdcafc526b2c`) | REPAINT — the reference changed (133fa60560e2 → cdcafc526b2c) |
@@ -96,6 +101,7 @@ after painting or slicing anything.
 | ✓ | **Marrow Knight — throw** | `PROMPTS-HURLS.md` | `hurl-marrowknight.png` (rev `4381c8b94046`) | sliced 2026-09-18 |
 | ✓ | **Cinderhound — throw** | `PROMPTS-HURLS.md` | `hurl-cinderhound.png` (rev `4eb1b6b57973`) | sliced 2026-09-18 |
 | ✓ | **Rattlejack — throw** | `PROMPTS-HURLS.md` | `hurl-rattlejack.png` (rev `2da2a1c1f570`) | sliced 2026-09-18 |
+| ✓ | **Skewer — fire breath** | `PROMPTS-HURLS.md` | `hurl-skewer.png` (rev `c72a7bb3b4e7`) | sliced 2026-09-20 |
 
 ## What the marks mean
 

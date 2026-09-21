@@ -104,6 +104,19 @@ const threatWants = (stage: number): ArtWant[] => {
   const boss = bossKindFor(stage)
   // The meteor boss throws with its arms, from its own painted throw.
   if (boss === 'meteor') wants.push(['round', 'meteor'], ['hurl', bossDesign(stage)])
+  // The wyrm asks for the most of any kind, because its whole fight is read off
+  // the floor: the attack strip it plays while winding up (the same slot as a
+  // throw — see `bossAttacks`), the gout it spits, and the three marks its
+  // tells are painted from. Every one of them is first needed on a frame the
+  // player is already being asked to dodge on, which is the worst moment in the
+  // game to fetch anything — see the elites' note below for what that costs.
+  if (boss === 'wyrm') {
+    wants.push(
+      ['hurl', bossDesign(stage)],
+      ['round', 'ember'],
+      ['fx', 'flame-wall'], ['fx', 'spines'], ['fx', 'ember-splash']
+    )
+  }
   if (boss === 'healer') wants.push(['round', 'bolt-boss'], ['fx', 'ring-heal'])
   if (boss === 'summoner') wants.push(['monster', SUMMON_DESIGN])
   if (stage >= THREAT_POOL_FROM_STAGE) {

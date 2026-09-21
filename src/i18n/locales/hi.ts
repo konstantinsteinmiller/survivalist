@@ -100,7 +100,8 @@ export default {
       'thornwick': "थॉर्नविक",
       'marrowknight': "मैरोनाइट",
       'cinderhound': "सिंडरहाउंड",
-      'rattlejack': "रैटलजैक"
+      'rattlejack': "रैटलजैक",
+      'skewer': "स्क्यूअर"
     }
 
   },

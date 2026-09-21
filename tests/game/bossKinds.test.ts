@@ -27,7 +27,7 @@ import {
   HEAL_MIN_GAP_S,
   SUMMON_BUDGET, SUMMON_CROWD_SCALE_MAX, SUMMON_OPENING_CD, SUMMON_PER_WAVE, SUMMON_WALL_SHARE,
   SUMMON_WAVES_MAX, SUMMON_WAVE_RAMP,
-  THREAT_POOL_FROM_STAGE, summonBudgetBodies, summonWaveBodies, summonWaveSize,
+  THREAT_POOL_FROM_STAGE, WYRM_STAGE, summonBudgetBodies, summonWaveBodies, summonWaveSize,
   bossKindFor, chargeHalfW, clawFurrowHalfW, clawLaneXs, type BossKind
 } from '@/game/threats'
 import { drainFx, type FxEvent } from '@/use/useVfx'
@@ -115,10 +115,18 @@ const of = <K extends FxEvent['kind']>(fx: FxEvent[], kind: K) =>
 // ─── The rotation itself ────────────────────────────────────────────────────
 
 describe('the pool opens where the tutorial ends and nowhere earlier', () => {
-  it('gives the tutorial stages the one boss they were written around', () => {
-    for (let s = 1; s < THREAT_POOL_FROM_STAGE; s++) {
+  it('gives the two tutorial stages the one boss they were written around', () => {
+    // Stages 1 and 2 only. Stage 3 used to be the meteor a third time and is
+    // now the wyrm (`WYRM_STAGE`): the tutorial is the stages that teach the
+    // fight, and by the third the player has beaten it twice — a third
+    // rehearsal is where the 2026-09-20 fit test measured the session ending.
+    for (let s = 1; s < WYRM_STAGE; s++) {
       expect(bossKindFor(s), `stage ${s} is inside the tutorial and got a variant`).toBe('meteor')
     }
+    expect(bossKindFor(WYRM_STAGE), 'the third fight has to be a new one').toBe('wyrm')
+    // …and it is the LAST stage before the pool opens, so nothing between the
+    // hand-placed fight and the rotation is left on the tutorial's boss.
+    expect(WYRM_STAGE).toBe(THREAT_POOL_FROM_STAGE - 1)
   })
 
   it('shows every kind before it shows any of them twice', () => {

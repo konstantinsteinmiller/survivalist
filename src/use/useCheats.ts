@@ -76,6 +76,7 @@ const useCheats = () => {
   //   Ctrl+Alt+Shift+F   +2 shots/s
   //   Ctrl+Alt+Shift+N   next stage
   //   Ctrl+Alt+Shift+R   restart this stage
+  //   Ctrl+Alt+Shift+B   jump to the WYRM's arena with a squad that can fight it
   //   Ctrl+Alt+Shift+<n> jump to stage n — type the digits, e.g. 1 then 5 for
   //                      stage 15 (see the buffer below).
   //
@@ -135,6 +136,27 @@ const useCheats = () => {
     'ctrl+shift+alt+r': () => withGame((game) => {
       game.retryStage()
       console.warn('[CHEAT] Stage restarted.')
+    }),
+    // ─── Straight into a boss fight, with a squad that can hold it ──────────
+    //
+    // `Ctrl+Alt+Shift+B` opens the stage the wyrm is on (`WYRM_STAGE`) at the
+    // arena mouth, with enough crowd and damage to see the whole pattern rather
+    // than the first attack and a loss screen. It exists because the fight is
+    // three minutes of road away from the menu and needs to be played fifty
+    // times to be tuned.
+    //
+    // The order is load-bearing: `startStage` builds the road and resets the
+    // run, so the crowd and the guns have to be handed over AFTER it, and the
+    // skip has to come after those — `debugSkipToArena` puts the survivors it
+    // finds at the arena mouth, and bodies spawned later would walk up the road
+    // on their own.
+    'ctrl+shift+alt+b': () => withGame((game) => {
+      game.startStage(game.WYRM_STAGE)
+      game.debugAddUnits(60)
+      game.debugAddDamage(6)
+      game.debugAddFireRate(2)
+      game.debugSkipToArena()
+      console.warn(`[CHEAT] Stage ${game.WYRM_STAGE} boss, at the arena, 60 strong.`)
     })
   }
 

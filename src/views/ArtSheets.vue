@@ -20,7 +20,8 @@ import {
   ROUND_BOX, paintBombCharge, paintGrenadeBody, paintTracerRef, FX_PAD,
   ROCKET_BOX, paintRocketBody,
   muzzleRamp, paintMuzzleFlash, paintScorch, paintRing, paintShieldDome,
-  paintGuardHex, paintCrest, paintCrown, paintRidge, RIDGE_BAND
+  paintGuardHex, paintCrest, paintCrown, paintRidge, RIDGE_BAND,
+  paintFlameWall, paintSpineTile, paintEmberSplash, paintEmberRound
 } from '@/use/useSurvivalArt'
 import { paintBanner, paintUiIcon, type UiIconId } from '@/game/uiArt'
 import { BARREL_R, DIVIDER_HALF_W, DIVIDER_H } from '@/game/survival'
@@ -499,6 +500,34 @@ const renderStillAlpha = (s: StillSpec, cycle = 0): HTMLCanvasElement => {
       paintGuardHex(ctx, 0, rr, rr, 0.5, S / 4, REF)
       break
     }
+    // ── The wyrm's ground ──
+    //
+    // Each is drawn at the size the still is cut to, so the painting maps onto
+    // the renderer's own rectangle 1:1 and the game can blit it straight into
+    // the billed shape. `REF` forces the drawing rather than the painting, or
+    // the bench would export whatever was last painted.
+    case 'round/ember':
+      // Authored pointing RIGHT: the head sits its own radius in from the right
+      // edge and the trail reaches the left one, which is the box the renderer
+      // blits it back into (`paintEmberRound`).
+      ctx.translate(cx + S / 2 - S * 0.09, cy)
+      paintEmberRound(ctx, S * 0.09, S - S * 0.18, REF)
+      break
+
+    case 'fx/flame-wall':
+      ctx.translate(cx, cy)
+      paintFlameWall(ctx, S / 2, S, 0.34, REF)
+      break
+    case 'fx/spines':
+      ctx.translate(cx, cy)
+      paintSpineTile(ctx, S, S, 1, 3, REF)
+      break
+    case 'fx/ember-splash':
+      // The panel is the splash's own 2 : 1.1 box, as the scorch's is.
+      ctx.translate(cx, cy)
+      paintEmberSplash(ctx, S / 2, false, REF)
+      break
+
     case 'fx/crest-shield': {
       const m = S * 0.06
       paintCrest(ctx, 'shield', cx, cy, S / 2 - m, S / 2 - m, {

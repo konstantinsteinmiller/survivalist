@@ -243,6 +243,21 @@ export const spriteFor = (
   // request is made and the renderer simply keeps drawing.
   if (!enabled) return null
 
+  // ── A drawable with no id is not a drawable ──
+  //
+  // Asked for `('ui', '')` this used to build `images/ui/.webp`, request it,
+  // and 404 — invisible in play, because the glyph under it is the fallback
+  // either way, and caught by CrazyGames' QA pass as a missing resource on the
+  // hosted build. The caller was the Dynamo's bolt button, which is a weapon's
+  // meter sitting in the skill row and has no painting of its own
+  // (`SkillBar.boltSlot`), and any skill whose `art` is null would have done
+  // the same.
+  //
+  // Guarded HERE rather than only at that call site because this is the one
+  // place a URL is built from an id: every future caller with an empty, blank
+  // or optional id gets the drawing instead of a 404.
+  if (!id || !id.trim()) return null
+
   const cacheKey = `${kind}/${id}`
   let probe = probes.get(cacheKey)
 

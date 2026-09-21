@@ -61,7 +61,13 @@
           )
 
         //- The glyph, or its painting once the art pipeline has one — see `ArtIcon`.
-        ArtIcon.skills__icon(kind="ui" :id="s.art" :fallback="s.icon")
+        //- A slot with no art id at all (the Dynamo's bolt, a skill whose `art`
+        //- is null) goes straight to the glyph: asking for `ui/` + `.webp` is a
+        //- request for a file that cannot exist, and CrazyGames' QA reads the
+        //- 404 as a missing resource. `spriteFor` refuses it too — this is the
+        //- half that also skips the component.
+        ArtIcon.skills__icon(v-if="s.art" kind="ui" :id="s.art" :fallback="s.icon")
+        GameIcon.skills__icon(v-else :name="s.icon")
 
         //- Seconds remaining, so the wait is a number and not a guess.
         //-
@@ -78,6 +84,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ArtIcon from '@/components/icons/ArtIcon.vue'
+import GameIcon from '@/components/icons/GameIcon.vue'
 import SkillMystery from '@/components/game/SkillMystery.vue'
 import useSounds from '@/use/useSound'
 import {

@@ -46,8 +46,9 @@ import {
   WEAPON_REVEAL_S, damageAtReach, fightHitShare, isWeaponId, weaponStreams,
   DYNAMO_BOLT_HALF_W, DYNAMO_BOLT_MULT, DYNAMO_BOLT_S, DYNAMO_CHARGE_PER_DPS,
   GILD_BURST_R, GILD_BURST_SECONDS, GILD_STAND_S,
-  THRALL_HIT_CD, THRALL_HIT_SECONDS, THRALL_HP_MIN, THRALL_HP_SHARE, THRALL_LEAD,
-  THRALL_REACH, THRALL_RISE_S, THRALL_SPEED, THRALL_SPREAD,
+  THRALL_BOSS_PULL_R, THRALL_HIT_CD, THRALL_HIT_SECONDS, THRALL_HP_MIN, THRALL_HP_SHARE,
+  THRALL_LANDMARK_PULL, THRALL_LEAD, THRALL_LEAD_MAX,
+  THRALL_REACH, THRALL_RISE_S, THRALL_SPEED, THRALL_SPREAD, thrallCapFor,
   type Guard, type Lever, type Statue, type Stone, type Thrall,
   type WeaponBox, type WeaponId
 } from '@/game/weapons'
@@ -198,6 +199,12 @@ import {
   type BossKind,
   type BossVerb
 } from '@/game/threats'
+import {
+  WYRM_BREATH_SHARE_MUL, WYRM_FLARES, WYRM_FLARE_SHARE, WYRM_SPITS, WYRM_SPIT_LEAD, WYRM_SPIT_R,
+  WYRM_SPIT_SHARE, WYRM_SPIT_S, WYRM_SWEEP_S,
+  inWyrmFlame, inWyrmSpines, inWyrmSpit,
+  wyrmFlareAt, wyrmFlareX, wyrmGapX, wyrmSpitAimAt, wyrmSpitAt, wyrmSweepDir
+} from '@/game/wyrm'
 import {
   DECOY_AHEAD, DECOY_BURST_MULT, DECOY_BURST_R, DECOY_FLIGHT_S, DECOY_GUNNER_LOCK_X,
   DECOY_PULL_R, DECOY_PULL_SPEED, DECOY_S, DECOY_SWARM_R, FROST_BRITTLE, FROST_S,
@@ -402,6 +409,17 @@ let bullets: Bullet[] = []
  * one stage, and so does what it leaves standing.
  */
 let thralls: Thrall[] = []
+/**
+ * Bodies this RUN has put down while carrying Gravecall — the cap's own counter
+ * (`thrallCapFor`).
+ *
+ * Counted here rather than off `kills` because it is the WEAPON's count: a run
+ * that picked Gravecall up on stage 12 has earned nothing with it yet, and a
+ * shared counter would hand that player the full line of dead on the first
+ * body. It survives a stage handover for the same reason the weapon does, and
+ * is cleared with the run.
+ */
+let gravecallKills = 0
 let statues: Statue[] = []
 let gates: Gate[] = []
 let dividers: Divider[] = []
@@ -610,6 +628,57 @@ let drainBeam: {
   healed: number
 } | null = null
 let drainHealed = 0
+
+/**
+ * ─── The wyrm's two attacks that outlive their own beat ─────────────────────
+ *
+ * `bossSpining` and `bossSpitting` are the latches for the cycle being WOUND
+ * UP, and they keep the discipline every latch above keeps: set in
+ * `armBossCycle` where the bag is drawn, read in `aimBoss` where the cast is
+ * announced, cleared in `throwBossAttack` where it resolves.
+ *
+ * `wyrmBreath` and `wyrmSpit` are what is left on the road once the cast has
+ * landed — the jet crossing it in four flare-ups, and the two gouts still to be
+ * spat. Both carry ONE budget across every beat they have (`left`), which is
+ * the crossrake's rule and the whole difference between an attack with four
+ * beats and four attacks: a crowd that eats every flare pays one swing, and a
+ * crowd that eats one pays a quarter of it.
+ *
+ * Both are stepped AFTER the death check in `stepBoss`, which is the opposite
+ * call from the crossrake and the same one the drain makes. A rake's second
+ * pass is a thing the claw has already let go of; a jet of fire is the wyrm's
+ * own mouth and the gouts are aimed fresh on a clock only a living boss is
+ * running, so with the boss gone there is nothing at the top of either. See
+ * `killBoss`, which ends both, and `bossOwnsCast`, which takes their marks off
+ * the road on the same frame.
+ */
+let bossSpining = false
+let bossSpitting = false
+let wyrmBreath: {
+  /** Seconds since the first flare lit. */
+  t: number
+  dir: number
+  /** The row of road the jet burns across — locked with the cast. */
+  y: number
+  /** Flares already resolved, so each lights exactly once however the frames
+   *  fall — `advanceBeats`'s guarantee, for damage instead of sound. */
+  next: number
+  left: number
+} | null = null
+let wyrmSpit: {
+  t: number
+  /** Gouts already aimed, and gouts already landed. Two indices rather than
+   *  one, because a gout is marked `WYRM_SPIT_LEAD` before it lands and both
+   *  edges have to fire exactly once. */
+  aimed: number
+  landed: number
+  /** Where each gout was aimed, written when the mark went down. The kill reads
+   *  this and never the crowd's live position — a gout that followed the crowd
+   *  between the mark and the landing would be a tell that lies. */
+  marks: Array<{ x: number; y: number }>
+  left: number
+} | null = null
+
 /** The column a charge is committed to, locked at the start of the wind-up. The
  *  band the player reads and the bodies the charge bills are the same numbers. */
 let bossChargeLane = 0
@@ -1667,6 +1736,7 @@ const resetWorld = (): void => {
   // A weapon lasts one stage and so does what it left standing: the dead it
   // raised and the gold it made. The meter goes with them — see `dynamoCharge`.
   thralls = []
+  gravecallKills = 0
   statues = []
   dynamoCharge.value = 0
   foes = []
@@ -1689,6 +1759,11 @@ const resetWorld = (): void => {
   bossDraining = false
   drainBeam = null
   drainHealed = 0
+  bossSpining = false
+  bossSpitting = false
+  wyrmBreath = null
+  wyrmSpit = null
+  wyrmArmourGates = -1
   // The late skills belong to the road they were cast on. The cooldown does not
   // (`useSkills` keeps it in the save); the freeze and the flare do.
   frostLeft = 0
@@ -3716,6 +3791,11 @@ const spawnBoss = (): void => {
   bossDraining = false
   drainBeam = null
   drainHealed = 0
+  bossSpining = false
+  bossSpitting = false
+  wyrmBreath = null
+  wyrmSpit = null
+  wyrmArmourGates = -1
   if (kind === 'summoner') priceSummonWall(adaptive, openCd)
   // A fresh stream per ATTEMPT — see `bossPatternSeed`. Counted here, where a
   // boss is made, so a retry, a rally-and-retry and a fresh career all count as
@@ -4738,6 +4818,16 @@ export type IncomingKind =
   // exactly right. Only `heal` stays down, because a bare heal is the one
   // wind-up with nothing on the road to look at — see `attackIncoming`.
   | 'shock' | 'ward' | 'gap' | 'burrow'
+  // ── The wyrm's three ──
+  //
+  // `fire` is the jet crossing the road: dodgeable, but not by standing
+  // anywhere — the answer is to be moving and to cross between the flare-ups,
+  // which is the one instruction the badge's single word cannot carry. `gap` is
+  // reused for the spines because it is the same instruction the warden's slot
+  // gives ("get to the clear ground"), and a second word for one answer is a
+  // second thing to learn. The emberspit reports as `slam`: three marks to not
+  // be standing on is the ring's instruction, three times.
+  | 'fire'
   // …and the one whose answer is neither away nor into: STOP. See `GAZE_WATCH`.
   | 'gaze'
   // The healer's drain: a column to leave. `away`, like the charge's lane.
@@ -4816,6 +4906,16 @@ export const incomingThreat = (): Incoming | null => {
   if (b && !b.dead && drainBeam && !bossAimedAtDecoy) {
     return { kind: 'drain', dodgeable: true, ttl: 0 }
   }
+  // …and the same for a jet already crossing the road or a spit mid-flight: the
+  // attack has landed but it is not over, and "look at the road" is still the
+  // instruction. Counted down to the last flare rather than to nothing, because
+  // unlike the beam these do have an end the player can wait out.
+  if (b && !b.dead && wyrmBreath && !bossAimedAtDecoy) {
+    return { kind: 'fire', dodgeable: true, ttl: Math.max(0, WYRM_SWEEP_S - wyrmBreath.t) }
+  }
+  if (b && !b.dead && wyrmSpit && !bossAimedAtDecoy) {
+    return { kind: 'slam', dodgeable: true, ttl: Math.max(0, WYRM_SPIT_S - wyrmSpit.t) }
+  }
   // A swing aimed at the flare is not coming at the crowd. The elites below are
   // still asked — they are their own fights.
   if (b && !b.dead && b.aimed && b.slamCd > 0 && !bossAimedAtDecoy) {
@@ -4836,6 +4936,12 @@ export const incomingThreat = (): Incoming | null => {
     }
     // A drain is a column to leave, so it is `away` — DODGE is the true word.
     if (b.kind === 'healer' && bossDraining) return { kind: 'drain', dodgeable: true, ttl: b.slamCd }
+    // The wyrm. The spikes mark ground to GET TO (`gap`, the warden's word);
+    // the jet and the gouts mark ground to leave. All three are answered by
+    // moving, which is what the badge is for.
+    if (bossSpining) return { kind: 'gap', dodgeable: true, ttl: b.slamCd }
+    if (bossSpitting) return { kind: 'slam', dodgeable: true, ttl: b.slamCd }
+    if (b.kind === 'wyrm') return { kind: 'fire', dodgeable: true, ttl: b.slamCd }
     if (b.kind === 'healer') {
       // A warded heal is the first version of that cast with an answer in it, so
       // it is reported as its own thing. `dodgeable` still says false — the
@@ -5204,7 +5310,11 @@ const endGrenadeLesson = (): void => {
 const raiseThrall = (f: Foe): void => {
   const def = activeWeapon.value ? WEAPONS[activeWeapon.value] : null
   if (!def || def.raises <= 0 || f.elite) return
-  if (thralls.length >= def.raises) return
+  // Every body counts toward the cap, including the ones there is no room for:
+  // the count is what the weapon has KILLED, and a player fighting at the cap is
+  // still earning the next slot. See `thrallCapFor`.
+  gravecallKills++
+  if (thralls.length >= Math.min(def.raises, thrallCapFor(gravecallKills))) return
   const power = weaponPowerMul(activeWeapon.value!)
   thralls.push({
     id: entityId++,
@@ -5261,20 +5371,27 @@ const stepThralls = (dt: number): void => {
       continue
     }
 
-    // What it is going for: the nearest hostile ahead of the crowd, the boss
-    // included. A thrall that has nothing to fight walks the lead line.
+    // ── What it is going for, and why the big ones win ──
+    //
+    // The nearest hostile, with a LANDMARK counted as if it were much nearer:
+    // the owner's brief for the weapon is that the dead are worth having
+    // "primarily" against minibosses and bosses, and nearest-wins spent them on
+    // whichever creep happened to be underfoot. The discount is a preference
+    // and not a rule — a creep actually in its face is still closer than an
+    // elite across the road, so a thrall never walks past the thing that is
+    // biting it.
     let target: { x: number; y: number; bite: () => void } | null = null
     let best = Number.POSITIVE_INFINITY
     for (const f of foes) {
       if (f.dead) continue
-      const d = Math.hypot(f.x - t.x, f.y - t.y)
+      const d = Math.hypot(f.x - t.x, f.y - t.y) * (f.elite ? THRALL_LANDMARK_PULL : 1)
       if (d >= best) continue
       best = d
       target = { x: f.x, y: f.y, bite: () => damageFoe(f, hit) }
     }
     const b = boss
     if (b && !b.dead) {
-      const d = Math.hypot(b.x - t.x, b.y - t.y)
+      const d = Math.hypot(b.x - t.x, b.y - t.y) * THRALL_LANDMARK_PULL
       if (d < best) {
         best = d
         // Through the guard, like a barrel and the grenade: a phase the player
@@ -5288,8 +5405,28 @@ const stepThralls = (dt: number): void => {
     // crowd. Clamped to the lane and to a band around the squad's column, so a
     // thrall is always somewhere the player can see it doing its job.
     const wantX = target ? target.x : anchorX
-    const wantY = target ? target.y : anchorY + THRALL_LEAD
+    // Leashed: it will walk out to meet something, but never past the band the
+    // camera shows — see `THRALL_LEAD_MAX`.
+    const wantY = Math.min(
+      anchorY + THRALL_LEAD_MAX,
+      target ? target.y : anchorY + THRALL_LEAD
+    )
     const cx = Math.max(anchorX - THRALL_SPREAD, Math.min(anchorX + THRALL_SPREAD, wantX))
+    // ── Carried with the road FIRST, and this is the whole fix ──
+    //
+    // The road runs at `stageSpeed` — 5.1 units a second at stage 1, 7.4 late —
+    // and a thrall closes at `THRALL_SPEED` = 3.4. Walking in world units, it
+    // therefore lost about two units a second to the crowd it was supposed to
+    // be walking in FRONT of, sat on the floor below (`anchorY - 1.5`) for the
+    // rest of the road, met nothing and swung at nothing. The owner read the
+    // result exactly right: "the revived monster stays behind the squad instead
+    // of running ahead and attacking".
+    //
+    // So it rides the road like everything else standing on it, and
+    // `THRALL_SPEED` becomes what its own comment always claimed: the speed it
+    // closes the last few units at. `anchorStepY` is the crowd's own advance,
+    // already kept for the flare's gathered bodies.
+    t.y += anchorStepY
     const step = THRALL_SPEED * dt
     const dx = cx - t.x
     const dy = wantY - t.y
@@ -5311,6 +5448,23 @@ const stepThralls = (dt: number): void => {
       pushFx({ kind: 'thrallHit', x: t.x, y: t.y })
     }
   }
+}
+
+/**
+ * The x of the nearest thrall close enough to hold the boss's attention, or
+ * `null` when none is — see `THRALL_BOSS_PULL_R`.
+ */
+const thrallPullX = (b: Boss): number | null => {
+  let best = THRALL_BOSS_PULL_R
+  let x: number | null = null
+  for (const t of thralls) {
+    if (t.dead || t.rising > 0) continue
+    const d = Math.hypot(t.x - b.x, t.y - b.y)
+    if (d > best) continue
+    best = d
+    x = t.x
+  }
+  return x
 }
 
 /**
@@ -5336,6 +5490,36 @@ const hurtThrall = (t: Thrall, amount: number): void => {
   if (t.hp > 0) return
   t.dead = true
   pushFx({ kind: 'thrallFall', x: t.x, y: t.y })
+}
+
+/**
+ * ─── A boss's big attack burns what the player raised, too ──────────────────
+ *
+ * Every area attack in this game bills the CROWD: a share of the survivors
+ * standing in the shape (`bossHitBudget`). Thralls are not survivors, so until
+ * now nothing a boss threw could touch one — and measured, nine of them stood
+ * on a boss for a thirteen-second fight and took not a scratch. A weapon whose
+ * help cannot be destroyed at the one fight it was bought for is a weapon that
+ * ends the fight, and Gravecall is meant to be a line the player has to keep
+ * feeding.
+ *
+ * So the shapes burn them as well — and NOT out of the crowd's budget. The
+ * budget is a promise about survivors ("a hit you did not dodge costs about a
+ * third of your crowd") and spending it on the dead would quietly make every
+ * boss easier for the one weapon that raises them. A thrall caught in a ring
+ * simply dies; the ring takes the same share of the crowd either way.
+ *
+ * In practice the line is safest exactly where the player put it: a ring is
+ * aimed at the CROWD, so the dead standing on the boss are usually outside it,
+ * and it is the stragglers that burn.
+ */
+const scorchThralls = (hits: (t: Thrall) => boolean): void => {
+  if (thralls.length === 0) return
+  for (const t of thralls) {
+    if (t.dead || t.rising > 0) continue
+    if (!hits(t)) continue
+    hurtThrall(t, t.maxHp)
+  }
 }
 
 // --- The Hoard: a corpse, in gold ------------------------------------------
@@ -9053,6 +9237,11 @@ const stepBoss = (dt: number): void => {
   // is no beam. `killBoss` ends it on the kill, and a frozen fight (above)
   // leaves it hanging exactly where the ice found it.
   if (drainBeam) stepDrainBeam(b, dt)
+  // …and the wyrm's two that outlive their own beat, on the same rule and for
+  // the same reason: the jet is the boss's mouth and the gouts are aimed on a
+  // clock only a living boss is running. `killBoss` ends both.
+  if (wyrmBreath) stepWyrmBreath(b, dt)
+  if (wyrmSpit) stepWyrmSpit(b, dt)
 
   // ── While the eye is open, the rest of the boss is not ──
   //
@@ -9084,7 +9273,14 @@ const stepBoss = (dt: number): void => {
   // So is a healer holding a drain: the beam is drawn from its hands, and a body
   // that drifted after the crowd would bend the one column on the road the
   // player is reading.
-  else if (b.guard <= 0 && !drainBeam) {
+  // …and a WYRM mid-attack is immune without being planted. Its armour
+  // (`armourWyrm`) borrows the guard's latch for the damage and the shield, and
+  // borrowing the plant with it was a bug with a visible symptom: the walk-in
+  // is what carries the boss from the arena mouth to its hold position, so a
+  // wyrm that breathed on its way in stopped where it was and spent the fight
+  // ten units up the road, off the top of the view. Measured at y = 361.8
+  // against a crowd at 351.1.
+  else if ((b.guard <= 0 || wyrmArmourGates >= 0) && !drainBeam) {
     const holdY = anchorY + BOSS_HOLD_AHEAD
     if (b.y > holdY) b.y = Math.max(holdY, b.y - b.speed * dt)
     else b.y += (holdY - b.y) * Math.min(1, dt * 1.4)
@@ -9092,9 +9288,22 @@ const stepBoss = (dt: number): void => {
     // Track the crowd slowly — slowly enough that a player who keeps moving is
     // never cornered, which is the skill the fight tests. A burning flare is
     // tracked instead: the boss turns to face what it is about to swing at.
-    const trackX = lureFor(null)?.x ?? anchorX
-    b.x += Math.max(-1.1 * dt, Math.min(1.1 * dt, (trackX - b.x) * dt * 1.6))
-    b.x = Math.max(-LANE_HALF + 1, Math.min(LANE_HALF - 1, b.x))
+    //
+    // …and so is a THRALL in contact (`THRALL_BOSS_PULL_R`): a body the player
+    // raised and sent in takes the boss's attention off their column for as
+    // long as it stands there. It moves the body only — the swing is still
+    // aimed at the crowd by `aimBoss` — so the dead can pull the fight around
+    // without being able to switch its damage off.
+    //
+    // NOT while the jet is burning: the fire's row was locked when the cast
+    // went down (`aimWyrm`), and a body drifting after the crowd underneath it
+    // is the drain's argument — it bends the one thing on the road the player
+    // is reading.
+    if (wyrmBreath === null) {
+      const trackX = lureFor(null)?.x ?? thrallPullX(b) ?? anchorX
+      b.x += Math.max(-1.1 * dt, Math.min(1.1 * dt, (trackX - b.x) * dt * 1.6))
+      b.x = Math.max(-LANE_HALF + 1, Math.min(LANE_HALF - 1, b.x))
+    }
   }
 
   // The summoner has no attack, so it never touches the wind-up clock at all —
@@ -9447,6 +9656,11 @@ const armBossCycle = (b: Boss): void => {
   bossCharging = verb === 'charge'
   bossVarying = verb === 'variant'
   bossGazing = verb === 'gaze'
+  // The wyrm's other two. Latched here with the rest and for the rest's reason:
+  // one draw decides the cycle, so no two of these can ever be true at once and
+  // there is no tie-break left to get wrong.
+  bossSpining = verb === 'spines'
+  bossSpitting = verb === 'spit'
   // The charged ring is every `CHARGED_EVERY`-th RING, counted over `primaries`
   // rather than over every swing — the meteor's own escalation, which a bag
   // would otherwise dilute into something the player might never see.
@@ -9470,6 +9684,59 @@ const armBossCycle = (b: Boss): void => {
  * place that can be wrong about where an attack is going: the mark, the sound
  * and the kill all read `slamX` / `slamY`, which were written on the line above.
  */
+/**
+ * ─── Announcing the wyrm's three ────────────────────────────────────────────
+ *
+ * All three are aimed with NO lead, and that is one decision rather than three
+ * coincidences: every one of them is answered by MOVING, and the charge's rule
+ * says a mark the player is moving toward may not move while they are on their
+ * way to it. The meteor leads because its answer is "do not be where you were";
+ * every attack here asks "be somewhere else by then", and a lead would make the
+ * answer a moving target.
+ *
+ * What a burning flare does to each of them is the same promise the ring keeps:
+ * the boss attacks the LIGHT. The jet burns across the flare's row rather than
+ * the crowd's, so a well-thrown decoy takes a whole sweep off the road; the
+ * spikes open their gap away from the flare, which is where the crowd standing
+ * clear of it usually is; and the gouts chase the light. See `aimFocus`.
+ */
+const aimWyrm = (b: Boss, aim: { x: number; y: number; lured: boolean }): void => {
+  const ttl = Math.max(0.15, b.slamCd)
+  if (aim.lured) bossAimedAtDecoy = true
+
+  if (bossSpining) {
+    // The gap, locked now and drawn now: the whole wind-up is the read, and the
+    // move it asks for (`WYRM_GAP_SHIFT`) is sized against the wind-up it is
+    // given. `slamX` is the middle of the SAFE ground — the one attack in the
+    // game whose mark means "here" rather than "not here", the shock's
+    // inversion, and the renderer has to make that unmistakable.
+    b.slamX = wyrmGapX(aim.x)
+    b.slamY = anchorY
+    pushFx({ kind: 'spinesCast', x: b.slamX, y: b.slamY, ttl })
+    return
+  }
+
+  if (bossSpitting) {
+    // Only the FIRST gout is aimed here. The other two are aimed as they are
+    // thrown (`stepWyrmSpit`), each on its own `WYRM_SPIT_LEAD`, because a spit
+    // that marked all three up front would be answered once instead of three
+    // times — and being answered three times is the attack.
+    b.slamX = Math.max(-LANE_HALF + 1, Math.min(LANE_HALF - 1, aim.x))
+    b.slamY = aim.lured ? aim.y : anchorY
+    pushFx({ kind: 'spitCast', x: b.slamX, y: b.slamY, r: WYRM_SPIT_R, ttl })
+    return
+  }
+
+  // The breath. `slamX` is the edge the jet STARTS on and `slamY` the row it
+  // burns across, both locked here: the sweep's whole geometry is a function of
+  // those two and the direction, so the mark the player reads during the
+  // wind-up is the fire that arrives, flare for flare.
+  const dir = wyrmSweepDir(aim.x)
+  b.slamX = wyrmFlareX(0, dir)
+  b.slamY = aim.lured ? aim.y : anchorY
+  pushFx({ kind: 'breathCast', x: b.slamX, y: b.slamY, dir, ttl })
+}
+
 const aimBoss = (b: Boss, leadMul = 1): void => {
   // A burning flare is where every aimed attack below goes (`aimFocus`) — the
   // ring, the rake, the bolt and the charge. The gaze and the shock are not
@@ -9489,6 +9756,11 @@ const aimBoss = (b: Boss, leadMul = 1): void => {
       kind: 'gazeCast', x: b.x, y: b.y,
       ttl: Math.max(0.15, b.slamCd), watch: GAZE_WATCH
     })
+    return
+  }
+
+  if (b.kind === 'wyrm') {
+    aimWyrm(b, aim)
     return
   }
 
@@ -9783,6 +10055,18 @@ const throwBossAttack = (b: Boss): void => {
     return
   }
 
+  // The wyrm's other two, routed here for the variant's reason: they are second
+  // and third verbs bolted onto one fight rather than three archetypes, and
+  // they resolve off the same clock through one branch each.
+  if (bossSpining) {
+    throwWyrmSpines(b)
+    return
+  }
+  if (bossSpitting) {
+    throwWyrmSpit(b)
+    return
+  }
+
   // …and the third verb, the same way. Cleared HERE rather than inside the
   // throw, because the healer decides its next cast in the same breath as it
   // throws this one and may set the latch again for it.
@@ -9835,6 +10119,16 @@ const throwBossAttack = (b: Boss): void => {
     return
   }
 
+  if (b.kind === 'wyrm') {
+    // The jet, on the rake's shape: the cycle is armed before the attack lands
+    // so the wind-up that follows is decided by the bag rather than by whatever
+    // the sweep leaves behind, and `throwWyrmBreath` then pushes it back behind
+    // the fire it has just put on the road.
+    armBossCycle(b)
+    throwWyrmBreath(b)
+    return
+  }
+
   // Every third RING, and the wind-up stretches to pay for the size of it —
   // decided in `armBossCycle`, which is where the bag says what comes next.
   armBossCycle(b)
@@ -9857,6 +10151,14 @@ const throwBossAttack = (b: Boss): void => {
   // slam that connects at all is comfortably over the threshold: this is the
   // blow the pickup is bought for, and the reason its box is authored in the
   // last quarter of the road.
+  // The ring burns the dead standing in it as well, outside the crowd's own
+  // budget — see `scorchThralls`. Before the dome's veto, because a shield over
+  // the crowd was never a shield over them.
+  scorchThralls((t) => {
+    const dx = t.x - b.slamX
+    const dy = t.y - b.slamY
+    return dx * dx + dy * dy <= radius * radius
+  })
   if (absorbedBlow(budget, b.slamX, b.slamY, (u) => {
     const dx = u.x - b.slamX
     const dy = u.y - b.slamY
@@ -9968,6 +10270,9 @@ const throwBossCharge = (b: Boss): void => {
   // above on why the kill is the column. The pickup has to price the attack the
   // sim actually resolves, or it would veto a charge on bodies the charge was
   // never going to bill.
+  // The body comes down the whole column, so what it runs over includes the
+  // dead — outside the crowd's budget, as everywhere else.
+  scorchThralls((t) => Math.abs(t.x - bossChargeLane) <= bossChargeHalfW)
   if (absorbedBlow(budget, bossChargeLane, bossChargeToY, inLane)) return
   for (const u of units) {
     if (budget <= 0) break
@@ -10040,6 +10345,7 @@ const throwShock = (b: Boss): void => {
 
   let budget = bossHitBudget(bossHitShare())
   const burns = (u: Unit): boolean => inShockBand(u.x - b.slamX, u.y - b.slamY, outer)
+  scorchThralls((t) => inShockBand(t.x - b.slamX, t.y - b.slamY, outer))
   if (absorbedBlow(budget, b.slamX, b.slamY, burns)) return
   for (const u of units) {
     if (budget <= 0) break
@@ -10134,6 +10440,10 @@ const throwCrossrake = (b: Boss): void => {
  * crossed it twice.
  */
 const rakePass = (lanes: readonly number[], y: number, halfW: number, origin: number): void => {
+  // The furrows take the dead standing in them whether or not the pass has any
+  // budget left for the crowd — see `scorchThralls`.
+  scorchThralls((t) =>
+    Math.abs(t.y - y) <= CLAW_HALF_DEPTH && inClawFurrow(t.x, lanes, halfW))
   if (!crossrake || crossrake.left <= 0) return
   for (const u of units) {
     if (crossrake.left <= 0) break
@@ -10171,6 +10481,284 @@ const stepCrossrake = (dt: number): void => {
   })
   rakePass(pass.lanes, pass.y, pass.halfW, pass.lanes[1] ?? 0)
   crossrake = null
+}
+
+// ─── The wyrm's three ───────────────────────────────────────────────────────
+//
+// `game/wyrm.ts` holds the design and every number in it; this is the half that
+// bills. Three rules run through all of it and none of them is new:
+//
+//   • ONE SWING, whatever its shape. Each attack is handed `bossHitShare` once
+//     and spends it across however many beats it has, which is the crossrake's
+//     rule (`throwCrossrake`) and the reason a four-flare jet is an attack with
+//     four answers rather than four attacks.
+//   • THE TELL IS THE KILL. Every shape below is `inWyrmFlame`, `inWyrmSpines`
+//     or `inWyrmSpit`, the same three functions the renderer paints from.
+//   • A BEAT FIRES ONCE. `next` / `aimed` / `landed` only ever move forward, so
+//     a long frame that jumps two flares lands both, in order, and a frame that
+//     does not move the clock lands none — `advanceBeats`'s guarantee, for
+//     damage.
+
+/**
+ * The breath: a jet of fire swept across the road in four timed flare-ups.
+ *
+ * The cast is the inhale; this is the frame it leaves the mouth. The sweep then
+ * runs on its own clock for `WYRM_SWEEP_S`, which is longer than a cycle once
+ * the fight has raged a little — so the next cycle is pushed back behind it,
+ * the drain's rule (`throwHealerCast`): the jet is the boss's whole attention,
+ * and a second attack armed underneath it would be two answers asked for at
+ * once, one of which is "keep moving" and the other "stand still".
+ */
+const throwWyrmBreath = (b: Boss): void => {
+  // `slamX` is the edge the jet starts on (`aimWyrm`), so the way it travels is
+  // away from that edge — derived from the mark rather than stored beside it,
+  // because a tell drawn from one copy and a kill billed from another is
+  // exactly the bug this file keeps writing essays about.
+  wyrmBreath = {
+    t: 0,
+    dir: b.slamX > 0 ? -1 : 1,
+    y: b.slamY,
+    next: 0,
+    // Nearly two swings across the four flares — the drain's exception, for the
+    // drain's reason. See `WYRM_BREATH_SHARE_MUL`.
+    left: bossHitBudget(bossHitShare(WYRM_BREATH_SHARE_MUL))
+  }
+  b.slamCd += WYRM_SWEEP_S
+  // ── Armoured while it burns ──
+  //
+  // The jet takes two seconds to cross the road and the crowd's guns do not
+  // stop for it, so the fight's signature move was being answered by a boss
+  // that died halfway through it (owner, on the first playtest). A wyrm mid
+  // attack is committed — the body is thrown forward and the whole of it is
+  // breath — so it is untouchable until the last flare goes out, and the player
+  // is shown the shield they already know from a guard phase.
+  armourWyrm(b)
+  stepWyrmBreath(b, 0)
+}
+
+/**
+ * ─── The wyrm is armoured while it is performing ────────────────────────────
+ *
+ * `b.guard` is the game's one "immune and planted" latch: `damageBoss` refuses
+ * gunfire through it, `stepBoss` stops the body chasing, and the renderer puts
+ * the hex and the crest up. All three are exactly what a wyrm mid attack wants,
+ * so the attack borrows the latch rather than inventing a second kind of
+ * immunity the player would have to learn separately.
+ *
+ * What it must not do is swallow a GUARD PHASE. A barrel blast goes through the
+ * shield (`throughGuard`) and can carry the boss onto a gate while the jet is
+ * still burning, and that gate raises its own shield which is owed a swing. So
+ * the release is conditional on the gate count being the one we armoured at: if
+ * a phase turned while the attack was performing, the phase owns the shield now
+ * and lets it go itself.
+ */
+let wyrmArmourGates = -1
+const armourWyrm = (b: Boss): void => {
+  wyrmArmourGates = b.guarded
+  b.guard = 1
+}
+const releaseWyrmArmour = (b: Boss): void => {
+  if (wyrmArmourGates < 0) return
+  const gates = wyrmArmourGates
+  wyrmArmourGates = -1
+  if (b.guarded !== gates) return
+  b.guard = 0
+}
+
+/**
+ * One frame of the jet. Every flare whose moment has passed lights, once.
+ *
+ * Stepped AFTER the death check in `stepBoss` — see the note on `wyrmBreath`.
+ */
+const stepWyrmBreath = (b: Boss, dt: number): void => {
+  const jet = wyrmBreath
+  if (!jet) return
+  if (phase.value !== 'boss') {
+    wyrmBreath = null
+    releaseWyrmArmour(b)
+    return
+  }
+  jet.t += dt
+  while (jet.next < WYRM_FLARES && jet.t >= wyrmFlareAt(jet.next)) {
+    flare(b, jet, jet.next)
+    jet.next++
+  }
+  if (jet.t >= WYRM_SWEEP_S) {
+    wyrmBreath = null
+    releaseWyrmArmour(b)
+  }
+}
+
+/** One flare-up: the fire lands in a column and takes its share of the sweep's
+ *  one budget out of whoever is standing in it. */
+const flare = (b: Boss, jet: NonNullable<typeof wyrmBreath>, i: number): void => {
+  const x = wyrmFlareX(i, jet.dir)
+  pushFx({ kind: 'wyrmFlare', x, y: jet.y, i, dir: jet.dir })
+  if (jet.left <= 0) return
+  const burns = (u: Unit): boolean => inWyrmFlame(u.x - x, u.y - jet.y)
+  scorchThralls((t) => inWyrmFlame(t.x - x, t.y - jet.y))
+  // A quarter of the swing per flare, and the remainder carries: a crowd that
+  // dodges three and eats one pays a quarter of a swing, and one that stands in
+  // all four pays the swing. `Math.ceil` so a small crowd's flare still takes
+  // somebody — a budget that rounds to zero is an attack that does not exist.
+  // A quarter of what is LEFT of the attack's budget, and never more than one
+  // hit's ceiling: the sweep as a whole is worth nearly two swings
+  // (`WYRM_BREATH_SHARE_MUL`), and a single flare that could take all of that
+  // would be the multi-beat attack quietly becoming one big one.
+  const share = Math.min(
+    jet.left,
+    bossHitBudget(SLAM_FRACTION_MAX),
+    Math.ceil(jet.left * WYRM_FLARE_SHARE)
+  )
+  // The dome eats the whole SWEEP, not one flare of it. The pickup promises to
+  // stop the next big hit, and the jet is one big hit with four landings — the
+  // crossrake's argument, arrived at the only way a moving attack allows: on
+  // the first flare that would have taken anybody.
+  if (absorbedBlow(share, x, jet.y, burns)) {
+    jet.left = 0
+    return
+  }
+  let budget = share
+  for (const u of units) {
+    if (budget <= 0) break
+    if (u.dying > 0) continue
+    if (!burns(u)) continue
+    // Flung along the road rather than across it: the jet is a wall moving
+    // sideways, and bodies thrown out of its path would read as the fire
+    // pushing survivors to safety.
+    killUnit(u, Math.sign(u.x - x) || jet.dir, 'slam')
+    budget--
+    jet.left--
+  }
+}
+
+/**
+ * The spines: a wall of bone through the road with one gap in it.
+ *
+ * The one attack of the three that is answered by a single committed move, made
+ * during the wind-up and made once. It lands whole, on the beat, and is over —
+ * so unlike the other two it costs the cycle nothing.
+ */
+const throwWyrmSpines = (b: Boss): void => {
+  bossSpining = false
+  b.slams++
+  b.slamSpan = bossSpan(b)
+  armBossCycle(b)
+
+  const gap = b.slamX
+  pushFx({ kind: 'wyrmSpines', x: gap, y: b.slamY })
+  let budget = bossHitBudget(bossHitShare())
+  const spiked = (u: Unit): boolean => inWyrmSpines(u.x, u.y, gap, b.slamY)
+  scorchThralls((t) => inWyrmSpines(t.x, t.y, gap, b.slamY))
+  if (absorbedBlow(budget, gap, b.slamY, spiked)) return
+  for (const u of units) {
+    if (budget <= 0) break
+    if (u.dying > 0) continue
+    if (!spiked(u)) continue
+    // Thrown TOWARD the gap, so the bodies the wall takes leave in the
+    // direction the survivors were supposed to go — the shock's rule, which
+    // flings outward from its eye for the same reason.
+    killUnit(u, Math.sign(gap - u.x) || 1, 'slam')
+    budget--
+  }
+}
+
+/**
+ * The emberspit: three gouts, each aimed fresh at where the crowd IS.
+ *
+ * The first lands on the cast's own beat; the other two are aimed and thrown by
+ * the stepper, each with its own `WYRM_SPIT_LEAD` of warning. That is the whole
+ * attack — a crowd that stopped moving is under all three, and a crowd that
+ * keeps drifting is under none, with no position anywhere on the road that is
+ * safe from it.
+ */
+const throwWyrmSpit = (b: Boss): void => {
+  bossSpitting = false
+  b.slams++
+  b.slamSpan = bossSpan(b)
+  armBossCycle(b)
+  // Behind the spit, for the breath's reason: the gouts are still being aimed,
+  // and a cast armed under them would be a second thing to read while the
+  // player is reading three.
+  b.slamCd += WYRM_SPIT_S
+
+  // ── The spit is NOT armoured, and that is a measurement ──
+  //
+  // The jet is: two seconds of dodging in which the crowd's fire does nothing,
+  // so the attack always finishes. Giving the spit the same protection looked
+  // consistent and cost another 1.2 s of every third cycle — measured, a
+  // stage-3 fight ran 10.5-11.3 s against the ten-second ceiling the brief puts
+  // on a hopeless crowd's climax (`balance.test.ts`), and a stage-12 wyrm could
+  // not be killed at all by a strong build that ignores its attacks.
+  //
+  // It also asks for less. Three gouts land in 1.2 s and each is its own quick
+  // read, so a boss killed between the first and the third has not interrupted
+  // anything the player was in the middle of answering — which is the whole
+  // argument the jet's armour rests on.
+  wyrmSpit = {
+    t: 0,
+    aimed: 1,
+    landed: 0,
+    // The first gout's mark went down with the cast (`aimWyrm`), so its aim is
+    // already locked and is read from the boss rather than re-taken here.
+    marks: [{ x: b.slamX, y: b.slamY }],
+    left: bossHitBudget(bossHitShare())
+  }
+  stepWyrmSpit(b, 0)
+}
+
+/** One frame of a spit: aim what is due to be aimed, land what is due to land. */
+const stepWyrmSpit = (b: Boss, dt: number): void => {
+  const spit = wyrmSpit
+  if (!spit) return
+  if (phase.value !== 'boss') {
+    wyrmSpit = null
+    return
+  }
+  spit.t += dt
+
+  // Aim first, so a frame long enough to contain both edges of one gout marks
+  // it before it lands rather than after.
+  while (spit.aimed < WYRM_SPITS && spit.t >= wyrmSpitAimAt(spit.aimed)) {
+    const at = aimFocus()
+    const x = Math.max(-LANE_HALF + 1, Math.min(LANE_HALF - 1, at.x))
+    const y = at.lured ? at.y : anchorY
+    spit.marks.push({ x, y })
+    pushFx({ kind: 'spitCast', x, y, r: WYRM_SPIT_R, ttl: WYRM_SPIT_LEAD })
+    spit.aimed++
+  }
+
+  while (spit.landed < spit.aimed && spit.t >= wyrmSpitAt(spit.landed)) {
+    gout(spit, spit.landed)
+    spit.landed++
+  }
+
+  if (spit.landed >= WYRM_SPITS) wyrmSpit = null
+}
+
+/** One gout, landing on the ground it marked `WYRM_SPIT_LEAD` ago. */
+const gout = (spit: NonNullable<typeof wyrmSpit>, i: number): void => {
+  const mark = spit.marks[i]
+  if (!mark) return
+  pushFx({ kind: 'wyrmSpit', x: mark.x, y: mark.y, r: WYRM_SPIT_R, i })
+  if (spit.left <= 0) return
+  const burns = (u: Unit): boolean => inWyrmSpit(u.x - mark.x, u.y - mark.y)
+  scorchThralls((t) => inWyrmSpit(t.x - mark.x, t.y - mark.y))
+  const share = Math.min(spit.left, Math.ceil(spit.left * WYRM_SPIT_SHARE))
+  // The dome eats the whole spit — the flare's argument, for the same reason.
+  if (absorbedBlow(share, mark.x, mark.y, burns)) {
+    spit.left = 0
+    return
+  }
+  let budget = share
+  for (const u of units) {
+    if (budget <= 0) break
+    if (u.dying > 0) continue
+    if (!burns(u)) continue
+    killUnit(u, Math.sign(u.x - mark.x) || 1, 'slam')
+    budget--
+    spit.left--
+  }
 }
 
 /**
@@ -10560,6 +11148,44 @@ const endDrain = (): void => {
   drainBeam = null
   pushFx({ kind: 'drainEnd', x: beam.x, y: beam.y, taken: beam.taken, healed: beam.healed })
 }
+
+/**
+ * Which stage the wyrm is on, re-exported for the dev cheat.
+ *
+ * `useCheats` may only reach the model through a DYNAMIC import (its own note
+ * has the reason — a static one drags the track generator and the sprite bakers
+ * into the entry chunk for every player), so a constant it needs has to be
+ * reachable from the module it is already importing that way.
+ */
+export { WYRM_STAGE } from '@/game/threats'
+
+/**
+ * Is the shield up because the wyrm is mid-ATTACK, rather than because a guard
+ * gate is being paid off?
+ *
+ * The two are the same latch (`armourWyrm` borrows `b.guard`, so the damage
+ * rule and the "stop shooting" reading are shared), and the renderer needs them
+ * apart for one reason: a guard phase is a beat in which the boss stands still
+ * and the barrier IS the event, so it is painted full — hex, crest and all,
+ * which covers the body. An attack armour is the opposite: the body is the
+ * event, it is playing the animation the fight is named for, and a crest over
+ * it hides the one thing the player should be watching.
+ */
+export const bossAttackArmoured = (): boolean =>
+  wyrmArmourGates >= 0 && boss !== null && !boss.dead && boss.guard > 0
+
+/**
+ * The jet while it is crossing the road, for the renderer's body pose. `null`
+ * the moment the boss is dead — the fire is its breath, not an object in the
+ * world, which is the drain beam's rule below and the same argument.
+ *
+ * The flares themselves are events (`wyrmFlare`), not read from here: each one
+ * is a moment the simulation billed, and a renderer that painted fire from this
+ * object instead would be painting a second, unbilled copy of the attack.
+ */
+export const getWyrmBreath = (): Readonly<{
+  t: number; dir: number; y: number; next: number
+}> | null => (wyrmBreath && boss && !boss.dead ? wyrmBreath : null)
 
 /**
  * The beam while it is on the road, for the renderer and the badge. `null` the
@@ -11061,6 +11687,15 @@ const killBoss = (): void => {
   // — the renderer takes its column off the road on `bossDie` (`bossOwnsCast`).
   endDrain()
   bossDraining = false
+  // …and the fire goes out with it. A jet is the wyrm's own breath and the
+  // gouts are aimed fresh every `WYRM_SPIT_GAP`, so neither can be kept by a
+  // corpse — the renderer takes their marks off the road on `bossDie`
+  // (`bossOwnsCast`), and this is the half that stops them billing.
+  wyrmBreath = null
+  wyrmSpit = null
+  wyrmArmourGates = -1
+  bossSpining = false
+  bossSpitting = false
   // …and shuts the eye. A watch left running over a corpse would freeze
   // nothing (the dead boss has no clock) and still hold the corner badge up.
   bossGazing = false

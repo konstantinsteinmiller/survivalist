@@ -32,14 +32,20 @@
  * down the road for a second and a half, painted straight from the world by
  * `drawRollers`, so it has no entry in the cast pool at all.
  */
-export type CastKind = 'meteor' | 'slice' | 'bomb' | 'bolt' | 'charge' | 'shock' | 'ward' | 'drain'
+export type CastKind =
+  | 'meteor' | 'slice' | 'bomb' | 'bolt' | 'charge' | 'shock' | 'ward' | 'drain'
+  | 'breath' | 'spines' | 'spit'
 
 /**
  * Does the BOSS own this wind-up?
  *
  * The mapping is exact today and each half of it is emitted from one place:
  *
- *   BOSS       `meteor`, `charge`, `shock`, `drain` — all four from `aimBoss`
+ *   BOSS       `meteor`, `charge`, `shock`, `drain`, `breath`, `spines`,
+ *              `spit` — all of them from `aimBoss`, except the wyrm's second
+ *              and third gouts, which are aimed by `stepWyrmSpit` as they are
+ *              thrown (see `WYRM_SPIT_LEAD`) and are the boss's for the same
+ *              reason the first one is
  *   MINIBOSS   `bomb` (bomber, burrower), `bolt` (gunner), `slice` (scythe)
  *
  * `drain` is the healer's column, and it is the boss's in the strongest sense:
@@ -66,6 +72,14 @@ export const bossOwnsCast = (kind: CastKind): boolean => {
     case 'charge':
     case 'shock':
     case 'drain':
+    // The wyrm's three. All of them are the boss's mouth or the boss's weight:
+    // the jet is drawn FROM the body across the road, the spikes are the road
+    // breaking where it is about to land on it, and the gouts are aimed fresh
+    // at the crowd on a clock only a living boss is running. None of the three
+    // can be kept by a corpse, so none of them stays on the road past one.
+    case 'breath':
+    case 'spines':
+    case 'spit':
       return true
     case 'slice':
     case 'bomb':

@@ -47,7 +47,7 @@ export type MinibossKind =
   | 'warden' | 'burrower'
 
 /** Boss behaviours. `meteor` is the original: aim, drop a rock, slam. */
-export type BossKind = 'meteor' | 'claw' | 'healer' | 'summoner'
+export type BossKind = 'meteor' | 'claw' | 'healer' | 'summoner' | 'wyrm'
 
 /** Below this stage the game fields only the two the tutorial taught. */
 export const THREAT_POOL_FROM_STAGE = 4
@@ -61,6 +61,70 @@ export const THREAT_POOL_FROM_STAGE = 4
  */
 export const MINIBOSS_POOL: readonly MinibossKind[] = ['roller', 'bomber', 'gunner', 'scythe']
 export const BOSS_POOL: readonly BossKind[] = ['claw', 'healer', 'summoner', 'meteor']
+
+/**
+ * ─── Stage 3 is the wyrm, and it is placed by hand ──────────────────────────
+ *
+ * Stages 1 and 2 are the meteor twice over, on purpose: they are the tutorial,
+ * and `bossDesign`'s note has the argument for why a first boss may not be a
+ * new silhouette. Stage 3 was the meteor a third time only because the pool
+ * opens at stage 4, and a third rehearsal of the one fight the player has
+ * already beaten twice is precisely where a session that was going to continue
+ * quietly stops — the 2026-09-20 fit test put the wall in minute two, which is
+ * where this boss stands.
+ *
+ * So the wyrm debuts here, one stage before the pool opens, and it is the one
+ * boss in the game whose stage is a literal. It has to be: the pool is a
+ * rotation over stages 4+, and "the third fight is a new one" is a statement
+ * about the FUNNEL rather than about the rotation.
+ */
+export const WYRM_STAGE = 3
+
+/** Which body the wyrm wears, always — see `bossDesign`. The same wyrmling the
+ *  burrower is, at boss size. */
+export const WYRM_DESIGN = 'skewer'
+
+/**
+ * When the wyrm comes back, and how often after that.
+ *
+ * ── Why it is a SUBSTITUTION and not a fifth entry in the pool ──
+ *
+ * The obvious thing is `BOSS_POOL.push('wyrm')`, and it is wrong twice:
+ *
+ *   • `BOSS_VARIANT_FROM_STAGE` is derived from the pool's LENGTH — the tier of
+ *     second verbs opens on the first stage that repeats a kind — and the wyrm
+ *     does not take a second verb (it arrives with three attacks; see
+ *     `bossVerbPool`). Counting it would push every other kind's second attack
+ *     out by a stage to pay for one that never arrives.
+ *   • `bossDesign` cycles FIVE bodies, and the rotation is strided modulo the
+ *     pool. A five-kind pool over a five-body cycle makes the two periods equal,
+ *     which welds every kind to one body forever: measured, it left the meteor
+ *     as Rattlejack on every stage in the game and orphaned three painted throw
+ *     sheets (`PROMPTS-HURLS.md`) that nothing would ever ask for again.
+ *
+ * Substituting instead leaves every other stage's boss EXACTLY as it was — the
+ * rotation, the designs and the art it asks for are untouched — and the period
+ * is coprime with both the pool (4) and the design cycle (5), so the wyrm lands
+ * on a different body and displaces a different kind each time.
+ *
+ * `13` is `BOSS_VARIANT_FROM_STAGE` + 5: the first tier cycles once across
+ * stages 4-7, the second verbs open on 8, and 8-11 is where the player meets
+ * each of the four again WITH its new attack. Dropping a fifth archetype into
+ * that window would spend the tier's payoff on a stranger.
+ *
+ * The fifth stage rather than the fourth is a measurement, not taste. Stage 12
+ * carries the career study's own invariant — "the end boss survives long enough
+ * to swing at least once" (`balance.test.ts`) — and it is measured by a probe
+ * that plays the ROAD well and answers no telegraph at all
+ * (`sim-policies-model-only-the-road`). A wyrm's whole price is in its
+ * telegraphs, so such a probe eats every flare of every sweep and is wiped
+ * before the bar is: measured, it arrived with 160 and lost all 160. That says
+ * nothing about the boss's pacing, which is what stage 12 is there to pin — so
+ * the invariant keeps the fight it was written for, and the wyrm comes back a
+ * stage later.
+ */
+export const BOSS_TIER2_FROM_STAGE = 13
+export const WYRM_EVERY = 7
 
 /**
  * ─── The herald: one meteor from a boss nobody has met yet ──────────────────
@@ -258,7 +322,16 @@ export const minibossDesignsFor = (stage: number): string[] =>
 
 /** Which boss kind stage `stage` ends with. */
 export const bossKindFor = (stage: number): BossKind => {
+  // The one hand-placed fight in the game — see `WYRM_STAGE`.
+  if (stage === WYRM_STAGE) return 'wyrm'
   if (stage < THREAT_POOL_FROM_STAGE) return 'meteor'
+  // …and every seventh stage from the tier on, in place of whatever the
+  // rotation would have fielded. See `WYRM_EVERY` for why it displaces rather
+  // than joins.
+  if (
+    stage >= BOSS_TIER2_FROM_STAGE &&
+    (stage - BOSS_TIER2_FROM_STAGE) % WYRM_EVERY === 0
+  ) return 'wyrm'
   const n = BOSS_POOL.length
   // Strided so the boss and the stage's first miniboss are rarely the same
   // "flavour" of fight on the same road — a projectile boss after a projectile
@@ -661,9 +734,34 @@ export const bossHpMulFor = (kind: BossKind): number => {
   switch (kind) {
     case 'healer': return 1 / (1 + HEAL_FRACTION * HEAL_EXPECTED)
     case 'summoner': return 1 - SUMMON_WALL_SHARE
+    case 'wyrm': return WYRM_ARMOUR_MUL
     default: return 1
   }
 }
+
+/**
+ * The wyrm's cut, and it is the third version of the same argument.
+ *
+ * A wyrm is UNTOUCHABLE while it performs: the jet burns across the road for
+ * `WYRM_SWEEP_S` and the spit throws for `WYRM_SPIT_S`, and through both of
+ * them the crowd's fire does nothing (`armourWyrm`). That is health the bar
+ * does not print, exactly as a healer's give-back and a summoner's wall are —
+ * so the bar is cut by what the armour is worth, for the reason the note above
+ * gives: otherwise the same stage is a different length depending on which kind
+ * it fielded, and the one the player learns it on is whichever they met first.
+ *
+ * ── Why 0.78 and not the whole of it ──
+ *
+ * Measured over a fight, the armour swallows about 37 % of the crowd's window:
+ * the bag draws its three verbs equally, so three cycles carry one sweep and
+ * one spit (3.1 s) against three wind-ups (5.4 s at the opening cadence).
+ * Cutting the bar by all of that would leave the fight exactly as long as it
+ * was — which is not what was asked for. The owner's complaint was that the
+ * boss died mid-sweep while the player was dodging, so the wyrm keeps a little
+ * of it: the fight runs about a fifth longer than the other kinds', and every
+ * attack it starts it finishes.
+ */
+export const WYRM_ARMOUR_MUL = 0.85
 
 /**
  * ─── What a guard phase turns into, per kind ────────────────────────────────
@@ -2252,7 +2350,7 @@ export const BOSS_VARIANT_FROM_STAGE = THREAT_POOL_FROM_STAGE + BOSS_POOL.length
 export const bossHasVariant = (stage: number): boolean =>
   stage >= BOSS_VARIANT_FROM_STAGE
 
-export type BossVariant = 'shock' | 'crossrake' | 'ward' | 'flanks'
+export type BossVariant = 'shock' | 'crossrake' | 'ward' | 'flanks' | 'spines'
 
 /** The second attack each kind grows into. One each, permanently — a kind's
  *  variant is as much a part of what it IS as its first attack. */
@@ -2261,6 +2359,13 @@ export const bossVariantFor = (kind: BossKind): BossVariant => {
     case 'meteor': return 'shock'
     case 'claw': return 'crossrake'
     case 'healer': return 'ward'
+    // The wyrm does not GROW into this one — it has the spines from its first
+    // fight and never draws a `variant` at all (see `bossVerbPool`). The answer
+    // is still its real second attack rather than the summoner's, because the
+    // question this function asks is "what is this kind's other move", and a
+    // kind that is met five stages before the tier opens is not a reason for it
+    // to have a wrong answer written down.
+    case 'wyrm': return 'spines'
     default: return 'flanks'
   }
 }
@@ -2283,7 +2388,7 @@ export const bossVariantFor = (kind: BossKind): BossVariant => {
  * nothing to do with what it is being asked.
  */
 export const variantOnSlamClock = (v: BossVariant): boolean =>
-  v === 'shock' || v === 'crossrake'
+  v === 'shock' || v === 'crossrake' || v === 'spines'
 
 
 // ─── shock: the ring with a hole in it ──────────────────────────────────────
@@ -2662,9 +2767,11 @@ export const GAZE_STRIKE_HALF_W = CROWD_MAX_R + 0.35
 // by how many of each it throws, and the bag holds that count constant.
 
 /** The attacks a boss can draw. `primary` is the kind's own attack (the ring,
- *  the rake, the bolt, the line wave); `variant` its second verb; `charge` the
- *  phase-two lane charge; `drain` the healer's big blow (`DRAIN_SHARE_MUL`). */
-export type BossVerb = 'primary' | 'variant' | 'gaze' | 'charge' | 'drain'
+ *  the rake, the bolt, the line wave, the wyrm's breath); `variant` its second
+ *  verb; `charge` the phase-two lane charge; `drain` the healer's big blow
+ *  (`DRAIN_SHARE_MUL`); `spines` and `spit` the wyrm's other two, which are its
+ *  own from its first fight rather than a tier (see `bossVerbPool`). */
+export type BossVerb = 'primary' | 'variant' | 'gaze' | 'charge' | 'drain' | 'spines' | 'spit'
 
 /**
  * Every attack this fight can draw, right now.
@@ -2686,6 +2793,24 @@ export type BossVerb = 'primary' | 'variant' | 'gaze' | 'charge' | 'drain'
  *     rather than over swings, so the bag does not dilute it into rarity.
  */
 export const bossVerbPool = (kind: BossKind, stage: number, enraged: boolean): BossVerb[] => {
+  // ── The wyrm arrives WHOLE ──
+  //
+  // Every other kind is one attack that grows a second at `BOSS_VARIANT_FROM_
+  // STAGE`, and the tier's argument is that a new move belongs on the first
+  // fight the player has met before. The wyrm is met on stage 3, five stages
+  // before that tier opens, and a boss introduced to break up a repeated fight
+  // cannot itself be one move repeated — so its three are all its own, from its
+  // first fight, the way the healer's drain is.
+  //
+  // Returned rather than pushed onto the shared pool below, because none of
+  // that pool applies to it: it has no `variant` slot to fill (the second and
+  // third attacks ARE its verbs), and it never charges — the lane charge is the
+  // answer to "this fight is one question", and this one is three.
+  if (kind === 'wyrm') {
+    const own: BossVerb[] = ['primary', 'spines', 'spit']
+    if (bossHasGaze(stage)) own.push('gaze')
+    return own
+  }
   const pool: BossVerb[] = ['primary']
   // ── The drain is the healer's from its first fight ──
   //

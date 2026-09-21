@@ -674,6 +674,102 @@ and cannot be cut. No labels, captions, numbers or watermarks.
 
 ---
 
+## Skewer — death  (models/skewer.png + death-skewer.png → images/deaths/skewer.webp)
+
+```text
+A SPRITE SHEET: 8 panels of THIS creature dying. Two images come with this prompt, in this order:
+  IMAGE 1 — `models/skewer.png` — THE CHARACTER: one frame of this exact creature,
+     exactly as the game shows it. Every panel shows this individual.
+  IMAGE 2 — `death-skewer.png` — THE ANIMATION: the game's own rough placeholder
+     drawing of the death. FOLLOW ITS POSES — where the head, arms, legs and body
+     are in each panel, and where the body ends up lying — and take nothing else
+     from it: not its limb lengths, shapes, colours, details or style. Image 2 is
+     a flat stand-in; image 1 is the creature.
+
+THE CHARACTER — copy it from image 1 into every panel:
+· A small STYLISED WYRMLING seen side-on, facing the left of the panel — a lean four-limbed dragonet, chunky and cartoon-solid, never a realistic lizard and never cute. A long low barrel body in dull sea-green scales with a pale sand-yellow belly, a row of short dark spines down its back. A long neck thrust forward and low into a narrow wedge head with a heavy jaw, five small white teeth along it, one pale curved horn swept back off the brow, a crest of short bone spines behind the skull, and one round ORANGE eye with a small dark pupil. Two membrane wings, rust-orange and leathery, each spread on three clawed fingers with a scalloped trailing edge. Four short legs tucked up under the belly, each ending in three pale claws. A long whipping tail ending in a flat bone BLADE.
+· Its MARKS, the ones the player knows it by — keep every one, in every panel that shows that side: the single orange eye, the pale swept-back horn, the bone crest behind the skull, the dark spines down its back, the rust-orange membrane wings on three clawed fingers, the pale sand belly and the flat bone blade at the end of its tail.
+· It wears and carries NOTHING: no clothes, loincloth, rags, belt, weapon or shield. Add none.
+· Its PROPORTIONS stay exactly as in image 1 in every panel: the head the same size
+  against the body, the limbs the same length and thickness. It does not grow taller,
+  leaner or more realistic while it flails, falls and lies spread out.
+· The same face, colours and markings as image 1.
+
+THE LOOK — paint it the way image 1 is painted, never as a clean cartoon:
+· Heavy, scratchy near-black ink contours with dry-brush breaks, thick on the shadow side.
+· Flat, gritty gouache-like paint inside the lines, with visible brushwork, grain and
+  rough cel-style shadow shapes. No smooth vector shading, no gradients, no glossy highlights.
+· The same muted, desaturated colours as image 1; its one hot accent stays as small as it is there.
+· Menacing and worn, not cute — it is the same grim creature the player has been fighting.
+
+THE ANIMATION — 4 across and 2 rows, read left to right along the top row, then the bottom row.
+These lines are for you to read. Never write them, or any other words, in the image:
+· panel 1: the blow lands — still in the air, the whole body jolted upward and back, wings thrown wide and high, neck arched, head flung up, the eye blazing.
+· panel 2: it stalls — the wings stop beating and start to drag, the body pitching nose-down as it begins to drop, the tail whipping up behind.
+· panel 3: falling — wings half folded and trailing above it, the body tipping over onto its near flank as it comes down, legs loose, the light in its eye dimming.
+· panel 4: it hits the ground — landing along its side, low and flat, the neck stretched out ahead of it, the wings crumpling under and over the body.
+· panel 5: flat out — lying on its flank along the ground, head and jaw flat in the dirt, the tail stretched straight out behind, one wing folded over the body and one under it.
+· panel 6: settling — the same body in the same place as panel 5, still flat on the same flank and facing the same way. Only its edges move: a wing slipping down, the tail dropping the last inch. It does NOT rise, stand, hover, fly, flap or lift off the ground — nothing about this panel is higher than panel 5.
+· panel 7: going out — lying exactly as in panel 5 and 6, limbs slack where they fell, the jaw open against the dirt, the eye closing, the fire in it guttering out.
+· panel 8: fallen — the same body in the same place again, lying still on its flank with the neck stretched out and the wings crumpled, facing the same way, eye shut and every inner light out. It has NOT turned round, rolled over or got up between the panels: this panel is panel 7 gone quiet. The game holds it on screen as the body, so it must read as "defeated" at a glance, even small.
+· FACING: image 1 faces LEFT, and so does every one of the 8 panels — head at the LEFT end, rump at the other, in all of them. Never mirror it. It stays side-on all the way down and keels over onto its far flank, its legs stiff, never tucked under it.
+· NOT A WALK. It is dying in all 8 panels: it never walks, trots, charges or stands square on all fours. Panel 1 rears, 2-4 collapse, and from panel 5 it is ON THE GROUND — the body flat along the dirt and the head down in the dirt with it, not held up.
+· HOW THIS ONE FALLS, where the panels above describe a body it does not have: It FLIES — there are no knees to buckle and no feet to be kicked out from under it. It goes down the way a flying thing does: the wings stall and are thrown wide, then drag, then fold in against its flank as it drops, and it lands along its side with the neck stretched out, the tail trailing straight behind and the wings crumpled under and over it. It never stands, kneels or falls onto its back. ONCE IT IS DOWN IT STAYS DOWN: from the panel it lands in to the last one it is lying flat along the ground on the same flank, facing the same way, and it never gets up, stands, hovers, flies, perches or crouches again. The "small bounce" is the body jolted a hand's width off the dirt and dropping straight back onto it — not the creature rising, and not it taking off.
+
+FOR CHILDREN — this game is played by kids:
+· NO blood, gore, wounds, broken or severed parts, or anything red and wet.
+· NO puddle, pool, splash or liquid under or around it — the game paints its own.
+· The defeat is the pose, the slack limbs and the light going out of its eyes. No "X"
+  eyes, stars, sweat drops or other cartoon symbols.
+
+LAYOUT — the grid is cut blindly:
+· EXACTLY 8 panels: 4 across, 2 rows. Not 1, not 4, not 12, not 16 — do not add a row. One big painting is the wrong answer.
+· Each panel is exactly 1/4 of the width and 1/2 of the height. The creature sits where image 2 puts it, at the size image 2 draws it — no bigger.
+· Leave a clear band of flat magenta between neighbouring panels, at least a tenth of
+  a panel wide. Nothing — a limb, a tail, a tusk, a weapon, a shadow — may touch or
+  cross a panel edge. Two panels that run into each other cannot be cut apart, and
+  the whole sheet is thrown away.
+· NO panel borders, frames, lines, boxes or gutters between the panels, and NO text,
+  titles, captions or numbers anywhere. Between two creatures there is nothing but the
+  same flat magenta as everywhere else.
+· In panels 1-3 the feet are at the height image 2 puts them; from panel 5 on the body lies
+  where image 2 lays it. Do NOT draw a ground line, floor, horizon or any line under it.
+· One soft contact shadow under the body, and nothing else behind it — no scenery.
+
+BACKGROUND — read this before anything else. It matters more than the style.
+Fill every pixel that is not the object itself with solid, flat, pure magenta
+#FF00FF. Treat it as a green-screen: one flat chroma-key colour, edge to edge.
+· EXACTLY #FF00FF — red 255, green 0, blue 255. Not pink, not rose, not dusty
+  pink, not mauve, not a soft or tinted version of it. Only the true colour can
+  be cut away cleanly; a near miss has to be flood-filled instead, and a flood
+  fill eats any pale paint it can reach.
+· NOT transparent. Transparency gets exported as a grey-and-white CHECKERBOARD
+  and then baked into the artwork as though the squares were paint.
+· NOT white, cream, black, parchment, paper, or any tinted or textured ground.
+· The object must NOT sit on a card, panel, sheet, badge, frame or rectangle of
+  any kind. The magenta must touch the outline of the object on every side.
+· No drop shadow onto the background, and no vignette.
+· The object itself must contain no magenta or hot pink.
+· The dark, desaturated palette above is for the OBJECT. The ground is not
+  part of the painting and is not toned down with it: it stays a vivid,
+  eye-hurting #FF00FF however dark everything else is. Dusty rose, pale pink
+  and mauve are the failure this whole clause is about.
+
+BEFORE YOU CALL IT FINISHED:
+· 8 panels, 4 across and 2 down, with no borders and no words.
+· Every panel is the creature of image 1 — its proportions, face and colours — carrying nothing new.
+· Its marks are all there: the single orange eye, the pale swept-back horn, the bone crest behind the skull, the dark spines down its back, the rust-orange membrane wings on three clawed fingers, the pale sand belly and the flat bone blade at the end of its tail.
+· Every panel faces LEFT: its head is at the LEFT end of its panel in all 8. None is mirrored.
+· Panel 8: lying still on its flank, legs out stiff, eyes shut — facing LEFT like every other panel, and lying exactly as panel 7 lies.
+· Everything that is not the creature is flat, vivid #FF00FF.
+
+OUTPUT: one image, 1680 x 720 pixels (21:9, landscape). If your tool has an
+aspect-ratio control, set it to 21:9 — a square or 16:9 return crushes the grid
+and cannot be cut. No labels, captions, numbers or watermarks.
+```
+
+---
+
 The last block is the SQUAD's own fall, and it works the same way: the character
 model (`art-sheets/models/survivors.png`, the three survivors as the game shows
 them) first, then the layout. One sheet covers every outfit and both of the poses

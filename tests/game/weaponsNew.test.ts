@@ -16,7 +16,8 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  DYNAMO_BOLT_MULT, GILD_COIN_MUL, GILD_STAND_S, THRALL_MAX, WEAPONS,
+  DYNAMO_BOLT_MULT, GILD_COIN_MUL, GILD_STAND_S,
+  THRALL_CAP_BASE, THRALL_CAP_PER, THRALL_LEAD, THRALL_MAX, thrallCapFor, WEAPONS,
   WEAPON_DEBUT, WEAPON_ROTATION, weaponDpsMul, weaponForStage
 } from '@/game/weapons'
 import { BULLET_RANGE, type Foe } from '@/game/survival'
@@ -166,20 +167,111 @@ describe('dynamo: a meter, and the bolt it buys', () => {
 })
 
 describe('gravecall: the dead get up', () => {
-  it('raises what it kills, up to the cap, and never an elite', async () => {
+  it('starts on the base cap and earns its way to the full line', async () => {
+    // The cap is earned: `THRALL_CAP_BASE` to begin with, one more slot every
+    // `THRALL_CAP_PER` bodies it puts down, up to `THRALL_MAX`. Killing past
+    // the cap still counts toward the next slot, which is what lets a player
+    // who is fighting at the ceiling climb off it.
     const game = await armed('gravecall', 60)
     const y = game.anchor().y + 4
-    for (let i = 0; i < THRALL_MAX + 6; i++) {
-      const f = plant(game, -2 + (i % 5), y + i * 0.05, 1)
+    const kill = (i: number): void => {
+      const f = plant(game, -2 + (i % 5), y + (i % 7) * 0.05, 1)
       game.__damageFoeForTest(f, 50)
     }
-    expect(game.getThralls().length, 'the cap did not hold').toBe(THRALL_MAX)
 
+    // One short of the first earned slot, so the OPENING cap is what binds.
+    for (let i = 0; i < THRALL_CAP_PER - 1; i++) kill(i)
+    expect(THRALL_CAP_PER - 1, 'the premise: more bodies than the base cap')
+      .toBeGreaterThan(THRALL_CAP_BASE)
+    expect(game.getThralls().length, 'the opening cap did not hold').toBe(THRALL_CAP_BASE)
+
+    // …and enough bodies to earn every remaining slot.
+    const toMax = (THRALL_MAX - THRALL_CAP_BASE) * THRALL_CAP_PER + THRALL_MAX
+    for (let i = 0; i < toMax; i++) kill(i)
+    expect(game.getThralls().length, 'the earned cap did not reach the ceiling')
+      .toBe(THRALL_MAX)
+    expect(thrallCapFor(0), 'a weapon that has killed nothing').toBe(THRALL_CAP_BASE)
+    expect(thrallCapFor(10_000), 'the ceiling is the ceiling').toBe(THRALL_MAX)
+  })
+
+  it('walks IN FRONT of the crowd on a road that is moving', async () => {
+    // The bug the rework was for: a thrall closed at `THRALL_SPEED` = 3.4 in
+    // WORLD units while the road runs at `stageSpeed` — 5.1 at stage 1, more
+    // later — so it lost ground every frame, sat on the floor behind the squad
+    // (`anchorY − 1.5`) and never met anything. Owner: "the revived monster
+    // stays behind the squad instead of running ahead and attacking".
+    //
+    // Asserted as a POSITION over time rather than as a speed, because the fix
+    // is that it is carried by the road and the failure looked like a tuning
+    // number either way.
+    const game = await armed('gravecall', 60)
+    const f = plant(game, 0, game.anchor().y + 4, 1)
+    game.__damageFoeForTest(f, 50)
+    expect(game.getThralls().length, 'nothing was raised').toBe(1)
+
+    // Long enough to cover the rise and a second of road.
+    for (let i = 0; i < 90; i++) game.step(STEP_MS)
+    const t = game.getThralls()[0]
+    expect(t, 'the thrall did not survive an empty road').toBeDefined()
+    // On an empty road it walks the lead line itself (`THRALL_LEAD`), which is
+    // the whole of "in front": far enough to meet what is coming before the
+    // crowd does.
+    expect(t!.y - game.anchor().y, 'the thrall was left behind the crowd')
+      .toBeGreaterThan(THRALL_LEAD * 0.6)
+  })
+
+  it('never raises an elite, however many it has killed', async () => {
+    const game = await armed('gravecall', 60)
+    const y = game.anchor().y + 4
     const elite = plant(game, 0, y, 1)
     elite.elite = true
-    const before = game.getThralls().length
     game.__damageFoeForTest(elite, 50)
-    expect(game.getThralls().length, 'an elite was raised').toBe(before)
+    expect(game.getThralls().length, 'an elite was raised').toBe(0)
+  })
+
+  it('burns in a boss ring, and never out of the crowd`s own budget', async () => {
+    // Nothing a boss threw could touch a thrall until now: every area attack
+    // bills SURVIVORS, and the dead are not survivors — measured, nine of them
+    // stood on a boss for thirteen seconds untouched. They burn now, and the
+    // ring takes the same share of the crowd either way, because a budget spent
+    // on the dead would make every boss easier for the one weapon that raises
+    // them.
+    const game = await importGame()
+    // Stage 5's boss is the meteor, and the ring is the shape this is about.
+    game.startStage(5)
+    game.debugAddUnits(80)
+    game.debugGiveWeapon('gravecall')
+    game.debugSkipToArena()
+    for (let i = 0; i < 400 && game.phase.value !== 'boss'; i++) game.step(STEP_MS)
+    expect(game.phase.value, 'the arena was never reached').toBe('boss')
+    const b = game.getBoss()!
+    expect(b.kind, 'this test needs the ring').toBe('meteor')
+    // A line of the dead, standing exactly where the ring is about to land.
+    for (let i = 0; i < 5; i++) {
+      const f = plant(game, 0, game.anchor().y, 1)
+      game.__damageFoeForTest(f, 50)
+    }
+    const alive = (): number => game.getThralls().filter((t) => !t.dead).length
+    const raised = alive()
+    expect(raised, 'nothing was raised').toBeGreaterThan(2)
+    for (const t of game.getThralls()) { t.x = game.anchor().x; t.y = game.anchor().y; t.rising = 0 }
+
+    const squadBefore = game.squadCount.value
+    // Aim the swing at the crowd's own ground and let it land.
+    b.aimed = true
+    b.slamX = game.anchor().x
+    b.slamY = game.anchor().y
+    b.slamCd = 0
+    b.guard = 0
+    game.step(STEP_MS)
+
+    // Counted as LIVE rather than as array length: a thrall is flagged dead on
+    // the frame it burns and spliced on the next one (`stepThralls`).
+    expect(alive(), 'the dead walked out of a ring of fire').toBeLessThan(raised)
+    // …and the crowd paid what it always pays: a share, not nothing, and the
+    // thralls did not absorb any of it.
+    expect(squadBefore - game.squadCount.value, 'the ring stopped billing the crowd')
+      .toBeGreaterThan(0)
   })
 
   it('raises nobody at all without the weapon', async () => {

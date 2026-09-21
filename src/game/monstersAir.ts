@@ -4,7 +4,9 @@ import {
 } from '@/game/inkArt'
 import {
   INK, SHADOW_DIR, LINE, paint, blink, eye, socket, horn, groundShadow,
-  gait, swing, spines, pivot, SOUL_LIGHT
+  gait, swing, spines, pivot, SOUL_LIGHT,
+  dyingAt, deathBeats, deathLid, deathShadow, fallOntoFlank, type DeathBeats,
+  hurlingAt, breathBeats, type BreathBeats
 } from '@/game/monsterKit'
 
 /**
@@ -155,17 +157,58 @@ export const drawDustmoth = (ctx: CanvasRenderingContext2D, S: number, t: number
 // ─── 12 · Skewer ────────────────────────────────────────────────────────────
 
 export const drawSkewer = (ctx: CanvasRenderingContext2D, S: number, t: number): void => {
+  // ── Dying: the only flyer in the cast that needed one ──
+  //
+  // The three designs in this file were road foes, and a road foe's death is a
+  // puff of dust and a coin. Then the wyrm boss took this body (`WYRM_DESIGN`),
+  // and a boss death is the loudest beat in a stage — so the first playtest got
+  // "BOSS FELLED!" over a wyrmling still hovering, wings beating, as if nothing
+  // had happened.
+  //
+  // A flyer goes down differently from a walker and the difference is the whole
+  // animation: there are no knees to buckle. The WINGS stall — thrown wide by
+  // the blow, then dragging, then folding — and the body falls out of the air
+  // onto its flank. `fallOntoFlank` owns the drop, the same helper the four-
+  // legged cast lands on, so the corpse lies at the same height and the goo
+  // underneath finds it in the same place.
+  const dk = dyingAt()
+  const D: DeathBeats | null = dk === null ? null : deathBeats(dk)
+  // ── Breathing instead of flying ──
+  //
+  // The wyrm's big attack, in the slot a meteor boss's throw plays in — see
+  // "…and the one boss that breathes instead of throwing" in `monsterKit`. The
+  // JET is not drawn here: the fire is four columns on the road, painted by the
+  // game from the numbers it bills (`drawWyrmMarks`), and a flame coming out of
+  // this mouth would sit over them in the wrong place. What the body does is
+  // draw the breath and sweep the head, and that is all these eight keys are.
+  const bk = D ? null : hurlingAt()
+  const B: BreathBeats | null = bk === null ? null : breathBeats(bk)
+
   // Small wings beat fast. This is the quickest cycle in the whole cast.
   const g = gait(t, 480)
-  const flap = Math.sin(g * Math.PI * 2)
-  const bob = Math.cos((g - 0.15) * Math.PI * 2) * 0.05 * S
+  // Stalled: the beat stops at the blow and the wings are carried by the fall
+  // from there. Frozen mid-stroke rather than snapped to a rest pose, because
+  // the frame the blow lands on is the frame the player is looking at.
+  const flap = D ? Math.sin(g * Math.PI * 2) * (1 - D.buckle) : Math.sin(g * Math.PI * 2)
+  const bob = D
+    // A last lift off the blow, then nothing: the drop itself is the transform.
+    ? 0.05 * D.recoil * S
+    : B
+      // Rearing to draw lifts it; the sweep drives it back down and forward.
+      ? (-0.09 * B.draw + 0.05 * B.sweep) * S
+      : Math.cos((g - 0.15) * Math.PI * 2) * 0.05 * S
 
   const SCALE = tones('#3f6b5e', 1.1)
   const BELLY = tones('#c8b57e', 0.95)
   const MEMB = tones('#c2683a', 0.95)
   const CLAW = tones('#efe4c8', 0.95)
 
-  groundShadow(ctx, S, 0.3, 1.02, 0.16)
+  // The head is drawn to the LEFT (`faces: 'left'`), so that is the end that
+  // comes to rest uphill — `deathFallSide` and the strip agree on it.
+  const HEAD_DIR = -1 as const
+  if (D) deathShadow(ctx, S, D, 0.3, 0, 1.02, 0.16)
+  else groundShadow(ctx, S, 0.3, 1.02, 0.16)
+  if (D) fallOntoFlank(ctx, S, D, HEAD_DIR, 0.34, 0.3)
 
   const cy = 0.26 * S + bob
 
@@ -205,12 +248,42 @@ export const drawSkewer = (ctx: CanvasRenderingContext2D, S: number, t: number):
     }
   }
 
+  /**
+   * What the blow does to a wing.
+   *
+   * Thrown wide and high as it lands (`recoil`), then dragged back and down as
+   * the body falls, and folded in against the flank once it is lying — a dead
+   * membrane wing collapses, it does not stay spread like a display. Returned
+   * as an angle offset and a length factor so both wings take it from one
+   * place.
+   */
+  const stall = (spread: number): { a: number; k: number } => D
+    ? {
+      a: -spread * D.recoil + 0.5 * D.fall + 0.34 * D.lifeless,
+      k: 1 - 0.34 * D.fall - 0.12 * D.lifeless
+    }
+    // Breathing, they are held: thrown wide and high to hover through the draw,
+    // then swept back as the head goes out. Spread rather than beating, because
+    // eight still panels read a held wing and cannot read a fast one.
+    : B
+      ? { a: -0.46 * B.draw + 0.3 * B.sweep, k: 1 + 0.12 * B.effort }
+      : { a: 0, k: 1 }
+
   // ── Far wing: set further back, more upright, and a tone down ──
-  drawWing(-0.06 * S, cy - 0.16 * S, -1.16 + flap * 0.34, 0.82,
+  const farStall = stall(0.5)
+  drawWing(-0.06 * S, cy - 0.16 * S, -1.16 + flap * 0.34 + farStall.a, 0.82 * farStall.k,
     tones('#8f5330', 0.9), 1250, 'rgba(48,20,10,0.4)')
 
   // ── Tail: long, whipping, and it ends in a blade ──
-  const wag = Math.sin((g - 0.35) * Math.PI * 2) * 0.1 * S
+  // Dying, the whip goes out of it: one last lash on the blow, then slack, and
+  // the barb drops as the body settles.
+  const wag = D
+    ? Math.sin((g - 0.35) * Math.PI * 2) * 0.1 * S * (1 - D.buckle) + 0.16 * S * D.lifeless
+    : B
+      // Counterweight: out and up as the neck curls back, thrown the other way
+      // as the head comes across.
+      ? (-0.14 * B.draw + 0.18 * B.sweep) * S
+      : Math.sin((g - 0.35) * Math.PI * 2) * 0.1 * S
   const tail: Pt[] = [
     [0.26 * S, cy + 0.1 * S],
     [0.58 * S, cy + 0.22 * S + wag * 0.4],
@@ -252,10 +325,15 @@ export const drawSkewer = (ctx: CanvasRenderingContext2D, S: number, t: number):
 
   // ── Legs, drawn up under the belly the way a flying thing carries them ──
   for (const side of [-1, 1] as const) {
-    const tr = swing(g - 0.3, 0.03) * S
+    // Kicking on the blow, then stuck out stiff — the flank cast's rule for a
+    // leg that has stopped carrying anything.
+    const tr = D
+      ? swing(g - 0.3, 0.03) * S * (1 - D.buckle) - 0.06 * S * D.fall
+      : swing(g - 0.3, 0.03) * S
+    const out = D ? 0.1 * S * D.fall * (side > 0 ? 1 : 0.6) : 0
     const hip: Pt = [side * 0.05 * S - 0.02 * S, cy + 0.22 * S]
-    const knee: Pt = [side * 0.16 * S + 0.02 * S, cy + 0.42 * S + tr]
-    const toe: Pt = [side * 0.06 * S, cy + 0.54 * S + tr]
+    const knee: Pt = [side * 0.16 * S + 0.02 * S + out, cy + 0.42 * S + tr]
+    const toe: Pt = [side * 0.06 * S + out * 1.6, cy + 0.54 * S + tr]
     stroke(ctx, [hip, knee, toe], 0.075 * S, 0.034 * S, side > 0 ? SCALE.base : SCALE.shade, 1280 + side)
     const hock = blob(knee[0], knee[1], 0.045 * S, 0.04 * S, 1282 + side, 0.16)
     paint(ctx, S, hock, side > 0 ? SCALE : tones('#345a4f', 1.1), 1283 + side, { line: false })
@@ -265,11 +343,26 @@ export const drawSkewer = (ctx: CanvasRenderingContext2D, S: number, t: number):
   }
 
   // ── Neck and head, thrust forward and low ──
-  const hx = -0.56 * S
-  const hy = cy - 0.26 * S
+  //
+  // Breathing, this is the whole animation: the neck curls the head back and up
+  // over the shoulders to draw (panels 2-3), then throws it forward and down and
+  // carries it across the road (panels 4-7). The rest of the body only answers
+  // it — see the wings and the tail above.
+  const hx = -0.56 * S + (B ? (0.24 * B.draw - 0.2 * B.sweep) * S : 0)
+  const hy = cy - 0.26 * S + (B ? (-0.34 * B.draw + 0.3 * B.sweep) * S : 0)
   stroke(ctx, [
     [-0.24 * S, cy - 0.06 * S], [-0.42 * S, cy - 0.22 * S], [hx + 0.12 * S, hy + 0.06 * S]
   ], 0.15 * S, 0.095 * S, SCALE.shade, 1290)
+
+  // The head turns as one piece about the base of the skull: snout to the sky
+  // at the top of the draw, then swung down and across through the sweep.
+  ctx.save()
+  if (B) {
+    const turn = -0.62 * B.draw + 0.82 * B.sweep
+    ctx.translate(hx + 0.16 * S, hy + 0.06 * S)
+    ctx.rotate(turn)
+    ctx.translate(-(hx + 0.16 * S), -(hy + 0.06 * S))
+  }
 
   const head = rough([
     [hx + 0.18 * S, hy - 0.1 * S],
@@ -280,18 +373,41 @@ export const drawSkewer = (ctx: CanvasRenderingContext2D, S: number, t: number):
     [hx + 0.16 * S, hy + 0.12 * S]
   ], 0.01 * S, 1292)
   paint(ctx, S, head, SCALE, 1293, { line: LINE.mid, breakUp: 0.26 })
+  // The lower jaw drops about its hinge, so the mouth OPENS instead of the head
+  // growing a bigger chin. Everything the jaw carries — the teeth below — turns
+  // with it, which is why they are drawn inside this same transform.
   const jaw = rough([
     [hx - 0.26 * S, hy + 0.09 * S],
     [hx + 0.14 * S, hy + 0.14 * S],
     [hx + 0.12 * S, hy + 0.26 * S],
     [hx - 0.19 * S, hy + 0.19 * S]
   ], 0.008 * S, 1294)
+  ctx.save()
+  if (B && B.gape > 0.001) {
+    ctx.translate(hx + 0.13 * S, hy + 0.14 * S)
+    ctx.rotate(0.62 * B.gape)
+    ctx.translate(-(hx + 0.13 * S), -(hy + 0.14 * S))
+  }
   paint(ctx, S, jaw, tones('#345a4f', 1.1), 1295, { line: LINE.fine, deep: false })
   for (let i = 0; i < 5; i++) {
     const tx = hx + (-0.2 + i * 0.07) * S
     fillShape(ctx, [
       [tx, hy + 0.11 * S], [tx + 0.014 * S, hy + 0.17 * S], [tx + 0.028 * S, hy + 0.11 * S]
     ], '#f4ecd6')
+  }
+  ctx.restore()
+  // The throat, lit from inside while the breath is being drawn and dark the
+  // moment it is let go — a dull ember deep in the back of the mouth, no bigger
+  // than its own eye. Nothing else about the fire is drawn on this body: the
+  // jet itself is the game's (`drawWyrmMarks`).
+  if (B && B.throat > 0.01) {
+    ctx.save()
+    ctx.globalAlpha = 0.55 * B.throat
+    ctx.fillStyle = '#ff9a2e'
+    ctx.beginPath()
+    ctx.ellipse(hx + 0.07 * S, hy + 0.13 * S, 0.05 * S, 0.035 * S, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
   }
   fillShape(ctx, blob(hx - 0.27 * S, hy - 0.02 * S, 0.026 * S, 0.02 * S, 1296, 0.18), '#14201c')
   // A crest of small spines instead of two floating twigs — a ridge reads as
@@ -301,11 +417,16 @@ export const drawSkewer = (ctx: CanvasRenderingContext2D, S: number, t: number):
 
   const bl = blink(t, 900)
   eye(ctx, hx - 0.1 * S, hy - 0.02 * S, 0.052 * S, {
-    iris: '#ffa424', glow: '#ff8a10', pupil: 0.22, lid: bl, brow: 0.85, seed: 1310, sclera: '#f6dfae'
+    // The fire in it is the last thing to go, and it goes on the same beat every
+    // other body's does.
+    iris: '#ffa424', glow: '#ff8a10', pupil: 0.22,
+    lid: D ? deathLid(D, bl) : bl, brow: 0.85, seed: 1310, sclera: '#f6dfae'
   })
+  ctx.restore()
 
   // ── Near wing, over everything ──
-  drawWing(0.08 * S, cy - 0.14 * S, -0.78 + flap * 0.5, 0.98,
+  const nearStall = stall(0.62)
+  drawWing(0.08 * S, cy - 0.14 * S, -0.78 + flap * 0.5 + nearStall.a, 0.98 * nearStall.k,
     MEMB, 1320, 'rgba(62,26,14,0.45)')
 }
 
